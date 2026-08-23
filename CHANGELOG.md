@@ -22,7 +22,7 @@ diagnostics, collection helpers, conversions, and editor support.
 - **Fixed: `==` compares an int and a float numerically.** `1 == 1.0` was false,
   so an average computed as `sum / 3.0` never matched the integer it printed as,
   with no diagnostic. `eql?` keeps its kind gate — that is the distinction the
-  documentation draws — so hash keys still treat `1` and `1.0` as different.
+  documentation draws — while hashes now accept only string and symbol keys.
 - **Fixed: an unknown method now reports the offending line and can be rescued.**
   Calling a method that does not exist on a string, array, hash, money, or
   temporal value reported the start of the script instead of the call, and could
@@ -66,35 +66,17 @@ diagnostics, collection helpers, conversions, and editor support.
   an unknown member -- with no suggestion, since neither `name` nor `symbol` is
   close enough for the did-you-mean to fire. Both return exactly what
   interpolation produces.
-- **Documented: `JSON.parse` produces string keys.** A hash literal writes symbol
-  keys, so a parsed object never equals the literal it came from and a symbol
-  lookup reads nil rather than reporting anything -- the first symptom was
-  usually a downstream nil error far from the parse. `docs/builtins.md` now
-  states this next to `JSON.parse` and shows the `transform_keys` conversion.
 - **Added: `String#*` repeats a string.** There was no way to build a separator,
   indent, table rule, or progress bar at a computed width without a loop -- a
   literal `"------"` was the only alternative. `"-" * 20` now works as in Ruby,
   truncating a float count toward zero and reporting a negative one. The
   projected size is charged against the memory quota before anything is
   allocated.
-- **Improved: a nullable shape-field read says why.** Reading a required field
-  from a shape-typed parameter types as `T | nil`, because a shape accepts
-  either key kind — `{name: "a"}`, `{"name": "b"}`, and `JSON.parse` output all
-  satisfy `{ name: string }` — so the checker cannot know which one the read
-  hits. The bare diagnostic read as though the field were optional. It now
-  names the real cause, and only where that is the cause.
 - **Fixed: `vibes check` reported one copy of a body diagnostic per call site.**
   A helper called eight times produced eight identical lines for a single
   mistake -- same file, line, column, and text -- which buried the other genuine
   findings and made "check failed with N issue(s)" count call sites rather than
   problems. Diagnostics identical in every field are now reported once.
-- **Fixed docs: a quoted hash key is a string, not a symbol.** The language
-  reference stated that `"foo-bar":` was the same symbol as `:"foo-bar"`, so an
-  author following it read the value back with `h[:"foo-bar"]` and silently got
-  nil. The reference now states the rule alongside the hash-literal grammar: a
-  bare label makes a symbol key, a quoted label makes a string key, and the
-  quoted form is the only literal syntax for the string-keyed hashes that
-  `JSON.parse` returns.
 - **Fixed: a minus before a numeric literal binds to the literal.** `-5.abs`
   returned `-5` because the sign bound looser than the member call and landed on
   the method's result, and `-5.to_s` failed outright. The sign now folds into the
