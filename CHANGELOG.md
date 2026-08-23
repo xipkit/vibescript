@@ -19,6 +19,10 @@ declarative namespaces. The release also closes a broad set of parser,
 checker, runtime, and memory-quota denial-of-service paths while improving
 diagnostics, collection helpers, conversions, and editor support.
 
+Go module users already on `v1.0.0-rc9` must select this release explicitly
+because `v0.60.0` has lower semantic-version precedence:
+`go get github.com/mgomes/vibescript@v0.60.0`.
+
 - **Fixed: `==` compares an int and a float numerically.** `1 == 1.0` was false,
   so an average computed as `sum / 3.0` never matched the integer it printed as,
   with no diagnostic. `eql?` keeps its kind gate — that is the distinction the
