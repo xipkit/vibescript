@@ -34,11 +34,6 @@ diagnostics, collection helpers, conversions, and editor support.
   frequent authoring mistake there is, and it was previously unassisted at check
   time. Receivers that could dispatch elsewhere -- dynamic, named types, and the
   kinds whose member list is hand-maintained -- stay silent.
-- **Fixed: a `break` inside a block reported "break used outside of loop".** The
-  message described a situation the author could see was untrue -- the `break`
-  was plainly inside an `each` -- so it sent them looking for a missing `end`.
-  It now names the real restriction and points at the alternatives. `break` still
-  cannot cross a block boundary; only the diagnostic changed.
 - **Added: `Hash#map`.** Hashes had `map_with_index` but no `map`, so every hash
   aggregation had to route through `to_a` and positional pair indexing. It yields
   the `[key, value]` pair, so `h.map { |k, v| ... }` and `h.map { |pair| ... }`
