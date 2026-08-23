@@ -446,7 +446,7 @@ diagnostics, collection helpers, conversions, and editor support.
   5.9s while both charged exactly 100,000 steps either way. Every lookup now
   bills the entries it compares, in the output pass as well as the sizing pass,
   carrying the sub-step remainder so ordinary short sets still cost nothing.
-- **Fixed: four static-check paths no longer cost the square of the source.**
+- **Fixed: three static-check paths no longer cost the square of the source.**
   Every one of them runs inside `CheckWarnings` and `CheckedCall`, before any
   script step or memory quota can meter it. Binding a destructured block
   parameter re-derived the same decomposition and rest element for every
@@ -457,14 +457,7 @@ diagnostics, collection helpers, conversions, and editor support.
   naming every namespace member recorded as possibly reassigned, rebuilt on each
   of the many lookups a statement makes and kept once per call: 800 member
   writes with a call after each allocated 475MB against 68MB now, and a summary
-  whose walk does read those members is still separated by all of them. And one
-  stored block's body is walked for its result at most 8,000 statements and
-  expressions per check (a 200-statement proc filled 200 times: 831MB against
-  87MB, and a proc of one 800-element array literal filled 800 times: 62MB
-  against 1.6MB). Past that bound the written element is unknown, which weakens
-  the receiver, and the call is left unable to complete, since the walk it
-  skipped could have proved the body always raises and cut the code after the
-  fill, so the bound can cost a diagnostic but never produce one.
+  whose walk does read those members is still separated by all of them.
 - **Fixed: a lookup's accumulated results are now visible to the memory quota
   while its callback runs.** `Hash#fetch_values` and `Hash#values_at` build their
   result in a Go local the estimator had no root for, so every check performed
@@ -592,17 +585,6 @@ diagnostics, collection helpers, conversions, and editor support.
   of the equivalent unvalidated scan and reinstates the quadratic cost above.
   Hosts sizing a quota tightly against physical memory should leave that window as
   headroom.
-- **Fixed: checking a lambda that calls itself many times no longer costs the
-  square of its body.** A body reachable from itself is walked twice for the
-  instance variables it may write — once under the caller's facts, once under
-  the state the recursive call left behind — but the bound on those walks was
-  restored at every recursive call site rather than spent for the walk as a
-  whole, so each site started its own walk over the whole body. A body holding
-  3,200 recursive calls, well inside the source-size limit, took 12.7s inside
-  `CheckWarnings`, where no script step or memory quota can meter it; it takes
-  37ms now, and 800 calls allocate 1.7MB against 109MB. Both walks still run, so
-  no diagnostic changes: recursion that writes no instance variable keeps its
-  exact facts, and a write the recursion enables is still collected.
 - **Fixed: a small result of a large string no longer holds the whole string.**
   A Go substring shares its source's backing allocation, so a member returning a
   window onto its receiver kept the entire receiver alive while the memory quota
@@ -651,22 +633,6 @@ diagnostics, collection helpers, conversions, and editor support.
   already proved equal, which reaches each pair once: the same comparison takes
   68. Scripts that do not nest a value under more than one key are unaffected and
   allocate nothing extra.
-- **Fixed: checking a function whose lambda calls itself many times no longer
-  costs the square of the lambda's body.** A lambda the checker can prove runs
-  is re-checked so a yield it reaches can withdraw the enclosing function's
-  inferred return type, and that re-check re-enters the body at every recursive
-  call site, because a yield only a later site enables is reachable only from
-  there. Nothing bounded how many of those re-entries one summary could run, so
-  a body holding 320 recursive calls — well inside the source-size limit — took
-  4m14s inside `CheckWarnings`, where no script step or memory quota can meter
-  it. It takes 1.5s now, and the statements those walks visit fall from 206,082
-  to 1,284. A re-entry that reaches a yield makes every later one a provable
-  no-op, so nothing changes for a body whose yield can run. Past eight re-entries
-  that reach none, the checker stops trying to prove the yield unreachable and
-  withdraws the function's inferred return type instead — the same answer it
-  already gives for a lambda it cannot resolve — so a script with nine or more
-  recursive calls to one lambda may lose a diagnostic about that function's
-  result. None gains one.
 - **Fixed: an array drained with `shift` no longer holds the slots it gave up.**
   Removing from the front narrows the receiver onto a window further into the
   same allocation, and Go keeps an allocation live as a whole for any pointer
