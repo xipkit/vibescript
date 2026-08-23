@@ -961,7 +961,7 @@ gaps found during 1.0 release-candidate hardening.
 
 - [x] Remove script-visible Tasks and sleep in favor of synchronous,
   host-controlled capabilities.
-- [x] Enforce nonescaping blocks and reduce modules to declarative namespaces.
+- [x] Enforce nonescaping blocks and remove module mixins and instance-style behavior.
 - [x] Give hashes one string keyspace and arrays and hashes value semantics.
 - [x] Keep values independent across the host boundary.
 - [x] Record the lightweight language boundary in ADR-006 and align the public
