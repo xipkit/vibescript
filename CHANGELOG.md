@@ -302,9 +302,9 @@ diagnostics, collection helpers, conversions, and editor support.
   drops from 2.30s to 6.6ms and scales linearly. Byte totals are unchanged:
   the smallest admitting quota is pinned identical to the uncached reference
   walk, and `VIBES_ESTIMATOR_VERIFY` re-derives every incremental commit from
-  scratch. Loops whose bodies call builtins (a `j.to_s` key, `push`) still
-  discard the memo at builtin depth and stay super-linear — that contributor
-  is tracked separately.
+  scratch. Loops whose bodies call mutating or undeclared builtins such as
+  `push` still discard the memo and stay super-linear — that contributor is
+  tracked separately.
 - **Performance: a loop under a memory quota no longer re-walks the heap every
   iteration.** A statement list evaluates in the scope it is handed rather than a
   fresh one, so a loop body re-pushes the enclosing scope each iteration. That
