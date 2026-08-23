@@ -274,8 +274,7 @@ diagnostics, collection helpers, conversions, and editor support.
 - **Fixed: `eql?` was not kind-strict for nested values.** `[1].eql?([1.0])` was
   true where Ruby says false: `eql?` checked only the outermost kind and then
   delegated to `==`, so elements took the numeric comparison. Strictness now
-  holds at every level, which is what hash-key identity depends on. `==` is
-  unchanged and stays numeric nested.
+  holds at every level. `==` is unchanged and stays numeric nested.
 - **Faster: building a one-element array no longer walks the whole reachable
   graph.** Every array literal opened an incremental build accumulator whose
   baseline is an unmemoized reference walk, so allocating a single slot cost
