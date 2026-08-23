@@ -13,9 +13,9 @@ All notable changes to this project will be documented in this file.
 
 Vibescript 0.60 narrows the language around predictable sandboxing. Tasks,
 sleep, escaping callables, mixed-key hashes, shared collection mutation, and
-module bodies with executable work are removed in favor of synchronous host
-capabilities, nonescaping blocks, string-keyed hashes, value semantics, and
-declarative namespaces. The release also closes a broad set of parser,
+module behavior injection are removed in favor of synchronous host capabilities,
+nonescaping blocks, string-keyed hashes, value semantics, and explicit namespace
+calls. The release also closes a broad set of parser,
 checker, runtime, and memory-quota denial-of-service paths while improving
 diagnostics, collection helpers, conversions, and editor support.
 
