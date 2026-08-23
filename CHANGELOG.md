@@ -725,10 +725,13 @@ diagnostics, collection helpers, conversions, and editor support.
   assumption that it might. This is a safety promise rather than a performance
   hint: an untrue one lets an execution allocate past its `MemoryQuotaBytes`.
   Undeclared builtins are unaffected.
-- **Added: `vibes.DeclareNonRetaining`.** The companion promise, that a builtin
-  keeps no reference to anything it is handed or returns. It is recorded but not
-  yet consulted, so declaring it changes no behavior today; it is published
-  ahead of the change that reads it.
+- **Added: `vibes.DeclareNonRetaining`.** A host builtin can promise that it
+  retains no reference to anything it receives or returns and that its output
+  shares no storage the host already holds. The host boundary consults the
+  promise: inputs skip retention marking, returns skip their detach copy, and
+  values exchanged through `Execution.CallBlock` avoid boundary copies. This is
+  a safety promise, not a performance hint; an untrue declaration creates a live
+  aliasing channel. Undeclared builtins keep the conservative boundary behavior.
 - **Removed: the `Tasks` namespace and script-visible `sleep`.** Per
   [ADR-006](docs/adr/006-slim-language-for-predictable-sandboxing.md), hosts own
   concurrency and delay. `Tasks.run`, `Tasks.map`, `tasks.spawn`, `tasks.wait`
