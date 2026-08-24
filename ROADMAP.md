@@ -951,4 +951,36 @@ from the host.
 - [x] Full tests pass.
 - [x] Release checklist passes for `v1.0.0-rc9`.
 
+## v0.60.0 - Predictable Sandboxing and Lightweight Semantics (completed 2026-08-22)
+
+Goal: ship a smaller language surface whose execution and memory use are easier
+for hosts to reason about, while closing the correctness and denial-of-service
+gaps found during 1.0 release-candidate hardening.
+
+### Language and Host Semantics
+
+- [x] Remove script-visible Tasks and sleep in favor of synchronous,
+  host-controlled capabilities.
+- [x] Enforce nonescaping blocks and remove module mixins and instance-style behavior.
+- [x] Give hashes one string keyspace and arrays and hashes value semantics.
+- [x] Keep values independent across the host boundary.
+- [x] Record the lightweight language boundary in ADR-006 and align the public
+  documentation with it.
+
+### Sandbox and Tooling Hardening
+
+- [x] Bound pathological parser, checker, formatting, comparison, and
+  collection workloads by explicit limits or quota charges.
+- [x] Make genuine quota exhaustion uncatchable and close retained-memory,
+  scratch-allocation, and backing-storage accounting gaps.
+- [x] Improve static diagnostics, runtime error locations, LSP completion, and
+  common collection and conversion operations.
+- [x] Publish nonmutating and nonretaining contracts for host builtins.
+
+### v0.60.0 Definition of Done
+
+- [x] Release notes are documented in `CHANGELOG.md`.
+- [x] Full tests pass.
+- [x] Release checklist passes for `v0.60.0`.
+
 ## Unreleased

@@ -9,6 +9,828 @@ All notable changes to this project will be documented in this file.
 <!-- Unreleased entries are tracked as individual files in changelog.d/ so
      pull requests never conflict on this file. They are compiled into a
      versioned section by scripts/build_changelog.sh at release time. -->
+## v0.60.0 - 2026-08-22
+
+Vibescript 0.60 narrows the language around predictable sandboxing. Tasks,
+sleep, escaping callables, mixed-key hashes, shared collection mutation, and
+module behavior injection are removed in favor of synchronous host capabilities,
+nonescaping blocks, string-keyed hashes, value semantics, and explicit namespace
+calls. The release also closes a broad set of parser,
+checker, runtime, and memory-quota denial-of-service paths while improving
+diagnostics, collection helpers, conversions, and editor support.
+
+Go module users already on `v1.0.0-rc9` must select this release explicitly
+because `v0.60.0` has lower semantic-version precedence:
+`go get github.com/mgomes/vibescript@v0.60.0`.
+
+- **Fixed: `==` compares an int and a float numerically.** `1 == 1.0` was false,
+  so an average computed as `sum / 3.0` never matched the integer it printed as,
+  with no diagnostic. `eql?` keeps its kind gate — that is the distinction the
+  documentation draws — while hashes now accept only string and symbol keys.
+- **Fixed: an unknown method now reports the offending line and can be rescued.**
+  Calling a method that does not exist on a string, array, hash, money, or
+  temporal value reported the start of the script instead of the call, and could
+  not be caught by `rescue` at all. Sandbox limits stay deliberately outside
+  `rescue`, as before.
+- **Added: `vibes check` reports an unknown method on a statically-known
+  receiver.** `s.uppercase` on a `s: string` parameter reported "No issues
+  found" and failed only at runtime. Choosing a wrong method name is the most
+  frequent authoring mistake there is, and it was previously unassisted at check
+  time. Receivers that could dispatch elsewhere -- dynamic, named types, and the
+  kinds whose member list is hand-maintained -- stay silent.
+- **Added: `Hash#map`.** Hashes had `map_with_index` but no `map`, so every hash
+  aggregation had to route through `to_a` and positional pair indexing. It yields
+  the `[key, value]` pair, so `h.map { |k, v| ... }` and `h.map { |pair| ... }`
+  both behave as in Ruby.
+- **Fixed: `assert(cond, "msg")` was a parse error.** `assert` was parsed as a
+  bespoke statement form, so the parenthesised call read `(cond, "msg")` as a
+  grouped expression and failed on the comma, despite the documented two-argument
+  signature. It now parses as an ordinary call. The paren-less forms, including
+  `assert (a > b), "msg"` where the space makes the parentheses a grouped first
+  argument, are unchanged.
+- **Improved: diagnostics for deliberate Ruby divergences now name the
+  alternative.** `attr_accessor` points at `property`/`getter`/`setter` and notes
+  the name is bare rather than a symbol; `property :x` shows the bare form;
+  `class B < A` says inheritance is unsupported and names the module-function
+  replacement; and an
+  undefined variable that *is* bound at the top level explains that functions do
+  not capture top-level bindings. An agent reads the error far more often than
+  it reads the docs, so the error is where the idiom has to be taught.
+- **Added: `Array#flat_map` (alias `collect_concat`).** `map { }.flatten(1)`
+  covered it, so this is the missing shorthand for a common shape -- notable
+  mainly because `filter_map` was already present, which made the absence look
+  arbitrary. It flattens exactly one level, as in Ruby.
+- **Added: `to_s` and `inspect` on enum values.** Interpolation rendered an enum
+  value correctly but the explicit conversion did not exist, so `.to_s` reported
+  an unknown member -- with no suggestion, since neither `name` nor `symbol` is
+  close enough for the did-you-mean to fire. Both return exactly what
+  interpolation produces.
+- **Added: `String#*` repeats a string.** There was no way to build a separator,
+  indent, table rule, or progress bar at a computed width without a loop -- a
+  literal `"------"` was the only alternative. `"-" * 20` now works as in Ruby,
+  truncating a float count toward zero and reporting a negative one. The
+  projected size is charged against the memory quota before anything is
+  allocated.
+- **Fixed: `vibes check` reported one copy of a body diagnostic per call site.**
+  A helper called eight times produced eight identical lines for a single
+  mistake -- same file, line, column, and text -- which buried the other genuine
+  findings and made "check failed with N issue(s)" count call sites rather than
+  problems. Diagnostics identical in every field are now reported once.
+- **Fixed: a minus before a numeric literal binds to the literal.** `-5.abs`
+  returned `-5` because the sign bound looser than the member call and landed on
+  the method's result, and `-5.to_s` failed outright. The sign now folds into the
+  literal, matching Ruby, while `-2 ** 2` keeps its `-4` value and `-x.abs` on a
+  variable still means `-(x.abs)`.
+- **Fixed: `String#to_i` rejected integers beyond int64.** A value the language
+  can represent, print, and compute with could not be parsed back from its own
+  string form, so `(2 ** 100).to_s.to_i` failed. Integers are arbitrary
+  precision, and the surfaces documented as staying within 64 bits are indexes,
+  counts, sizes, precisions, and the temporal types -- a value conversion is none
+  of those. `to_int` had the same gap on strings while already promoting floats,
+  and is fixed with it. Malformed strings are still rejected; only the range
+  limit is lifted.
+- **Added: arrays compare and sort.** `[1, 2] <=> [1, 3]` returned nil and
+  `[[2, 1], [1, 9]].sort` failed, so an array of arrays could not be ordered at
+  all. Arrays now compare lexicographically as in Ruby: the first differing
+  element decides, and a shorter array with an equal prefix sorts first. This
+  reaches further than arrays themselves, because a hash entry is a pair, so
+  `hash.to_a.sort` and `sort_by { |r| [r[:a], r[:b]] }` now work. As in Ruby, the
+  relational operators still reject arrays -- `Array` defines `<=>` but does not
+  include `Comparable`.
+- **Added: `vibes check` reports a space before a parenthesised argument.**
+  `f (x).length` binds as `(f(x)).length` here but as `f((x).length)` in Ruby.
+  Both readings produce a value and neither reported anything, so the difference
+  was invisible -- most damagingly in `puts (x).inspect`, where the one line
+  written to see a value accurately renders it inaccurately. The binding is
+  unchanged; only the ambiguity is now reported.
+- **Fixed: concatenating a non-renderable value into a string is now an error.**
+  `"Hello, " + name` silently produced `"Hello, "` when `name` was nil, so a
+  missing value disappeared into the message instead of being reported, and
+  containers, host objects, and class instances rendered as placeholders such
+  as `"[1]a"` or `"user: <User instance>"`. Concatenating
+  scalars (`"total: " + count`) is unchanged, and the checker now reports the
+  same mismatch statically when both operand types are known.
+- **Fixed: string interpolation and `puts` ignored a class's `to_s`.** They
+  rendered the `<ClassName instance>` placeholder even when the class defined
+  `to_s`, so a value printed one way when interpolated and another when `.to_s`
+  was called explicitly. Both now dispatch to a user-defined `to_s`, falling back
+  to the placeholder when the class defines none, when its `to_s` cannot be
+  called with zero arguments, or when it returns a non-string. As in Ruby, a
+  value nested inside a container still renders through the container.
+- **Improved: completion after `.` narrows to the receiver's type.** It offered
+  the union of all 306 builtin members whatever the receiver was, so a string
+  receiver was offered money and temporal methods and completion could not rule
+  out a wrong method name. It now narrows when the receiver's kind is known from
+  the source -- a literal, or a parameter with a declared type -- and falls back
+  to the full union for anything else.
+- **Added: named captures are accessible.** A pattern's named groups compiled and
+  matched but were never surfaced, so `m[:name]` read nil and `named_captures`
+  did not exist -- every non-trivial extraction had to be read back positionally.
+  `m[:name]`, `m["name"]`, and `m.named_captures` now work. An index naming an
+  entry the match result already has (`captures`, `pre_match`, ...) still reads
+  that entry.
+- **Added: the missing `to_s` and `inspect` members.** Every value kind already
+  rendered correctly through interpolation and inside a container's `inspect`,
+  but the direct methods were absent on most kinds, and which kind had which
+  corresponded to nothing -- `duration`, `money`, and `time` had `to_s` but not
+  `inspect`, `array` had `inspect` but not `to_s`, `range` had neither. Array and
+  range now render with `to_s`, and duration, money, and time with `inspect`. The
+  aggregate renderings charge the memory quota exactly as `inspect` does.
+- **Fixed: a keyword default referencing an earlier parameter reported parameter
+  ordering.** `def f(a:, b: a)` -- the simplest spelling of the documented "a
+  later default may reference an earlier parameter" feature -- parses the bare
+  identifier as a type annotation, which makes the parameter ordinary and trips
+  the ordering rule. The error now explains the type-annotation reading and shows
+  the parenthesized form (`b: (a)`) that expresses the default.
+- **Fixed: scaling a duration by a fraction no longer collapses it to zero.**
+  `1.hour * 0.5` returned `0s` because a float operand was truncated to an
+  integer before scaling, so every factor below one produced a zero duration and
+  `1.hour / 0.5` reported a division by zero. Float factors and divisors now
+  scale properly and round to the nearest second; integer operands keep their
+  exact path.
+- **Fixed: crossing `Time#format` and `Time#strftime` returned the format string
+  as data.** `t.strftime("2006-01-02")` answered `"2006-01-02"` -- a string that
+  looks exactly like a formatted date, because the Go reference layout is one, so
+  a report could emit the same twenty-year-old date on every row and pass a
+  visual check, a type check, and an ISO-8601 regex. Both directions now report
+  which format language they expected and which method takes the one supplied.
+- **Changed: zoneless times default to UTC instead of the host zone.** `Time.now`
+  and a `Time.parse` of a timestamp carrying no zone bound to the host process's
+  `TZ`, so the same script and the same data produced a different calendar day
+  depending on where it ran -- and `Time.now` disagreed with the `now` builtin,
+  which is documented as UTC and always was. Both are UTC now. An explicit `in:`
+  zone, or a `Z`/offset in the input, is honored as before.
+- **Fixed: the embedding starter templates compile again.** All three scaffolds
+  under `templates/embedding/` referenced value constructors on the `vibes`
+  package rather than `vibes/value`, so none of them built. CI now compiles every
+  template, which is what let them drift.
+- **Fixed: `Hash#map` ignored the block's arity and hid its retained output.**
+  A block using numbered parameters (`{ _2 }`) received the whole `[key, value]`
+  pair as `_1` and nil as `_2`; the yield shape now follows the block's
+  positional arity as every other hash iterator does. The accumulating result is
+  also reserved as releasable scratch, so a large temporary allocated inside a
+  later block call is measured against a baseline that includes what the loop
+  has already retained -- previously the two could pass separately though they
+  coexisted.
+- **Fixed: `retry` escaped an implicit `to_s`.** A class's `to_s` invoked by
+  interpolation inside a rescue handler could run `retry` and restart the
+  caller's rescue, while an explicit `obj.to_s` in the same position reported
+  `retry cannot cross call boundary`. The implicit call is a call boundary too
+  and now behaves like one.
+- **Fixed: a rescued error rendered as `<object>`.** `rescue => e` followed by
+  `puts "failed: #{e}"` is the most common error-reporting idiom there is, and it
+  printed `failed: <object>` -- a silent loss, since `e.message` and `e.to_s`
+  both held the text. Interpolation, `puts`, and `print` now render the message,
+  as in Ruby. `inspect` keeps the full detail.
+- **Fixed: `format("%s", obj)` ignored a class's `to_s`.** `%s` is defined as the
+  `to_s` form, but `format` was the last direct string conversion that did not
+  consult it -- interpolation and `puts` were connected in #1055 and this was
+  left out, so one conversion still disagreed with the other two.
+- **Fixed: array comparison was unmetered and exponential on shared graphs.**
+  Comparing two arrays that share subtrees did work exponential in their depth
+  -- 2.1 seconds at depth 24 -- while charging no steps, so a script could
+  monopolize the runtime from inside `<=>` whatever its limits. Completed pairs
+  are now memoized and every compared element charges a step. A sandbox limit
+  reached during a sort keeps its classification rather than being relabelled as
+  an incomparability.
+- **Fixed: `<=>` did not order symbols or nil though `sort` did.** `:a <=> :b`
+  answered nil while `[:c, :a].sort` worked, so the operator misreported what the
+  language can do. Coverage now follows Ruby per kind: symbols order under `<=>`
+  and the relational operators (Symbol includes Comparable), nil orders under
+  `<=>` alone, and booleans order under neither.
+- **Fixed: an incomparable comparison could not be rescued and pointed at line
+  1.** `1 < "a"` raised an error that `rescue` could not catch and that reported
+  the start of the script rather than the comparison, because the relational
+  operators returned without positioning the error. Sandbox limits stay
+  deliberately uncatchable; an ordinary type error is now both catchable and
+  located.
+- **Fixed: an unbounded decimal conversion could occupy a worker.**
+  `big.Int.SetString` is superlinear, so the linear step charge passed well
+  before a multi-million-digit conversion finished. String conversions are now
+  capped at the same 100,000 digits the parser already applies to integer
+  literals, and the source string is charged alongside the parsed bignum since
+  both are live at once.
+- **Fixed: detecting a crossed `Time` format rendered it first.** Classifying
+  `t.format("%1000000000N")` ran the strftime renderer, which honors a
+  directive's requested width, allocating about a gigabyte purely to decide --
+  and with no memory limit set that exhausts the process. Detection now scans
+  for a recognized directive instead of rendering.
+- **Fixed: a duplicate named capture reported nil.** When a pattern reuses a
+  group name, only one of those groups participates in a given match, but a
+  later non-participating duplicate overwrote an earlier match -- so
+  `/(?<x>a)|(?<x>b)/` against `"ab"` reported nil for `x` rather than `"a"`. The
+  last participating group is kept, as in Ruby.
+- **Changed: a recognized zone abbreviation is no longer forced to UTC.** An
+  input such as `Mon, 27 Jul 2026 14:30:45 EDT` now resolves against the host's
+  local timezone. If that timezone does not recognize the abbreviation, Go
+  still assigns it offset zero, so use a numeric offset for portable input. A
+  timestamp naming no zone still defaults to UTC on every host.
+- **Fixed: enum conversions rendered before checking the quota.** `to_s`,
+  `string`, and `inspect` on an enum value allocated the whole `Enum::Member`
+  text before the memory guard ran, which matters when an identifier is larger
+  than the quota. The length is now projected from the two identifiers first.
+  A typo near `string` also suggests it.
+- **Added: `name`, `to_s`, and `inspect` on an enum type.** The type object
+  supported no member access at all -- it interpolated as `<Enum Status>` but
+  `Status.to_s` reported "unsupported member access on enum" -- leaving it the
+  one value kind you could not ask anything about.
+- **Fixed: `vibes check` rejected `"-" * 12`.** `String#*` works at runtime, but
+  the checker's operator matrix had no string case, so it reported unsupported
+  multiplication operands on valid programs.
+- **Fixed: any object with a `to_s` field had it rendered.** The shortcut that
+  renders a rescued error's message keyed on the field name alone, so ordinary
+  host data carrying a string field of that name had its payload rendered in
+  place of `<object>`. Only the two bags that deliberately publish a string form
+  -- a rescued error and match data -- are rendered.
+- **Fixed: `vibes check` rejected symbol comparisons.** `:a < :b` runs, but the
+  checker's comparison matrix accepted only numeric, string, money, duration,
+  and time pairs, so check reported an unsupported comparison and `CheckedCall`
+  refused to run the script.
+- **Fixed: `rescue ArgumentError` catches an incomparable comparison.** The
+  language reference documents `<`, `<=`, `>`, and `>=` as raising Ruby's
+  `ArgumentError` on operands that cannot be ordered, but `1 < "a"` raised an
+  untyped error that only a bare `rescue` could catch, so a handler written from
+  the documentation silently missed it. `<=>` is unaffected and still answers
+  `nil`.
+- **Fixed: an internal key leaked into `String#match` results.** The result
+  carried a NUL-prefixed sentinel holding the positional values, visible in
+  `keys`, `values`, `to_a`, `size`, `each`, and `inspect` -- a key the author
+  never created and which read back as nil through its own name. The positional
+  view is now rebuilt from the public entries, with the whole match under `to_s`
+  as in Ruby, so no separate copy exists to leak.
+- **Added: `break` works inside blocks.** The most common early-exit idiom in a
+  Ruby-flavored language was rejected, and the restriction was asymmetric --
+  `next` and `return` both crossed a block boundary and `break` did not. As in
+  Ruby, `break` now terminates the call the block was passed to and that call
+  evaluates to the break value: `[1, 2, 3, 4].each { |n| break n if n > 3 }` is
+  `4`. A break crossing a call that received no block still reports.
+- **Fixed: `vibes check` rejected a hash's stored entries.** `({answer: 42}).answer`
+  returns 42 at runtime but was reported as an unknown member: a hash serves
+  stored entries for any name its member table does not own, so that table is
+  not the authoritative set the check assumed. Regex literals are now detected
+  as receivers, which the check claimed to cover but could not reach.
+- **Fixed: an absorbed `break` bypassed return-type validation and capability
+  binding.** A break becoming a call's result skipped the function's declared
+  return type -- so a string could leave an `-> int` function -- and skipped the
+  post-call capability scan, leaving a builtin published during that call
+  reachable without its contract. The break now continues down the normal
+  return path.
+- **Fixed: `eql?` was not kind-strict for nested values.** `[1].eql?([1.0])` was
+  true where Ruby says false: `eql?` checked only the outermost kind and then
+  delegated to `==`, so elements took the numeric comparison. Strictness now
+  holds at every level. `==` is unchanged and stays numeric nested.
+- **Faster: building a one-element array no longer walks the whole reachable
+  graph.** Every array literal opened an incremental build accumulator whose
+  baseline is an unmemoized reference walk, so allocating a single slot cost
+  O(reachable). A script nesting a structure in a loop paid that on every
+  iteration. A one-element literal now charges its result once through the
+  memoized check instead, which measures 1.7x faster on a 2000-deep build under
+  a quota.
+- **Added: a measurement harness for deep-nesting construction under a memory
+  quota.** Building a chain of nested arrays is quadratic in depth when a quota
+  is in force and linear without one; the benchmark and scaling test state that
+  as an executable baseline so an incremental-estimation fix has a pass/fail
+  target rather than a table in an issue.
+- **Performance: building collections in a hand-written loop is no longer
+  quadratic under a memory quota.** Growing an array with `<<` or filling a
+  hash with new keys invalidated the memory estimator's base-walk memo every
+  iteration — the append's epoch bump, the hash literal's construction-time
+  reference walk and its three epoch bumps, and the capacity-doubling
+  reservation each forced whole-graph re-walks, so a loop that builds n
+  records did O(n²) estimator work (the quota is on by default at 16 MiB).
+  Literals now build epoch-silently and price their entries through the
+  memoized walk, growth reservations resume the memo, and eligible appends
+  and added hash entries commit their marginal bytes into the memo instead of
+  discarding it. Building 2,000 `{id:, name:}` records under a 64 MiB quota
+  drops from 2.30s to 6.6ms and scales linearly. Byte totals are unchanged:
+  the smallest admitting quota is pinned identical to the uncached reference
+  walk, and `VIBES_ESTIMATOR_VERIFY` re-derives every incremental commit from
+  scratch. Loops whose bodies call mutating or undeclared builtins such as
+  `push` still discard the memo and stay super-linear — that contributor is
+  tracked separately.
+- **Performance: a loop under a memory quota no longer re-walks the heap every
+  iteration.** A statement list evaluates in the scope it is handed rather than a
+  fresh one, so a loop body re-pushes the enclosing scope each iteration. That
+  duplicate stack slot was treated as a topology change and invalidated the
+  memory estimator's memo twice per iteration, making a loop that only reads
+  quadratic in its own iteration count. Reading a 4,000-element array in a
+  `while` loop under a 64 MiB quota drops from 63ms to 5ms, and the same loop is
+  now linear rather than quadratic.
+- **Fixed: array scans charge the step quota per element.** `include?`, `index`,
+  `rindex`, `min`, `max`, `minmax`, and the blockless `uniq` scanned the whole
+  receiver for a flat handful of steps, so a script could scan an arbitrarily
+  large host-supplied array on a constant budget. They now charge one step per
+  element, as `sum` and `reverse` already did. An early match still exits early
+  and costs only the elements it examined. `uniq` in both forms additionally
+  charges for the equality probes a composite costs, since deduplicating
+  composites compares each one against every distinct composite already seen.
+- **Fixed: string methods charge the step quota for the bytes they scan.** A
+  string method's work grows with its receiver but it dispatches as a single
+  call, so charging a flat handful of steps let a script process a
+  host-supplied string of any size on a constant budget: repeatedly upcasing an
+  800 KB string burned five minutes inside the default 1M-step profile before
+  the quota fired. String methods now charge one step per 64 bytes of receiver,
+  the same rate big-integer operands are charged at. Methods whose cost does not
+  grow with the receiver (`bytesize`, `empty?`, `getbyte`, `ord`, `chr`, `to_s`,
+  `clear`, `byteslice`, `to_sym`, `intern`) stay exempt, and any receiver
+  shorter than 64 bytes rounds down to no charge, so ordinary short strings are
+  unaffected.
+  Rendering a value charges for the bytes it prints -- `inspect`,
+  interpolation, `to_s`, `puts`, and `join` alike -- so converting a large
+  string to a symbol stays free while printing that symbol's name does not.
+  `format` charges for its pattern as well as its arguments: a 512 KB pattern
+  with no arguments at all previously ran for over a minute inside the default
+  profile without the quota firing.
+  The charge covers string arguments copied into a result as well as the
+  receiver, so a short receiver with a large argument (`"".concat(s)`) costs
+  the same as the reverse.
+  Operations whose output size comes from a number rather than their inputs --
+  `ljust`, `rjust`, `center`, and `String#*` -- charge for the bytes they write,
+  since a few-byte receiver can produce megabytes.
+  Serializing and templating charge for the strings they reach through a
+  structure, so `JSON.stringify({v: big})` and `"{{v}}".template({v: big})`
+  cost what they copy rather than what their receiver holds. `template` also
+  checks its scratch against the memory quota as it builds it rather than once
+  it has finished, so a template it is going to reject no longer renders every
+  placeholder first.
+  Operators, index syntax, and equality predicates charge too: `+`, the
+  comparisons, `s[0]`, and `eql?` never pass through method dispatch, so each
+  copied or scanned a whole string for a flat cost. Comparing two scalars
+  charges for the bytes a comparison can read -- nothing when equality can
+  answer from a length mismatch, the shorter operand when it cannot.
+  A regex operand is sized from its source rather than by rendering it, so
+  measuring what a regex will print no longer costs a full escape pass on top of
+  the one that prints it.
+- **Comparisons through arrays and hashes now charge for the string bytes they
+  read.** The #1131 charge stopped at the operator boundary, so `[s] == [s]`,
+  `{k: s} == {k: s}`, `[s] <=> [s]`, `include?`, `index`, `count`, `sort`,
+  `max`, `uniq`, set operations, `eql?`, and `case/when` all scanned
+  arbitrarily long payloads for a flat handful of steps — a loop over
+  host-supplied strings with a long common prefix ran unbounded on a constant
+  budget. The charge now lands at the recursive scalar comparison with the
+  operator-level rules (equality bills only equal-length pairs, ordering
+  bills the common prefix), shared and cyclic structures are billed once per
+  distinct pair, and string-like hash and set keys are charged at every
+  key-canonicalization site, closing the flat-cost `[s].uniq` and hash-key
+  hashing gap noted alongside. `count(value)` and `hash.value?` also gain the
+  per-element step their sibling scans already charged. Payloads under 64
+  bytes round to free, so ordinary scripts see no new cost.
+- **Changed: quota exhaustion is no longer rescuable.** `rescue LimitError`
+  (and `RuntimeError`, `Error`, and unions) used to catch a tripped step or
+  memory quota, so a loop that rescued the error could absorb the signal that
+  its budget was spent and keep burning a fresh operation's worth of work per
+  iteration — the memory quota even recovered once the oversized value was
+  dropped. Genuine exhaustion (step quota, memory quota, `string.scan`'s
+  output cap) now latches the execution: no rescue clause matches it, `ensure`
+  bodies and `retry` cannot run work past it, and the host always receives the
+  termination. Recursion-limit errors, stdlib input guards, and script-raised
+  `raise LimitError` remain rescuable — they describe one rejected operation,
+  not a spent budget. The host-visible error is unchanged:
+  `*vibes.RuntimeError` with `Type == "LimitError"` and the same messages.
+- **Fixed: a source of malformed percent-array candidates no longer makes
+  parsing superlinear.** Deciding whether a `%` the lexer read as modulo really
+  opens a `%w`/`%i`/`%W`/`%I` literal means re-scanning from that point, and the
+  scan can only report failure by reaching the end of the input, after which the
+  caller advances a single byte to the next candidate. A source that just
+  repeats ` %w[` therefore paid for a near-full re-scan per byte, and because
+  each of those scans re-entered the interpolation finder for every `#{` it
+  crossed, a source of many small interpolations was cubic rather than quadratic.
+  Only the source-size limit stood in the way, so a script at the default 1 MiB
+  cap held the parser for over eight minutes before any runtime quota could
+  apply; it now finishes in 149ms. The fruitless scans are charged against one
+  parse-wide allowance of four times the source length, shared by every lexer
+  and sub-parser involved, while a scan that does find its literal stays free --
+  so percent literals of any length and number keep parsing as before. Ordinary
+  modulo on a local (`a %w+ b`) is settled by the existing local-variable
+  suppression before any scanning happens, so it costs nothing, and a source
+  that does outrun the allowance is reported rather than parsed with `%` quietly
+  demoted to modulo.
+- **Fixed: a line of many parenless calls no longer crashes the host.** A
+  parenless call parses its argument as a full expression, and that argument may
+  be another parenless call, so `a a a a ...` on one line nests one call per
+  identifier. Half a megabyte of them fits well inside the default source-size
+  limit and drove the parser deep enough to overflow the goroutine stack, which
+  is fatal for the whole process rather than for the script, and long before
+  that the parse was already taking seconds. Parenless calls now nest at most 64
+  deep, the same bound type annotations have carried, and a line past it reports
+  "parenless call nesting too deep" against the argument that would have opened
+  the next level. Real code stacks two or three deep (`puts format value`), so
+  nothing written on purpose comes near the cap.
+- **Fixed: a class returned to the host no longer copies its property types
+  once per parameter.** An unannotated ivar parameter (`def m(@x)`) carries the
+  property contract its class declares once, and cloning a class for the host
+  copied that whole type expression again for every parameter that named it. A
+  38KB script with a 1000-field property type and 500 such methods therefore
+  retained 80MB, allocated inside the host clone after the run had ended, where
+  no quota could observe it. A clone now copies each type expression once for
+  the whole operation and gives that copy to every parameter and class reaching
+  it, so that script retains 0.5MB. The copy is still the clone's own: editing
+  a contract on a class from `Classes()` cannot reach the compiled script that
+  later calls run.
+- **Fixed: what a required file builds during initialization is inside the
+  calling execution's memory quota.** A required module's environment is only a
+  Go local until require publishes its exports, so the classes and constants it
+  was building hung off no root the memory estimator walked, and every check
+  running inside its initialization measured a graph that did not contain them.
+  That environment is now reachable by the estimator while the module
+  initializes.
+- **Fixed: string character-set scans are now charged for the entries they
+  compare.** `count`, `delete`, `tr` and `squeeze` charged one step per receiver
+  character but compared that character against every entry of every character
+  set, so a large non-matching set bought the product of both arguments for the
+  price of the receiver alone: over a fixed 100 KB receiver, growing the set
+  from 1 entry to 8192 took `count` from 1.8ms to 750ms and `tr` from 1.6ms to
+  5.9s while both charged exactly 100,000 steps either way. Every lookup now
+  bills the entries it compares, in the output pass as well as the sizing pass,
+  carrying the sub-step remainder so ordinary short sets still cost nothing.
+- **Fixed: three static-check paths no longer cost the square of the source.**
+  Every one of them runs inside `CheckWarnings` and `CheckedCall`, before any
+  script step or memory quota can meter it. Binding a destructured block
+  parameter re-derived the same decomposition and rest element for every
+  element, so a 4,000-target `(x1, ..., xN, *rest)` inspected 16.0M elements
+  against 4,002 now. Modeling a rest parameter rebuilt every aggregate at every
+  argument, so `sink(0, 0, ...)` against `def sink(*xs)` allocated 274MB at
+  2,000 arguments against 5.5MB now. Return summaries were keyed by a context
+  naming every namespace member recorded as possibly reassigned, rebuilt on each
+  of the many lookups a statement makes and kept once per call: 800 member
+  writes with a call after each allocated 475MB against 68MB now, and a summary
+  whose walk does read those members is still separated by all of them.
+- **Fixed: `Hash#fetch_values` accumulated results are now visible to the memory
+  quota while its block runs.** The method builds its result in a Go local the
+  estimator had no root for, so every check performed inside an attached block
+  measured a graph missing everything the loop had already retained: a block
+  returning an individually permitted value could accumulate past
+  `MemoryQuotaBytes` one accepted result at a time. The output is now registered
+  as a base-walk root, so each check re-derives what
+  the output holds at the moment it runs and deduplicates it against the receiver
+  and the arguments. The root covers the results produced so far rather than the
+  slice sized from the argument count, so a wide lookup does not pay for its
+  whole output on its first miss. Costs are unchanged while the callback leaves
+  the base-walk memo intact; a callback that mutates state discards it, and the
+  re-walks that forces are described below. Whatever a lookup is charged is settled
+  as it returns, so a callback that mutates state and then raises pays what one
+  that returns pays, and a rescued failure leaves nothing behind for a later lookup
+  to be billed for.
+  `VIBES_ESTIMATOR_VERIFY` re-derives every commit from scratch.
+- **Changed: a lookup whose callback destructures with a named rest costs more
+  steps.** Such a callback is the only one that makes `Hash#fetch_values` weigh
+  a binding against the reachable graph, and that weighing
+  builds a charge whose construction walk previously reached no counter. It is now
+  billed, so the cost scales with the graph the callback is weighed against: four
+  such lookups over a tenfold graph cost about 2.8 times the steps. A script doing
+  this in bulk under a tight `StepQuota` may need a larger one. Callbacks without
+  a named rest are unaffected.
+- **Known: re-walking a lookup's retained results is not charged to the step
+  quota, and a callback that mutates makes those re-walks quadratic.** When a
+  callback mutates anything, the estimator's memo is discarded and the lookup's
+  retained results are walked again on the next memory check, so the walking grows
+  with the square of the number of results. Registering the output is what
+  introduces that shape: the same script is linear without it.
+
+  That walking is deliberately not charged to the step quota. It is triggered by a
+  memo whose key is process-wide, so an unrelated script running at the same time
+  invalidates it just as a script's own mutation does, and billing the walk let one
+  script's mutations push an unrelated script over its `StepQuota` -- a worse
+  failure than leaving the walk uncharged.
+
+  It is bounded, but by the quotas rather than by a small constant: the results
+  walked are bounded by `MemoryQuotaBytes` and the number of walks by `StepQuota`,
+  so the work cannot exceed their product. A mutating `fetch_values` block over a
+  wide lookup can still do more estimator work than its step count suggests.
+  Charging it accurately needs per-execution mutation tracking, which is left to
+  its own change.
+- **Known: one nested lookup shape is charged more memory than it uses.** A
+  `Hash#fetch_values` block that destructures with a named rest
+  (`|(head, *tail)|`), runs inside another iterator's block, and returns a value
+  held by the enclosing block's scope is charged for that value twice from its
+  second callback onward. A script doing this needs roughly one extra copy of the
+  returned value's size in `MemoryQuotaBytes`. Nothing is let through unchecked
+  -- the lookup is over-charged, not under-charged -- and the quota still bounds
+  what it can allocate. Flat lookups, callbacks without a named rest, and nested
+  lookups returning a value held outside the enclosing block are unaffected and
+  cost what they did before. This is a known cost of bounding a path that was
+  previously unbounded, and the accounting fix is deliberately left to its own
+  change.
+- **Fixed: a memory quota now counts a frame that a block rebound while it was
+  dormant.** The estimator charges a call frame holding only scalars once and
+  skips it on later checks, on the understanding that nothing can change it while
+  it is dormant. That cached total was dropped only inside the one walk that
+  reads `nonBaseParentDepth`, and both a builtin driving a script block and a
+  block-iteration region route around that walk, so a block closed over its
+  dormant caller could rebind the caller's `Int` to a 400KB string and leave the
+  frame charged at its scalar-only 245 bytes. Either shape ran to completion
+  under a 404,951-byte quota while retaining two live 400KB strings; both now
+  need the 804,361 bytes they hold. The committed total is retracted when a scope
+  that could rebind it is pushed, so the invalidation no longer depends on which
+  walk the next check takes.
+- **Fixed: refining a witnessed hash shape no longer costs the square of the
+  writes.** A field write refines the receiver's fact by copying it, so the copy
+  every other holder depends on grew with the shape: 2,000 `h[:kN] = 1` writes
+  against a growing literal allocated 520MB inside `CheckWarnings`, where no
+  script step or memory quota can meter it, and 800 writes of one key against a
+  literal whose other field is an 800-field shape allocated 97MB, since counting
+  fields rather than the nodes each copy walks missed the second entirely. A
+  budget spent by the copies bounds both, and it travels with the fact, so a
+  fresh literal elsewhere starts with all of it. The same pairs allocate 11.8MB
+  and 5.4MB now. Past the budget the fact gives up claiming to name every key
+  and never a key it already names. The asymmetry is what matters: the checker
+  rules a branch out from the type of a field the fact names, so a fact that
+  stopped naming one would stop ruling that branch out, while the claim to name
+  them all decides nothing by itself and costs nothing to give up.
+- **Changed: a hash built from a very wide literal may now report mistakes in
+  branches the checker used to prove unreachable.** The budget above stops
+  refining once a script overwrites a few hundred fields of a literal that names
+  a few hundred, with values of a type the literal did not give them; a hundred
+  such overwrites is still well inside it, and smaller scripts never reach it at
+  all. Past that point the checker gives the hash's shape up rather than keep a
+  partial one, so a condition reading one of its fields stops being decided and
+  the arm that condition used to rule out is checked like any other. What turns
+  up there is real: a mistyped call or an undefined name that would have failed
+  had the arm ever run. It is never a complaint about correct code, since an arm
+  with nothing wrong in it stays silent, and code that runs either way is
+  unaffected, because a field the checker has stopped tracking reads as unknown
+  rather than as something else. Keeping the shape instead would have meant
+  copying it once per overwrite, which is the cost this fix exists to remove.
+- **Fixed: comparing hashes no longer costs quadratic host CPU under a memory
+  quota.** Validating an equality walk's sort scratch ran a reachable-graph
+  estimate before every allocation, and every check a builtin drives bypasses the
+  base-walk memo, so each compared hash paid a full uncached whole-graph walk to
+  place 24 bytes of key slice. `array.include?` and its siblings charge one step
+  per candidate, so probing an array of n small hashes ran n uncached graph walks
+  for n charged steps: quadratic host work under a linear step budget, on a
+  process shared with other tenants. Probing 800 one-entry hashes falls from
+  4,154,117 estimator node visits to 302,917, and from 498ms to 36ms at 1600
+  candidates. Scratch is now counted for as long as a walk holds it, so the
+  periodic quota check and every call-root and admission estimator account for it,
+  and it is repriced against a granule derived from the configured quota rather
+  than a constant sized for the default profile.
+
+  **Known residual, relevant if you configure a small `MemoryQuotaBytes`.** A
+  single comparison may reach up to one granule of transient sort scratch — a
+  256th of the configured quota, so 64 KiB under the default 16 MiB profile and
+  proportionally smaller on smaller quotas — before that footprint is validated
+  against the quota. The scratch is released when the comparison ends and does not
+  accumulate across comparisons, so the peak exposure is one such window rather
+  than a sum, and it cannot grow without bound. Closing the window entirely would
+  mean validating at every comparison, which measures at 15.7x the estimator work
+  of the equivalent unvalidated scan and reinstates the quadratic cost above.
+  Hosts sizing a quota tightly against physical memory should leave that window as
+  headroom.
+- **Fixed: a small result of a large string no longer holds the whole string.**
+  A Go substring shares its source's backing allocation, so a member returning a
+  window onto its receiver kept the entire receiver alive while the memory quota
+  priced the window by its own length. Keeping 200 one-character results of a
+  megabyte each held 192.2 MiB under an 8 MiB quota. `strip`, `lstrip`, `rstrip`
+  and their `!` forms, `chomp(sep)` and `chomp("")` and theirs, `delete_prefix`,
+  `delete_suffix` and theirs, the parts of `split`, the lines of `lines` and
+  `each_line`, and the matches of `scan` now copy what they return, so a string's
+  footprint equals its length. `byteslice`, `slice`, bracket reads and
+  `partition` were already copied. A result that spans its whole receiver is
+  still handed back untouched and costs nothing. Argumentless `chomp`, `chop` and
+  `chop!` deliberately still return a window: they remove at most a couple of
+  bytes, so reaching a meaningful gap costs one call per byte — which the step
+  quota already prices — while copying would make two constant-cost methods scale
+  with the receiver.
+- **Changed: these members now allocate their result, which a tight memory quota
+  can notice.** The bytes were always charged; they are now actually used, and
+  they are reserved before they are allocated, so a call that cannot fit its
+  result is rejected before making it rather than after. Trimming a 64 KiB string
+  that is almost entirely padding takes 6.6µs where it took 1.7µs, splitting a
+  60 KB document into 10,000 fields 6.6% longer, and `lines` over 2,000 lines
+  12.7%; a receiver with nothing to trim is unchanged. Walking a string with
+  `each_line`, or `scan` with a block, costs about 10-12% more when a memory
+  quota is configured and is unchanged without one.
+- **Fixed: a deeply nested value no longer makes an in-place hash or array
+  update report a mismatch against correct code.** An update keeps what the
+  checker knows about the container only when the operands it evaluated left the
+  variable holding the same value, and that comparison was made from a
+  canonicalized key that stops at eight levels of nesting. A variable rebound
+  while the update's own operands were being evaluated — to a value differing
+  from the old one only below that depth — therefore looked untouched, so the
+  update was applied to the value the variable used to hold and put it back.
+  Reading the rebound field afterwards answered from the old value, and a call
+  taking the new one was reported. The comparison now proves the two values are
+  the same instead of grouping them, which is also cheaper: 1,600 `store` calls
+  on a growing hash allocate 4.4MB against 11.2MB.
+- **Fixed: comparing two type facts that share their nested values no longer
+  takes exponential time.** A fact built by repeatedly nesting a value under
+  more than one key — `x = { a: x, b: x }` — has as many paths through it as it
+  has combinations of keys, but only as many distinct values as lines that built
+  it. The exact comparison the checker uses to decide whether two facts are the
+  same walked those paths rather than those values, so comparing two
+  independently built copies of a 20-line fact of that shape took two million
+  comparisons and every further line doubled it, hanging `CheckWarnings` on a
+  script well inside the source-size limit. It now remembers the pairs it has
+  already proved equal, which reaches each pair once: the same comparison takes
+  68. Scripts that do not nest a value under more than one key are unaffected and
+  allocate nothing extra.
+- **Fixed: an array drained with `shift` no longer holds the slots it gave up.**
+  Removing from the front narrows the receiver onto a window further into the
+  same allocation, and Go keeps an allocation live as a whole for any pointer
+  into it, so the vacated slots stayed held by an array that could no longer
+  reach them. The memory estimator prices a header at its capacity plus its
+  elements, both of which a forward reslice shrinks, so it stopped charging for
+  them too: a 4096 element array drained to one element was charged 377 bytes
+  while holding 131,072, and sixty-four rounds of building and draining one held
+  7.98 MiB against a charge that rose by 10,563 bytes, without bound. A fully
+  drained array now moves onto fresh empty storage, and a partially drained one
+  is compacted once the prefix it has vacated grows larger than what it still
+  shows. `pop` was unaffected in its charge, since it does not move the start of
+  the header, but it held the same storage and now releases it too.
+- **Changed: a `shift` that compacts allocates and can be refused.** The copy is
+  charged and reserved before it is made, so a shift that cannot fit one is
+  rejected and leaves the array holding every element it did. Draining costs
+  9.00 steps per element where it cost 8.00, and stays linear: a copy of m
+  elements happens only after more than m have been removed, so a drain of any
+  size copies fewer elements than it removes.
+- **Fixed: an array's wrapper is charged the memory it actually occupies.** The
+  struct the runtime boxes every array's elements in was exactly a slice header,
+  so the estimator's slice-base charge priced it by accident. The shrink above
+  adds a field to it, which would have left 8 bytes per array unmetered -- an
+  under-count introduced by a fix for an under-count -- so the charge is now
+  derived from the struct and the next field is priced by the commit that adds
+  it. Every projection that reserves a new array was moved with it, so a build
+  and the walk that supersedes it still agree to the byte -- including the
+  destructured-rest and range/string materialization preflights, which promise
+  the allocation will fit before making it and could otherwise allocate an array
+  wrapper with 8 bytes fewer than it needs. Adding the two constants together to
+  price an array is now a build failure rather than a convention, since the
+  helper alone does not stop the next projection from restating the old formula.
+- **Fixed: the estimated slice header size is derived rather than stated, so
+  memory accounting is correct on 32-bit targets.** It was hard-coded to the
+  64-bit value of 24 bytes, which over-charged every slice, string table and
+  array by 12 bytes on the 386 builds in the release matrix. Deriving the array
+  wrapper's charge from its struct is what exposed it: the two are subtracted
+  from each other, and on 386 the stated 24 exceeded the whole 16-byte wrapper.
+  Nothing changes on 64-bit, where the derived value is the same 24.
+- **Fixed: builtins that publish inner arrays reserve the wrapper each one
+  allocates.** `zip`, `product`, `combination` and `permutation` priced every row
+  as a bare slice, so a wide call allocated one array wrapper per row beyond what
+  the quota had admitted; `group_by` did the same once per group, and
+  `String#scan` once per match with captures. `partition` missed the two its
+  result holds. The projection helpers now name which of the three referents they
+  price -- an array that owns its Value, an inner array whose Value a surrounding
+  backing already counts, or a slice nothing ever boxes -- since the arithmetic
+  is identical and only the referent differs.
+- **Fixed: a block body calling a builtin is no longer quadratic in its
+  receiver under a memory quota.** `rows.map { |r| r.to_s }` re-walked the whole
+  receiver once per element, because builtin dispatch invalidated the memory
+  estimator's memo and a memory check inside a builtin bypassed it.
+- **Added: `vibes.DeclareNonMutating`.** A host builtin can declare that it
+  writes to nothing reachable from its receiver, arguments, keyword arguments,
+  block, or an execution's roots, and the runtime stops paying for the
+  assumption that it might. This is a safety promise rather than a performance
+  hint: an untrue one lets an execution allocate past its `MemoryQuotaBytes`.
+  Undeclared builtins are unaffected.
+- **Added: `vibes.DeclareNonRetaining`.** A host builtin can promise that it
+  retains no reference to anything it receives or returns and that its output
+  shares no storage the host already holds. The host boundary consults the
+  promise: inputs skip retention marking, returns skip their detach copy, and
+  values exchanged through `Execution.CallBlock` avoid boundary copies. This is
+  a safety promise, not a performance hint; an untrue declaration creates a live
+  aliasing channel. Undeclared builtins keep the conservative boundary behavior.
+- **Removed: the `Tasks` namespace and script-visible `sleep`.** Per
+  [ADR-006](docs/adr/006-slim-language-for-predictable-sandboxing.md), hosts own
+  concurrency and delay. `Tasks.run`, `Tasks.map`, `tasks.spawn`, `tasks.wait`
+  and `task.value` are gone, as is `sleep`. Scripts that fanned out with
+  `Tasks.map(items, with: :work)` move that loop to the host, which runs
+  independent `Script.Call` invocations concurrently — separate execution state
+  per call, so the host's own goroutine pool, tracing, cancellation and
+  rate limits apply — or exposes a bounded batch operation as a capability with
+  its own aggregate limits. Scripts that used `sleep` to model a delayed
+  workflow step move it to the host's timer or durable job system, which owns
+  the step's lifecycle outside an interpreter call.
+- **Removed: `Config.DefaultTaskConcurrency`, `Config.MaxTaskConcurrency` and
+  `Config.MaxSleepDuration`.** Setting them is now a compile error rather than
+  a silent no-op. `QuotaProfile.MaxSleepDuration` is gone with them, so a
+  profile is a bundle of three quotas rather than four, and `ConfigSummary`
+  reports `steps`, `memory` and `recursion` only. Step, memory and recursion
+  remain the sandbox budgets and are unchanged.
+- **Changed: the memory quota no longer spans a chain of nested calls.** The
+  chain existed to stop nested task levels each receiving the host's whole
+  allowance; with task nesting removed there is no such chain, so
+  `MemoryQuotaBytes` is again one bound on one execution's reachable graph. A
+  host that reached a callee on another engine through a context carrying a
+  chain node no longer passes a ceiling to it; every other path is unchanged.
+- **Removed: escaping callables; blocks are enforced-nonescaping.** Proc and
+  lambda constructors, stabby-lambda literals, first-class function and
+  bound-method values, callable `.call`, block capture and forwarding with
+  `&`, symbol-to-proc, and hash default procs are gone; each spelling is a
+  compile error naming the replacement. A block stays syntax attached to a
+  call, runs synchronously under `yield`, and is retired when the receiving
+  call returns, so a late invocation -- however the block was retained -- is
+  a hard runtime error rather than a documented host contract. Migrate a
+  callable value to a named function called where it is needed, or a block
+  written at the call that runs it: `words.map(&:upcase)` becomes
+  `words.map { |word| word.upcase }`. (#1206)
+- **Changed: modules are namespaces, not behavior injection.** `include` and
+  `extend` are removed, along with instance-style module methods, module
+  accessors and aliases, the constants an include copied into the including
+  class, and the `is_a?`/type relationships inclusion created. A module holds
+  constants, nested modules, and `def self.` functions, and `Outer::Inner`
+  scoped resolution is unchanged. Classes remain, still without inheritance.
+  Mixins introduced a hidden method and constant source, a collision order, a
+  transitive membership graph, visibility copying, and per-execution accounting
+  for adopted state; explicit namespace calls provide the same reuse with the
+  dependency visible at the call site
+  ([ADR-006](docs/adr/006-slim-language-for-predictable-sandboxing.md)).
+
+  Migration: move each mixed-in method to `def self.name(receiver, ...)` on the
+  module and call it there, so `person.display_name` becomes
+  `Naming.display_name(person)`. Read a module's constants through the module
+  (`Limits::MAX`) rather than by the bare name an include used to supply. Replace
+  an `is_a?(SomeModule)` test or a `(value: SomeModule)` annotation with the
+  concrete class, a union of classes, or a duck-typed check. `include` and
+  `extend` in a class or module body, and a plain `def`, `property`, `getter`,
+  `setter`, or `alias` in a module body, are compile errors naming the
+  replacement.
+- **Changed: hashes use one string keyspace.** Strings and symbols are the only
+  accepted hash keys, a symbol normalizes to its string, and `hash["name"]`,
+  `hash[:name]` and the label `name:` all address one entry, so `keys` returns
+  strings and a JSON round trip no longer changes lookup behavior. Every other
+  key type is rejected. Arbitrary keys made the memory boundary a graph problem
+  -- recursive canonicalization, cycle detection and per-occurrence accounting
+  for composite keys -- while the separate string and symbol keyspaces made
+  ordinary JSON-shaped data behave differently depending on which spelling built
+  it ([ADR-006](docs/adr/006-slim-language-for-predictable-sandboxing.md)).
+  Insertion order, `nil` on a missing `[]`, `fetch` fallbacks, and any
+  Vibescript value as a hash *value* are unchanged.
+
+  Migration: convert a computed key explicitly, usually with `to_s`
+  (`counts[id.to_s]`); the rejection names the conversion. `group_by` and
+  `tally` produce keys the same way, so `words.group_by { |w| w.size }` becomes
+  `words.group_by { |w| w.size.to_s }`. Code that relied on `:name` and `"name"`
+  being different entries now has one entry holding the later write, and a
+  literal such as `{ name: 1, "name": 2 }` is a single entry. A block that
+  compares a yielded key against a symbol (`if key == :id`) must compare against
+  the string (`if key == "id"`); symbols are unchanged as values, only keys
+  normalize. `hash<symbol, V>` keeps working and describes the same hash as
+  `hash<string, V>`.
+
+- **Removed: per-hash default values.** `Hash.new` takes no argument and no
+  block, and `hash.default` / `hash.default_proc` are gone. A default stored on
+  a hash made every missing-key read a potential script callback -- with its own
+  effects, accounting and type-checking surface -- for a fallback the call site
+  can state directly.
+
+  Migration: replace `Hash.new(0)` with `{}` and read misses through
+  `hash.fetch(key, 0)`, which supplies the fallback per lookup without inserting.
+  Replace a default proc that filled the hash with an explicit store where the
+  miss is handled (`cache[key] = build(key) unless cache.key?(key)`). `dig` and
+  `values_at` now contribute `nil` for a missing key rather than consulting a
+  stored default.
+
+- **Fixed: a hash store and a hash transform charged inconsistent memory.** The
+  charged-commit path for `hash[key] = value` added an entry slot when the write
+  grew the hash past its reserved capacity, when that slot is only ever consumed
+  rather than added, so a store loop drifted above the reference walk. The final
+  admission before a hash transform allocated its output also missed the
+  insertion-order backing that the matching reservation charges, so it admitted
+  outputs the reservation then refused. Both now agree with the reference walk.
+- **Changed: arrays and hashes are values.** Binding, passing, or returning a
+  collection produces another logical value, so updating one binding or path can
+  no longer be seen through a sibling ([ADR-006](docs/adr/006-slim-language-for-predictable-sandboxing.md)
+  item 2). A mutating operation updates the local, instance variable, or nested
+  path its receiver names; a receiver naming no such path is a temporary whose
+  update is returned and reaches nothing else. `==` remains content equality and
+  `equal?` now answers the same question, since collections carry no identity.
+  The runtime uses copy-on-write internally: binding stays free and a copy is
+  paid only where a write meets a value something else can still see.
+- **Removed: the collection bang variants that duplicated a non-bang form.**
+  `map!`, `sort!`, `reverse!`, `uniq!`, `compact!`, `select!`, and `reject!` on
+  arrays, and `merge!` with its alias `update` on hashes. Reassign the non-bang
+  result (`a = a.sort`, `h = h.merge(other)`), or use `keep_if` / `delete_if`
+  where `select!` / `reject!` updated in place.
+- **Changed: the host boundary hands out independent values.** Every collection
+  crossing between host Go code and script state is now independent of the
+  other side: `Script.Call` results clone whenever their graph is shared,
+  host-builtin arguments isolate from every script slot, host-builtin returns
+  and values exchanged through `Execution.CallBlock` detach from any backing
+  the host retains, and wrappers a factory installs into its capability object
+  never transfer out live. Two embedder-visible channels are gone with this: a
+  builtin can no longer publish behavior or results by mutating an argument
+  (write into the receiver, the sanctioned factory channel, or return the
+  value), and host writes through retained handles no longer reach
+  script-observable state. Builtins that declare `DeclareNonRetaining` keep
+  copy-free crossings; first-party capability adapters declare non-mutation,
+  so their single internal copy is the only one. Adapters should not
+  defensively pre-clone returns anymore -- the boundary detaches them. (#1210)
+- **Improved docs: the lightweight 1.0 language boundary is now explicit.**
+  The README, overview, reference, module guides, and runnable examples now
+  distinguish direct calls, synchronous blocks, value collections, namespace
+  modules, and host-owned scheduling from general-purpose Ruby features.
+- **Fixed docs: leftover pre-ADR-006 teaching is gone.** Collection `equal?`
+  is content equality, including the exported `value.Value.Identical`
+  contract, hashes are one string keyspace rather than symbol-keyed, the
+  `function` type is not listed as live, and the 1.0 migration guide now
+  covers Tasks/`sleep` and the string keyspace. `Hash.new(0)` is a runtime
+  error, not a compile error. Hover on `Proc` teaches the callable removal.
+- **Fixed: the array-comparison tests no longer fail under the race detector.**
+  Four of them enforced wall-clock ceilings to catch an exponential regression,
+  and the race detector's slowdown blew those ceilings on work that had not
+  changed. An exponential regression does not finish at all, which go test's
+  own package timeout already reports.
+
 ## v1.0.0-rc9 - 2026-07-27
 
 Ninth release candidate: finishes the memory-quota work rc8 started. `Hash#transform_keys`
