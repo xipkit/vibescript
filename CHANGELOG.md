@@ -776,7 +776,7 @@ because `v0.60.0` has lower semantic-version precedence:
   Migration: replace `Hash.new(0)` with `{}` and read misses through
   `hash.fetch(key, 0)`, which supplies the fallback per lookup without inserting.
   Replace a default proc that filled the hash with an explicit store where the
-  miss is handled (`cache[key] = build(key) if cache[key].nil?`). `dig` and
+  miss is handled (`cache[key] = build(key) unless cache.key?(key)`). `dig` and
   `values_at` now contribute `nil` for a missing key rather than consulting a
   stored default.
 
