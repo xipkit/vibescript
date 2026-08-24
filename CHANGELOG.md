@@ -106,8 +106,8 @@ because `v0.60.0` has lower semantic-version precedence:
 - **Fixed: concatenating a non-renderable value into a string is now an error.**
   `"Hello, " + name` silently produced `"Hello, "` when `name` was nil, so a
   missing value disappeared into the message instead of being reported, and
-  containers, host objects, class instances, and callables rendered as
-  placeholders such as `"[1]a"` or `"user: <User instance>"`. Concatenating
+  containers, host objects, and class instances rendered as placeholders such
+  as `"[1]a"` or `"user: <User instance>"`. Concatenating
   scalars (`"total: " + count`) is unchanged, and the checker now reports the
   same mismatch statically when both operand types are known.
 - **Fixed: string interpolation and `puts` ignored a class's `to_s`.** They
