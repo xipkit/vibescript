@@ -220,10 +220,10 @@ because `v0.60.0` has lower semantic-version precedence:
   later non-participating duplicate overwrote an earlier match -- so
   `/(?<x>a)|(?<x>b)/` against `"ab"` reported nil for `x` rather than `"a"`. The
   last participating group is kept, as in Ruby.
-- **Fixed: a zone abbreviation was silently treated as UTC.** Applying the
-  zoneless UTC default to an input naming a zone made Go fabricate the
-  abbreviation at offset zero, so `Mon, 27 Jul 2026 14:30:45 EDT` shifted by
-  four hours. Such inputs resolve against the host's zone database again; a
+- **Changed: a recognized zone abbreviation is no longer forced to UTC.** An
+  input such as `Mon, 27 Jul 2026 14:30:45 EDT` now resolves against the host's
+  local timezone. If that timezone does not recognize the abbreviation, Go
+  still assigns it offset zero, so use a numeric offset for portable input. A
   timestamp naming no zone still defaults to UTC on every host.
 - **Fixed: enum conversions rendered before checking the quota.** `to_s`,
   `string`, and `inspect` on an enum value allocated the whole `Enum::Member`
