@@ -15,11 +15,14 @@ var errRegexOutputLimit = guardLimitErrorf("output exceeds limit %d bytes", maxR
 
 // appendRegexReplacement preserves regexp.ExpandString's dollar-reference
 // syntax while checking each literal and capture before growing dst.
-func appendRegexReplacement(dst []byte, re *regexp.Regexp, template, src string, loc []int) ([]byte, error) {
+func appendRegexReplacement(work *regexWork, dst []byte, re *regexp.Regexp, template, src string, loc []int) ([]byte, error) {
+	if err := work.charge(len(template)); err != nil {
+		return nil, err
+	}
 	for {
 		literal, remaining, found := strings.Cut(template, "$")
 		var err error
-		dst, err = appendBounded(dst, literal)
+		dst, err = appendRegexReplacementPart(work, dst, literal)
 		if err != nil || !found {
 			return dst, err
 		}
@@ -49,6 +52,13 @@ func appendRegexReplacement(dst []byte, re *regexp.Regexp, template, src string,
 				}
 			} else {
 				for i, candidate := range re.SubexpNames() {
+					cost := 1
+					if len(candidate) == len(name) {
+						cost += len(name)
+					}
+					if err := work.charge(cost); err != nil {
+						return nil, err
+					}
 					if candidate == name && i < len(loc)/2 && loc[2*i] >= 0 {
 						expansion = src[loc[2*i]:loc[2*i+1]]
 						break
@@ -56,11 +66,21 @@ func appendRegexReplacement(dst []byte, re *regexp.Regexp, template, src string,
 				}
 			}
 		}
-		dst, err = appendBounded(dst, expansion)
+		dst, err = appendRegexReplacementPart(work, dst, expansion)
 		if err != nil {
 			return nil, err
 		}
 	}
+}
+
+func appendRegexReplacementPart(work *regexWork, dst []byte, text string) ([]byte, error) {
+	if len(text) > maxRegexInputBytes-len(dst) {
+		return nil, errRegexOutputLimit
+	}
+	if err := work.charge(len(text)); err != nil {
+		return nil, err
+	}
+	return append(dst, text...), nil
 }
 
 func regexReplacementName(template string) (string, string, bool) {

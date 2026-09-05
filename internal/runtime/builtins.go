@@ -1799,11 +1799,16 @@ func builtinRegexMatch(exec *Execution, receiver Value, args []Value, kwargs map
 		return NewNil(), guardLimitErrorf("Regex.match text exceeds limit %d bytes", maxRegexInputBytes)
 	}
 
-	re, err := compileCachedRegex(pattern)
+	work := regexWork{exec: exec}
+	re, err := compileRegexNamespacePattern(&work, "Regex.match", pattern)
 	if err != nil {
-		return NewNil(), fmt.Errorf("Regex.match invalid regex: %w", err)
+		return NewNil(), err
 	}
-	indices := re.FindStringIndex(text)
+	scan := regexNamespaceScan{re: re, work: &work, method: "Regex.match", wholeMatch: true}
+	indices, err := scan.find(text, 0)
+	if err != nil {
+		return NewNil(), err
+	}
 	if indices == nil {
 		return NewNil(), nil
 	}
@@ -1943,14 +1948,14 @@ func builtinToFloat(exec *Execution, receiver Value, args []Value, kwargs map[st
 }
 
 func builtinRegexReplace(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
-	return builtinRegexReplaceInternal(args, kwargs, block, false)
+	return builtinRegexReplaceInternal(exec, args, kwargs, block, false)
 }
 
 func builtinRegexReplaceAll(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
-	return builtinRegexReplaceInternal(args, kwargs, block, true)
+	return builtinRegexReplaceInternal(exec, args, kwargs, block, true)
 }
 
-func builtinRegexReplaceInternal(args []Value, kwargs map[string]Value, block Value, replaceAll bool) (Value, error) {
+func builtinRegexReplaceInternal(exec *Execution, args []Value, kwargs map[string]Value, block Value, replaceAll bool) (Value, error) {
 	method := "Regex.replace"
 	if replaceAll {
 		method = "Regex.replace_all"
@@ -1965,10 +1970,10 @@ func builtinRegexReplaceInternal(args []Value, kwargs map[string]Value, block Va
 	if !block.IsNil() {
 		return NewNil(), fmt.Errorf("%s does not accept blocks", method)
 	}
-	return builtinRegexReplaceValues(args[0], args[1], args[2], replaceAll)
+	return builtinRegexReplaceValues(exec, args[0], args[1], args[2], replaceAll)
 }
 
-func builtinRegexReplaceValues(textValue, patternValue, replacementValue Value, replaceAll bool) (Value, error) {
+func builtinRegexReplaceValues(exec *Execution, textValue, patternValue, replacementValue Value, replaceAll bool) (Value, error) {
 	method := "Regex.replace"
 	if replaceAll {
 		method = "Regex.replace_all"
@@ -1991,24 +1996,29 @@ func builtinRegexReplaceValues(textValue, patternValue, replacementValue Value, 
 		return NewNil(), guardLimitErrorf("%s replacement exceeds limit %d bytes", method, maxRegexInputBytes)
 	}
 
-	re, err := compileCachedRegex(pattern)
+	work := regexWork{exec: exec}
+	re, err := compileRegexNamespacePattern(&work, method, pattern)
 	if err != nil {
-		return NewNil(), fmt.Errorf("%s invalid regex: %w", method, err)
+		return NewNil(), err
 	}
+	scan := regexNamespaceScan{re: re, work: &work, method: method}
 
 	if replaceAll {
-		replaced, err := regexReplaceAllWithLimit(re, text, replacement, method)
+		replaced, err := regexReplaceAllWithLimit(&scan, text, replacement, method)
 		if err != nil {
 			return NewNil(), err
 		}
 		return NewString(replaced), nil
 	}
 
-	loc := re.FindStringSubmatchIndex(text)
+	loc, err := scan.find(text, 0)
+	if err != nil {
+		return NewNil(), err
+	}
 	if loc == nil {
 		return NewString(text), nil
 	}
-	replaced, err := appendRegexReplacement(nil, re, replacement, text, loc)
+	replaced, err := appendRegexReplacement(&work, nil, re, replacement, text, loc)
 	if err != nil {
 		return NewNil(), fmt.Errorf("%s %w", method, err)
 	}
@@ -2016,17 +2026,23 @@ func builtinRegexReplaceValues(textValue, patternValue, replacementValue Value, 
 	if outputLen > maxRegexInputBytes {
 		return NewNil(), guardLimitErrorf("%s output exceeds limit %d bytes", method, maxRegexInputBytes)
 	}
+	if err := work.charge(outputLen); err != nil {
+		return NewNil(), err
+	}
 	return NewString(text[:loc[0]] + string(replaced) + text[loc[1]:]), nil
 }
 
-func regexReplaceAllWithLimit(re *regexp.Regexp, text, replacement, method string) (string, error) {
+func regexReplaceAllWithLimit(scan *regexNamespaceScan, text, replacement, method string) (string, error) {
 	out := make([]byte, 0, len(text))
 	lastAppended := 0
 	searchStart := 0
 	lastMatchEnd := -1
 	for searchStart <= len(text) {
-		loc, found := nextRegexReplaceAllSubmatchIndex(re, text, searchStart)
-		if !found {
+		loc, err := scan.find(text, searchStart)
+		if err != nil {
+			return "", err
+		}
+		if loc == nil {
 			break
 		}
 		if loc[0] == loc[1] && loc[0] == lastMatchEnd {
@@ -2045,9 +2061,11 @@ func regexReplaceAllWithLimit(re *regexp.Regexp, text, replacement, method strin
 		if len(out) > maxRegexInputBytes-segmentLen {
 			return "", guardLimitErrorf("%s output exceeds limit %d bytes", method, maxRegexInputBytes)
 		}
+		if err := scan.work.charge(segmentLen); err != nil {
+			return "", err
+		}
 		out = append(out, text[lastAppended:loc[0]]...)
-		var err error
-		out, err = appendRegexReplacement(out, re, replacement, text, loc)
+		out, err = appendRegexReplacement(scan.work, out, scan.re, replacement, text, loc)
 		if err != nil {
 			return "", fmt.Errorf("%s %w", method, err)
 		}
@@ -2071,6 +2089,9 @@ func regexReplaceAllWithLimit(re *regexp.Regexp, text, replacement, method strin
 	tailLen := len(text) - lastAppended
 	if len(out) > maxRegexInputBytes-tailLen {
 		return "", guardLimitErrorf("%s output exceeds limit %d bytes", method, maxRegexInputBytes)
+	}
+	if err := scan.work.charge(tailLen + len(out) + tailLen); err != nil {
+		return "", err
 	}
 	out = append(out, text[lastAppended:]...)
 	return string(out), nil

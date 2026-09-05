@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/mgomes/vibescript/vibes/value"
 )
 
 // regexWork carries short scans across arguments and matches so splitting work
@@ -14,7 +16,7 @@ type regexWork struct {
 }
 
 func (w *regexWork) charge(n int) error {
-	if w.exec == nil {
+	if w == nil || w.exec == nil {
 		return nil
 	}
 	steps := n / stringScanBytesPerStep
@@ -28,13 +30,12 @@ func (w *regexWork) charge(n int) error {
 }
 
 func compileRegexpNamespace(exec *Execution, method, pattern string) (Value, error) {
-	if len(pattern) > maxRegexPatternSize {
-		return NewNil(), guardLimitErrorf("%s pattern exceeds limit %d bytes", method, maxRegexPatternSize)
-	}
-	if err := exec.chargeStringScan(len(pattern)); err != nil {
+	work := regexWork{exec: exec}
+	re, err := compileRegexNamespacePattern(&work, method, pattern)
+	if err != nil {
 		return NewNil(), err
 	}
-	return compileRegexValue(method, pattern, "")
+	return NewRegex(value.Regex{Source: pattern, Compiled: re}), nil
 }
 
 func regexpEscape(exec *Execution, receiver Value, args []Value) (string, error) {
