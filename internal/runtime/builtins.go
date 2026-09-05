@@ -2004,12 +2004,15 @@ func builtinRegexReplaceValues(textValue, patternValue, replacementValue Value, 
 	if loc == nil {
 		return NewString(text), nil
 	}
-	replaced := string(re.ExpandString(nil, replacement, text, loc))
+	replaced, err := appendRegexReplacement(nil, re, replacement, text, loc)
+	if err != nil {
+		return NewNil(), fmt.Errorf("%s %w", method, err)
+	}
 	outputLen := len(text) - (loc[1] - loc[0]) + len(replaced)
 	if outputLen > maxRegexInputBytes {
 		return NewNil(), guardLimitErrorf("%s output exceeds limit %d bytes", method, maxRegexInputBytes)
 	}
-	return NewString(text[:loc[0]] + replaced + text[loc[1]:]), nil
+	return NewString(text[:loc[0]] + string(replaced) + text[loc[1]:]), nil
 }
 
 func regexReplaceAllWithLimit(re *regexp.Regexp, text, replacement, method string) (string, error) {
@@ -2039,9 +2042,10 @@ func regexReplaceAllWithLimit(re *regexp.Regexp, text, replacement, method strin
 			return "", guardLimitErrorf("%s output exceeds limit %d bytes", method, maxRegexInputBytes)
 		}
 		out = append(out, text[lastAppended:loc[0]]...)
-		out = re.ExpandString(out, replacement, text, loc)
-		if len(out) > maxRegexInputBytes {
-			return "", guardLimitErrorf("%s output exceeds limit %d bytes", method, maxRegexInputBytes)
+		var err error
+		out, err = appendRegexReplacement(out, re, replacement, text, loc)
+		if err != nil {
+			return "", fmt.Errorf("%s %w", method, err)
 		}
 		lastAppended = loc[1]
 		lastMatchEnd = loc[1]
