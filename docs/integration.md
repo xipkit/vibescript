@@ -65,6 +65,14 @@ the `low` profile (1,000,000 steps / 16 MiB / 256), so `low` is the reproducible
 name for the default sandbox budget. An unlimited memory quota skips the
 accounting walk entirely.
 
+Compilation separately bounds parser recursion and expression/statement tree
+depth to 1,024 levels. Excessive nesting returns `syntax nesting too deep` before
+execution starts. This fixed limit also applies to snippets, modules, and editor
+tooling; increasing `RecursionLimit` or `MaxSourceBytes` does not raise it. Wide
+arrays, argument lists, and sequences of shallow statements do not consume extra
+nesting levels. Type annotations, parenless calls, and string interpolation keep
+their existing, smaller nesting limits.
+
 Rather than tune the three fields by hand, select a coherent bundle with a named
 profile:
 

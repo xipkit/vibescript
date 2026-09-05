@@ -54,6 +54,8 @@ func gatedWalkers() []gatedWalker {
 	const astDir = "../ast"
 	const analyzeDir = "../tools/analyze"
 	return []gatedWalker{
+		{file: "../parser/nesting.go", recv: "parser", fn: "nodeDepth", kind: walkerStatements},
+		{file: "../parser/nesting.go", recv: "parser", fn: "nodeDepth", kind: walkerExpressions},
 		{file: filepath.Join(astDir, "clone.go"), fn: "cloneStatement", kind: walkerStatements},
 		{file: filepath.Join(astDir, "clone.go"), fn: "cloneExpression", kind: walkerExpressions},
 

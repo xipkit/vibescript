@@ -47,6 +47,9 @@ type parser struct {
 	parenlessArgDoStops        int
 	whenValueGroupDepths       []int
 	groupDepth                 int
+	syntaxDepth                int
+	nestingError               *parseError
+	nodeDepths                 map[ast.Node]syntaxNodeDepth
 
 	// shapeStructurallyInvalid records that the most recent parseTypeShape
 	// rejected a brace group whose field values all parsed as types but whose
@@ -224,6 +227,10 @@ func (p *parser) isDeclaredLocal(name string) bool {
 }
 
 func (p *parser) nextToken() {
+	if p.nestingError != nil {
+		p.rejectNesting(p.nestingError.pos)
+		return
+	}
 	p.prevEnd = p.curToken.End
 	p.curToken = p.peekToken
 	p.peekToken = p.peekPeek
@@ -298,6 +305,9 @@ func (p *parser) snapshot() parserSnapshot {
 // afterwards: a push onto a restored stack leaves the frames under it alone, so
 // the same snapshot can be restored again.
 func (p *parser) restore(s parserSnapshot) {
+	if p.nestingError != nil {
+		return
+	}
 	*p.l = s.lexer
 	p.curToken = s.curToken
 	p.peekToken = s.peekToken
@@ -332,6 +342,9 @@ func (p *parser) parseProgram() (*ast.Program, []error) {
 
 	p.addPercentScanExhaustedError()
 	p.addOmittedParseError()
+	if p.nestingError != nil {
+		return &ast.Program{}, []error{p.nestingError}
+	}
 	return program, p.errors
 }
 
@@ -506,6 +519,9 @@ func (p *parser) addParseError(pos ast.Position, format string, args ...any) {
 }
 
 func (p *parser) addParseErrorSpan(pos, end ast.Position, format string, args ...any) {
+	if p.nestingError != nil {
+		return
+	}
 	if len(p.errors) >= maxParseErrors {
 		p.omittedErrors++
 		return
