@@ -1526,7 +1526,6 @@ func TestModulePolicyNormalizationCanonicalizesEquivalents(t *testing.T) {
 			"nested/helper.vibe",
 			"./nested/helper.vibe",
 			"nested\\helper.vibe",
-			" nested / helper.vibe ",
 			"nested///helper.vibe",
 		},
 		{

@@ -137,6 +137,9 @@ automatically; keep it off in production.
 Use `Config.ModuleAllowList` / `Config.ModuleDenyList` for policy hooks over
 which modules may be loaded (`*` glob patterns against normalized module names,
 with deny-list rules taking precedence).
+Policy matching preserves whitespace within filename and directory components
+and distinguishes extra extensions: `helper` and `helper.vibe` are equivalent,
+while `helper .vibe` and `helper.json.vibe` are separate module names.
 When a circular module dependency is detected, the runtime reports a concise
 chain (for example `a -> b -> a`).
 Use the optional `as:` keyword to bind the loaded module namespace to a global

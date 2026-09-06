@@ -724,9 +724,10 @@ func moduleDisplayFromRelative(relative string) string {
 // has no extension of its own: require appends ".vibe" solely to
 // extensionless names, so trimming "helper.vibe.vibe" to "helper.vibe"
 // (or "data.json.vibe" to "data.json") would resolve a different file.
+// An empty name or newly exposed edge whitespace would also change the request.
 func moduleRequireName(filename string) string {
 	trimmed := strings.TrimSuffix(filename, ".vibe")
-	if path.Ext(trimmed) != "" {
+	if trimmed == "" || path.Ext(trimmed) != "" || strings.TrimSpace(trimmed) != trimmed {
 		return filename
 	}
 	return trimmed
@@ -945,67 +946,41 @@ func resolvedPathWithMissing(path string) (string, error) {
 }
 
 func normalizeModulePolicyPattern(pattern string) string {
-	return normalizeModulePolicyValue(pattern)
+	return normalizeModulePolicyValue(strings.TrimSpace(pattern))
 }
 
 func normalizeModulePolicyModuleName(relative string) string {
+	if strings.TrimSpace(relative) == "" {
+		return ""
+	}
 	return normalizeModulePolicyValue(relative)
 }
 
-// normalizeModulePolicyValue canonicalizes a pattern or module name for
-// policy comparison. After path normalization it strips at most one
-// trailing ".vibe" suffix from the *basename* — matching the single
-// ".vibe" that parseModuleRequest appends when the require argument
-// has no extension. Inputs whose basename already carries more than
-// one ".vibe" (e.g. "helper.vibe.vibe") are preserved verbatim,
-// because the loader resolves them to a literal on-disk file of that
-// name and an allow-list of "helper" must not grant access to the
-// sibling file "helper.vibe.vibe".
-//
-// The function is idempotent. Equivalent spellings of the same
-// logical module — "helper", "helper.vibe", "./helper.vibe" — all
-// reduce to "helper". Distinct files — "helper" (loads helper.vibe)
-// and "helper.vibe.vibe" (loads helper.vibe.vibe) — produce distinct
-// canonical forms. Directory names keep their dots:
-// "helper.vibe/foo.vibe" reduces to "helper.vibe/foo".
+// Policy names preserve every significant filename byte. Only remove the
+// extension when require would restore it without changing the filename.
 func normalizeModulePolicyValue(value string) string {
 	current := normalizeModulePolicyPath(value)
 	if current == "" {
 		return ""
 	}
 	dir, base := path.Split(current)
-	if !strings.HasSuffix(base, ".vibe") {
-		return current
+	current = dir + moduleRequireName(base)
+	if strings.TrimSpace(current) != current {
+		// Protect literal edge whitespace from the optional padding accepted
+		// around configured patterns. Cleaning these dot components for matching
+		// preserves the filename and keeps normalization idempotent.
+		if path.IsAbs(current) {
+			return current + "/."
+		}
+		return "./" + current + "/."
 	}
-	trimmed := strings.TrimSuffix(base, ".vibe")
-	if trimmed == "" || trimmed == "." || trimmed == ".." {
-		return current
-	}
-	candidate := normalizeModulePolicyPath(dir + trimmed)
-	if candidate == "" {
-		return current
-	}
-	_, candidateBase := path.Split(candidate)
-	if strings.HasSuffix(candidateBase, ".vibe") {
-		return current
-	}
-	return candidate
+	return current
 }
 
 func normalizeModulePolicyPath(value string) string {
-	normalized := strings.TrimSpace(value)
-	normalized = strings.ReplaceAll(normalized, "\\", "/")
+	normalized := strings.ReplaceAll(value, "\\", "/")
 	normalized = filepath.ToSlash(normalized)
-	normalized = strings.TrimPrefix(normalized, "./")
 	normalized = path.Clean(normalized)
-	if normalized == "." {
-		return ""
-	}
-	parts := strings.Split(normalized, "/")
-	for i, part := range parts {
-		parts[i] = strings.TrimSpace(part)
-	}
-	normalized = path.Clean(strings.Join(parts, "/"))
 	if normalized == "." {
 		return ""
 	}
@@ -1026,8 +1001,13 @@ func validateModulePolicyPatterns(patterns []string, label string) error {
 }
 
 func modulePolicyMatch(pattern, module string) bool {
+	if module == "" {
+		return false
+	}
+	pattern = path.Clean(pattern)
+	module = path.Clean(module)
 	if pattern == "*" {
-		return module != ""
+		return true
 	}
 	matched, err := path.Match(pattern, module)
 	if err != nil {
