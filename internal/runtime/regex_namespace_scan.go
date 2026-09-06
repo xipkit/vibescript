@@ -33,6 +33,7 @@ type regexNamespaceScan struct {
 	re           *regexp.Regexp
 	from         *regexp.Regexp
 	work         *regexWork
+	reader       *regexNamespaceReader
 	method       string
 	programCost  int
 	wholeMatch   bool
@@ -121,17 +122,22 @@ func (s *regexNamespaceScan) find(text string, start int) ([]int, error) {
 	if err := s.work.charge(saturatingAdd(captureSlots*estimatedIntBytes, saturatingMul(2, programCost))); err != nil {
 		return nil, err
 	}
-	input := regexNamespaceReader{text: text[contextStart:], work: s.work, programCost: programCost}
+	// regexp retains its RuneReader in a pooled machine during the call, so
+	// the reader escapes. Reuse it across this replacement's suffix searches.
+	if s.reader == nil {
+		s.reader = new(regexNamespaceReader)
+	}
+	*s.reader = regexNamespaceReader{text: text[contextStart:], work: s.work, programCost: programCost}
 	var loc []int
 	if submatches {
-		loc = re.FindReaderSubmatchIndex(&input)
+		loc = re.FindReaderSubmatchIndex(s.reader)
 	} else {
-		loc = re.FindReaderIndex(&input)
+		loc = re.FindReaderIndex(s.reader)
 	}
 	// regexp treats reader errors as EOF and may return a partial match. An
 	// exhausted reader must reject every result, including an apparent miss.
-	if input.err != nil {
-		return nil, input.err
+	if s.reader.err != nil {
+		return nil, s.reader.err
 	}
 	if start > 0 && loc != nil {
 		loc = loc[2:]
