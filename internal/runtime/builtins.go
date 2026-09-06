@@ -1823,7 +1823,11 @@ func builtinRegexpEscape(exec *Execution, receiver Value, args []Value, kwargs m
 	if args[0].Kind() != KindString {
 		return NewNil(), fmt.Errorf("Regexp.escape expects a string")
 	}
-	return NewString(regexp.QuoteMeta(args[0].String())), nil
+	escaped, err := regexpEscape(exec, receiver, args)
+	if err != nil {
+		return NewNil(), err
+	}
+	return NewString(escaped), nil
 }
 
 func builtinRegexpNew(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
@@ -1839,7 +1843,7 @@ func builtinRegexpNew(exec *Execution, receiver Value, args []Value, kwargs map[
 	if args[0].Kind() != KindString {
 		return NewNil(), fmt.Errorf("Regexp.new pattern must be string")
 	}
-	return compileRegexValue("Regexp.new", args[0].String(), "")
+	return compileRegexpNamespace(exec, "Regexp.new", args[0].String())
 }
 
 func builtinRegexpUnion(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
@@ -1849,11 +1853,11 @@ func builtinRegexpUnion(exec *Execution, receiver Value, args []Value, kwargs ma
 	if !block.IsNil() {
 		return NewNil(), fmt.Errorf("Regexp.union does not accept blocks")
 	}
-	pattern, err := regexpUnionPattern(args)
+	pattern, err := regexpUnionPattern(exec, receiver, args)
 	if err != nil {
 		return NewNil(), err
 	}
-	return compileRegexValue("Regexp.union", pattern, "")
+	return compileRegexpNamespace(exec, "Regexp.union", pattern)
 }
 
 func builtinRegexpLastMatch(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
