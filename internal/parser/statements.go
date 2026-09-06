@@ -8,6 +8,11 @@ import (
 )
 
 func (p *parser) parseStatement() ast.Statement {
+	if !p.enterSyntax() {
+		return nil
+	}
+	defer func() { p.syntaxDepth-- }()
+
 	var stmt ast.Statement
 	switch p.curToken.Type {
 	case ast.TokenDef:
@@ -62,7 +67,11 @@ func (p *parser) parseStatement() ast.Statement {
 	if continued := p.continueStatementExpression(stmt); continued != nil {
 		stmt = continued
 	}
-	return p.parseStatementModifier(stmt)
+	stmt = p.parseStatementModifier(stmt)
+	if !p.checkSyntaxNode(stmt) {
+		return nil
+	}
+	return stmt
 }
 
 func (p *parser) continueStatementExpression(stmt ast.Statement) ast.Statement {
@@ -901,6 +910,11 @@ func (p *parser) parseModuleDeclarationStatement() ast.Statement {
 // declaration name. Module bodies additionally accept nested module
 // declarations and reject class declarations.
 func (p *parser) parseClassLikeBody(pos ast.Position, isModule bool) ast.Statement {
+	if !p.enterSyntax() {
+		return nil
+	}
+	defer func() { p.syntaxDepth-- }()
+
 	name := p.curToken.Literal
 	p.nextToken()
 
@@ -2283,6 +2297,11 @@ func (p *parser) parseDestructureSingleTarget(allowElementTypes bool) ast.Expres
 }
 
 func (p *parser) parseNestedDestructureTarget(stop ast.TokenType, _ string, allowElementTypes bool) ast.Expression {
+	if !p.enterSyntax() {
+		return nil
+	}
+	defer func() { p.syntaxDepth-- }()
+
 	pos := p.curToken.Pos
 	if p.peekToken.Type == stop {
 		p.errorExpected(p.peekToken, "destructuring assignment target")
