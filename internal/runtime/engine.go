@@ -88,6 +88,7 @@ type Engine struct {
 	modMu             sync.RWMutex
 	randomMu          sync.Mutex
 	modRequests       map[string]moduleRequest
+	modRequestBytes   int
 	modSearchHits     map[string]moduleEntry
 	modSearchMisses   map[string]string
 	modSuggest        map[string][]string
@@ -625,6 +626,7 @@ func (e *Engine) ClearModuleCache() int {
 	count := len(e.modules)
 	clear(e.modules)
 	clear(e.modRequests)
+	e.modRequestBytes = 0
 	clear(e.modSearchHits)
 	clear(e.modSearchMisses)
 	clear(e.modSuggest)

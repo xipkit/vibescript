@@ -55,6 +55,9 @@ type moduleRequest struct {
 const (
 	moduleKeySeparator       = "::"
 	moduleEntrypointFunction = "<module>"
+	// Request-derived text can outlive every execution through these caches.
+	// Keep its aggregate retention bounded even when the entry limit is large.
+	maxModuleRequestCacheBytes = 8 << 20
 )
 
 func (e *Engine) getCachedModule(key string) (moduleEntry, bool) {
@@ -414,12 +417,35 @@ func (e *Engine) parseCachedModuleRequest(name string) (moduleRequest, error) {
 	if err != nil {
 		return moduleRequest{}, err
 	}
+	// Normalization can return a window into a much larger raw request. Even
+	// an uncached request can reach a compiled module or execution-local pin.
+	request.normalized = strings.Clone(request.normalized)
 	e.modMu.Lock()
-	if len(e.modRequests) < e.config.MaxCachedModules {
-		e.modRequests[name] = request
+	if cached, ok := e.modRequests[name]; ok {
+		e.modMu.Unlock()
+		return cached, nil
+	}
+	if len(e.modRequests) < e.config.MaxCachedModules && e.reserveModuleRequestText(name, request.normalized) {
+		request.raw = strings.Clone(name)
+		e.modRequests[request.raw] = request
 	}
 	e.modMu.Unlock()
 	return request, nil
+}
+
+// reserveModuleRequestText accounts for owned text retained by request, search,
+// and suggestion caches. The caller holds modMu and has ruled out duplicates.
+func (e *Engine) reserveModuleRequestText(texts ...string) bool {
+	remaining := maxModuleRequestCacheBytes - e.modRequestBytes
+	cost := 0
+	for _, text := range texts {
+		if len(text) > remaining-cost {
+			return false
+		}
+		cost += len(text)
+	}
+	e.modRequestBytes += cost
+	return true
 }
 
 func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext, pinned map[string]Value) (moduleEntry, error) {
@@ -521,8 +547,8 @@ func (e *Engine) cacheSearchPathHit(normalized string, entry moduleEntry) {
 		return
 	}
 	e.modMu.Lock()
-	if len(e.modSearchHits) < e.config.MaxCachedModules {
-		e.modSearchHits[normalized] = entry
+	if _, exists := e.modSearchHits[normalized]; !exists && len(e.modSearchHits) < e.config.MaxCachedModules && e.reserveModuleRequestText(normalized) {
+		e.modSearchHits[strings.Clone(normalized)] = entry
 	}
 	e.modMu.Unlock()
 }
@@ -542,8 +568,8 @@ func (e *Engine) cacheSearchPathMiss(normalized, suggestion string) {
 		return
 	}
 	e.modMu.Lock()
-	if len(e.modSearchMisses) < e.config.MaxCachedModules {
-		e.modSearchMisses[normalized] = suggestion
+	if _, exists := e.modSearchMisses[normalized]; !exists && len(e.modSearchMisses) < e.config.MaxCachedModules && e.reserveModuleRequestText(normalized, suggestion) {
+		e.modSearchMisses[strings.Clone(normalized)] = strings.Clone(suggestion)
 	}
 	e.modMu.Unlock()
 }
@@ -584,8 +610,8 @@ func (e *Engine) searchPathModuleSuggestion(request moduleRequest) string {
 		e.modMu.Unlock()
 		return cached
 	}
-	if version == e.modSuggestVersion && len(e.modSuggestText) < e.config.MaxCachedModules {
-		e.modSuggestText[cacheKey] = suggestion
+	if version == e.modSuggestVersion && len(e.modSuggestText) < e.config.MaxCachedModules && e.reserveModuleRequestText(cacheKey, suggestion) {
+		e.modSuggestText[strings.Clone(cacheKey)] = strings.Clone(suggestion)
 	}
 	e.modMu.Unlock()
 	return suggestion

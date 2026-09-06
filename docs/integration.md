@@ -128,6 +128,10 @@ end`)
 
 The interpreter searches each configured directory for `<module>.vibe` in order
 and caches compiled modules so subsequent calls to `require` are inexpensive.
+Parsed module requests, search results, and suggestion text share an 8 MiB
+cache text limit in addition to their `Config.MaxCachedModules` entry limits.
+Requests beyond that text limit still resolve normally without being cached.
+`ClearModuleCache` also clears this text and resets its byte accounting.
 Executable top-level statements in a required module run as a module initializer
 before its exports are returned.
 For long-running hosts, call `engine.ClearModuleCache()` between runs when
