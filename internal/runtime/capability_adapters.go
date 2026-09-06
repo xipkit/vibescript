@@ -296,13 +296,9 @@ func (a *contextCapabilityAdapter) bindWithExecution(exec *Execution, binding Ca
 
 // These adapters enforce their public contracts inside the budgeted call, as
 // DB does. Keep the standalone validators available to direct embedders.
-func (c *jobQueueCapability) runtimeCapabilityContracts() map[string]CapabilityMethodContract {
-	return nil
-}
+func (c *jobQueueCapability) validatesCapabilityData() {}
 
-func (c *eventsCapability) runtimeCapabilityContracts() map[string]CapabilityMethodContract {
-	return nil
-}
+func (c *eventsCapability) validatesCapabilityData() {}
 
 // Internal aliases for db capability types so runtime code (and tests)
 // can keep referring to short names that match the public vibes facade.

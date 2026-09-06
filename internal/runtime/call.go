@@ -1355,11 +1355,6 @@ func (r *callFunctionRebinder) rebindKeywords(kwargs map[string]Value) map[strin
 // An adapter that declares no contracts costs no walk: no host code runs, so
 // there is nothing to check ahead of.
 func hostCapabilityContracts(exec *Execution, adapter CapabilityAdapter) (map[string]CapabilityMethodContract, error) {
-	if internal, ok := adapter.(interface {
-		runtimeCapabilityContracts() map[string]CapabilityMethodContract
-	}); ok {
-		return internal.runtimeCapabilityContracts(), nil
-	}
 	provider, ok := adapter.(CapabilityContractProvider)
 	if !ok {
 		return nil, nil
@@ -1429,6 +1424,7 @@ func bindCapabilitiesForCall(exec *Execution, root *Env, rebinder *callFunctionR
 		if err != nil {
 			return err
 		}
+		_, validatesData := adapter.(interface{ validatesCapabilityData() })
 		for methodName, contract := range contracts {
 			name := strings.TrimSpace(methodName)
 			if name == "" {
@@ -1438,7 +1434,11 @@ func bindCapabilitiesForCall(exec *Execution, root *Env, rebinder *callFunctionR
 				return fmt.Errorf("duplicate capability contract for %s", name)
 			}
 			exec.capabilityContractsByName[name] = contract
-			scope.contracts[name] = contract
+			// First-party data validation runs inside the adapter's budget,
+			// but its public contract names still participate in collisions.
+			if !validatesData {
+				scope.contracts[name] = contract
+			}
 		}
 		globals, bindErr, refused := bindHostCapability(exec, adapter, binding)
 		if refused != nil {
