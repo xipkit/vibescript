@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -11,6 +12,82 @@ import (
 // shared regex output-size guard. Callers wrap it with their method name so the
 // surfaced message matches the rest of the regex output guards.
 var errRegexOutputLimit = guardLimitErrorf("output exceeds limit %d bytes", maxRegexInputBytes)
+
+// appendRegexReplacement preserves regexp.ExpandString's dollar-reference
+// syntax while checking each literal and capture before growing dst.
+func appendRegexReplacement(dst []byte, re *regexp.Regexp, template, src string, loc []int) ([]byte, error) {
+	for {
+		literal, remaining, found := strings.Cut(template, "$")
+		var err error
+		dst, err = appendBounded(dst, literal)
+		if err != nil || !found {
+			return dst, err
+		}
+		template = remaining
+		expansion := "$"
+		if strings.HasPrefix(template, "$") {
+			template = template[1:]
+		} else if name, rest, ok := regexReplacementName(template); ok {
+			template = rest
+			expansion = ""
+			index := -1
+			// ExpandString treats leading zeros and numbers over nine digits
+			// as names. The numeric range fits int on every supported target.
+			if len(name) <= 9 && (len(name) == 1 || name[0] != '0') {
+				index = 0
+				for i := range len(name) {
+					if name[i] < '0' || name[i] > '9' {
+						index = -1
+						break
+					}
+					index = index*10 + int(name[i]-'0')
+				}
+			}
+			if index >= 0 {
+				if index < len(loc)/2 && loc[2*index] >= 0 {
+					expansion = src[loc[2*index]:loc[2*index+1]]
+				}
+			} else {
+				for i, candidate := range re.SubexpNames() {
+					if candidate == name && i < len(loc)/2 && loc[2*i] >= 0 {
+						expansion = src[loc[2*i]:loc[2*i+1]]
+						break
+					}
+				}
+			}
+		}
+		dst, err = appendBounded(dst, expansion)
+		if err != nil {
+			return nil, err
+		}
+	}
+}
+
+func regexReplacementName(template string) (string, string, bool) {
+	name := template
+	braced := strings.HasPrefix(name, "{")
+	if braced {
+		name = name[1:]
+	}
+	end := len(name)
+	for i, r := range name {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+			end = i
+			break
+		}
+	}
+	if end == 0 {
+		return "", "", false
+	}
+	rest := name[end:]
+	if braced {
+		if !strings.HasPrefix(rest, "}") {
+			return "", "", false
+		}
+		rest = rest[1:]
+	}
+	return name[:end], rest, true
+}
 
 // rubyAppendReplacement expands a Ruby-style replacement template against a
 // single match and appends the result to dst, mirroring the substitution rules
