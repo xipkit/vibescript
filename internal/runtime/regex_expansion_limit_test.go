@@ -20,7 +20,7 @@ func TestRegexReplacementBoundsTemporaryAllocation(t *testing.T) {
 		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_, err := builtinRegexReplaceValues(text, pattern, replacement, all)
+		_, err := builtinRegexReplaceValues(nil, text, pattern, replacement, all)
 		runtime.ReadMemStats(&after)
 		if err == nil {
 			t.Fatalf("replaceAll=%v returned no output-limit error", all)
@@ -57,7 +57,7 @@ func TestRegexReplacementMatchesGo(t *testing.T) {
 			}
 			for _, template := range templates {
 				want := re.ExpandString([]byte("prefix:"), template, text, loc)
-				got, err := appendRegexReplacement([]byte("prefix:"), re, template, text, loc)
+				got, err := appendRegexReplacement(nil, []byte("prefix:"), re, template, text, loc)
 				if err != nil || !bytes.Equal(got, want) {
 					t.Errorf("pattern=%q text=%q template=%q: got %q, %v; want %q", pattern, text, template, got, err, want)
 				}
@@ -74,7 +74,7 @@ func TestRegexReplacementChecksBeforeAppend(t *testing.T) {
 		backing := bytes.Repeat([]byte{'?'}, maxRegexInputBytes+8)
 		remaining := backing[maxRegexInputBytes-1:]
 		before := bytes.Clone(remaining)
-		_, err := appendRegexReplacement(backing[:maxRegexInputBytes-1], re, template, "abc", loc)
+		_, err := appendRegexReplacement(nil, backing[:maxRegexInputBytes-1], re, template, "abc", loc)
 		if !errors.Is(err, errRegexOutputLimit) {
 			t.Errorf("template=%q error=%v, want output limit", template, err)
 		}
@@ -89,7 +89,7 @@ func TestRegexReplacementOutputBoundary(t *testing.T) {
 	for _, all := range []bool{false, true} {
 		for _, excess := range []int{0, 1} {
 			text := "before" + strings.Repeat("x", maxRegexInputBytes-13+excess) + "after!"
-			got, err := builtinRegexReplaceValues(NewString(text), NewString("(x+)"), NewString("${1}y"), all)
+			got, err := builtinRegexReplaceValues(nil, NewString(text), NewString("(x+)"), NewString("${1}y"), all)
 			if excess == 0 {
 				want := text[:len(text)-6] + "yafter!"
 				if err != nil || got.String() != want {
@@ -113,7 +113,7 @@ func FuzzRegexReplacementMatchesGo(f *testing.F) {
 		}
 		for _, loc := range re.FindAllStringSubmatchIndex(text, -1) {
 			want := re.ExpandString(nil, template, text, loc)
-			got, err := appendRegexReplacement(nil, re, template, text, loc)
+			got, err := appendRegexReplacement(nil, nil, re, template, text, loc)
 			if err != nil || !bytes.Equal(got, want) {
 				t.Fatalf("text=%q template=%q: got %q, %v; want %q", text, template, got, err, want)
 			}

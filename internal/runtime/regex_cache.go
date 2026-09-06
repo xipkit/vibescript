@@ -90,11 +90,15 @@ func compileCachedRegex(pattern string) (*regexp.Regexp, error) {
 // than under: every node is charged at least one instruction, which is the
 // safe direction for a guard.
 func compiledRegexCost(pattern string) (int, error) {
+	return compiledRegexCostWithLimit(pattern, maxCompiledRegexInstructions)
+}
+
+func compiledRegexCostWithLimit(pattern string, limit int) (int, error) {
 	parsed, err := syntax.Parse(pattern, syntax.Perl)
 	if err != nil {
 		return 0, err
 	}
-	return estimateRegexProgramSize(parsed, maxCompiledRegexInstructions+1), nil
+	return estimateRegexProgramSize(parsed, limit+1), nil
 }
 
 // estimateRegexProgramSize returns the estimated instruction count for re,
@@ -213,27 +217,43 @@ func clampRegexCost(cost, budget int) int {
 }
 
 func (c *regexCache) compile(pattern string) (*regexp.Regexp, error) {
+	return c.compileWithWork(pattern, nil, maxCompiledRegexInstructions)
+}
+
+func (c *regexCache) cachedProgramCost(pattern string) (int, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	elem := c.entries[pattern]
+	if elem == nil {
+		return 0, false
+	}
+	return elem.Value.(regexCacheEntry).cost, true
+}
+
+func (c *regexCache) compileWithWork(pattern string, work *regexWork, limit int) (*regexp.Regexp, error) {
 	c.mu.Lock()
 	if elem := c.entries[pattern]; elem != nil {
 		c.lru.MoveToFront(elem)
 		entry := elem.Value.(regexCacheEntry)
 		c.mu.Unlock()
+		if entry.cost > limit {
+			return nil, regexProgramLimitError(entry.cost, limit)
+		}
 		return entry.re, nil
 	}
 	c.mu.Unlock()
 
-	cost, err := compiledRegexCost(pattern)
+	cost, err := compiledRegexCostWithLimit(pattern, limit)
 	if err != nil {
 		// Sizing parses the same syntax regexp.Compile does, so a parse error
 		// here is the error the caller would have gotten from compiling.
 		return nil, err
 	}
-	if cost > maxCompiledRegexInstructions {
-		return nil, guardLimitErrorf(
-			"regex compiles to %d instructions, exceeding limit %d (about %d MiB)",
-			cost, maxCompiledRegexInstructions,
-			maxCompiledRegexInstructions*compiledRegexInstructionBytes>>20,
-		)
+	if cost > limit {
+		return nil, regexProgramLimitError(cost, limit)
+	}
+	if err := work.charge(saturatingMul(cost, compiledRegexInstructionBytes)); err != nil {
+		return nil, err
 	}
 
 	re, err := regexp.Compile(pattern)
@@ -254,6 +274,13 @@ func (c *regexCache) compile(pattern string) (*regexp.Regexp, error) {
 	c.cost += cost
 	c.evictLocked()
 	return re, nil
+}
+
+func regexProgramLimitError(cost, limit int) error {
+	return guardLimitErrorf(
+		"regex compiles to %d instructions, exceeding limit %d (about %d MiB)",
+		cost, limit, limit*compiledRegexInstructionBytes>>20,
+	)
 }
 
 // evictLocked drops least-recently-used entries until the cache is within both

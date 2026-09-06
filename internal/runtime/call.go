@@ -3457,7 +3457,7 @@ func (exec *Execution) evalDirectRegexReplaceCall(call *CallExpr, receiver Value
 	if err := exec.checkMemoryWith(receiver, text, pattern, replacement); err != nil {
 		return NewNil(), true, err
 	}
-	result, err := builtinRegexReplaceValues(text, pattern, replacement, replaceAll)
+	result, err := builtinRegexReplaceValues(exec, text, pattern, replacement, replaceAll)
 	if err != nil {
 		return NewNil(), true, exec.wrapError(err, call.Pos())
 	}
