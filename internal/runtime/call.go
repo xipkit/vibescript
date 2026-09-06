@@ -1355,6 +1355,11 @@ func (r *callFunctionRebinder) rebindKeywords(kwargs map[string]Value) map[strin
 // An adapter that declares no contracts costs no walk: no host code runs, so
 // there is nothing to check ahead of.
 func hostCapabilityContracts(exec *Execution, adapter CapabilityAdapter) (map[string]CapabilityMethodContract, error) {
+	if internal, ok := adapter.(interface {
+		runtimeCapabilityContracts() map[string]CapabilityMethodContract
+	}); ok {
+		return internal.runtimeCapabilityContracts(), nil
+	}
 	provider, ok := adapter.(CapabilityContractProvider)
 	if !ok {
 		return nil, nil
@@ -1378,7 +1383,13 @@ func bindHostCapability(exec *Execution, adapter CapabilityAdapter, binding Capa
 	if err := exec.checkMemory(); err != nil {
 		return nil, nil, err
 	}
-	globals, bound = adapter.Bind(binding)
+	if internal, ok := adapter.(interface {
+		bindWithExecution(*Execution, CapabilityBinding) (map[string]Value, error)
+	}); ok {
+		globals, bound = internal.bindWithExecution(exec, binding)
+	} else {
+		globals, bound = adapter.Bind(binding)
+	}
 	return globals, bound, nil
 }
 

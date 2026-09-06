@@ -10,7 +10,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/mgomes/vibescript/vibes/internal/capabilitycontract"
+	"github.com/mgomes/vibescript/internal/capabilitydata"
+	"github.com/mgomes/vibescript/internal/jobqueueoptions"
 	"github.com/mgomes/vibescript/vibes/value"
 )
 
@@ -105,66 +106,13 @@ func ParseEnqueueOptionsValidated(name string, kwargs map[string]value.Value) (J
 }
 
 func parseEnqueueOptions(name string, kwargs map[string]value.Value, validate bool) (JobQueueEnqueueOptions, error) {
-	if len(kwargs) == 0 {
-		return JobQueueEnqueueOptions{}, nil
+	budget := capabilitydata.NewBudget(context.Background(), nil, nil)
+	cloner := capabilitydata.NewCloner(budget, capabilitydata.Options{})
+	options, err := jobqueueoptions.Parse(name, kwargs, budget, cloner, validate)
+	if err != nil {
+		return JobQueueEnqueueOptions{}, err
 	}
-
-	var delay *time.Duration
-	var key *string
-	extra := make(map[string]value.Value)
-
-	for k, v := range kwargs {
-		switch k {
-		case "delay":
-			d, err := valueToTimeDuration(name, v)
-			if err != nil {
-				return JobQueueEnqueueOptions{}, err
-			}
-			if d < 0 {
-				return JobQueueEnqueueOptions{}, fmt.Errorf("%s.enqueue delay must be non-negative", name)
-			}
-			delay = &d
-		case "key":
-			if v.Kind() != value.KindString {
-				return JobQueueEnqueueOptions{}, fmt.Errorf("%s.enqueue key must be a string", name)
-			}
-			s := v.String()
-			if s == "" {
-				return JobQueueEnqueueOptions{}, fmt.Errorf("%s.enqueue key must be non-empty", name)
-			}
-			key = &s
-		default:
-			if validate {
-				label := fmt.Sprintf("%s.enqueue keyword %s", name, k)
-				if err := validateDataOnly(label, v); err != nil {
-					return JobQueueEnqueueOptions{}, err
-				}
-			}
-			extra[k] = deepCloneValue(v)
-		}
-	}
-
-	opts := JobQueueEnqueueOptions{Delay: delay, Key: key}
-	if len(extra) > 0 {
-		opts.Kwargs = extra
-	}
-	return opts, nil
-}
-
-func valueToTimeDuration(name string, val value.Value) (time.Duration, error) {
-	switch val.Kind() {
-	case value.KindDuration:
-		secs := val.Duration().Seconds()
-		return time.Duration(secs) * time.Second, nil
-	case value.KindInt, value.KindFloat:
-		secs, err := value.ValueToInt64(val)
-		if err != nil {
-			return 0, err
-		}
-		return time.Duration(secs) * time.Second, nil
-	default:
-		return 0, fmt.Errorf("%s.enqueue delay must be duration or numeric seconds", name)
-	}
+	return JobQueueEnqueueOptions{Delay: options.Delay, Key: options.Key, Kwargs: options.Kwargs}, nil
 }
 
 // isNilImpl reports whether impl is an untyped or typed nil. It is
@@ -181,42 +129,4 @@ func isNilImpl(impl any) bool {
 	default:
 		return false
 	}
-}
-
-// deepCloneValue mirrors vibes' deepCloneValue for data-only kinds so
-// option parsing can defensively clone hash arguments without reaching
-// back into vibes. Runtime-only kinds (block, builtin, class, ...) are
-// rejected by validateDataOnly before reaching this clone, so they are
-// returned unchanged here rather than silently leaking.
-func deepCloneValue(v value.Value) value.Value {
-	switch v.Kind() {
-	case value.KindArray:
-		arr := v.Array()
-		cloned := make([]value.Value, len(arr))
-		for i, elem := range arr {
-			cloned[i] = deepCloneValue(elem)
-		}
-		return value.NewArray(cloned)
-	case value.KindHash:
-		hash := v.HashEntryMap()
-		cloned := make(map[string]value.Value, len(hash))
-		for k, val := range hash {
-			cloned[k] = deepCloneValue(val)
-		}
-		return value.NewHashWithTrustedOrder(cloned, v.HashKeyOrder())
-	case value.KindObject:
-		obj := v.HashEntryMap()
-		cloned := make(map[string]value.Value, len(obj))
-		for k, val := range obj {
-			cloned[k] = deepCloneValue(val)
-		}
-		return value.NewObject(cloned)
-	default:
-		return v
-	}
-}
-
-// validateDataOnly rejects values that embed callables or cyclic references.
-func validateDataOnly(label string, val value.Value) error {
-	return capabilitycontract.ValidateDataOnlyValue(label, val)
 }

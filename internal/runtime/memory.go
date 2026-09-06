@@ -2673,6 +2673,11 @@ func targetCollectsRest(target Expression) bool {
 // build no derived map (the pure iterators) are not charged a map they never
 // allocate; callers that do build one fold the empty-map overhead in themselves.
 func (exec *Execution) hashCallRootBytes(receiver Value, args []Value, kwargs map[string]Value, block Value) int {
+	used, _ := exec.hashCallRootUsage(receiver, args, kwargs, block)
+	return used
+}
+
+func (exec *Execution) hashCallRootUsage(receiver Value, args []Value, kwargs map[string]Value, block Value) (int, int) {
 	s := exec.beginBaseWalk()
 	used := s.base
 	if receiver.Kind() != KindNil {
@@ -2687,9 +2692,9 @@ func (exec *Execution) hashCallRootBytes(receiver Value, args []Value, kwargs ma
 	if !block.IsNil() {
 		used = saturatingAdd(used, s.est.value(block))
 	}
+	walked := s.nodes()
 	s.close()
-
-	return used
+	return used, walked
 }
 
 // projectedHashBaseBytes estimates the live footprint a hash transform holds

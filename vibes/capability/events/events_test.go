@@ -212,7 +212,7 @@ func TestCapabilityPublishRejectsCyclicPayload(t *testing.T) {
 	}
 }
 
-func TestDeepClonePreservesHashInsertionOrder(t *testing.T) {
+func TestPublishPreservesReturnedHashInsertionOrder(t *testing.T) {
 	t.Parallel()
 
 	original := value.NewHash(map[string]value.Value{})
@@ -222,7 +222,11 @@ func TestDeepClonePreservesHashInsertionOrder(t *testing.T) {
 		}
 	}
 
-	cloned := deepClone(original)
+	cap := MustNewCapability("events", &stubPublisher{result: original})
+	cloned, err := cap.Publish(context.Background(), []value.Value{value.NewString("topic"), value.NewHash(nil)}, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
 	entries := cloned.HashEntries()
 	if len(entries) != 2 {
 		t.Fatalf("deepClone key count = %d, want 2", len(entries))

@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
+
+	"github.com/mgomes/vibescript/internal/capabilitydata"
 )
 
 // CapabilityAdapter binds host capabilities into a script invocation.
@@ -305,17 +306,6 @@ func (state *deepCloneState) clonedPtr(id uintptr, spilled map[uintptr]Value, sm
 	return NewNil(), false
 }
 
-func mergeHash(dest, src map[string]Value) map[string]Value {
-	if len(src) == 0 {
-		return dest
-	}
-	if dest == nil {
-		dest = make(map[string]Value, len(src))
-	}
-	maps.Copy(dest, src)
-	return dest
-}
-
 var (
 	capabilityTypeAny = &TypeExpr{
 		Name: "any",
@@ -329,24 +319,16 @@ var (
 
 const maxCapabilityDataOnlyDepth = 256
 
-func cloneCapabilityKwargs(kwargs map[string]Value) map[string]Value {
-	if len(kwargs) == 0 {
-		return nil
-	}
-	return cloneHash(kwargs)
-}
-
 func validateCapabilityKwargsDataOnly(method string, kwargs map[string]Value) error {
-	for key, val := range kwargs {
-		if err := validateCapabilityTypedValue(fmt.Sprintf("%s keyword %s", method, key), val, capabilityTypeAny); err != nil {
-			return err
-		}
-	}
-	return nil
+	return capabilitydata.NewValidator(nil).Kwargs(method, kwargs)
 }
 
 func validateCapabilityTypedValue(label string, val Value, ty *TypeExpr) error {
-	if err := validateCapabilityDataOnlyValue(label, val); err != nil {
+	return validateCapabilityTypedValueWithValidator(capabilitydata.NewValidator(nil), label, val, ty)
+}
+
+func validateCapabilityTypedValueWithValidator(validator *capabilitydata.Validator, label string, val Value, ty *TypeExpr) error {
+	if err := validator.Validate(label, val); err != nil {
 		return err
 	}
 	if err := checkValueType(val, ty); err != nil {
@@ -356,10 +338,6 @@ func validateCapabilityTypedValue(label string, val Value, ty *TypeExpr) error {
 		return err
 	}
 	return nil
-}
-
-func validateCapabilityHashValue(label string, val Value) error {
-	return validateCapabilityTypedValue(label, val, capabilityTypeHash)
 }
 
 func capabilityValidateAnyReturn(method string) func(result Value) error {
@@ -372,149 +350,12 @@ func cloneCapabilityMethodResult(method string, result Value) (Value, error) {
 	return cloneCapabilityDataOnlyValue(method+" return value", result)
 }
 
-type capabilityDataCloneScanner struct {
-	label          string
-	clonedArrays   map[uintptr]Value
-	clonedMaps     map[uintptr]Value
-	clonedObjects  map[objectCloneKey]Value
-	visitingArrays map[uintptr]struct{}
-	visitingMaps   map[uintptr]struct{}
-}
-
 func cloneCapabilityDataOnlyValue(label string, val Value) (Value, error) {
-	if err := validateCapabilityTraversalDepth(label, val); err != nil {
+	budget := capabilitydata.NewBudget(context.Background(), nil, nil)
+	if err := capabilitydata.NewValidator(budget).Validate(label, val); err != nil {
 		return NewNil(), err
 	}
-	scanner := &capabilityDataCloneScanner{
-		label:          label,
-		clonedArrays:   make(map[uintptr]Value),
-		clonedMaps:     make(map[uintptr]Value),
-		clonedObjects:  make(map[objectCloneKey]Value),
-		visitingArrays: make(map[uintptr]struct{}),
-		visitingMaps:   make(map[uintptr]struct{}),
-	}
-	return scanner.clone(val)
-}
-
-func (s *capabilityDataCloneScanner) clone(val Value) (Value, error) {
-	switch val.Kind() {
-	case KindFunction, KindBuiltin, KindBlock, KindClass, KindInstance, KindShape:
-		return NewNil(), fmt.Errorf("%s must be data-only", s.label)
-	case KindArray:
-		return s.cloneArray(val)
-	case KindHash:
-		return s.cloneHash(val)
-	case KindObject:
-		return s.cloneObject(val)
-	default:
-		return val, nil
-	}
-}
-
-func (s *capabilityDataCloneScanner) cloneArray(val Value) (Value, error) {
-	// Key on the array wrapper identity so aliases of one mutable array clone
-	// to one shared object (and distinct empties stay distinct), and so a
-	// cyclic array is detected by object rather than by backing slice.
-	values := val.Array()
-	id := arrayIdentity(val)
-	if id != 0 {
-		if _, visiting := s.visitingArrays[id]; visiting {
-			return NewNil(), fmt.Errorf("%s must not contain cyclic references", s.label)
-		}
-		if cloned, ok := s.clonedArrays[id]; ok {
-			return cloned, nil
-		}
-		s.visitingArrays[id] = struct{}{}
-	}
-	clonedValues := make([]Value, len(values))
-	cloned := NewArray(clonedValues)
-	if id != 0 {
-		s.clonedArrays[id] = cloned
-	}
-	for i, item := range values {
-		clonedItem, err := s.clone(item)
-		if err != nil {
-			return NewNil(), err
-		}
-		clonedValues[i] = clonedItem
-	}
-	// NewArray published the zero-filled slice, not these later inserts.
-	// A repeated child ([child, child]) must be shared, not left fresh.
-	publishCollectionElems(clonedValues)
-	if id != 0 {
-		delete(s.visitingArrays, id)
-	}
-	return cloned, nil
-}
-
-func (s *capabilityDataCloneScanner) cloneHash(val Value) (Value, error) {
-	ptr := hashScanIdentity(val)
-	if ptr != 0 {
-		if _, visiting := s.visitingMaps[ptr]; visiting {
-			return NewNil(), fmt.Errorf("%s must not contain cyclic references", s.label)
-		}
-		if cloned, ok := s.clonedMaps[ptr]; ok {
-			return cloned, nil
-		}
-		s.visitingMaps[ptr] = struct{}{}
-	}
-	clonedEntries := make(map[string]Value, val.HashLen())
-	cloned := NewHash(clonedEntries)
-	if ptr != 0 {
-		s.clonedMaps[ptr] = cloned
-	}
-	// The clone is filled entry by entry so it iterates in its source's order.
-	var entryBuf [smallHashKeyBufferSize]HashEntry
-	for _, entry := range val.HashEntriesInto(entryBuf[:]) {
-		clonedItem, err := s.clone(entry.Value)
-		if err != nil {
-			return NewNil(), err
-		}
-		setClonedHashEntry(cloned, entry.Key, clonedItem)
-	}
-	if ptr != 0 {
-		delete(s.visitingMaps, ptr)
-	}
-	return cloned, nil
-}
-
-func (s *capabilityDataCloneScanner) cloneObject(val Value) (Value, error) {
-	entries := val.HashEntryMap()
-	ptr := reflect.ValueOf(entries).Pointer()
-	if ptr != 0 {
-		if _, visiting := s.visitingMaps[ptr]; visiting {
-			return NewNil(), fmt.Errorf("%s must not contain cyclic references", s.label)
-		}
-		// Keyed by provenance as well as entry map: a host can return both a
-		// tagged bag and NewObject over its live Hash(), and sharing one clone
-		// would give the plain wrapper the tag or strip the tagged one's
-		// published rendering, depending on which was cloned first.
-		key := objectCloneKey{ptr: ptr, tag: val.ObjectTag()}
-		if cloned, ok := s.clonedObjects[key]; ok {
-			return cloned, nil
-		}
-		s.visitingMaps[ptr] = struct{}{}
-	}
-	clonedEntries := make(map[string]Value, len(entries))
-	cloned := retagClonedObject(val, clonedEntries)
-	if ptr != 0 {
-		s.clonedObjects[objectCloneKey{ptr: ptr, tag: val.ObjectTag()}] = cloned
-	}
-	for key, item := range entries {
-		clonedItem, err := s.clone(item)
-		if err != nil {
-			return NewNil(), err
-		}
-		clonedEntries[key] = clonedItem
-	}
-	// retagClonedObject published the empty map, not these later inserts.
-	for _, item := range clonedEntries {
-		publishCollection(item)
-	}
-	if ptr != 0 {
-		delete(s.visitingMaps, ptr)
-	}
-	return cloned, nil
+	return capabilitydata.NewCloner(budget, capabilitydata.Options{PreserveObjectTags: true}).Clone(label, val)
 }
 
 type capabilityContractScanner struct {
@@ -652,94 +493,7 @@ func (exec *Execution) recordCapabilityYield(args []Value) {
 }
 
 func validateCapabilityDataOnlyValue(label string, val Value) error {
-	if err := validateCapabilityTraversalDepth(label, val); err != nil {
-		return err
-	}
-	callableScanner := newCapabilityContractScanner()
-	if callableScanner.containsCallable(val) {
-		return fmt.Errorf("%s must be data-only", label)
-	}
-	cycleScanner := newCapabilityCycleScanner()
-	if cycleScanner.containsCycle(val) {
-		return fmt.Errorf("%s must not contain cyclic references", label)
-	}
-	return nil
-}
-
-type capabilityTraversalDepthScanner struct {
-	visitingArrays map[sliceIdentity]struct{}
-	seenArrays     map[sliceIdentity]int
-	visitingMaps   map[uintptr]struct{}
-	seenMaps       map[uintptr]int
-}
-
-func newCapabilityTraversalDepthScanner() *capabilityTraversalDepthScanner {
-	return &capabilityTraversalDepthScanner{
-		visitingArrays: make(map[sliceIdentity]struct{}),
-		seenArrays:     make(map[sliceIdentity]int),
-		visitingMaps:   make(map[uintptr]struct{}),
-		seenMaps:       make(map[uintptr]int),
-	}
-}
-
-func validateCapabilityTraversalDepth(label string, val Value) error {
-	return newCapabilityTraversalDepthScanner().check(label, val, 0)
-}
-
-func (s *capabilityTraversalDepthScanner) check(label string, val Value, depth int) error {
-	if depth > maxCapabilityDataOnlyDepth {
-		return guardLimitErrorf("%s exceeds maximum depth %d", label, maxCapabilityDataOnlyDepth)
-	}
-	remainingDepth := maxCapabilityDataOnlyDepth - depth
-	switch val.Kind() {
-	case KindArray:
-		values := val.Array()
-		id := sliceIdentity{
-			Ptr: reflect.ValueOf(values).Pointer(),
-			Len: len(values),
-			Cap: cap(values),
-		}
-		if seenRemaining, seen := s.seenArrays[id]; seen && seenRemaining <= remainingDepth {
-			return nil
-		}
-		if _, visiting := s.visitingArrays[id]; visiting {
-			return nil
-		}
-		s.visitingArrays[id] = struct{}{}
-		for _, item := range values {
-			if err := s.check(label, item, depth+1); err != nil {
-				return err
-			}
-		}
-		delete(s.visitingArrays, id)
-		if seenRemaining, seen := s.seenArrays[id]; !seen || remainingDepth < seenRemaining {
-			s.seenArrays[id] = remainingDepth
-		}
-	case KindHash, KindObject:
-		ptr := hashScanIdentity(val)
-		if seenRemaining, seen := s.seenMaps[ptr]; seen && seenRemaining <= remainingDepth {
-			return nil
-		}
-		if _, visiting := s.visitingMaps[ptr]; visiting {
-			return nil
-		}
-		s.visitingMaps[ptr] = struct{}{}
-		var entryErr error
-		// Hash keys are plain strings and nest nothing, so the values are the
-		// whole graph the depth guard has to count.
-		anyHashValue(val, func(item Value) bool {
-			entryErr = s.check(label, item, depth+1)
-			return entryErr != nil
-		})
-		if entryErr != nil {
-			return entryErr
-		}
-		delete(s.visitingMaps, ptr)
-		if seenRemaining, seen := s.seenMaps[ptr]; !seen || remainingDepth < seenRemaining {
-			s.seenMaps[ptr] = remainingDepth
-		}
-	}
-	return nil
+	return capabilitydata.NewValidator(nil).Validate(label, val)
 }
 
 func bindCapabilityContracts(
@@ -764,103 +518,6 @@ func bindCapabilityContractsExcluding(
 	scanner := newCapabilityContractScanner()
 	scanner.excluded = excluded
 	scanner.bindContracts(val, scope, target, scopes)
-}
-
-type capabilityCycleScanner struct {
-	visitingArrays map[sliceIdentity]struct{}
-	visitingMaps   map[uintptr]struct{}
-	seenArrays     map[sliceIdentity]struct{}
-	seenMaps       map[uintptr]struct{}
-}
-
-func newCapabilityCycleScanner() *capabilityCycleScanner {
-	return &capabilityCycleScanner{
-		visitingArrays: make(map[sliceIdentity]struct{}),
-		visitingMaps:   make(map[uintptr]struct{}),
-		seenArrays:     make(map[sliceIdentity]struct{}),
-		seenMaps:       make(map[uintptr]struct{}),
-	}
-}
-
-func (s *capabilityCycleScanner) containsCycle(val Value) bool {
-	switch val.Kind() {
-	case KindArray:
-		values := val.Array()
-		id := sliceIdentity{
-			Ptr: reflect.ValueOf(values).Pointer(),
-			Len: len(values),
-			Cap: cap(values),
-		}
-		if _, seen := s.seenArrays[id]; seen {
-			return false
-		}
-		if _, visiting := s.visitingArrays[id]; visiting {
-			return true
-		}
-		s.visitingArrays[id] = struct{}{}
-		if slices.ContainsFunc(values, s.containsCycle) {
-			return true
-		}
-		delete(s.visitingArrays, id)
-		s.seenArrays[id] = struct{}{}
-		return false
-	case KindHash, KindObject:
-		// Key on the whole hash wrapper (or the entry-map pointer for objects,
-		// which never carry defaults) so two wrappers sharing one entry map but
-		// carrying distinct defaults are each walked: a second wrapper's default
-		// is not skipped at the seen check, and a data-only diamond of shared-map
-		// wrappers is not mistaken for a cycle.
-		ptr := hashScanIdentity(val)
-		if _, seen := s.seenMaps[ptr]; seen {
-			return false
-		}
-		if _, visiting := s.visitingMaps[ptr]; visiting {
-			return true
-		}
-		s.visitingMaps[ptr] = struct{}{}
-		if anyHashValue(val, s.containsCycle) {
-			return true
-		}
-		delete(s.visitingMaps, ptr)
-		s.seenMaps[ptr] = struct{}{}
-		return false
-	default:
-		return false
-	}
-}
-
-func (s *capabilityContractScanner) containsCallable(val Value) bool {
-	switch val.Kind() {
-	case KindFunction, KindBuiltin, KindBlock, KindClass, KindInstance, KindShape:
-		return true
-	case KindArray:
-		values := val.Array()
-		id := sliceIdentity{
-			Ptr: reflect.ValueOf(values).Pointer(),
-			Len: len(values),
-			Cap: cap(values),
-		}
-		if _, seen := s.seenArrays[id]; seen {
-			return false
-		}
-		s.seenArrays[id] = struct{}{}
-		return slices.ContainsFunc(values, s.containsCallable)
-	case KindHash, KindObject:
-		// A KindHash's default metadata lives outside its entry map, so two
-		// wrappers can share one map yet carry different defaults. Key the
-		// seen-set on the whole hash wrapper (falling back to the entry-map
-		// pointer for objects, which never carry defaults) so a second wrapper's
-		// callable default is not hidden by an earlier plain wrapper marking the
-		// shared map seen.
-		ptr := hashScanIdentity(val)
-		if _, seen := s.seenMaps[ptr]; seen {
-			return false
-		}
-		s.seenMaps[ptr] = struct{}{}
-		return anyHashValue(val, s.containsCallable)
-	default:
-		return false
-	}
 }
 
 // scanClosureEnv walks a closure's captured environment chain (the Env of a

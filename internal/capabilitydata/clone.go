@@ -57,6 +57,7 @@ type Budget struct {
 	ctx         context.Context
 	chargeSteps func(int) error
 	reserve     func(int) error
+	refresh     func() error
 	nodes       int
 	edges       int
 	bytes       int
@@ -68,6 +69,21 @@ type Budget struct {
 // hooks. Each charged step represents 64 units of graph or byte work.
 func NewBudget(ctx context.Context, chargeSteps, reserve func(int) error) *Budget {
 	return &Budget{ctx: ctx, chargeSteps: chargeSteps, reserve: reserve}
+}
+
+// SetSnapshotRefresh installs the runtime hook that refreshes live memory after
+// a host call or script callback changes the operation's reachable roots.
+func (b *Budget) SetSnapshotRefresh(refresh func() error) { b.refresh = refresh }
+
+// Refresh starts the next snapshot against current live roots.
+func (b *Budget) Refresh() error {
+	if err := b.Work(0); err != nil {
+		return err
+	}
+	if b.refresh != nil {
+		return b.refresh()
+	}
+	return nil
 }
 
 // Work charges work before a traversal, hash, copy, or allocation performs it.
@@ -144,10 +160,18 @@ type Options struct {
 }
 
 type nodeKey struct {
-	id   uintptr
-	kind value.ValueKind
-	tag  value.ObjectTag
+	id           uintptr
+	kind         value.ValueKind
+	tag          value.ObjectTag
+	preserveTags bool
 }
+
+type graphTraits uint8
+
+const (
+	hasTags graphTraits = 1 << iota
+	hasRuntimeValues
+)
 
 type cloneEntry struct {
 	// Keep the source alive while its uintptr identity is in the memo.
@@ -156,6 +180,7 @@ type cloneEntry struct {
 	err    error
 	height int
 	active bool
+	traits graphTraits
 }
 
 type memoEntry struct {
@@ -167,12 +192,13 @@ type memoEntry struct {
 // graph. Create a new Cloner after invoking host code or yielding a snapshot;
 // reuse its Budget to retain cumulative limits without retaining stale clones.
 type Cloner struct {
-	budget      *Budget
-	options     Options
-	memo        map[nodeKey]cloneEntry
-	inline      [inlineMemoSize]memoEntry
-	inlineCount int
-	err         error
+	budget       *Budget
+	options      Options
+	memo         map[nodeKey]cloneEntry
+	inline       [inlineMemoSize]memoEntry
+	inlineCount  int
+	err          error
+	validateOnly bool
 }
 
 // NewCloner starts an independent identity memo using the operation's budget.
@@ -185,10 +211,16 @@ func NewCloner(budget *Budget, options Options) *Cloner {
 
 // Clone validates and isolates one root, preserving aliases to earlier roots.
 func (c *Cloner) Clone(label string, source value.Value) (value.Value, error) {
+	return c.CloneWithOptions(label, source, c.options)
+}
+
+// CloneWithOptions applies a root's existing containment policy. Tag-free data
+// shares its clone across policies; tagged ancestors receive separate views.
+func (c *Cloner) CloneWithOptions(label string, source value.Value, options Options) (value.Value, error) {
 	if c.err != nil {
 		return value.NewNil(), c.err
 	}
-	cloned, _, err := c.clone(source, 0)
+	cloned, _, _, err := c.clone(source, 0, options)
 	if err != nil {
 		c.err = labeledError(label, err)
 		return value.NewNil(), c.err
@@ -196,8 +228,27 @@ func (c *Cloner) Clone(label string, source value.Value) (value.Value, error) {
 	return cloned, nil
 }
 
+// Hash clones a hash or object using the request memo and returns its entries.
+func (c *Cloner) Hash(label string, source value.Value) (map[string]value.Value, error) {
+	cloned, err := c.Clone(label, source)
+	if err != nil {
+		return nil, err
+	}
+	if cloned.Kind() != value.KindHash && cloned.Kind() != value.KindObject {
+		return nil, fmt.Errorf("%s expected hash, got %s", label, source.Kind())
+	}
+	// The same wrapper can also occur in another request root. Mark its map
+	// exposed so later host map writes and HashSet calls reconcile key order.
+	return cloned.Hash(), nil
+}
+
 // Kwargs isolates keyword values with the same memo as positional roots.
 func (c *Cloner) Kwargs(method string, source map[string]value.Value) (map[string]value.Value, error) {
+	return c.KwargsWithOptions(method, source, c.options)
+}
+
+// KwargsWithOptions applies a keyword group's policy with the request's memo.
+func (c *Cloner) KwargsWithOptions(method string, source map[string]value.Value, options Options) (map[string]value.Value, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -207,7 +258,7 @@ func (c *Cloner) Kwargs(method string, source map[string]value.Value) (map[strin
 	if err := c.budget.checkEdges(len(source)); err != nil {
 		return nil, labeledError(method+" keywords", err)
 	}
-	if err := c.reserveMap(len(source)); err != nil {
+	if err := c.budget.ReserveMap(len(source)); err != nil {
 		return nil, labeledError(method+" keywords", err)
 	}
 	out := make(map[string]value.Value, len(source))
@@ -215,7 +266,7 @@ func (c *Cloner) Kwargs(method string, source map[string]value.Value) (map[strin
 		if err := c.budget.Work(len(key)); err != nil {
 			return nil, labeledError(method+" keywords", err)
 		}
-		cloned, err := c.Clone(method+" keyword "+key, item)
+		cloned, err := c.CloneWithOptions(method+" keyword "+key, item, options)
 		if err != nil {
 			return nil, err
 		}
@@ -224,49 +275,61 @@ func (c *Cloner) Kwargs(method string, source map[string]value.Value) (map[strin
 	return out, nil
 }
 
-func (c *Cloner) clone(source value.Value, depth int) (value.Value, int, error) {
+func (c *Cloner) clone(source value.Value, depth int, options Options) (value.Value, int, graphTraits, error) {
 	if depth > MaxDepth {
-		return value.NewNil(), 0, &limitError{message: fmt.Sprintf("exceeds maximum depth %d", MaxDepth)}
+		return value.NewNil(), 0, 0, &limitError{message: fmt.Sprintf("exceeds maximum depth %d", MaxDepth)}
 	}
 	if err := c.budget.visit(); err != nil {
-		return value.NewNil(), 0, err
+		return value.NewNil(), 0, 0, err
 	}
 	switch source.Kind() {
 	case value.KindFunction, value.KindBuiltin, value.KindBlock, value.KindClass, value.KindInstance, value.KindShape:
-		if !c.options.AllowRuntimeValues {
-			return value.NewNil(), 0, errCallable
+		if !options.AllowRuntimeValues {
+			return value.NewNil(), 0, hasRuntimeValues, errCallable
 		}
-		return source, 0, nil
+		return source, 0, hasRuntimeValues, nil
 	case value.KindArray, value.KindHash, value.KindObject:
 	default:
-		return source, 0, nil
+		return source, 0, 0, nil
 	}
-	key := c.identity(source)
-	if entry, ok := c.lookup(key); ok {
+	key := c.identity(source, options)
+	entry, found := c.lookup(key)
+	if !found {
+		other := key
+		other.preserveTags = !other.preserveTags
+		if alternative, ok := c.lookup(other); ok && !alternative.active && alternative.traits&hasTags == 0 {
+			entry, found = alternative, true
+		}
+	}
+	if found {
 		if entry.active {
-			return value.NewNil(), 0, errCycle
+			return value.NewNil(), 0, 0, errCycle
 		}
 		if entry.height > MaxDepth-depth {
-			return value.NewNil(), 0, &limitError{message: fmt.Sprintf("exceeds maximum depth %d", MaxDepth)}
+			return value.NewNil(), 0, 0, &limitError{message: fmt.Sprintf("exceeds maximum depth %d", MaxDepth)}
 		}
-		return entry.cloned, entry.height, entry.err
+		if !options.AllowRuntimeValues && entry.traits&hasRuntimeValues != 0 {
+			return value.NewNil(), 0, entry.traits, errCallable
+		}
+		return entry.cloned, entry.height, entry.traits, entry.err
 	}
 	if err := c.budget.node(); err != nil {
-		return value.NewNil(), 0, err
+		return value.NewNil(), 0, 0, err
 	}
 	if err := c.remember(key, cloneEntry{source: source, active: true}); err != nil {
-		return value.NewNil(), 0, err
+		return value.NewNil(), 0, 0, err
 	}
 	var cloned value.Value
 	var height int
+	var traits graphTraits
 	var err error
 	if source.Kind() == value.KindArray {
-		cloned, height, err = c.cloneArray(source, depth)
+		cloned, height, traits, err = c.cloneArray(source, depth, options)
 	} else {
-		cloned, height, err = c.cloneMap(source, depth)
+		cloned, height, traits, err = c.cloneMap(source, depth, options)
 	}
-	c.complete(key, cloneEntry{source: source, cloned: cloned, height: height, err: err})
-	return cloned, height, err
+	c.complete(key, cloneEntry{source: source, cloned: cloned, height: height, traits: traits, err: err})
+	return cloned, height, traits, err
 }
 
 func (c *Cloner) lookup(key nodeKey) (cloneEntry, bool) {
@@ -318,8 +381,8 @@ func (c *Cloner) complete(key nodeKey, entry cloneEntry) {
 	}
 }
 
-func (c *Cloner) identity(source value.Value) nodeKey {
-	key := nodeKey{kind: source.Kind()}
+func (c *Cloner) identity(source value.Value, options Options) nodeKey {
+	key := nodeKey{kind: source.Kind(), preserveTags: options.PreserveObjectTags}
 	switch source.Kind() {
 	case value.KindArray:
 		key.id = value.ArrayIdentity(source)
@@ -327,55 +390,70 @@ func (c *Cloner) identity(source value.Value) nodeKey {
 		key.id = value.HashIdentity(source)
 	case value.KindObject:
 		key.id = reflect.ValueOf(source.HashEntryMap()).Pointer()
-		if c.options.PreserveObjectTags {
-			key.tag = source.ObjectTag()
-		}
+		key.tag = source.ObjectTag()
 	}
 	return key
 }
 
-func (c *Cloner) cloneArray(source value.Value, depth int) (value.Value, int, error) {
+func (c *Cloner) cloneArray(source value.Value, depth int, options Options) (value.Value, int, graphTraits, error) {
 	items := source.Array()
 	if err := c.budget.checkEdges(len(items)); err != nil {
-		return value.NewNil(), 0, err
+		return value.NewNil(), 0, 0, err
 	}
-	if err := c.budget.reserveSlots(len(items), valueBytes, value.ArrayDataBytes); err != nil {
-		return value.NewNil(), 0, err
+	var out []value.Value
+	if !c.validateOnly {
+		if err := c.budget.reserveSlots(len(items), valueBytes, value.ArrayDataBytes); err != nil {
+			return value.NewNil(), 0, 0, err
+		}
+		out = make([]value.Value, len(items))
 	}
-	out := make([]value.Value, len(items))
 	height := 0
+	var traits graphTraits
 	var cycle error
 	for i, item := range items {
-		cloned, childHeight, err := c.clone(item, depth+1)
+		cloned, childHeight, childTraits, err := c.clone(item, depth+1, options)
 		if err != nil && !errors.Is(err, errCycle) {
-			return value.NewNil(), 0, err
+			return value.NewNil(), 0, 0, err
 		}
+		traits |= childTraits
 		if errors.Is(err, errCycle) {
 			cycle = err
 		}
 		height = max(height, childHeight+1)
-		out[i] = cloned
+		if !c.validateOnly {
+			out[i] = cloned
+		}
 	}
 	if cycle != nil {
-		return value.NewNil(), height, cycle
+		return value.NewNil(), height, traits, cycle
 	}
-	return value.NewArray(out), height, nil
+	if c.validateOnly {
+		return source, height, traits, nil
+	}
+	return value.NewArray(out), height, traits, nil
 }
 
-func (c *Cloner) reserveMap(count int) error {
+// ReserveMap checks space for a cloned string-keyed map before allocation.
+func (b *Budget) ReserveMap(count int) error {
+	if err := b.checkEdges(count); err != nil {
+		return err
+	}
 	// Include capacity slack and a minimum group, as in the runtime's
 	// structural map estimates, before any bucket or key-order allocation.
 	const slotBytes = 2 * (16 + valueBytes + 32)
-	return c.budget.reserveSlots(count, slotBytes, 64+8*slotBytes)
+	return b.reserveSlots(count, slotBytes, 64+8*slotBytes)
 }
 
-func (c *Cloner) cloneMap(source value.Value, depth int) (value.Value, int, error) {
+func (c *Cloner) cloneMap(source value.Value, depth int, options Options) (value.Value, int, graphTraits, error) {
+	if c.validateOnly {
+		return c.validateMap(source, depth, options)
+	}
 	items := source.HashEntryMap()
 	if err := c.budget.checkEdges(len(items)); err != nil {
-		return value.NewNil(), 0, err
+		return value.NewNil(), 0, 0, err
 	}
-	if err := c.reserveMap(len(items)); err != nil {
-		return value.NewNil(), 0, err
+	if err := c.budget.ReserveMap(len(items)); err != nil {
+		return value.NewNil(), 0, 0, err
 	}
 	// A key-order fallback sorts the map keys. Account for comparison and
 	// rehashing work, including long common prefixes, before that helper runs.
@@ -386,10 +464,10 @@ func (c *Cloner) cloneMap(source value.Value, depth int) (value.Value, int, erro
 	scalarOnly := true
 	for key, item := range items {
 		if len(key) > (maxWork-c.budget.work)/factor {
-			return value.NewNil(), 0, exceeded("work", maxWork)
+			return value.NewNil(), 0, 0, exceeded("work", maxWork)
 		}
 		if err := c.budget.Work(len(key)*factor + 1); err != nil {
-			return value.NewNil(), 0, err
+			return value.NewNil(), 0, 0, err
 		}
 		if !scalar(item.Kind()) {
 			scalarOnly = false
@@ -397,6 +475,10 @@ func (c *Cloner) cloneMap(source value.Value, depth int) (value.Value, int, erro
 	}
 	out := make(map[string]value.Value, len(items))
 	height := 0
+	var traits graphTraits
+	if source.Kind() == value.KindObject && source.ObjectTag() != value.ObjectTagNone {
+		traits |= hasTags
+	}
 	var cycle error
 	for key, item := range items {
 		childDepth := depth + 1
@@ -404,10 +486,11 @@ func (c *Cloner) cloneMap(source value.Value, depth int) (value.Value, int, erro
 		if scalarOnly {
 			childDepth = depth
 		}
-		cloned, childHeight, err := c.clone(item, childDepth)
+		cloned, childHeight, childTraits, err := c.clone(item, childDepth, options)
 		if err != nil && !errors.Is(err, errCycle) {
-			return value.NewNil(), 0, err
+			return value.NewNil(), 0, 0, err
 		}
+		traits |= childTraits
 		if errors.Is(err, errCycle) {
 			cycle = err
 		}
@@ -417,23 +500,23 @@ func (c *Cloner) cloneMap(source value.Value, depth int) (value.Value, int, erro
 		out[key] = cloned
 	}
 	if cycle != nil {
-		return value.NewNil(), height, cycle
+		return value.NewNil(), height, traits, cycle
 	}
 	if source.Kind() == value.KindHash {
 		if err := c.budget.reserveSlots(len(items), valueBytes+16, value.HashDataBytes); err != nil {
-			return value.NewNil(), 0, err
+			return value.NewNil(), 0, 0, err
 		}
-		return value.NewHashWithTrustedOrder(out, source.HashKeyOrder()), height, nil
+		return value.NewHashWithTrustedOrder(out, source.HashKeyOrder()), height, traits, nil
 	}
 	if err := c.budget.Reserve(value.ObjectDataBytes); err != nil {
-		return value.NewNil(), 0, err
+		return value.NewNil(), 0, 0, err
 	}
-	if c.options.PreserveObjectTags {
+	if options.PreserveObjectTags {
 		if text, ok := source.ObjectStringForm(); ok {
-			return value.NewTaggedObject(out, source.ObjectTag(), text), height, nil
+			return value.NewTaggedObject(out, source.ObjectTag(), text), height, traits, nil
 		}
 	}
-	return value.NewObject(out), height, nil
+	return value.NewObject(out), height, traits, nil
 }
 
 func scalar(kind value.ValueKind) bool {
