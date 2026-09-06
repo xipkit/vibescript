@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mgomes/vibescript/vibes/internal/capabilitycontract"
+	"github.com/mgomes/vibescript/internal/capabilitydata"
 	"github.com/mgomes/vibescript/vibes/value"
 )
 
@@ -65,7 +65,8 @@ func (c *Capability) Bind(ctx context.Context) (map[string]value.Value, error) {
 		return nil, fmt.Errorf("%s capability resolver must return hash/object", c.name)
 	}
 	label := c.name + " capability value"
-	cloned, err := capabilitycontract.CloneDataOnlyValue(label, val)
+	budget := capabilitydata.NewBudget(ctx, nil, nil)
+	cloned, err := capabilitydata.NewCloner(budget, capabilitydata.Options{}).Clone(label, val)
 	if err != nil {
 		return nil, err
 	}
