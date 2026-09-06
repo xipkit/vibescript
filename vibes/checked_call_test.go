@@ -7,8 +7,49 @@ import (
 	"testing"
 
 	"github.com/mgomes/vibescript/vibes"
+	"github.com/mgomes/vibescript/vibes/capability/events"
+	"github.com/mgomes/vibescript/vibes/capability/jobqueue"
 	"github.com/mgomes/vibescript/vibes/value"
 )
+
+type checkedBoundaryHost struct{}
+
+func (checkedBoundaryHost) Enqueue(context.Context, jobqueue.JobQueueJob) (value.Value, error) {
+	return value.NewNil(), nil
+}
+
+func (checkedBoundaryHost) Publish(context.Context, events.PublishRequest) (value.Value, error) {
+	return value.NewNil(), nil
+}
+
+func TestCheckedCallAndCallRejectDuplicateFirstPartyContracts(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		adapter vibes.CapabilityAdapter
+	}{
+		{"jobs.enqueue", vibes.MustNewJobQueueCapability("jobs", checkedBoundaryHost{})},
+		{"events.publish", vibes.MustNewEventsCapability("events", checkedBoundaryHost{})},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			engine := vibes.MustNewEngine(vibes.Config{})
+			script, err := engine.Compile("def run()\n 1\nend")
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := vibes.CallOptions{Capabilities: []vibes.CapabilityAdapter{tc.adapter, tc.adapter}}
+			_, callErr := script.Call(context.Background(), "run", nil, opts)
+			_, _, checkedErr := script.CheckedCall(context.Background(), "run", nil, opts)
+			want := "duplicate capability contract for " + tc.name
+			for _, err := range []error{callErr, checkedErr} {
+				if err == nil || !strings.Contains(err.Error(), want) {
+					t.Fatalf("Call error = %v; CheckedCall error = %v; want %s for both", callErr, checkedErr, want)
+				}
+			}
+		})
+	}
+}
 
 func TestCheckedCallGatesOnDiagnostics(t *testing.T) {
 	t.Parallel()

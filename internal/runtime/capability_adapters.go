@@ -3,6 +3,9 @@ package runtime
 import (
 	"fmt"
 
+	"github.com/mgomes/vibescript/internal/capabilitydata"
+	"github.com/mgomes/vibescript/internal/jobqueueoptions"
+
 	"github.com/mgomes/vibescript/vibes/capability/contextcap"
 	"github.com/mgomes/vibescript/vibes/capability/db"
 	"github.com/mgomes/vibescript/vibes/capability/events"
@@ -68,26 +71,30 @@ func (c *jobQueueCapability) Bind(binding CapabilityBinding) (map[string]Value, 
 func (c *jobQueueCapability) callEnqueue(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
 	name := c.inner.Name
 	method := name + ".enqueue"
+	budget, reservation, err := newCapabilityDataBudget(exec, receiver, args, kwargs, block)
+	if err != nil {
+		return NewNil(), err
+	}
+	defer reservation.release()
 	if !exec.capabilityArgsValidated(method) {
-		if err := c.validateEnqueueContractArgs(args, kwargs, block); err != nil {
+		if err := c.validateEnqueueContractArgsWithBudget(budget, args, kwargs, block); err != nil {
 			return NewNil(), err
 		}
 	}
 
-	// Whether the contract ran (capabilityArgsValidated) or the inline check
-	// above ran, validateEnqueueContractArgs has already walked kwargs for
-	// data-only and cycle violations, so use the validated parser to avoid
-	// traversing the option graph a second time. Direct embedders go through
-	// the safe jobqueue.ParseEnqueueOptions, which performs that walk.
-	options, err := jobqueue.ParseEnqueueOptionsValidated(name, kwargs)
+	cloner := capabilitydata.NewCloner(budget, capabilitydata.Options{PreserveObjectTags: true})
+	options, err := jobqueueoptions.Parse(name, kwargs, budget, cloner, false)
 	if err != nil {
 		return NewNil(), err
 	}
-
+	payload, err := cloner.Hash(method+" payload", args[1])
+	if err != nil {
+		return NewNil(), err
+	}
 	job := jobqueue.JobQueueJob{
 		Name:    args[0].String(),
-		Payload: cloneHash(args[1].HashEntryMap()),
-		Options: options,
+		Payload: payload,
+		Options: jobqueue.JobQueueEnqueueOptions{Delay: options.Delay, Key: options.Key, Kwargs: options.Kwargs},
 	}
 
 	result, err := c.inner.Queue.Enqueue(exec.Context(), job)
@@ -97,7 +104,7 @@ func (c *jobQueueCapability) callEnqueue(exec *Execution, receiver Value, args [
 	if err := exec.checkContext(); err != nil {
 		return NewNil(), err
 	}
-	cloned, err := cloneCapabilityMethodResult(method, result)
+	cloned, err := cloneCapabilityResult(budget, method, result)
 	if err != nil {
 		return NewNil(), err
 	}
@@ -113,21 +120,41 @@ func (c *jobQueueCapability) callRetry(exec *Execution, receiver Value, args []V
 		return NewNil(), fmt.Errorf("%s.retry is not supported", name)
 	}
 	method := name + ".retry"
+	budget, reservation, err := newCapabilityDataBudget(exec, receiver, args, kwargs, block)
+	if err != nil {
+		return NewNil(), err
+	}
+	defer reservation.release()
 	if !exec.capabilityArgsValidated(method) {
-		if err := c.validateRetryContractArgs(args, kwargs, block); err != nil {
+		if err := c.validateRetryContractArgsWithBudget(budget, args, kwargs, block); err != nil {
 			return NewNil(), err
 		}
 	}
 
-	options := make(map[string]Value)
+	cloner := capabilitydata.NewCloner(budget, capabilitydata.Options{PreserveObjectTags: true})
+	var positional map[string]Value
 	if len(args) > 1 {
-		optsVal := args[1]
-		if optsVal.Kind() != KindHash && optsVal.Kind() != KindObject {
-			return NewNil(), fmt.Errorf("%s.retry options must be hash", name)
+		positional, err = cloner.Hash(method+" options", args[1])
+		if err != nil {
+			return NewNil(), err
 		}
-		options = mergeHash(options, cloneHash(optsVal.HashEntryMap()))
 	}
-	options = mergeHash(options, cloneCapabilityKwargs(kwargs))
+	extra, err := cloner.Kwargs(method, kwargs)
+	if err != nil {
+		return NewNil(), err
+	}
+	if err := budget.ReserveMap(saturatingAdd(len(positional), len(extra))); err != nil {
+		return NewNil(), err
+	}
+	options := make(map[string]Value, len(positional)+len(extra))
+	for _, entries := range []map[string]Value{positional, extra} {
+		for key, item := range entries {
+			if err := budget.Work(len(key) + 1); err != nil {
+				return NewNil(), err
+			}
+			options[key] = item
+		}
+	}
 
 	req := jobqueue.JobQueueRetryRequest{JobID: args[0].String(), Options: options}
 	result, err := c.inner.Retry.Retry(exec.Context(), req)
@@ -137,7 +164,7 @@ func (c *jobQueueCapability) callRetry(exec *Execution, receiver Value, args []V
 	if err := exec.checkContext(); err != nil {
 		return NewNil(), err
 	}
-	cloned, err := cloneCapabilityMethodResult(method, result)
+	cloned, err := cloneCapabilityResult(budget, method, result)
 	if err != nil {
 		return NewNil(), err
 	}
@@ -165,6 +192,10 @@ func (c *jobQueueCapability) CapabilityContracts() map[string]CapabilityMethodCo
 }
 
 func (c *jobQueueCapability) validateEnqueueContractArgs(args []Value, kwargs map[string]Value, block Value) error {
+	return c.validateEnqueueContractArgsWithBudget(nil, args, kwargs, block)
+}
+
+func (c *jobQueueCapability) validateEnqueueContractArgsWithBudget(budget *capabilitydata.Budget, args []Value, kwargs map[string]Value, block Value) error {
 	method := c.inner.Name + ".enqueue"
 
 	if len(args) != 2 {
@@ -182,14 +213,18 @@ func (c *jobQueueCapability) validateEnqueueContractArgs(args []Value, kwargs ma
 		return fmt.Errorf("%s expects job name as string or symbol", method)
 	}
 
-	if err := validateCapabilityHashValue(method+" payload", args[1]); err != nil {
+	validator := capabilitydata.NewValidator(budget)
+	if err := validateCapabilityTypedValueWithValidator(validator, method+" payload", args[1], capabilityTypeHash); err != nil {
 		return err
 	}
-
-	return validateCapabilityKwargsDataOnly(method, kwargs)
+	return validator.Kwargs(method, kwargs)
 }
 
 func (c *jobQueueCapability) validateRetryContractArgs(args []Value, kwargs map[string]Value, block Value) error {
+	return c.validateRetryContractArgsWithBudget(nil, args, kwargs, block)
+}
+
+func (c *jobQueueCapability) validateRetryContractArgsWithBudget(budget *capabilitydata.Budget, args []Value, kwargs map[string]Value, block Value) error {
 	method := c.inner.Name + ".retry"
 
 	if len(args) < 1 || len(args) > 2 {
@@ -204,13 +239,13 @@ func (c *jobQueueCapability) validateRetryContractArgs(args []Value, kwargs map[
 		return fmt.Errorf("%s expects job id string", method)
 	}
 
+	validator := capabilitydata.NewValidator(budget)
 	if len(args) == 2 {
-		if err := validateCapabilityHashValue(method+" options", args[1]); err != nil {
+		if err := validateCapabilityTypedValueWithValidator(validator, method+" options", args[1], capabilityTypeHash); err != nil {
 			return err
 		}
 	}
-
-	return validateCapabilityKwargsDataOnly(method, kwargs)
+	return validator.Kwargs(method, kwargs)
 }
 
 // ContextCapabilityResolver is an internal alias for contextcap.Resolver
@@ -249,6 +284,21 @@ type contextCapabilityAdapter struct {
 func (a *contextCapabilityAdapter) Bind(binding CapabilityBinding) (map[string]Value, error) {
 	return a.inner.Bind(binding.Context)
 }
+
+func (a *contextCapabilityAdapter) bindWithExecution(exec *Execution, binding CapabilityBinding) (map[string]Value, error) {
+	budget, reservation, err := newCapabilityDataBudget(exec, NewNil(), nil, nil, NewNil())
+	if err != nil {
+		return nil, err
+	}
+	defer reservation.release()
+	return a.inner.Bind(capabilitydata.WithBudget(binding.Context, budget))
+}
+
+// These adapters enforce their public contracts inside the budgeted call, as
+// DB does. Keep the standalone validators available to direct embedders.
+func (c *jobQueueCapability) validatesCapabilityData() {}
+
+func (c *eventsCapability) validatesCapabilityData() {}
 
 // Internal aliases for db capability types so runtime code (and tests)
 // can keep referring to short names that match the public vibes facade.
@@ -307,18 +357,22 @@ func (a *dbCapabilityAdapter) CapabilityContracts() map[string]CapabilityMethodC
 }
 
 func (a *dbCapabilityAdapter) wrapCall(method string, fn, validatedFn func(db.ExecutionContext, []Value, map[string]Value, Value) (Value, error)) BuiltinFunc {
-	return func(exec *Execution, _ Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
+	return func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
+		budget, reservation, err := newCapabilityDataBudget(exec, receiver, args, kwargs, block)
+		if err != nil {
+			return NewNil(), err
+		}
+		defer reservation.release()
 		call := fn
 		if validatedFn != nil && exec.capabilityArgsValidated(method) {
 			call = validatedFn
 		}
-		result, err := call(exec, args, kwargs, block)
+		result, err := call(&capabilityDataExecution{Execution: exec, budget: budget}, args, kwargs, block)
 		if err != nil {
 			return result, err
 		}
-		// Every db call ends in CloneMethodResult, so the value returned here
-		// is already validated and isolated from host state; the proof lets
-		// the dispatcher skip detaching it a second time.
+		// Every db call validates and isolates its result from host state;
+		// the proof lets the dispatcher skip detaching it a second time.
 		exec.markValidatedCapabilityReturn(method, result)
 		return result, nil
 	}
@@ -376,18 +430,22 @@ func (c *eventsCapability) Bind(binding CapabilityBinding) (map[string]Value, er
 
 func (c *eventsCapability) callPublish(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
 	method := c.inner.PublishMethodName()
+	budget, reservation, err := newCapabilityDataBudget(exec, receiver, args, kwargs, block)
+	if err != nil {
+		return NewNil(), err
+	}
+	defer reservation.release()
+	ctx := capabilitydata.WithBudget(exec.Context(), budget)
 	var result Value
-	var err error
 	if exec.capabilityArgsValidated(method) {
-		result, err = c.inner.PublishValidated(exec.Context(), args, kwargs, !block.IsNil())
+		result, err = c.inner.PublishValidated(ctx, args, kwargs, !block.IsNil())
 	} else {
-		result, err = c.inner.Publish(exec.Context(), args, kwargs, !block.IsNil())
+		result, err = c.inner.Publish(ctx, args, kwargs, !block.IsNil())
 	}
 	if err != nil {
 		return NewNil(), err
 	}
-	// Both publish paths validate the host's return value and deep-clone it
-	// (events.Capability.PublishValidated ends in CloneMethodResult); record
+	// Both publish paths validate and isolate the host's return value; record
 	// the internal proof so the dispatcher does not validate the result twice.
 	exec.markValidatedCapabilityReturn(method, result)
 	return result, nil

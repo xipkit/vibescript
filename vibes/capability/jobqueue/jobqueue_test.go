@@ -182,7 +182,7 @@ func TestParseEnqueueOptionsParsesDelayKeyAndExtra(t *testing.T) {
 	}
 }
 
-func TestDeepCloneValuePreservesHashInsertionOrder(t *testing.T) {
+func TestParseEnqueueOptionsPreservesHashInsertionOrder(t *testing.T) {
 	t.Parallel()
 
 	original := value.NewHash(map[string]value.Value{})
@@ -192,7 +192,11 @@ func TestDeepCloneValuePreservesHashInsertionOrder(t *testing.T) {
 		}
 	}
 
-	cloned := deepCloneValue(original)
+	options, err := ParseEnqueueOptions("jobs", map[string]value.Value{"data": original})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cloned := options.Kwargs["data"]
 	entries := cloned.HashEntries()
 	if len(entries) != 2 {
 		t.Fatalf("deepCloneValue key count = %d, want 2", len(entries))

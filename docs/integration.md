@@ -265,6 +265,20 @@ skip the boundary copies entirely, and one that never writes a script
 container can declare `vibes.DeclareNonMutating` to skip argument isolation;
 both are safety promises, so declare only what is true.
 
+The DB, events, jobqueue, and context adapters preserve shared children within
+each copied data graph. Positional arguments and keyword options share one
+request copy. Returns and individual `db.each` rows use fresh snapshots, so a
+host callback or an earlier row cannot leave a stale copy in a later result.
+Jobqueue payloads retain object provenance; extra enqueue options keep their
+existing behavior of stripping it.
+
+These adapters bound copy work even when used without an interpreter. One
+operation permits at most 262,144 composite-node visits, 1,048,576 value visits,
+64 MiB of cumulative allocation reservations, and 67,108,864 units of traversal
+and byte work. The existing nesting limit remains 256. Runtime calls also
+charge their configured step and memory quotas and check cancellation while
+copying. All rows in one `db.each` call share the operation budget.
+
 ### Handling Dynamic Types
 
 Every call returns a `value.Value`. Inspect the `Kind()` before consuming it:
