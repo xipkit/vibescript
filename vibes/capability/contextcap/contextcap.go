@@ -11,7 +11,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mgomes/vibescript/vibes/internal/capabilitycontract"
+	"github.com/mgomes/vibescript/internal/capabilitydata"
 	"github.com/mgomes/vibescript/vibes/value"
 )
 
@@ -52,6 +52,7 @@ func (c *Capability) Name() string { return c.name }
 // Bind resolves the underlying value, validates that it is data-only and
 // non-cyclic, and returns a deep-cloned copy keyed by the capability name.
 func (c *Capability) Bind(ctx context.Context) (map[string]value.Value, error) {
+	ctx, budget := capabilitydata.UnpackBudget(ctx)
 	val, err := c.resolver(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s capability: %w", c.name, err)
@@ -65,7 +66,10 @@ func (c *Capability) Bind(ctx context.Context) (map[string]value.Value, error) {
 		return nil, fmt.Errorf("%s capability resolver must return hash/object", c.name)
 	}
 	label := c.name + " capability value"
-	cloned, err := capabilitycontract.CloneDataOnlyValue(label, val)
+	if err := budget.Refresh(); err != nil {
+		return nil, err
+	}
+	cloned, err := capabilitydata.NewCloner(budget, capabilitydata.Options{}).Clone(label, val)
 	if err != nil {
 		return nil, err
 	}

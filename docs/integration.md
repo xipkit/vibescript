@@ -65,6 +65,14 @@ the `low` profile (1,000,000 steps / 16 MiB / 256), so `low` is the reproducible
 name for the default sandbox budget. An unlimited memory quota skips the
 accounting walk entirely.
 
+Compilation separately bounds parser recursion and expression/statement tree
+depth to 1,024 levels. Excessive nesting returns `syntax nesting too deep` before
+execution starts. This fixed limit also applies to snippets, modules, and editor
+tooling; increasing `RecursionLimit` or `MaxSourceBytes` does not raise it. Wide
+arrays, argument lists, and sequences of shallow statements do not consume extra
+nesting levels. Type annotations, parenless calls, and string interpolation keep
+their existing, smaller nesting limits.
+
 Rather than tune the three fields by hand, select a coherent bundle with a named
 profile:
 
@@ -260,6 +268,20 @@ returns, or yields can declare `vibes.DeclareNonRetaining` on its builtins to
 skip the boundary copies entirely, and one that never writes a script
 container can declare `vibes.DeclareNonMutating` to skip argument isolation;
 both are safety promises, so declare only what is true.
+
+The DB, events, jobqueue, and context adapters preserve shared children within
+each copied data graph. Positional arguments and keyword options share one
+request copy. Returns and individual `db.each` rows use fresh snapshots, so a
+host callback or an earlier row cannot leave a stale copy in a later result.
+Jobqueue payloads retain object provenance; extra enqueue options keep their
+existing behavior of stripping it.
+
+These adapters bound copy work even when used without an interpreter. One
+operation permits at most 262,144 composite-node visits, 1,048,576 value visits,
+64 MiB of cumulative allocation reservations, and 67,108,864 units of traversal
+and byte work. The existing nesting limit remains 256. Runtime calls also
+charge their configured step and memory quotas and check cancellation while
+copying. All rows in one `db.each` call share the operation budget.
 
 ### Handling Dynamic Types
 

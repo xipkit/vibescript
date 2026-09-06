@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/mgomes/vibescript/vibes/internal/capabilitycontract"
+	"github.com/mgomes/vibescript/internal/capabilitydata"
 	"github.com/mgomes/vibescript/vibes/value"
 )
 
@@ -61,6 +61,10 @@ func (c *Capability) PublishMethodName() string { return c.Name + ".publish" }
 // arguments. The vibes-side adapter wires this into the runtime contract and
 // Publish calls it when embedders invoke the capability directly.
 func (c *Capability) ValidatePublishArgs(args []value.Value, kwargs map[string]value.Value, blockProvided bool) error {
+	return c.validatePublishArgs(nil, args, kwargs, blockProvided)
+}
+
+func (c *Capability) validatePublishArgs(budget *capabilitydata.Budget, args []value.Value, kwargs map[string]value.Value, blockProvided bool) error {
 	method := c.PublishMethodName()
 	if len(args) != 2 {
 		return fmt.Errorf("%s expects topic and payload", method)
@@ -71,37 +75,53 @@ func (c *Capability) ValidatePublishArgs(args []value.Value, kwargs map[string]v
 	if _, err := nameArg(method, "topic", args[0]); err != nil {
 		return err
 	}
-	if err := validateHashValue(method+" payload", args[1]); err != nil {
+	if args[1].Kind() != value.KindHash && args[1].Kind() != value.KindObject {
+		return fmt.Errorf("%s payload expected hash, got %s", method, args[1].Kind())
+	}
+	validator := capabilitydata.NewValidator(budget)
+	if err := validator.Validate(method+" payload", args[1]); err != nil {
 		return err
 	}
-	return validateKwargsDataOnly(method, kwargs)
+	return validator.Kwargs(method, kwargs)
 }
 
 // ValidatePublishReturn enforces the data-only contract on host return values.
 // The vibes-side adapter wires this into CapabilityMethodContract.ValidateReturn.
 func (c *Capability) ValidatePublishReturn(result value.Value) error {
-	return validateAnyValue(c.PublishMethodName()+" return value", result)
+	return capabilitydata.NewValidator(nil).Validate(c.PublishMethodName()+" return value", result)
 }
 
 // Publish runs the full publish path: validates args, builds the
 // PublishRequest, delegates to the host Publisher, validates the return value,
 // and deep-clones it so the host can't share mutable state with scripts.
 func (c *Capability) Publish(ctx context.Context, args []value.Value, kwargs map[string]value.Value, blockProvided bool) (value.Value, error) {
-	if err := c.ValidatePublishArgs(args, kwargs, blockProvided); err != nil {
+	ctx, budget := capabilitydata.UnpackBudget(ctx)
+	if err := c.validatePublishArgs(budget, args, kwargs, blockProvided); err != nil {
 		return value.NewNil(), err
 	}
-	return c.PublishValidated(ctx, args, kwargs, blockProvided)
+	return c.publishValidated(ctx, budget, args, kwargs)
 }
 
 // PublishValidated runs events.publish after the runtime has already enforced
 // ValidatePublishArgs. Direct embedders should call Publish so invalid script
 // arguments are still rejected before the host publisher runs.
 func (c *Capability) PublishValidated(ctx context.Context, args []value.Value, kwargs map[string]value.Value, blockProvided bool) (value.Value, error) {
-	req := PublishRequest{
-		Topic:   args[0].String(),
-		Payload: cloneHash(args[1].HashEntryMap()),
-		Options: cloneKwargs(kwargs),
+	ctx, budget := capabilitydata.UnpackBudget(ctx)
+	return c.publishValidated(ctx, budget, args, kwargs)
+}
+
+func (c *Capability) publishValidated(ctx context.Context, budget *capabilitydata.Budget, args []value.Value, kwargs map[string]value.Value) (value.Value, error) {
+	method := c.PublishMethodName()
+	cloner := capabilitydata.NewCloner(budget, capabilitydata.Options{AllowRuntimeValues: true})
+	payload, err := cloner.Hash(method+" payload", args[1])
+	if err != nil {
+		return value.NewNil(), err
 	}
+	options, err := cloner.Kwargs(method, kwargs)
+	if err != nil {
+		return value.NewNil(), err
+	}
+	req := PublishRequest{Topic: args[0].String(), Payload: payload, Options: options}
 	result, err := c.Publisher.Publish(ctx, req)
 	if err != nil {
 		return value.NewNil(), err
@@ -111,7 +131,10 @@ func (c *Capability) PublishValidated(ctx context.Context, args []value.Value, k
 			return value.NewNil(), err
 		}
 	}
-	return capabilitycontract.CloneMethodResult(c.PublishMethodName(), result)
+	if err := budget.Refresh(); err != nil {
+		return value.NewNil(), err
+	}
+	return capabilitydata.NewCloner(budget, capabilitydata.Options{}).Clone(method+" return value", result)
 }
 
 // nameArg coerces a string or symbol argument into its underlying name,
@@ -129,42 +152,6 @@ func nameArg(method, label string, val value.Value) (string, error) {
 	}
 }
 
-// validateHashValue ensures val is hash-like (hash or object) whose
-// contents are data-only. The pre-carve validateCapabilityHashValue
-// accepted both KindHash and KindObject, and Value.Hash() resolves both,
-// so callers that forward host objects as event payloads must continue
-// to work.
-func validateHashValue(label string, val value.Value) error {
-	if val.Kind() != value.KindHash && val.Kind() != value.KindObject {
-		return fmt.Errorf("%s expected hash, got %s", label, val.Kind())
-	}
-	return validateDataOnly(label, val)
-}
-
-// validateAnyValue accepts any kind so long as it is data-only and acyclic.
-func validateAnyValue(label string, val value.Value) error {
-	return validateDataOnly(label, val)
-}
-
-// validateKwargsDataOnly applies validateAnyValue to every kwarg entry.
-func validateKwargsDataOnly(method string, kwargs map[string]value.Value) error {
-	for key, val := range kwargs {
-		if err := validateAnyValue(fmt.Sprintf("%s keyword %s", method, key), val); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// cloneKwargs returns nil for empty input; otherwise a deep clone so the host
-// cannot mutate the script-side kwargs map.
-func cloneKwargs(kwargs map[string]value.Value) map[string]value.Value {
-	if len(kwargs) == 0 {
-		return nil
-	}
-	return cloneHash(kwargs)
-}
-
 // isNilImpl reports whether impl is either an untyped nil or a typed-nil
 // pointer/interface/etc. value.
 func isNilImpl(impl any) bool {
@@ -177,53 +164,5 @@ func isNilImpl(impl any) bool {
 		return val.IsNil()
 	default:
 		return false
-	}
-}
-
-// validateDataOnly rejects values that embed callables or cyclic references.
-func validateDataOnly(label string, val value.Value) error {
-	return capabilitycontract.ValidateDataOnlyValue(label, val)
-}
-
-// cloneHash deep-clones a string-keyed map of values, returning an empty map
-// for an empty input (matching the existing vibes capability behavior).
-func cloneHash(src map[string]value.Value) map[string]value.Value {
-	if len(src) == 0 {
-		return map[string]value.Value{}
-	}
-	out := make(map[string]value.Value, len(src))
-	for k, v := range src {
-		out[k] = deepClone(v)
-	}
-	return out
-}
-
-// deepClone returns a deep copy of val so the host cannot mutate state shared
-// with a running script. Non-collection kinds are returned unchanged.
-func deepClone(val value.Value) value.Value {
-	switch val.Kind() {
-	case value.KindArray:
-		arr := val.Array()
-		cloned := make([]value.Value, len(arr))
-		for i, elem := range arr {
-			cloned[i] = deepClone(elem)
-		}
-		return value.NewArray(cloned)
-	case value.KindHash:
-		hash := val.HashEntryMap()
-		cloned := make(map[string]value.Value, len(hash))
-		for k, v := range hash {
-			cloned[k] = deepClone(v)
-		}
-		return value.NewHashWithTrustedOrder(cloned, val.HashKeyOrder())
-	case value.KindObject:
-		obj := val.HashEntryMap()
-		cloned := make(map[string]value.Value, len(obj))
-		for k, v := range obj {
-			cloned[k] = deepClone(v)
-		}
-		return value.NewObject(cloned)
-	default:
-		return val
 	}
 }

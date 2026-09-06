@@ -121,10 +121,11 @@ func TestInterpolationNestingPastTheCapIsRejected(t *testing.T) {
 // not call t.Parallel because the total counts every goroutine's allocations.
 func TestNestedInterpolationDoesNotCopyItsBodyPerLevel(t *testing.T) {
 	var body strings.Builder
+	body.WriteString("[")
 	for body.Len() < 64<<10 {
-		body.WriteString("a + b + c + d + ")
+		body.WriteString("a + b + c + d, ")
 	}
-	body.WriteString("e")
+	body.WriteString("e]")
 
 	measure := func(t *testing.T, depth int) uint64 {
 		t.Helper()

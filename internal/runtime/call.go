@@ -1378,7 +1378,13 @@ func bindHostCapability(exec *Execution, adapter CapabilityAdapter, binding Capa
 	if err := exec.checkMemory(); err != nil {
 		return nil, nil, err
 	}
-	globals, bound = adapter.Bind(binding)
+	if internal, ok := adapter.(interface {
+		bindWithExecution(*Execution, CapabilityBinding) (map[string]Value, error)
+	}); ok {
+		globals, bound = internal.bindWithExecution(exec, binding)
+	} else {
+		globals, bound = adapter.Bind(binding)
+	}
 	return globals, bound, nil
 }
 
@@ -1418,6 +1424,7 @@ func bindCapabilitiesForCall(exec *Execution, root *Env, rebinder *callFunctionR
 		if err != nil {
 			return err
 		}
+		_, validatesData := adapter.(interface{ validatesCapabilityData() })
 		for methodName, contract := range contracts {
 			name := strings.TrimSpace(methodName)
 			if name == "" {
@@ -1427,7 +1434,11 @@ func bindCapabilitiesForCall(exec *Execution, root *Env, rebinder *callFunctionR
 				return fmt.Errorf("duplicate capability contract for %s", name)
 			}
 			exec.capabilityContractsByName[name] = contract
-			scope.contracts[name] = contract
+			// First-party data validation runs inside the adapter's budget,
+			// but its public contract names still participate in collisions.
+			if !validatesData {
+				scope.contracts[name] = contract
+			}
 		}
 		globals, bindErr, refused := bindHostCapability(exec, adapter, binding)
 		if refused != nil {
@@ -3457,7 +3468,7 @@ func (exec *Execution) evalDirectRegexReplaceCall(call *CallExpr, receiver Value
 	if err := exec.checkMemoryWith(receiver, text, pattern, replacement); err != nil {
 		return NewNil(), true, err
 	}
-	result, err := builtinRegexReplaceValues(text, pattern, replacement, replaceAll)
+	result, err := builtinRegexReplaceValues(exec, text, pattern, replacement, replaceAll)
 	if err != nil {
 		return NewNil(), true, exec.wrapError(err, call.Pos())
 	}

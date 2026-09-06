@@ -14,7 +14,11 @@ import (
 func multiplicationContinuationLines(lines int) string {
 	var sb strings.Builder
 	sb.WriteString("def run\n  a\n")
-	for range lines {
+	// Keep each expression shallow while probing positions throughout the file.
+	for i := range lines {
+		if i > 0 && i%32 == 0 {
+			sb.WriteString("  a\n")
+		}
 		sb.WriteString("  * a\n")
 	}
 	sb.WriteString("end\n")

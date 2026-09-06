@@ -65,6 +65,11 @@ func (p *parser) parseParenlessArgumentExpression() ast.Expression {
 }
 
 func (p *parser) parseExpressionWithLineLimit(precedence, limitLine int, lineLimited bool) ast.Expression {
+	if !p.enterSyntax() {
+		return nil
+	}
+	defer func() { p.syntaxDepth-- }()
+
 	prefix := prefixParserKind(p.curToken.Type)
 	if prefix == prefixParserNone {
 		if p.curToken.Type == ast.TokenRange || p.curToken.Type == ast.TokenRangeExcl {
@@ -88,6 +93,9 @@ func (p *parser) parseExpressionWithLineLimit(precedence, limitLine int, lineLim
 // parser materializes an operand directly (such as a percent-array call
 // argument) that must still accept trailing postfixes like `[i]` or `.member`.
 func (p *parser) continueExpressionParse(left ast.Expression, precedence, limitLine int, lineLimited bool) ast.Expression {
+	if !p.checkSyntaxNode(left) {
+		return nil
+	}
 	for p.peekToken.Type != ast.TokenEOF {
 		if lineLimited && p.peekStopsLineExpression() {
 			return left
@@ -106,6 +114,9 @@ func (p *parser) continueExpressionParse(left ast.Expression, precedence, limitL
 			if left == nil {
 				return nil
 			}
+			if !p.checkSyntaxNode(left) {
+				return nil
+			}
 			if lineLimited {
 				limitLine = p.curToken.Pos.Line
 			}
@@ -122,6 +133,9 @@ func (p *parser) continueExpressionParse(left ast.Expression, precedence, limitL
 		p.nextToken()
 		left = p.parseInfix(infix, left)
 		if left == nil {
+			return nil
+		}
+		if !p.checkSyntaxNode(left) {
 			return nil
 		}
 		if lineLimited {
@@ -1148,6 +1162,11 @@ func percentArrayLiteralTokenType(kind rune) ast.TokenType {
 
 func (p *parser) parseStringInterpolationExpression(raw string, pos ast.Position) (ast.Expression, bool) {
 	exprParser := newParser(raw)
+	exprParser.syntaxDepth = p.syntaxDepth
+	if p.nodeDepths == nil {
+		p.nodeDepths = make(map[ast.Node]syntaxNodeDepth)
+	}
+	exprParser.nodeDepths = p.nodeDepths
 	// Inherit the enclosing local scopes so name-sensitive parsing (such as
 	// percent-literal vs modulo disambiguation) resolves locals the same way
 	// inside #{...} as it would inline. The copy keeps the sub-parser's scope
@@ -1161,6 +1180,10 @@ func (p *parser) parseStringInterpolationExpression(raw string, pos ast.Position
 	exprParser.l.percentScan = p.l.percentScan
 	exprParser.l.interpDepth = p.l.interpDepth + 1
 	expr := exprParser.parseLineExpression(lowestPrec)
+	if exprParser.nestingError != nil {
+		p.rejectNesting(pos)
+		return nil, false
+	}
 	if len(exprParser.errors) > 0 {
 		// The sub-parser's message is a finished diagnostic, not source text:
 		// whatever source it quotes was already bounded where it was
@@ -2539,7 +2562,7 @@ func (p *parser) parseTrailingBlockExpression(callee ast.Expression) ast.Express
 }
 
 func (p *parser) callWithBlock(callee ast.Expression, block *ast.BlockLiteral) ast.Expression {
-	if callee == nil {
+	if callee == nil || p.nestingError != nil {
 		return nil
 	}
 	var call *ast.CallExpr
@@ -2548,7 +2571,17 @@ func (p *parser) callWithBlock(callee ast.Expression, block *ast.BlockLiteral) a
 	} else {
 		call = &ast.CallExpr{Callee: callee, Position: callee.Pos(), Safe: isSafeMemberCallee(callee)}
 	}
+	p.nodeDepth(call, 0)
+	cached := p.nodeDepths[call]
+	cached.depth = cached.callBase
+	if block != nil {
+		cached.depth = max(cached.depth, 1+p.nodeDepth(block, 0))
+	}
 	call.Block = block
+	p.nodeDepths[call] = cached
+	if !p.checkSyntaxNode(call) {
+		return nil
+	}
 	return call
 }
 

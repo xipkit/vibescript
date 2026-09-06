@@ -2,8 +2,6 @@ package runtime
 
 import (
 	"fmt"
-	"regexp"
-	"strings"
 	"unicode/utf8"
 )
 
@@ -197,21 +195,4 @@ func matchDataIndex(obj, index Value) (Value, bool, error) {
 		return NewNil(), true, nil
 	}
 	return values[i], true, nil
-}
-
-func regexpUnionPattern(args []Value) (string, error) {
-	if len(args) == 0 {
-		// A never-matching pattern (Ruby returns /(?!)/). Go's RE2 engine rejects
-		// the `(?!)` lookahead, so use the empty character class `[^\s\S]`, which
-		// negates "every character" and therefore matches nothing.
-		return `[^\s\S]`, nil
-	}
-	parts := make([]string, len(args))
-	for i, arg := range args {
-		if arg.Kind() != KindString {
-			return "", fmt.Errorf("Regexp.union expects string patterns")
-		}
-		parts[i] = regexp.QuoteMeta(arg.String())
-	}
-	return strings.Join(parts, "|"), nil
 }

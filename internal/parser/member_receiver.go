@@ -20,7 +20,7 @@ func MemberReceiverFor(source, probe string) (ast.Expression, []ast.Param, bool)
 	p := newParser(source)
 	p.memberReceiverProbe = probe
 	p.parseProgram()
-	if p.memberReceiver == nil {
+	if p.memberReceiver == nil || p.nestingError != nil {
 		return nil, nil, false
 	}
 	return p.memberReceiver, p.memberReceiverParams, true

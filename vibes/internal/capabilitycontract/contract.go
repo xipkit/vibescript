@@ -7,37 +7,16 @@ package capabilitycontract
 
 import (
 	"fmt"
-	"maps"
 	"reflect"
 	"strings"
-	"unsafe"
 
+	"github.com/mgomes/vibescript/internal/capabilitydata"
 	"github.com/mgomes/vibescript/vibes/value"
 )
 
 // MaxDataOnlyTraversalDepth bounds recursive capability payload validation and
 // cloning so deeply nested acyclic values cannot exhaust the host stack.
-const MaxDataOnlyTraversalDepth = 256
-
-type limitError struct {
-	err error
-}
-
-func (e *limitError) Error() string {
-	return e.err.Error()
-}
-
-func (e *limitError) Unwrap() error {
-	return e.err
-}
-
-func (e *limitError) LimitError() bool {
-	return true
-}
-
-func limitErrorf(format string, args ...any) error {
-	return &limitError{err: fmt.Errorf(format, args...)}
-}
+const MaxDataOnlyTraversalDepth = capabilitydata.MaxDepth
 
 // NameArg validates that val is a non-empty string or symbol and returns
 // its textual form. Used by capability adapters to interpret leading
@@ -67,18 +46,7 @@ func CloneKwargs(kwargs map[string]value.Value) map[string]value.Value {
 // CloneKwargsDataOnly validates and deep-copies keyword arguments in one
 // pass so host callbacks receive isolated data-only values.
 func CloneKwargsDataOnly(method string, kwargs map[string]value.Value) (map[string]value.Value, error) {
-	if len(kwargs) == 0 {
-		return nil, nil
-	}
-	out := make(map[string]value.Value, len(kwargs))
-	for key, val := range kwargs {
-		cloned, err := CloneDataOnlyValue(fmt.Sprintf("%s keyword %s", method, key), val)
-		if err != nil {
-			return nil, err
-		}
-		out[key] = cloned
-	}
-	return out, nil
+	return capabilitydata.NewCloner(nil, capabilitydata.Options{}).Kwargs(method, kwargs)
 }
 
 // CloneHash returns a deep copy of the provided string-keyed map. An
@@ -141,11 +109,7 @@ func CloneHashValue(label string, val value.Value) (map[string]value.Value, erro
 
 // CloneDataOnlyValue validates and deep-copies val in one graph walk.
 func CloneDataOnlyValue(label string, val value.Value) (value.Value, error) {
-	cloned, issue := cloneDataOnlyValue(val, newSeenSet(), 0)
-	if err := dataOnlyIssueError(label, issue); err != nil {
-		return value.NewNil(), err
-	}
-	return cloned, nil
+	return capabilitydata.NewCloner(nil, capabilitydata.Options{}).Clone(label, val)
 }
 
 // IsNilImplementation reports whether impl is a nil interface or a
@@ -183,16 +147,7 @@ func EnsureBlock(block value.Value, name string) error {
 // it so host code never receives a script-side callable it cannot
 // safely invoke or an opaque runtime payload that is not plain data.
 func ValidateDataOnlyValue(label string, val value.Value) error {
-	if err := validateTraversalDepth(label, val); err != nil {
-		return err
-	}
-	switch validateDataOnly(val, newSeenSet(), newSeenSet()) {
-	case dataOnlyCallable:
-		return fmt.Errorf("%s must be data-only", label)
-	case dataOnlyCycle:
-		return fmt.Errorf("%s must not contain cyclic references", label)
-	}
-	return nil
+	return capabilitydata.NewValidator(nil).Validate(label, val)
 }
 
 // ValidateHashValue checks that val is a hash (or object) and data-only.
@@ -211,12 +166,7 @@ func ValidateHashValue(label string, val value.Value) error {
 // ValidateKwargsDataOnly applies ValidateDataOnlyValue to every keyword
 // argument, labeling errors with method and keyword name.
 func ValidateKwargsDataOnly(method string, kwargs map[string]value.Value) error {
-	for key, val := range kwargs {
-		if err := ValidateDataOnlyValue(fmt.Sprintf("%s keyword %s", method, key), val); err != nil {
-			return err
-		}
-	}
-	return nil
+	return capabilitydata.NewValidator(nil).Kwargs(method, kwargs)
 }
 
 // ValidateAnyReturn returns the post-call return validator used in
@@ -232,337 +182,6 @@ func ValidateAnyReturn(method string) func(result value.Value) error {
 // the host's mutable state is not aliased into the script heap.
 func CloneMethodResult(method string, result value.Value) (value.Value, error) {
 	return CloneDataOnlyValue(method+" return value", result)
-}
-
-type seenSet struct {
-	arrays map[value.SliceIdentity]struct{}
-	maps   map[uintptr]struct{}
-}
-
-type seenDepthSet struct {
-	arrays map[value.SliceIdentity]int
-	maps   map[uintptr]int
-}
-
-func newSeenSet() *seenSet {
-	return &seenSet{
-		arrays: map[value.SliceIdentity]struct{}{},
-		maps:   map[uintptr]struct{}{},
-	}
-}
-
-func newSeenDepthSet() *seenDepthSet {
-	return &seenDepthSet{
-		arrays: map[value.SliceIdentity]int{},
-		maps:   map[uintptr]int{},
-	}
-}
-
-func validateTraversalDepth(label string, val value.Value) error {
-	return (&traversalDepthScanner{
-		visiting: newSeenSet(),
-		seen:     newSeenDepthSet(),
-	}).check(label, val, 0)
-}
-
-type traversalDepthScanner struct {
-	visiting *seenSet
-	seen     *seenDepthSet
-}
-
-func (s *traversalDepthScanner) check(label string, val value.Value, depth int) error {
-	if depth > MaxDataOnlyTraversalDepth {
-		return limitErrorf("%s exceeds maximum depth %d", label, MaxDataOnlyTraversalDepth)
-	}
-	remainingDepth := MaxDataOnlyTraversalDepth - depth
-	switch val.Kind() {
-	case value.KindArray:
-		values := val.Array()
-		id := sliceIdentity(values)
-		if seenRemaining, ok := s.seen.arrays[id]; ok && seenRemaining <= remainingDepth {
-			return nil
-		}
-		if _, ok := s.visiting.arrays[id]; ok {
-			return nil
-		}
-		s.visiting.arrays[id] = struct{}{}
-		for _, item := range values {
-			if err := s.check(label, item, depth+1); err != nil {
-				return err
-			}
-		}
-		delete(s.visiting.arrays, id)
-		if seenRemaining, ok := s.seen.arrays[id]; !ok || remainingDepth < seenRemaining {
-			s.seen.arrays[id] = remainingDepth
-		}
-	case value.KindHash, value.KindObject:
-		entries := val.HashEntryMap()
-		ptr := value.HashIdentity(val)
-		if ptr == 0 {
-			ptr = reflect.ValueOf(entries).Pointer()
-		}
-		if seenRemaining, ok := s.seen.maps[ptr]; ok && seenRemaining <= remainingDepth {
-			return nil
-		}
-		if _, ok := s.visiting.maps[ptr]; ok {
-			return nil
-		}
-		s.visiting.maps[ptr] = struct{}{}
-		for _, item := range entries {
-			if err := s.check(label, item, depth+1); err != nil {
-				return err
-			}
-		}
-		delete(s.visiting.maps, ptr)
-		if seenRemaining, ok := s.seen.maps[ptr]; !ok || remainingDepth < seenRemaining {
-			s.seen.maps[ptr] = remainingDepth
-		}
-	}
-	return nil
-}
-
-type dataOnlyResult uint8
-
-const (
-	dataOnlyOK dataOnlyResult = iota
-	dataOnlyCallable
-	dataOnlyCycle
-	dataOnlyDepth
-)
-
-func dataOnlyIssueError(label string, issue dataOnlyResult) error {
-	switch issue {
-	case dataOnlyCallable:
-		return fmt.Errorf("%s must be data-only", label)
-	case dataOnlyCycle:
-		return fmt.Errorf("%s must not contain cyclic references", label)
-	case dataOnlyDepth:
-		return limitErrorf("%s exceeds maximum depth %d", label, MaxDataOnlyTraversalDepth)
-	default:
-		return nil
-	}
-}
-
-func sliceIdentity(values []value.Value) value.SliceIdentity {
-	return value.SliceIdentity{
-		Ptr: uintptr(unsafe.Pointer(unsafe.SliceData(values))),
-		Len: len(values),
-		Cap: cap(values),
-	}
-}
-
-func validateDataOnly(val value.Value, visiting, seen *seenSet) dataOnlyResult {
-	switch val.Kind() {
-	case value.KindFunction, value.KindBuiltin, value.KindBlock, value.KindClass, value.KindInstance,
-		value.KindShape:
-		return dataOnlyCallable
-	case value.KindArray:
-		values := val.Array()
-		id := sliceIdentity(values)
-		if _, ok := seen.arrays[id]; ok {
-			return dataOnlyOK
-		}
-		if _, ok := visiting.arrays[id]; ok {
-			return dataOnlyCycle
-		}
-		visiting.arrays[id] = struct{}{}
-		issue := dataOnlyOK
-		for _, item := range values {
-			switch result := validateDataOnly(item, visiting, seen); result {
-			case dataOnlyCallable:
-				return dataOnlyCallable
-			case dataOnlyCycle:
-				issue = dataOnlyCycle
-			}
-		}
-		delete(visiting.arrays, id)
-		seen.arrays[id] = struct{}{}
-		return issue
-	case value.KindHash, value.KindObject:
-		entries := val.HashEntryMap()
-		// A KindHash's default metadata lives outside its entry map, so two
-		// wrappers can share one map yet carry different defaults. Key the
-		// seen/visiting sets on the whole hash wrapper (or the entry-map pointer
-		// for objects, which never carry defaults) so a second wrapper's callable
-		// default is not hidden by an earlier wrapper marking the shared map seen.
-		ptr := value.HashIdentity(val)
-		if ptr == 0 {
-			ptr = reflect.ValueOf(entries).Pointer()
-		}
-		if _, ok := seen.maps[ptr]; ok {
-			return dataOnlyOK
-		}
-		if _, ok := visiting.maps[ptr]; ok {
-			return dataOnlyCycle
-		}
-		visiting.maps[ptr] = struct{}{}
-		issue := dataOnlyOK
-		for _, item := range entries {
-			switch result := validateDataOnly(item, visiting, seen); result {
-			case dataOnlyCallable:
-				return dataOnlyCallable
-			case dataOnlyCycle:
-				issue = dataOnlyCycle
-			}
-		}
-		delete(visiting.maps, ptr)
-		seen.maps[ptr] = struct{}{}
-		return issue
-	default:
-		return dataOnlyOK
-	}
-}
-
-func cloneDataOnlyValue(val value.Value, visiting *seenSet, depth int) (value.Value, dataOnlyResult) {
-	if depth > MaxDataOnlyTraversalDepth {
-		return value.NewNil(), dataOnlyDepth
-	}
-	switch val.Kind() {
-	case value.KindFunction, value.KindBuiltin, value.KindBlock, value.KindClass, value.KindInstance,
-		value.KindShape:
-		return value.NewNil(), dataOnlyCallable
-	case value.KindArray:
-		values := val.Array()
-		id := sliceIdentity(values)
-		if _, ok := visiting.arrays[id]; ok {
-			return value.NewNil(), dataOnlyCycle
-		}
-		visiting.arrays[id] = struct{}{}
-		cloned := make([]value.Value, len(values))
-		issue := dataOnlyOK
-		for i, item := range values {
-			next, result := cloneDataOnlyValue(item, visiting, depth+1)
-			switch result {
-			case dataOnlyCallable:
-				return value.NewNil(), dataOnlyCallable
-			case dataOnlyDepth:
-				return value.NewNil(), dataOnlyDepth
-			case dataOnlyCycle:
-				issue = dataOnlyCycle
-			default:
-				cloned[i] = next
-			}
-		}
-		delete(visiting.arrays, id)
-		if issue != dataOnlyOK {
-			return value.NewNil(), issue
-		}
-		return value.NewArray(cloned), dataOnlyOK
-	case value.KindHash:
-		return cloneDataOnlyHash(val, visiting, depth)
-	case value.KindObject:
-		return cloneDataOnlyMap(val.HashEntryMap(), visiting, value.NewObject, depth)
-	default:
-		return val, dataOnlyOK
-	}
-}
-
-// cloneDataOnlyHash clones a KindHash, isolating its entries and its Ruby-style
-// default metadata. A default proc is a KindBlock callable, so a hash carrying
-// one is rejected just like any other embedded callable; a data-only default
-// value is cloned and preserved on the result so the isolated copy keeps the
-// same missing-key behavior.
-func cloneDataOnlyHash(val value.Value, visiting *seenSet, depth int) (value.Value, dataOnlyResult) {
-	entries := val.HashEntryMap()
-	// Track the whole hash wrapper, not just the entry map: two wrappers can
-	// share one entry map yet carry distinct defaults, and the cycle check must
-	// follow each wrapper's own default graph.
-	ptr := value.HashIdentity(val)
-	if ptr == 0 {
-		ptr = reflect.ValueOf(entries).Pointer()
-	}
-	if _, ok := visiting.maps[ptr]; ok {
-		return value.NewNil(), dataOnlyCycle
-	}
-	visiting.maps[ptr] = struct{}{}
-	defer delete(visiting.maps, ptr)
-
-	var cloned map[string]value.Value
-	issue := dataOnlyOK
-	if len(entries) > 0 && scalarOnlyDataEntries(entries) {
-		// Every value is a scalar, so validation cannot fail and the clone can
-		// copy the map's bucket structure wholesale instead of rehashing and
-		// reinserting every key. This is the dominant shape for row payloads
-		// crossing the capability boundary.
-		cloned = maps.Clone(entries)
-	} else {
-		cloned = make(map[string]value.Value, len(entries))
-		for key, item := range entries {
-			next, result := cloneDataOnlyValue(item, visiting, depth+1)
-			switch result {
-			case dataOnlyCallable:
-				return value.NewNil(), dataOnlyCallable
-			case dataOnlyDepth:
-				return value.NewNil(), dataOnlyDepth
-			case dataOnlyCycle:
-				issue = dataOnlyCycle
-			default:
-				cloned[key] = next
-			}
-		}
-	}
-
-	if issue != dataOnlyOK {
-		return value.NewNil(), issue
-	}
-	return value.NewHashWithTrustedOrder(cloned, val.HashKeyOrder()), dataOnlyOK
-}
-
-func cloneDataOnlyMap(
-	entries map[string]value.Value,
-	visiting *seenSet,
-	construct func(map[string]value.Value) value.Value,
-	depth int,
-) (value.Value, dataOnlyResult) {
-	ptr := reflect.ValueOf(entries).Pointer()
-	if _, ok := visiting.maps[ptr]; ok {
-		return value.NewNil(), dataOnlyCycle
-	}
-	visiting.maps[ptr] = struct{}{}
-	var cloned map[string]value.Value
-	issue := dataOnlyOK
-	if len(entries) > 0 && scalarOnlyDataEntries(entries) {
-		// See cloneDataOnlyHash: scalar-only maps validate trivially and clone
-		// their bucket structure wholesale.
-		cloned = maps.Clone(entries)
-	} else {
-		cloned = make(map[string]value.Value, len(entries))
-		for key, item := range entries {
-			next, result := cloneDataOnlyValue(item, visiting, depth+1)
-			switch result {
-			case dataOnlyCallable:
-				return value.NewNil(), dataOnlyCallable
-			case dataOnlyDepth:
-				return value.NewNil(), dataOnlyDepth
-			case dataOnlyCycle:
-				issue = dataOnlyCycle
-			default:
-				cloned[key] = next
-			}
-		}
-	}
-	delete(visiting.maps, ptr)
-	if issue != dataOnlyOK {
-		return value.NewNil(), issue
-	}
-	return construct(cloned), dataOnlyOK
-}
-
-// scalarOnlyDataEntries reports whether every value in one entry map is an
-// immutable scalar kind — nothing to validate recursively and nothing that
-// needs an isolating per-value clone. Kinds are whitelisted so any future
-// composite or callable kind fails closed onto the per-entry walk.
-func scalarOnlyDataEntries(entries map[string]value.Value) bool {
-	for _, item := range entries {
-		switch item.Kind() {
-		case value.KindNil, value.KindBool, value.KindInt, value.KindFloat,
-			value.KindString, value.KindMoney, value.KindDuration,
-			value.KindTime, value.KindSymbol, value.KindRange, value.KindRegex:
-		default:
-			return false
-		}
-	}
-	return true
 }
 
 func valueKindName(kind value.ValueKind) string {
