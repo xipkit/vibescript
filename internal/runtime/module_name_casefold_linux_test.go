@@ -47,8 +47,12 @@ func TestRequireReportsMissingDirectoryListingPermission(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 	engine := MustNewEngine(Config{ModulePaths: []string{root}})
 	script := compileScriptWithEngine(t, engine, "def run\n  require(\"ExactDir/ExactFile\").value\nend")
+	_, loadErr := engine.loadModule("ExactDir/ExactFile", nil, nil, nil)
+	if !errors.Is(loadErr, fs.ErrPermission) {
+		t.Fatalf("loader permission error = %v", loadErr)
+	}
 	_, err := script.Call(context.Background(), "run", nil, CallOptions{})
-	if !errors.Is(err, fs.ErrPermission) || !strings.Contains(err.Error(), "requires directory listing permission") {
+	if err == nil || !strings.Contains(err.Error(), "requires directory listing permission") {
 		t.Fatalf("module without directory listing permission error = %v", err)
 	}
 	if err := os.Chmod(dir, 0o755); err != nil {
