@@ -28,6 +28,9 @@ func (c *scriptChecker) moduleNameBudget() *moduleNameWork {
 }
 
 func (c *scriptChecker) loadModule(name string) (moduleEntry, error) {
+	if c.script.engine.config.StrictEffects && !c.callOptions.AllowRequire {
+		return moduleEntry{}, fmt.Errorf("strict effects: require is disabled without CallOptions.AllowRequire")
+	}
 	return c.script.engine.loadModule(name, c.moduleCaller, nil, c.moduleNameBudget())
 }
 
