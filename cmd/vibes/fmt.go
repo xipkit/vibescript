@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -51,17 +47,19 @@ func fmtAction(_ context.Context, command *cli.Command, config *fmtCommandConfig
 		return errors.New("vibes fmt: path required")
 	}
 
-	files, err := collectVibeFiles(config.arguments)
+	inputs, err := collectVibeFiles(config.arguments)
 	if err != nil {
 		return fmt.Errorf("collect files: %w", err)
 	}
-	if len(files) == 0 {
+	defer inputs.close()
+	if len(inputs.files) == 0 {
 		return nil
 	}
 
 	changedCount := 0
-	for _, path := range files {
-		originalBytes, err := os.ReadFile(path)
+	for _, source := range inputs.files {
+		path := source.path
+		originalBytes, info, err := source.read()
 		if err != nil {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
@@ -74,11 +72,7 @@ func fmtAction(_ context.Context, command *cli.Command, config *fmtCommandConfig
 
 		switch {
 		case config.write && changed:
-			info, err := os.Stat(path)
-			if err != nil {
-				return fmt.Errorf("stat %s: %w", path, err)
-			}
-			if err := os.WriteFile(path, []byte(formatted), info.Mode().Perm()); err != nil {
+			if err := source.write(info, []byte(formatted)); err != nil {
 				return fmt.Errorf("write %s: %w", path, err)
 			}
 		case !config.write && !config.check:
@@ -93,54 +87,6 @@ func fmtAction(_ context.Context, command *cli.Command, config *fmtCommandConfig
 	}
 
 	return nil
-}
-
-func collectVibeFiles(targets []string) ([]string, error) {
-	seen := make(map[string]struct{})
-	var files []string
-	addFile := func(path string) error {
-		if filepath.Ext(path) != ".vibe" {
-			return nil
-		}
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("resolve %s: %w", path, err)
-		}
-		if _, ok := seen[abs]; ok {
-			return nil
-		}
-		seen[abs] = struct{}{}
-		files = append(files, abs)
-		return nil
-	}
-
-	for _, target := range targets {
-		info, err := os.Stat(target)
-		if err != nil {
-			return nil, fmt.Errorf("stat %s: %w", target, err)
-		}
-		if !info.IsDir() {
-			if err := addFile(target); err != nil {
-				return nil, err
-			}
-			continue
-		}
-		err = filepath.WalkDir(target, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() {
-				return nil
-			}
-			return addFile(path)
-		})
-		if err != nil {
-			return nil, fmt.Errorf("walk %s: %w", target, err)
-		}
-	}
-
-	slices.Sort(files)
-	return files, nil
 }
 
 func formatVibeSource(source string) string {
