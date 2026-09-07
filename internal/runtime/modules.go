@@ -218,10 +218,6 @@ func bindModuleExportsWithoutOverwrite(root *Env, exports map[string]Value) {
 }
 
 func (e *Engine) compileAndCacheModule(key, root, relative, fullPath string, content []byte, stamp moduleStamp) (moduleEntry, error) {
-	if err := e.enforceModulePolicy(relative); err != nil {
-		return moduleEntry{}, err
-	}
-
 	script, err := e.CompileSnippet(string(content), moduleEntrypointFunction)
 	if err != nil {
 		return moduleEntry{}, fmt.Errorf("require: compiling %s failed: %w", fullPath, err)
@@ -461,6 +457,9 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 	if err != nil {
 		return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
 	}
+	if err := e.enforceModulePolicy(relative); err != nil {
+		return moduleEntry{}, err
+	}
 	key := moduleCacheKey(caller.root, relative)
 
 	if entry, ok := e.pinnedModuleEntry(key, pinned); ok {
@@ -498,6 +497,9 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 func (e *Engine) loadSearchPathModule(request moduleRequest, work *moduleNameWork) (moduleEntry, error) {
 	if len(e.modPaths) == 0 {
 		return moduleEntry{}, fmt.Errorf("require: module paths not configured")
+	}
+	if err := e.enforceModulePolicy(request.normalized); err != nil {
+		return moduleEntry{}, err
 	}
 
 	if suggestion, ok := e.cachedSearchPathMiss(request.normalized); ok {
