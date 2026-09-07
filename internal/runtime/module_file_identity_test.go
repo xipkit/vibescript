@@ -175,3 +175,28 @@ func TestRequireLinkedModuleKeepsLexicalPolicyAndCaller(t *testing.T) {
 		})
 	}
 }
+
+func TestRequireRejectsEscapeBeforeFilenameLookup(t *testing.T) {
+	t.Parallel()
+	outside := tempModuleTree(t, moduleFile{path: "Existing.vibe", content: "def value\n  7\nend\n"})
+	root := tempModuleTree(t, moduleFile{path: "Driver.vibe", content: "def load(name)\n  require(name)\nend\n"})
+	if err := os.Symlink(outside, filepath.Join(root, "Bridge")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	for _, relative := range []bool{false, true} {
+		engine := MustNewEngine(Config{ModulePaths: []string{root}})
+		source := "def run(name)\n  require(name)\nend"
+		prefix := "Bridge/"
+		if relative {
+			source = "def run(name)\n  require(\"Driver\").load(name)\nend"
+			prefix = "./Bridge/"
+		}
+		script := compileScriptWithEngine(t, engine, source)
+		for _, name := range []string{"Existing", "Missing"} {
+			_, err := script.Call(context.Background(), "run", []Value{NewString(prefix + name)}, CallOptions{})
+			if err == nil || !strings.Contains(err.Error(), "escapes module root") {
+				t.Errorf("external lookup %q error = %v; want uniform containment rejection", prefix+name, err)
+			}
+		}
+	}
+}

@@ -466,18 +466,18 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 		return entry, nil
 	}
 
-	if err := checkModuleSpelling(caller.root, relative, work); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return moduleEntry{}, fmt.Errorf("require: module %q not found%s", request.raw, e.relativeModuleSuggestion(request, caller, candidate))
-		}
-		return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
-	}
 	relative, err = moduleRelativePath(caller.root, candidate)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return moduleEntry{}, fmt.Errorf("require: module %q not found%s", request.raw, e.relativeModuleSuggestion(request, caller, candidate))
 		}
 		return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
+	}
+	if err := checkModuleSpelling(caller.root, relative, work); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return moduleEntry{}, fmt.Errorf("require: module %q not found%s", request.raw, e.relativeModuleSuggestion(request, caller, candidate))
+		}
+		return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
 	}
 
 	data, stamp, readErr := e.readModuleSource(candidate)
@@ -512,14 +512,14 @@ func (e *Engine) loadSearchPathModule(request moduleRequest, work *moduleNameWor
 			return entry, nil
 		}
 
+		if _, err := moduleRelativePath(root, candidate); err != nil {
+			return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
+		}
 		if err := checkModuleSpelling(root, request.normalized, work); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
 			return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
-		}
-		if _, err := moduleRelativePath(root, candidate); err != nil {
-			return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
 		}
 		data, stamp, readErr := e.readModuleSource(candidate)
 		if readErr != nil {
