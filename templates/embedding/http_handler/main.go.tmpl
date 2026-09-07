@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/mgomes/vibescript/vibes"
 	"github.com/mgomes/vibescript/vibes/value"
@@ -60,13 +61,25 @@ func (s *service) handle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func newServer(svc *service) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/run", svc.handle)
+	return &http.Server{
+		Addr:              ":8080",
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+}
+
 func main() {
 	svc, err := newService()
 	if err != nil {
 		panic(err)
 	}
-	http.HandleFunc("/run", svc.handle)
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := newServer(svc).ListenAndServe(); err != nil {
 		panic(err)
 	}
 }

@@ -1,0 +1,98 @@
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/mgomes/vibescript/vibes/value"
+)
+
+func TestServerTimeoutsAndRequests(t *testing.T) {
+	svc, err := newService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := newServer(svc)
+	if server.ReadHeaderTimeout <= 0 || server.ReadTimeout <= 0 || server.WriteTimeout <= 0 || server.IdleTimeout <= 0 {
+		t.Error("server must bound header reads, request reads, response writes, and idle connections")
+	}
+	for _, timeout := range []*time.Duration{&server.ReadHeaderTimeout, &server.ReadTimeout, &server.WriteTimeout, &server.IdleTimeout} {
+		if *timeout > 0 {
+			*timeout = 100 * time.Millisecond
+		}
+	}
+	host := httptest.NewUnstartedServer(nil)
+	host.Config = server
+	host.Start()
+	t.Cleanup(host.Close)
+
+	client := host.Client()
+	client.Timeout = time.Second
+	response, err := client.Get(host.URL + "/run?id=control")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var payload map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatal(err)
+	}
+	want := value.NewHashWithOrder(map[string]value.Value{
+		"id": value.NewString("control"), "status": value.NewString("ok"),
+	}, []value.Value{value.NewSymbol("id"), value.NewSymbol("status")}).String()
+	if response.StatusCode != http.StatusOK || payload["result"] != want {
+		t.Fatalf("ordinary response = %d %v, want 200 with result %q", response.StatusCode, payload, want)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		request string
+		idle    bool
+	}{
+		{name: "unfinished headers", request: "GET /run HTTP/1.1\r\nHost: localhost\r\nX-Stalled: "},
+		{name: "unfinished body", request: "POST /run HTTP/1.1\r\nHost: localhost\r\nContent-Length: 1\r\n\r\n"},
+		{name: "idle keep-alive", request: "GET /run HTTP/1.1\r\nHost: localhost\r\n\r\n", idle: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, err := net.DialTimeout("tcp", strings.TrimPrefix(host.URL, "http://"), time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			if err := conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := io.WriteString(conn, tc.request); err != nil {
+				t.Fatal(err)
+			}
+			reader := bufio.NewReader(conn)
+			if tc.idle {
+				response, err := http.ReadResponse(reader, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = io.Copy(io.Discard, response.Body)
+				response.Body.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err = io.Copy(io.Discard, reader)
+			var networkError net.Error
+			if errors.As(err, &networkError) && networkError.Timeout() {
+				t.Fatal("client deadline expired while the server kept the connection open")
+			}
+			if err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Fatalf("read until server closed connection: %v", err)
+			}
+		})
+	}
+}
