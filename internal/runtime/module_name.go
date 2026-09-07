@@ -71,6 +71,9 @@ func moduleStoredBase(path string, work *moduleNameWork) (string, error) {
 func moduleStoredBaseFromDirectory(path string, work *moduleNameWork) (string, error) {
 	f, err := openModuleSource(filepath.Dir(path))
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return "", fmt.Errorf("module filename verification requires directory listing permission: %w", err)
+		}
 		return "", err
 	}
 	defer func() { _ = f.Close() }()
