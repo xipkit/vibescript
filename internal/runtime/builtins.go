@@ -1683,7 +1683,7 @@ func builtinJSONParse(exec *Execution, receiver Value, args []Value, kwargs map[
 		return NewNil(), err
 	}
 
-	parser := jsonValueParser{raw: raw, exec: exec}
+	parser := jsonValueParser{raw: raw, exec: exec, args: args}
 	value, err := parser.parse()
 	if err != nil {
 		if _, ok := errors.AsType[jsonInvalidNumberError](err); ok {
@@ -1721,7 +1721,7 @@ func builtinJSONParseAs(exec *Execution, receiver Value, args []Value, kwargs ma
 	if err := exec.chargeStringScan(len(raw)); err != nil {
 		return NewNil(), err
 	}
-	parser := jsonValueParser{raw: raw, exec: exec}
+	parser := jsonValueParser{raw: raw, exec: exec, args: args}
 	parsed, err := parser.parse()
 	if err != nil {
 		if invalidNumber, ok := errors.AsType[jsonInvalidNumberError](err); ok {
