@@ -3895,9 +3895,7 @@ func arrayMemberTransforms(property string) (Value, error) {
 			if n > len(arr) {
 				n = len(arr)
 			}
-			out := make([]Value, n)
-			copy(out, arr[:n])
-			return NewArray(out), nil
+			return arrayProjectionCopy(exec, receiver, args, kwargs, block, arr[:n])
 		}), nil
 	case "last":
 		return NewAutoBuiltin("array.last", func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
@@ -3921,9 +3919,7 @@ func arrayMemberTransforms(property string) (Value, error) {
 			if n > len(arr) {
 				n = len(arr)
 			}
-			out := make([]Value, n)
-			copy(out, arr[len(arr)-n:])
-			return NewArray(out), nil
+			return arrayProjectionCopy(exec, receiver, args, kwargs, block, arr[len(arr)-n:])
 		}), nil
 	case "sum":
 		return NewAutoBuiltin("array.sum", arraySum), nil
@@ -4089,9 +4085,7 @@ func arrayMemberTransforms(property string) (Value, error) {
 			if n > len(arr) {
 				n = len(arr)
 			}
-			out := make([]Value, n)
-			copy(out, arr[:n])
-			return NewArray(out), nil
+			return arrayProjectionCopy(exec, receiver, args, kwargs, block, arr[:n])
 		}), nil
 	case "drop":
 		return NewAutoBuiltin("array.drop", func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
@@ -4109,9 +4103,7 @@ func arrayMemberTransforms(property string) (Value, error) {
 			if n > len(arr) {
 				n = len(arr)
 			}
-			out := make([]Value, len(arr)-n)
-			copy(out, arr[n:])
-			return NewArray(out), nil
+			return arrayProjectionCopy(exec, receiver, args, kwargs, block, arr[n:])
 		}), nil
 	case "zip":
 		return NewAutoBuiltin("array.zip", func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
@@ -4174,41 +4166,7 @@ func arrayMemberTransforms(property string) (Value, error) {
 			return NewArray(rows), nil
 		}), nil
 	case "transpose":
-		return NewAutoBuiltin("array.transpose", func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
-			if len(args) > 0 || len(kwargs) > 0 {
-				return NewNil(), fmt.Errorf("array.transpose does not take arguments")
-			}
-			rows := receiver.Array()
-			if len(rows) == 0 {
-				return NewArray([]Value{}), nil
-			}
-			// The first row defines the expected column count; every later row
-			// must be an array of the same length, mirroring Ruby's IndexError
-			// on ragged input.
-			columnCount := -1
-			for i, row := range rows {
-				if row.Kind() != KindArray {
-					return NewNil(), fmt.Errorf("array.transpose requires arrays as elements, but element at index %d is a %s", i, row.Kind())
-				}
-				got := len(row.Array())
-				if columnCount == -1 {
-					columnCount = got
-					continue
-				}
-				if got != columnCount {
-					return NewNil(), fmt.Errorf("array.transpose requires equal-length rows, but element at index %d has length %d (expected %d)", i, got, columnCount)
-				}
-			}
-			columns := make([]Value, columnCount)
-			for col := range columnCount {
-				transposed := make([]Value, len(rows))
-				for rowIndex, row := range rows {
-					transposed[rowIndex] = row.Array()[col]
-				}
-				columns[col] = NewArray(transposed)
-			}
-			return NewArray(columns), nil
-		}), nil
+		return NewAutoBuiltin("array.transpose", arrayTranspose), nil
 	default:
 		return NewNil(), fmt.Errorf("unknown array method %s", property)
 	}
