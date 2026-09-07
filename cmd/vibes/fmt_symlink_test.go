@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -305,5 +307,77 @@ func TestFmtDirectoryAliasAndDeduplication(t *testing.T) {
 		if err != nil || out != "first\nsecond\n" {
 			t.Errorf("alias output = %q, error = %v", out, err)
 		}
+	}
+}
+
+func TestFmtManyDirectoryOperands(t *testing.T) {
+	if runtime.GOOS != "windows" && os.Getenv("VIBES_TEST_FMT_LOW_FDS") != "1" {
+		binary, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		command := exec.Command("sh", "-c", `ulimit -n 64; exec "$@"`, "--", binary, "-test.run=^TestFmtManyDirectoryOperands$", "-test.count=1")
+		command.Env = append(os.Environ(), "VIBES_TEST_FMT_LOW_FDS=1")
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("formatter under descriptor limit: %v\n%s", err, output)
+		}
+		return
+	}
+	root := t.TempDir()
+	targets := make([]string, 128)
+	var want strings.Builder
+	for i := range targets {
+		directory := filepath.Join(root, fmt.Sprintf("%03d", i))
+		if err := os.Mkdir(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		source := fmt.Sprintf("entry_%03d\n", i)
+		if err := os.WriteFile(filepath.Join(directory, "file.vibe"), []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		targets[len(targets)-1-i] = directory
+		want.WriteString(source)
+	}
+	out, err := dispatchCommand(t, "fmt", targets)
+	if err != nil || out != want.String() {
+		t.Fatalf("many directory operands: output length %d, error %v", len(out), err)
+	}
+}
+
+func TestFmtEvictedRootRejectsReplacement(t *testing.T) {
+	root := t.TempDir()
+	targets := make([]string, 32)
+	for i := range targets {
+		targets[i] = filepath.Join(root, fmt.Sprintf("%03d", i))
+		if err := os.Mkdir(targets[i], 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(targets[i], "file.vibe"), []byte("original  \n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inputs, err := collectVibeFiles(targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer inputs.close()
+	source := inputs.files[0]
+	if err := os.Rename(targets[0], targets[0]+"-saved"); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	path := filepath.Join(outside, "file.vibe")
+	if err := os.WriteFile(path, []byte("outside  \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fmtTestSymlink(t, outside, targets[0])
+	if _, _, err := source.read(); err == nil {
+		t.Error("read accepted a replaced root")
+	}
+	if err := source.write(source.info, []byte("formatted\n")); err == nil {
+		t.Error("write accepted a replaced root")
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != "outside  \n" {
+		t.Fatalf("outside file = %q, error = %v", got, err)
 	}
 }

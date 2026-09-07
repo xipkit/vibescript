@@ -12,20 +12,61 @@ import (
 )
 
 type fmtFile struct {
-	root *os.Root
+	root *fmtRoot
 	name string
 	path string
 	info fs.FileInfo
 }
 
 type fmtInputs struct {
-	files []fmtFile
-	roots []*os.Root
+	files    []fmtFile
+	roots    []*fmtRoot
+	nextRoot int
+}
+
+type fmtRoot struct {
+	inputs *fmtInputs
+	path   string
+	info   fs.FileInfo
+	handle *os.Root
+}
+
+func (root *fmtRoot) open() (*os.Root, error) {
+	if root.handle != nil {
+		return root.handle, nil
+	}
+	handle, err := os.OpenRoot(root.path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := handle.Stat(".")
+	if err != nil || !os.SameFile(root.info, info) {
+		_ = handle.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("directory changed after discovery")
+	}
+	// Bound live descriptors across directory operands. Reopening an evicted
+	// root must recover the same directory before any file can be accessed.
+	const maxOpenRoots = 8
+	inputs := root.inputs
+	if len(inputs.roots) == maxOpenRoots {
+		previous := inputs.roots[inputs.nextRoot]
+		_ = previous.handle.Close()
+		previous.handle = nil
+		inputs.roots[inputs.nextRoot] = root
+		inputs.nextRoot = (inputs.nextRoot + 1) % maxOpenRoots
+	} else {
+		inputs.roots = append(inputs.roots, root)
+	}
+	root.handle = handle
+	return handle, nil
 }
 
 func (inputs *fmtInputs) close() {
 	for _, root := range inputs.roots {
-		_ = root.Close()
+		_ = root.handle.Close()
 	}
 }
 
@@ -37,21 +78,9 @@ func collectVibeFiles(targets []string) (*fmtInputs, error) {
 			inputs.close()
 		}
 	}()
-	roots := make(map[string]*os.Root)
-	openRoot := func(path string) (*os.Root, error) {
-		if root := roots[path]; root != nil {
-			return root, nil
-		}
-		root, err := os.OpenRoot(path)
-		if err != nil {
-			return nil, err
-		}
-		roots[path] = root
-		inputs.roots = append(inputs.roots, root)
-		return root, nil
-	}
+	roots := make(map[string]*fmtRoot)
 	seen := make(map[string]struct{})
-	add := func(root *os.Root, name, path string, info fs.FileInfo) {
+	add := func(root *fmtRoot, name, path string, info fs.FileInfo) {
 		if filepath.Ext(path) != ".vibe" {
 			return
 		}
@@ -86,11 +115,16 @@ func collectVibeFiles(targets []string) (*fmtInputs, error) {
 			add(nil, resolved, path, info)
 			continue
 		}
-		root, err := openRoot(path)
+		root := roots[path]
+		if root == nil {
+			root = &fmtRoot{inputs: inputs, path: path, info: info}
+			roots[path] = root
+		}
+		handle, err := root.open()
 		if err != nil {
 			return nil, err
 		}
-		if err := fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
+		if err := fs.WalkDir(handle.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				return walkErr
 			}
@@ -113,7 +147,11 @@ func collectVibeFiles(targets []string) (*fmtInputs, error) {
 
 func (source fmtFile) open(flag int) (*os.File, error) {
 	if source.root != nil {
-		return source.root.OpenFile(source.name, flag, 0)
+		handle, err := source.root.open()
+		if err != nil {
+			return nil, err
+		}
+		return handle.OpenFile(source.name, flag, 0)
 	}
 	return os.OpenFile(source.name, flag, 0)
 }
