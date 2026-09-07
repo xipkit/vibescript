@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -24,6 +25,9 @@ func TestRequireModulePolicyDistinguishesFileNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			if runtime.GOOS == "windows" && tc.name == "directory_space" {
+				t.Skip("Win32 cannot create this distinct trailing-space directory fixture")
+			}
 			root := tempModuleTree(t,
 				moduleFile{path: tc.allowed, content: "def value\n  7\nend\n"},
 				moduleFile{path: tc.other, content: "def value\n  99\nend\n"},
