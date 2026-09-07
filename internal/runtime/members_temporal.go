@@ -280,7 +280,7 @@ func timeMember(t time.Time, property string) (Value, error) {
 		}), nil
 	case "strftime":
 		return NewBuiltin("time.strftime", func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
-			return callTimeStrftime(exec, t, args, kwargs)
+			return callTimeStrftime(exec, t, args, kwargs, block)
 		}), nil
 	case "getutc", "getgm":
 		return NewTime(t.UTC()), nil
@@ -325,7 +325,7 @@ func callTimeMemberDirect(exec *Execution, t time.Time, property string, args []
 	case "format":
 		return callTimeFormat(exec, t, args, kwargs)
 	case "strftime":
-		return callTimeStrftime(exec, t, args, kwargs)
+		return callTimeStrftime(exec, t, args, kwargs, block)
 	case "iso8601", "xmlschema", "rfc3339":
 		return callTimeISO8601("time."+property, t, args, kwargs)
 	case "httpdate":
@@ -431,17 +431,15 @@ func timeFormatResult(exec *Execution, t time.Time, layout Value) (Value, error)
 // single String argument and rejects keyword arguments, mirroring the other
 // formatting members. exec carries the sandbox memory quota so a script-controlled
 // directive width cannot allocate a buffer past the limit before rendering.
-func callTimeStrftime(exec *Execution, t time.Time, args []Value, kwargs map[string]Value) (Value, error) {
+func callTimeStrftime(exec *Execution, t time.Time, args []Value, kwargs map[string]Value, block Value) (Value, error) {
 	if err := rejectTemporalKwargs("time.strftime", kwargs); err != nil {
 		return NewNil(), err
 	}
 	if len(args) != 1 || args[0].Kind() != KindString {
 		return NewNil(), fmt.Errorf("time.strftime expects a format string")
 	}
-	if err := checkStrftimeGivenGoLayout(t, args[0].String()); err != nil {
-		return NewNil(), err
-	}
-	out, err := strftime(exec, t, args[0].String())
+	r := strftimeRenderer{exec: exec, t: t}
+	out, err := r.format(args[0].String(), args, block, true)
 	if err != nil {
 		return NewNil(), err
 	}

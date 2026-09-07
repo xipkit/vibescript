@@ -25,7 +25,7 @@ const (
 	// both scan time and the size of replacement results.
 	maxRegexInputBytes = 1 << 20
 
-	// maxFormatOutputBytes caps format/sprintf/String#% output at 1 MiB.
+	// maxFormatOutputBytes caps format/sprintf/String#%/Time#strftime output at 1 MiB.
 	// Go's fmt.Sprintf materializes width- and precision-padded output before
 	// interpreter quotas can observe the result, so the formatter projects the
 	// result size and rejects hostile formats before calling fmt.
