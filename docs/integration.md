@@ -141,6 +141,21 @@ automatically; keep it off in production.
 Use `Config.ModuleAllowList` / `Config.ModuleDenyList` for policy hooks over
 which modules may be loaded (`*` glob patterns against normalized module names,
 with deny-list rules taking precedence).
+Policy matching preserves whitespace within filename and directory components
+and distinguishes extra extensions: `helper` and `helper.vibe` are equivalent,
+while `helper .vibe` and `helper.json.vibe` are separate module names.
+Patterns with leading or trailing whitespace are rejected as ambiguous. Remove
+padding around ordinary names; use dot components to preserve literal edge
+whitespace, such as `./ secret.vibe/.` for a filename starting with a space.
+Each path component must use its stored filesystem spelling, including case
+and Unicode normalization. An alias is treated as missing in that search root;
+a later root with an exact match can still supply the module. Symlinks retain
+their own names and relative import locations. Native filename queries on macOS
+and Windows preserve access through directories that permit traversal without
+listing. Linux, other platforms, and filesystems without those queries require
+directory listing permission for module loading. Verification charges entries
+scanned to the execution step quota; static checks share a
+1,048,576-unit filename verification limit across their module lookups.
 When a circular module dependency is detected, the runtime reports a concise
 chain (for example `a -> b -> a`).
 Use the optional `as:` keyword to bind the loaded module namespace to a global

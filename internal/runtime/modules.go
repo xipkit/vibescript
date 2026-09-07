@@ -68,16 +68,20 @@ func (e *Engine) getCachedModule(key string) (moduleEntry, bool) {
 }
 
 // getValidCachedModule returns the cached module for key. In dev mode the
-// entry's source stamp is revalidated first; a stale (or deleted) source
-// evicts the entry and reports a miss so the caller's normal load path
-// re-resolves and recompiles it.
-func (e *Engine) getValidCachedModule(key string) (moduleEntry, bool) {
+// entry's containment, spelling, and source stamp are revalidated first.
+// A stale or deleted source evicts the entry and reports a miss so the
+// caller's normal load path re-resolves and recompiles it.
+func (e *Engine) getValidCachedModule(key string, work *moduleNameWork) (moduleEntry, bool) {
 	entry, ok := e.getCachedModule(key)
 	if !ok || !e.config.DevMode {
 		return entry, ok
 	}
-	if current, err := statModuleStamp(entry.path); err == nil && current.equals(entry.stamp) {
-		return entry, true
+	root := entry.script.moduleRoot
+	relative, err := moduleRelativePath(root, entry.path)
+	if err == nil && checkModuleSpelling(root, relative, work) == nil {
+		if current, err := statModuleStamp(entry.path); err == nil && current.equals(entry.stamp) {
+			return entry, true
+		}
 	}
 	e.invalidateStaleModule(key, entry.script)
 	return moduleEntry{}, false
@@ -389,20 +393,23 @@ func formatModuleCycle(cycle []string) string {
 // the loader serves a pinned key directly; search-path requires are pinned by
 // resolved name in builtinRequire instead, because probing every root's key
 // here would let a pin from a later root override ModulePaths precedence.
-func (e *Engine) loadModule(name string, caller *moduleContext, pinned map[string]Value) (moduleEntry, error) {
+func (e *Engine) loadModule(name string, caller *moduleContext, pinned map[string]Value, work *moduleNameWork) (moduleEntry, error) {
 	request, err := e.parseCachedModuleRequest(name)
 	if err != nil {
 		return moduleEntry{}, err
+	}
+	if work == nil {
+		work = &moduleNameWork{}
 	}
 
 	if request.explicitRelative {
 		if caller == nil || caller.path == "" || caller.root == "" {
 			return moduleEntry{}, fmt.Errorf("require: relative module %q requires a module caller", name)
 		}
-		return e.loadRelativeModule(request, *caller, pinned)
+		return e.loadRelativeModule(request, *caller, pinned, work)
 	}
 
-	return e.loadSearchPathModule(request)
+	return e.loadSearchPathModule(request, work)
 }
 
 func (e *Engine) parseCachedModuleRequest(name string) (moduleRequest, error) {
@@ -448,7 +455,7 @@ func (e *Engine) reserveModuleRequestText(texts ...string) bool {
 	return true
 }
 
-func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext, pinned map[string]Value) (moduleEntry, error) {
+func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext, pinned map[string]Value, work *moduleNameWork) (moduleEntry, error) {
 	candidate := filepath.Clean(filepath.Join(filepath.Dir(caller.path), request.normalized))
 	relative, err := moduleRelativePathLexical(caller.root, candidate)
 	if err != nil {
@@ -459,7 +466,7 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 	if entry, ok := e.pinnedModuleEntry(key, pinned); ok {
 		return entry, nil
 	}
-	if entry, ok := e.getValidCachedModule(key); ok {
+	if entry, ok := e.getValidCachedModule(key, work); ok {
 		return entry, nil
 	}
 
@@ -469,6 +476,12 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 			return moduleEntry{}, fmt.Errorf("require: module %q not found%s", request.raw, e.relativeModuleSuggestion(request, caller, candidate))
 		}
 		return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
+	}
+	if err := checkModuleSpelling(caller.root, relative, work); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return moduleEntry{}, fmt.Errorf("require: module %q not found%s", request.raw, e.relativeModuleSuggestion(request, caller, candidate))
+		}
+		return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
 	}
 
 	data, stamp, readErr := e.readModuleSource(candidate)
@@ -482,7 +495,7 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 	return e.compileAndCacheModule(key, caller.root, relative, candidate, data, stamp)
 }
 
-func (e *Engine) loadSearchPathModule(request moduleRequest) (moduleEntry, error) {
+func (e *Engine) loadSearchPathModule(request moduleRequest, work *moduleNameWork) (moduleEntry, error) {
 	if len(e.modPaths) == 0 {
 		return moduleEntry{}, fmt.Errorf("require: module paths not configured")
 	}
@@ -498,13 +511,19 @@ func (e *Engine) loadSearchPathModule(request moduleRequest) (moduleEntry, error
 		key := moduleCacheKey(root, request.normalized)
 		candidate := filepath.Join(root, request.normalized)
 
-		if entry, ok := e.getValidCachedModule(key); ok {
+		if entry, ok := e.getValidCachedModule(key, work); ok {
 			e.cacheSearchPathHit(request.normalized, entry)
 			return entry, nil
 		}
 
 		if _, err := moduleRelativePath(root, candidate); err != nil {
 			return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
+		}
+		if err := checkModuleSpelling(root, request.normalized, work); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
 		}
 		data, stamp, readErr := e.readModuleSource(candidate)
 		if readErr != nil {
@@ -750,9 +769,10 @@ func moduleDisplayFromRelative(relative string) string {
 // has no extension of its own: require appends ".vibe" solely to
 // extensionless names, so trimming "helper.vibe.vibe" to "helper.vibe"
 // (or "data.json.vibe" to "data.json") would resolve a different file.
+// An empty name or newly exposed edge whitespace would also change the request.
 func moduleRequireName(filename string) string {
 	trimmed := strings.TrimSuffix(filename, ".vibe")
-	if path.Ext(trimmed) != "" {
+	if trimmed == "" || path.Ext(trimmed) != "" || strings.TrimSpace(trimmed) != trimmed {
 		return filename
 	}
 	return trimmed
@@ -971,67 +991,45 @@ func resolvedPathWithMissing(path string) (string, error) {
 }
 
 func normalizeModulePolicyPattern(pattern string) string {
-	return normalizeModulePolicyValue(pattern)
+	return normalizeModulePolicyValue(strings.TrimSpace(pattern))
 }
 
 func normalizeModulePolicyModuleName(relative string) string {
+	if strings.TrimSpace(relative) == "" {
+		return ""
+	}
 	return normalizeModulePolicyValue(relative)
 }
 
-// normalizeModulePolicyValue canonicalizes a pattern or module name for
-// policy comparison. After path normalization it strips at most one
-// trailing ".vibe" suffix from the *basename* — matching the single
-// ".vibe" that parseModuleRequest appends when the require argument
-// has no extension. Inputs whose basename already carries more than
-// one ".vibe" (e.g. "helper.vibe.vibe") are preserved verbatim,
-// because the loader resolves them to a literal on-disk file of that
-// name and an allow-list of "helper" must not grant access to the
-// sibling file "helper.vibe.vibe".
-//
-// The function is idempotent. Equivalent spellings of the same
-// logical module — "helper", "helper.vibe", "./helper.vibe" — all
-// reduce to "helper". Distinct files — "helper" (loads helper.vibe)
-// and "helper.vibe.vibe" (loads helper.vibe.vibe) — produce distinct
-// canonical forms. Directory names keep their dots:
-// "helper.vibe/foo.vibe" reduces to "helper.vibe/foo".
+// Policy names preserve every significant filename byte. Only remove the
+// extension when require would restore it without changing the filename.
 func normalizeModulePolicyValue(value string) string {
 	current := normalizeModulePolicyPath(value)
 	if current == "" {
 		return ""
 	}
 	dir, base := path.Split(current)
-	if !strings.HasSuffix(base, ".vibe") {
-		return current
-	}
 	trimmed := strings.TrimSuffix(base, ".vibe")
-	if trimmed == "" || trimmed == "." || trimmed == ".." {
-		return current
+	if trimmed != "" && path.Ext(trimmed) == "" {
+		base = trimmed
 	}
-	candidate := normalizeModulePolicyPath(dir + trimmed)
-	if candidate == "" {
-		return current
+	current = dir + base
+	if strings.TrimSpace(current) != current {
+		// Protect literal edge whitespace from the optional padding accepted
+		// around configured patterns. Cleaning these dot components for matching
+		// preserves the filename and keeps normalization idempotent.
+		if path.IsAbs(current) {
+			return current + "/."
+		}
+		return "./" + current + "/."
 	}
-	_, candidateBase := path.Split(candidate)
-	if strings.HasSuffix(candidateBase, ".vibe") {
-		return current
-	}
-	return candidate
+	return current
 }
 
 func normalizeModulePolicyPath(value string) string {
-	normalized := strings.TrimSpace(value)
-	normalized = strings.ReplaceAll(normalized, "\\", "/")
+	normalized := strings.ReplaceAll(value, "\\", "/")
 	normalized = filepath.ToSlash(normalized)
-	normalized = strings.TrimPrefix(normalized, "./")
 	normalized = path.Clean(normalized)
-	if normalized == "." {
-		return ""
-	}
-	parts := strings.Split(normalized, "/")
-	for i, part := range parts {
-		parts[i] = strings.TrimSpace(part)
-	}
-	normalized = path.Clean(strings.Join(parts, "/"))
 	if normalized == "." {
 		return ""
 	}
@@ -1044,6 +1042,9 @@ func validateModulePolicyPatterns(patterns []string, label string) error {
 		if pattern == "" {
 			return fmt.Errorf("vibes: module %s-list pattern cannot be empty", label)
 		}
+		if strings.TrimSpace(raw) != raw {
+			return fmt.Errorf("vibes: module %s-list pattern %q has ambiguous edge whitespace; remove padding or use ./.../. for literal whitespace", label, raw)
+		}
 		if _, err := path.Match(pattern, "probe"); err != nil {
 			return fmt.Errorf("vibes: invalid module %s-list pattern %q: %w", label, raw, err)
 		}
@@ -1052,8 +1053,13 @@ func validateModulePolicyPatterns(patterns []string, label string) error {
 }
 
 func modulePolicyMatch(pattern, module string) bool {
+	if module == "" {
+		return false
+	}
+	pattern = path.Clean(pattern)
+	module = path.Clean(module)
 	if pattern == "*" {
-		return module != ""
+		return true
 	}
 	matched, err := path.Match(pattern, module)
 	if err != nil {
@@ -1138,7 +1144,7 @@ func builtinRequire(exec *Execution, receiver Value, args []Value, kwargs map[st
 	}
 	if entry.key == "" {
 		var err error
-		entry, err = exec.engine.loadModule(modName, exec.currentModuleContext(), exec.modules)
+		entry, err = exec.engine.loadModule(modName, exec.currentModuleContext(), exec.modules, &moduleNameWork{charge: exec.stepN})
 		if err != nil {
 			return NewNil(), err
 		}

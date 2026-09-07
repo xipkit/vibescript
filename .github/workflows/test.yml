@@ -9,6 +9,7 @@ jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
@@ -41,6 +42,10 @@ jobs:
       - name: Run lint (Just)
         if: runner.os != 'Windows'
         run: just lint
+
+      - name: Check cold casefold module lookup
+        if: runner.os == 'Linux'
+        run: bash ./scripts/check_module_casefold.sh
 
       - name: Check Vibe formatting
         if: runner.os != 'Windows'
