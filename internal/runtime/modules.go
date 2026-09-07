@@ -1009,7 +1009,11 @@ func normalizeModulePolicyValue(value string) string {
 		return ""
 	}
 	dir, base := path.Split(current)
-	current = dir + moduleRequireName(base)
+	trimmed := strings.TrimSuffix(base, ".vibe")
+	if trimmed != "" && path.Ext(trimmed) == "" {
+		base = trimmed
+	}
+	current = dir + base
 	if strings.TrimSpace(current) != current {
 		// Protect literal edge whitespace from the optional padding accepted
 		// around configured patterns. Cleaning these dot components for matching
@@ -1037,6 +1041,9 @@ func validateModulePolicyPatterns(patterns []string, label string) error {
 		pattern := normalizeModulePolicyPattern(raw)
 		if pattern == "" {
 			return fmt.Errorf("vibes: module %s-list pattern cannot be empty", label)
+		}
+		if strings.TrimSpace(raw) != raw {
+			return fmt.Errorf("vibes: module %s-list pattern %q has ambiguous edge whitespace; remove padding or use ./.../. for literal whitespace", label, raw)
 		}
 		if _, err := path.Match(pattern, "probe"); err != nil {
 			return fmt.Errorf("vibes: invalid module %s-list pattern %q: %w", label, raw, err)

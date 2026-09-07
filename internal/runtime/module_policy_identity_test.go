@@ -86,3 +86,48 @@ func TestModulePolicyNormalizationPreservesSignificantWhitespace(t *testing.T) {
 		}
 	}
 }
+
+func TestModulePolicyRejectsAmbiguousEdgeWhitespace(t *testing.T) {
+	t.Parallel()
+	for _, pattern := range []string{" secret.vibe", "secret.vibe ", " secret ", "\tsecret.vibe\t", " * "} {
+		for _, allow := range []bool{false, true} {
+			cfg := Config{ModuleDenyList: []string{pattern}}
+			if allow {
+				cfg = Config{ModuleAllowList: []string{pattern}}
+			}
+			if _, err := NewEngine(cfg); err == nil || !strings.Contains(err.Error(), "whitespace") {
+				t.Errorf("ambiguous pattern %q (allow=%t) error = %v", pattern, allow, err)
+			}
+		}
+	}
+}
+
+func TestModulePolicyWhitespaceNamesKeepOptionalExtension(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{" space.vibe", "nested/ space.vibe", "space .vibe", "nested/space .vibe"} {
+		base := strings.TrimSuffix(name, ".vibe")
+		sibling := filepath.ToSlash(filepath.Join(filepath.Dir(name), strings.TrimSpace(filepath.Base(base))+".vibe"))
+		root := tempModuleTree(t,
+			moduleFile{path: name, content: "def value\n  7\nend\n"},
+			moduleFile{path: sibling, content: "def value\n  9\nend\n"},
+		)
+		engine := MustNewEngine(Config{ModulePaths: []string{root}, ModuleAllowList: []string{"./" + base + "/."}})
+		script := compileScriptWithEngine(t, engine, "def run(name)\n  require(name).value\nend")
+		denyEngine := MustNewEngine(Config{ModulePaths: []string{root}, ModuleDenyList: []string{"./" + base + "/."}})
+		denyScript := compileScriptWithEngine(t, denyEngine, "def run(name)\n  require(name).value\nend")
+		for _, request := range []string{name, base} {
+			got, err := script.Call(context.Background(), "run", []Value{NewString("placeholder/../" + request + "/.")}, CallOptions{})
+			if err != nil || got.Int() != 7 {
+				t.Errorf("whitespace filename %q, request %q = %v, %v", name, request, got, err)
+			}
+			_, err = denyScript.Call(context.Background(), "run", []Value{NewString("placeholder/../" + request + "/.")}, CallOptions{})
+			if err == nil || !strings.Contains(err.Error(), "denied by policy") {
+				t.Errorf("explicit whitespace deny pattern allowed %q: %v", request, err)
+			}
+		}
+		got, err := denyScript.Call(context.Background(), "run", []Value{NewString(sibling)}, CallOptions{})
+		if err != nil || got.Int() != 9 {
+			t.Errorf("distinct whitespace-free sibling %q = %v, %v", sibling, got, err)
+		}
+	}
+}

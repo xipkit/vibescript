@@ -144,6 +144,9 @@ with deny-list rules taking precedence).
 Policy matching preserves whitespace within filename and directory components
 and distinguishes extra extensions: `helper` and `helper.vibe` are equivalent,
 while `helper .vibe` and `helper.json.vibe` are separate module names.
+Patterns with leading or trailing whitespace are rejected as ambiguous. Remove
+padding around ordinary names; use dot components to preserve literal edge
+whitespace, such as `./ secret.vibe/.` for a filename starting with a space.
 Each path component must use its stored filesystem spelling, including case
 and Unicode normalization. An alias is treated as missing in that search root;
 a later root with an exact match can still supply the module. Symlinks retain
