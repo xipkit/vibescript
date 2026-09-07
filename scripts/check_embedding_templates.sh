@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# check_embedding_templates.sh — compile every embedding starter template.
+# check_embedding_templates.sh — build and test every embedding starter template.
 #
 # The templates are named main.go.tmpl so `go build ./...` and `go vet ./...`
 # skip them, which let all three drift out of sync with the embedding API and
 # stop compiling (see issue #1064). This materializes each one into a throwaway
-# module that points back at the repo and builds it, so a template that no
+# module that points back at the repo, then builds and tests it, so a template that no
 # longer compiles fails CI instead of reaching a new embedder.
 set -euo pipefail
 
@@ -29,6 +29,10 @@ for tmpl in "$templates_dir"/*/main.go.tmpl; do
 	dir="$work/$name"
 	mkdir -p "$dir"
 	cp "$tmpl" "$dir/main.go"
+	for test_tmpl in "$(dirname "$tmpl")"/*_test.go.tmpl; do
+		[[ -e "$test_tmpl" ]] || continue
+		cp "$test_tmpl" "$dir/$(basename "${test_tmpl%.tmpl}")"
+	done
 
 	# Copy any sibling files the template needs at runtime (module sources and
 	# similar), preserving their relative layout.
@@ -45,8 +49,8 @@ require github.com/mgomes/vibescript v0.0.0
 replace github.com/mgomes/vibescript => $repo_root
 EOF
 
-	echo "building template: $name"
-	if ! (cd "$dir" && GOFLAGS=-mod=mod go build ./... 2>&1); then
+	echo "checking template: $name"
+	if ! (cd "$dir" && GOFLAGS=-mod=mod go build ./... && GOFLAGS=-mod=mod go test ./... -count=1 -timeout=30s 2>&1); then
 		failed+=("$name")
 	fi
 	checked=$((checked + 1))
@@ -58,8 +62,8 @@ if [[ $checked -eq 0 ]]; then
 fi
 
 if [[ ${#failed[@]} -gt 0 ]]; then
-	echo "embedding templates failed to compile: ${failed[*]}" >&2
+	echo "embedding template checks failed: ${failed[*]}" >&2
 	exit 1
 fi
 
-echo "all $checked embedding template(s) compile"
+echo "all $checked embedding template(s) build and test"
