@@ -389,20 +389,23 @@ func formatModuleCycle(cycle []string) string {
 // the loader serves a pinned key directly; search-path requires are pinned by
 // resolved name in builtinRequire instead, because probing every root's key
 // here would let a pin from a later root override ModulePaths precedence.
-func (e *Engine) loadModule(name string, caller *moduleContext, pinned map[string]Value) (moduleEntry, error) {
+func (e *Engine) loadModule(name string, caller *moduleContext, pinned map[string]Value, work *moduleNameWork) (moduleEntry, error) {
 	request, err := e.parseCachedModuleRequest(name)
 	if err != nil {
 		return moduleEntry{}, err
+	}
+	if work == nil {
+		work = &moduleNameWork{}
 	}
 
 	if request.explicitRelative {
 		if caller == nil || caller.path == "" || caller.root == "" {
 			return moduleEntry{}, fmt.Errorf("require: relative module %q requires a module caller", name)
 		}
-		return e.loadRelativeModule(request, *caller, pinned)
+		return e.loadRelativeModule(request, *caller, pinned, work)
 	}
 
-	return e.loadSearchPathModule(request)
+	return e.loadSearchPathModule(request, work)
 }
 
 func (e *Engine) parseCachedModuleRequest(name string) (moduleRequest, error) {
@@ -448,7 +451,7 @@ func (e *Engine) reserveModuleRequestText(texts ...string) bool {
 	return true
 }
 
-func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext, pinned map[string]Value) (moduleEntry, error) {
+func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext, pinned map[string]Value, work *moduleNameWork) (moduleEntry, error) {
 	candidate := filepath.Clean(filepath.Join(filepath.Dir(caller.path), request.normalized))
 	relative, err := moduleRelativePathLexical(caller.root, candidate)
 	if err != nil {
@@ -463,6 +466,12 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 		return entry, nil
 	}
 
+	if err := checkModuleSpelling(caller.root, relative, work); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return moduleEntry{}, fmt.Errorf("require: module %q not found%s", request.raw, e.relativeModuleSuggestion(request, caller, candidate))
+		}
+		return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
+	}
 	relative, err = moduleRelativePath(caller.root, candidate)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -482,7 +491,7 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 	return e.compileAndCacheModule(key, caller.root, relative, candidate, data, stamp)
 }
 
-func (e *Engine) loadSearchPathModule(request moduleRequest) (moduleEntry, error) {
+func (e *Engine) loadSearchPathModule(request moduleRequest, work *moduleNameWork) (moduleEntry, error) {
 	if len(e.modPaths) == 0 {
 		return moduleEntry{}, fmt.Errorf("require: module paths not configured")
 	}
@@ -503,6 +512,12 @@ func (e *Engine) loadSearchPathModule(request moduleRequest) (moduleEntry, error
 			return entry, nil
 		}
 
+		if err := checkModuleSpelling(root, request.normalized, work); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return moduleEntry{}, fmt.Errorf("require: checking %s: %w", candidate, err)
+		}
 		if _, err := moduleRelativePath(root, candidate); err != nil {
 			return moduleEntry{}, fmt.Errorf("require: module name %q escapes module root", request.raw)
 		}
@@ -1118,7 +1133,7 @@ func builtinRequire(exec *Execution, receiver Value, args []Value, kwargs map[st
 	}
 	if entry.key == "" {
 		var err error
-		entry, err = exec.engine.loadModule(modName, exec.currentModuleContext(), exec.modules)
+		entry, err = exec.engine.loadModule(modName, exec.currentModuleContext(), exec.modules, &moduleNameWork{charge: exec.stepN})
 		if err != nil {
 			return NewNil(), err
 		}

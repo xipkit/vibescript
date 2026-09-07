@@ -3,6 +3,7 @@
 package runtime
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,13 +15,13 @@ func TestModuleStoredBase(t *testing.T) {
 	t.Parallel()
 	root := tempModuleTree(t, moduleFile{path: "ExactDir/ExactFile.vibe", content: "def value\n  7\nend\n"})
 	for _, relative := range []string{"ExactDir", "ExactDir/ExactFile.vibe"} {
-		name, err := moduleStoredBase(filepath.Join(root, relative))
+		name, err := moduleStoredBaseNative(filepath.Join(root, relative))
 		if err != nil || name != filepath.Base(relative) {
 			t.Fatalf("stored name of %q = %q, %v", relative, name, err)
 		}
 	}
 	for _, relative := range []string{"EXACTDIR", "ExactDir/EXACTFILE.vibe"} {
-		name, err := moduleStoredBase(filepath.Join(root, relative))
+		name, err := moduleStoredBaseNative(filepath.Join(root, relative))
 		if os.IsNotExist(err) {
 			continue
 		}
@@ -45,7 +46,7 @@ func TestModuleStoredBasePreservesLinks(t *testing.T) {
 			if err := tc.link(filepath.Join(root, "ExactFile.vibe"), path); err != nil {
 				t.Skipf("link unavailable: %v", err)
 			}
-			actual, err := moduleStoredBase(path)
+			actual, err := moduleStoredBaseNative(path)
 			if err != nil || actual != tc.name {
 				t.Fatalf("stored link name = %q, %v; want %q", actual, err, tc.name)
 			}
@@ -64,10 +65,16 @@ func TestModuleStoredBaseWithoutDirectoryReadPermission(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
 	for _, path := range []string{dir, filepath.Join(dir, "ExactFile.vibe")} {
-		actual, err := moduleStoredBase(path)
+		actual, err := moduleStoredBaseNative(path)
 		if err != nil || actual != filepath.Base(path) {
 			t.Fatalf("stored name without directory read permission = %q, %v", actual, err)
 		}
+	}
+	engine := MustNewEngine(Config{ModulePaths: []string{root}})
+	script := compileScriptWithEngine(t, engine, "def run\n  require(\"ExactDir/ExactFile\").value\nend")
+	got, err := script.Call(context.Background(), "run", nil, CallOptions{})
+	if err != nil || got.Int() != 7 {
+		t.Fatalf("loading through traversal-only directory = %v, %v", got, err)
 	}
 }
 
@@ -79,12 +86,12 @@ func TestModuleStoredBaseUnicodeAndLongPaths(t *testing.T) {
 		moduleFile{path: long, content: "def value\n  7\nend\n"},
 	)
 	for _, relative := range []string{"é.vibe", long} {
-		actual, err := moduleStoredBase(filepath.Join(root, relative))
+		actual, err := moduleStoredBaseNative(filepath.Join(root, relative))
 		if err != nil || actual != filepath.Base(relative) {
 			t.Fatalf("stored name of %q = %q, %v", relative, actual, err)
 		}
 	}
-	actual, err := moduleStoredBase(filepath.Join(root, "e\u0301.vibe"))
+	actual, err := moduleStoredBaseNative(filepath.Join(root, "e\u0301.vibe"))
 	if os.IsNotExist(err) {
 		return
 	}
@@ -107,7 +114,7 @@ func TestModuleStoredBaseDistinctCaseNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"ExactFile.vibe", "exactfile.vibe"} {
-		actual, err := moduleStoredBase(filepath.Join(root, name))
+		actual, err := moduleStoredBaseNative(filepath.Join(root, name))
 		if err != nil || actual != name {
 			t.Fatalf("stored name of distinct file %q = %q, %v", name, actual, err)
 		}

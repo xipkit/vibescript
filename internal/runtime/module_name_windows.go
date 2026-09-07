@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func moduleStoredBase(path string) (string, error) {
+func moduleStoredBaseNative(path string) (string, error) {
 	base := filepath.Base(path)
 	if !filepath.IsLocal(base) || strings.TrimRight(base, " .") != base {
 		return "", windows.ERROR_FILE_NOT_FOUND
@@ -42,7 +42,7 @@ func moduleStoredBase(path string) (string, error) {
 			continue
 		}
 		if err != nil {
-			return "", fmt.Errorf("cannot inspect module filename: %v", err)
+			return "", fmt.Errorf("%w: %w", errModuleNameUnavailable, err)
 		}
 		length := int(binary.LittleEndian.Uint32(buf[:4]))
 		if length < 2 || length > len(buf)-4 || length%2 != 0 {

@@ -2,13 +2,14 @@ package runtime
 
 import (
 	"encoding/binary"
+	"fmt"
 	"syscall"
 	"unsafe"
 )
 
-// moduleStoredBase queries the directory entry itself, including symlinks.
+// moduleStoredBaseNative queries the directory entry itself, including symlinks.
 // ATTR_CMN_NAME needs search permission, not directory listing permission.
-func moduleStoredBase(path string) (string, error) {
+func moduleStoredBaseNative(path string) (string, error) {
 	name, err := syscall.BytePtrFromString(path)
 	if err != nil {
 		return "", err
@@ -21,6 +22,9 @@ func moduleStoredBase(path string) (string, error) {
 	var buf [1024]byte
 	_, _, errno := syscall.Syscall6(syscall.SYS_GETATTRLIST, uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(&attrs)), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), 1, 0) // FSOPT_NOFOLLOW
 	if errno != 0 {
+		if errno == syscall.ENOTSUP || errno == syscall.ENOSYS {
+			return "", fmt.Errorf("%w: %w", errModuleNameUnavailable, errno)
+		}
 		return "", errno
 	}
 	// The name reference follows the uint32 result length. Its offset is

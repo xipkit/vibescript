@@ -97,7 +97,7 @@ func TestModuleRequestCacheFullStillDetachesLoadedName(t *testing.T) {
 		t.Fatal(err)
 	}
 	name := "helper.vibe" + strings.Repeat(" ", 1<<20)
-	entry, err := engine.loadModule(name, nil, nil)
+	entry, err := engine.loadModule(name, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,12 +126,12 @@ func TestModuleRequestCachesShareByteBudgetAndClear(t *testing.T) {
 	}
 	counts := []int{len(engine.modRequests), len(engine.modSearchHits), len(engine.modSearchMisses), len(engine.modSuggestText)}
 	name := "  helper.vibe  "
-	entry, err := engine.loadModule(name, nil, nil)
+	entry, err := engine.loadModule(name, nil, nil, nil)
 	if err != nil || entry.name != "helper.vibe" {
 		t.Fatalf("load after cache fills = %q, %v; want helper.vibe", entry.name, err)
 	}
 	missing := "  absent_name.vibe  "
-	if _, err := engine.loadModule(missing, nil, nil); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("%q", missing)) {
+	if _, err := engine.loadModule(missing, nil, nil, nil); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("%q", missing)) {
 		t.Fatalf("uncached miss error = %v, want original spelling", err)
 	}
 	for i, count := range []int{len(engine.modRequests), len(engine.modSearchHits), len(engine.modSearchMisses), len(engine.modSuggestText)} {
@@ -145,7 +145,7 @@ func TestModuleRequestCachesShareByteBudgetAndClear(t *testing.T) {
 	if engine.modRequestBytes != 0 || retainedModuleRequestBytes(engine) != 0 {
 		t.Fatal("ClearModuleCache retained request text or accounting")
 	}
-	if _, err := engine.loadModule(name, nil, nil); err != nil {
+	if _, err := engine.loadModule(name, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if engine.modRequestBytes == 0 || engine.modRequestBytes != retainedModuleRequestBytes(engine) {

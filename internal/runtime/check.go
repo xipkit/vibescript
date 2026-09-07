@@ -212,6 +212,7 @@ type scriptChecker struct {
 	loopExitEffects            *checkLoopExitEffects
 	moduleEntries              map[string]moduleEntry
 	moduleExportValues         map[string]Value
+	moduleNameWork             *moduleNameWork
 	moduleCheckedFunctions     map[string]struct{}
 	moduleCheckContext         string
 	moduleCaller               *moduleContext
@@ -1230,7 +1231,7 @@ func (c *scriptChecker) collectRequireCallExports(call *CallExpr) {
 	if c.requiredModules == nil {
 		c.requiredModules = make(map[string]struct{})
 	}
-	entry, err := c.script.engine.loadModule(moduleName, c.moduleCaller, nil)
+	entry, err := c.loadModule(moduleName)
 	if err != nil {
 		return
 	}
@@ -1345,6 +1346,7 @@ func (c *scriptChecker) checkRequiredModuleExportedFunctions(entry moduleEntry) 
 		hostGlobals:            c.hostGlobals,
 		moduleEntries:          c.moduleEntries,
 		moduleExportValues:     c.moduleExportValues,
+		moduleNameWork:         c.moduleNameBudget(),
 		moduleCheckedFunctions: c.moduleCheckedFunctions,
 		moduleCheckContext:     moduleCheckContext,
 		runtimeTypeRootParent:  parentRoot,
@@ -14556,7 +14558,7 @@ func (c *scriptChecker) requiredModuleObjectFunction(expr Expression, property s
 	if !ok {
 		return "", nil, false
 	}
-	entry, err := c.script.engine.loadModule(moduleName, c.moduleCaller, nil)
+	entry, err := c.loadModule(moduleName)
 	if err != nil {
 		return "", nil, false
 	}
