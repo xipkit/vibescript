@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -38,7 +39,7 @@ func moduleStoredBaseNative(path string) (string, error) {
 	for size := 1024; size <= 1<<17; size *= 2 {
 		buf := make([]byte, size)
 		err := windows.GetFileInformationByHandleEx(handle, windows.FileNormalizedNameInfo, &buf[0], uint32(len(buf)))
-		if err == windows.ERROR_MORE_DATA || err == windows.ERROR_INSUFFICIENT_BUFFER {
+		if errors.Is(err, windows.ERROR_MORE_DATA) || errors.Is(err, windows.ERROR_INSUFFICIENT_BUFFER) {
 			continue
 		}
 		if err != nil {
