@@ -38,6 +38,9 @@ type jsonValueParser struct {
 	pos   int
 	depth int
 	exec  *Execution
+	args  []Value
+	base  int
+	used  int
 }
 
 type jsonSeenSlot struct {
@@ -64,6 +67,23 @@ func (e jsonInvalidNumberError) Error() string {
 var errJSONMaxDepth = &guardLimitError{err: errors.New("exceeded max depth")}
 
 func (p *jsonValueParser) parse() (Value, error) {
+	if p.exec != nil {
+		if p.exec.memoryQuota > 0 {
+			args := p.args
+			if args == nil {
+				args = []Value{NewString(p.raw)}
+			}
+			var nodes int
+			p.base, nodes = p.exec.hashCallRootUsage(NewNil(), args, nil, NewNil())
+			if err := p.exec.chargeEstimatorWalk(nodes); err != nil {
+				return NewNil(), err
+			}
+		}
+		defer p.exec.beginAccumulatorMeteredSection()()
+	}
+	if err := p.reserve(estimatedValueBytes); err != nil {
+		return NewNil(), err
+	}
 	p.skipWhitespace()
 	value, err := p.parseValue()
 	if err != nil {
@@ -77,6 +97,11 @@ func (p *jsonValueParser) parse() (Value, error) {
 }
 
 func (p *jsonValueParser) parseValue() (Value, error) {
+	if p.exec != nil {
+		if err := p.exec.step(); err != nil {
+			return NewNil(), err
+		}
+	}
 	if p.pos >= len(p.raw) {
 		return NewNil(), fmt.Errorf("unexpected end of JSON input")
 	}
@@ -116,6 +141,9 @@ func (p *jsonValueParser) parseArray() (Value, error) {
 		return NewNil(), err
 	}
 	defer p.leaveContainer()
+	if err := p.reserve(nestedArrayBackingBytes(0)); err != nil {
+		return NewNil(), err
+	}
 
 	p.pos++
 	p.skipWhitespace()
@@ -125,17 +153,24 @@ func (p *jsonValueParser) parseArray() (Value, error) {
 
 	var values []Value
 	for {
-		value, err := p.parseValue()
+		parsed, err := p.parseValue()
 		if err != nil {
 			return NewNil(), err
 		}
-		values = append(values, value)
-		// The finished array is constructed below; this wrapper exists only
-		// so the memory check can see the prefix. Publishing here would
-		// share a child that only the final element slot will own.
-		if err := p.checkMaterialized(adoptArray(values)); err != nil {
+		if err := p.reserve(estimatedValueBytes); err != nil {
 			return NewNil(), err
 		}
+		if len(values) == cap(values) {
+			capacity := projectedAppendCap(len(values), cap(values))
+			if err := p.checkExtra(capacity * estimatedValueBytes); err != nil {
+				return NewNil(), err
+			}
+			grown := make([]Value, len(values), capacity)
+			copy(grown, values)
+			p.used += (capacity - cap(values)) * estimatedValueBytes
+			values = grown
+		}
+		values = append(values, parsed)
 
 		p.skipWhitespace()
 		switch {
@@ -164,9 +199,15 @@ func (p *jsonValueParser) parseObject() (Value, error) {
 	p.pos++
 	p.skipWhitespace()
 	if p.consumeByte('}') {
+		if err := p.reserve(estimatedMapBaseBytes + estimatedHashDataBytes); err != nil {
+			return NewNil(), err
+		}
 		return NewHash(nil), nil
 	}
 
+	if err := p.reserve(estimatedMapBaseBytes + estimatedHashDataBytes + jsonInitialObjectCapacity*estimatedMapEntryStructuralBytes + hashOrderBackingBytes(jsonInitialObjectCapacity)); err != nil {
+		return NewNil(), err
+	}
 	values := NewHashWithCapacity(jsonInitialObjectCapacity)
 	for {
 		if p.pos >= len(p.raw) {
@@ -189,15 +230,41 @@ func (p *jsonValueParser) parseObject() (Value, error) {
 		}
 
 		p.skipWhitespace()
-		value, err := p.parseValue()
+		parsed, err := p.parseValue()
 		if err != nil {
 			return NewNil(), err
 		}
-		if err := values.HashSet(NewString(key), value); err != nil {
+		previous, exists := values.HashEntryMap()[key]
+		if !exists {
+			// The order keeps the first key string; a duplicate map write can
+			// retain a second equal string. Reserve both representations.
+			if err := p.reserve(len(key)); err != nil {
+				return NewNil(), err
+			}
+			if values.HashLen() >= value.HashEntryCapacity(values) {
+				if err := p.reserve(estimatedMapEntryStructuralBytes); err != nil {
+					return NewNil(), err
+				}
+			}
+			capacity := value.HashOrderCapacity(values)
+			if values.HashLen() == capacity {
+				next := projectedAppendCap(values.HashLen(), capacity)
+				if err := p.checkExtra(hashOrderBackingBytes(next)); err != nil {
+					return NewNil(), err
+				}
+				values.ReserveHashOrderUnpublished(next)
+				p.used += hashOrderBackingBytes(next) - hashOrderBackingBytes(capacity)
+			}
+		}
+		if err := values.HashSetUnpublished(NewString(key), parsed); err != nil {
 			return NewNil(), err
 		}
-		if err := p.checkMaterialized(values); err != nil {
-			return NewNil(), err
+		if exists {
+			freed, err := p.discardedPayload(previous)
+			if err != nil {
+				return NewNil(), err
+			}
+			p.used -= freed + estimatedStringHeaderBytes + len(key)
 		}
 
 		p.skipWhitespace()
@@ -277,9 +344,15 @@ func (p *jsonValueParser) parseNumber() (Value, error) {
 				return NewNil(), err
 			}
 		}
+		reserved := estimatedBigIntStructBytes + len(literal) + 8*estimatedBigIntWordBytes
+		if err := p.reserve(reserved); err != nil {
+			return NewNil(), err
+		}
 		if bi, ok := new(big.Int).SetString(literal, 10); ok {
 			val := value.AdoptBigInt(bi)
-			if err := p.checkMaterialized(val); err != nil {
+			actual := estimatedBigIntStructBytes + cap(bi.Bits())*estimatedBigIntWordBytes
+			p.used -= reserved
+			if err := p.reserve(actual); err != nil {
 				return NewNil(), err
 			}
 			return val, nil
@@ -302,6 +375,9 @@ func (p *jsonValueParser) parseString() (string, error) {
 		case b == '"':
 			value := p.raw[start:p.pos]
 			p.pos++
+			if err := p.reserve(estimatedStringHeaderBytes + len(value)); err != nil {
+				return "", err
+			}
 			return value, nil
 		case b == '\\':
 			return p.parseEscapedString(start)
@@ -321,40 +397,69 @@ func (p *jsonValueParser) parseString() (string, error) {
 }
 
 func (p *jsonValueParser) parseEscapedString(start int) (string, error) {
+	position := p.pos
+	size, err := p.parseEscapedContents(start, nil)
+	if err != nil {
+		return "", err
+	}
+	if p.exec != nil {
+		if err := p.exec.chargeStringScan(p.pos - start + size); err != nil {
+			return "", err
+		}
+	}
 	var b strings.Builder
-	b.Grow(len(p.raw) - start)
-	b.WriteString(p.raw[start:p.pos])
+	capacity := projectedBuilderCap(&b, size)
+	if err := p.checkExtra(estimatedStringHeaderBytes + capacity + size); err != nil {
+		return "", err
+	}
+	b.Grow(size)
+	p.pos = position
+	if _, err := p.parseEscapedContents(start, &b); err != nil {
+		return "", err
+	}
+	// Keep only this token's bytes, so discarded-subtree accounting can use
+	// its string length and no result retains spare decoding capacity.
+	out := strings.Clone(b.String())
+	p.used += estimatedStringHeaderBytes + len(out)
+	return out, nil
+}
+
+func (p *jsonValueParser) parseEscapedContents(start int, b *strings.Builder) (int, error) {
+	size := p.pos - start
+	if b != nil {
+		b.WriteString(p.raw[start:p.pos])
+	}
 
 	for p.pos < len(p.raw) {
 		c := p.raw[p.pos]
+		var r rune
 		switch {
 		case c == '"':
 			p.pos++
-			return b.String(), nil
+			return size, nil
 		case c == '\\':
 			p.pos++
-			r, err := p.parseStringEscape()
+			decoded, err := p.parseStringEscape()
 			if err != nil {
-				return "", err
+				return 0, err
 			}
-			b.WriteRune(r)
+			r = decoded
 		case c < 0x20:
-			return "", fmt.Errorf("invalid character %q in string literal", c)
+			return 0, fmt.Errorf("invalid character %q in string literal", c)
 		case c < utf8.RuneSelf:
-			b.WriteByte(c)
+			r = rune(c)
 			p.pos++
 		default:
-			r, size := utf8.DecodeRuneInString(p.raw[p.pos:])
-			if r == utf8.RuneError && size == 1 {
-				b.WriteRune(utf8.RuneError)
-				p.pos++
-				continue
-			}
+			decoded, width := utf8.DecodeRuneInString(p.raw[p.pos:])
+			r = decoded
+			p.pos += width
+		}
+		size += utf8.RuneLen(r)
+		if b != nil {
 			b.WriteRune(r)
-			p.pos += size
 		}
 	}
-	return "", fmt.Errorf("unexpected end of JSON input")
+	return 0, fmt.Errorf("unexpected end of JSON input")
 }
 
 func (p *jsonValueParser) parseStringEscape() (rune, error) {
@@ -476,13 +581,6 @@ func (p *jsonValueParser) enterContainer() error {
 
 func (p *jsonValueParser) leaveContainer() {
 	p.depth--
-}
-
-func (p *jsonValueParser) checkMaterialized(value Value) error {
-	if p.exec == nil {
-		return nil
-	}
-	return p.exec.checkMemoryValue(value)
 }
 
 func isJSONDigit(c byte) bool {
