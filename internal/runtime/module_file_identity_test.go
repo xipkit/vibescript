@@ -200,3 +200,47 @@ func TestRequireRejectsEscapeBeforeFilenameLookup(t *testing.T) {
 		}
 	}
 }
+
+func TestDevModeRejectsOldSpellingAfterRename(t *testing.T) {
+	t.Parallel()
+	for _, relative := range []bool{false, true} {
+		for _, directory := range []bool{false, true} {
+			t.Run(fmt.Sprintf("relative=%t/directory=%t", relative, directory), func(t *testing.T) {
+				t.Parallel()
+				root := tempModuleTree(t,
+					moduleFile{path: "ExactDir/ExactFile.vibe", content: "def value\n  7\nend\n"},
+					moduleFile{path: "Driver.vibe", content: "def load(name)\n  require(name).value\nend\n"},
+				)
+				engine := MustNewEngine(Config{ModulePaths: []string{root}, DevMode: true})
+				source := "def run(name)\n  require(name).value\nend"
+				prefix := ""
+				if relative {
+					source = "def run(name)\n  require(\"Driver\").load(name)\nend"
+					prefix = "./"
+				}
+				script := compileScriptWithEngine(t, engine, source)
+				oldName := "ExactDir/ExactFile.vibe"
+				newName := "ExactDir/exactfile.vibe"
+				got, err := script.Call(context.Background(), "run", []Value{NewString(prefix + oldName)}, CallOptions{})
+				if err != nil || got.Int() != 7 {
+					t.Fatalf("initial load = %v, %v", got, err)
+				}
+				from, to := oldName, newName
+				if directory {
+					from, to = "ExactDir", "exactdir"
+					newName = "exactdir/ExactFile.vibe"
+				}
+				if err := os.Rename(filepath.Join(root, from), filepath.Join(root, to)); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := script.Call(context.Background(), "run", []Value{NewString(prefix + oldName)}, CallOptions{}); err == nil {
+					t.Fatal("old spelling remained loadable after a case-only rename")
+				}
+				got, err = script.Call(context.Background(), "run", []Value{NewString(prefix + newName)}, CallOptions{})
+				if err != nil || got.Int() != 7 {
+					t.Fatalf("renamed module = %v, %v", got, err)
+				}
+			})
+		}
+	}
+}

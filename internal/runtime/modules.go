@@ -68,16 +68,20 @@ func (e *Engine) getCachedModule(key string) (moduleEntry, bool) {
 }
 
 // getValidCachedModule returns the cached module for key. In dev mode the
-// entry's source stamp is revalidated first; a stale (or deleted) source
-// evicts the entry and reports a miss so the caller's normal load path
-// re-resolves and recompiles it.
-func (e *Engine) getValidCachedModule(key string) (moduleEntry, bool) {
+// entry's containment, spelling, and source stamp are revalidated first.
+// A stale or deleted source evicts the entry and reports a miss so the
+// caller's normal load path re-resolves and recompiles it.
+func (e *Engine) getValidCachedModule(key string, work *moduleNameWork) (moduleEntry, bool) {
 	entry, ok := e.getCachedModule(key)
 	if !ok || !e.config.DevMode {
 		return entry, ok
 	}
-	if current, err := statModuleStamp(entry.path); err == nil && current.equals(entry.stamp) {
-		return entry, true
+	root := entry.script.moduleRoot
+	relative, err := moduleRelativePath(root, entry.path)
+	if err == nil && checkModuleSpelling(root, relative, work) == nil {
+		if current, err := statModuleStamp(entry.path); err == nil && current.equals(entry.stamp) {
+			return entry, true
+		}
 	}
 	e.invalidateStaleModule(key, entry.script)
 	return moduleEntry{}, false
@@ -462,7 +466,7 @@ func (e *Engine) loadRelativeModule(request moduleRequest, caller moduleContext,
 	if entry, ok := e.pinnedModuleEntry(key, pinned); ok {
 		return entry, nil
 	}
-	if entry, ok := e.getValidCachedModule(key); ok {
+	if entry, ok := e.getValidCachedModule(key, work); ok {
 		return entry, nil
 	}
 
@@ -507,7 +511,7 @@ func (e *Engine) loadSearchPathModule(request moduleRequest, work *moduleNameWor
 		key := moduleCacheKey(root, request.normalized)
 		candidate := filepath.Join(root, request.normalized)
 
-		if entry, ok := e.getValidCachedModule(key); ok {
+		if entry, ok := e.getValidCachedModule(key, work); ok {
 			e.cacheSearchPathHit(request.normalized, entry)
 			return entry, nil
 		}
