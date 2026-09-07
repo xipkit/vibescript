@@ -105,7 +105,8 @@ func (r strftimeRenderer) append(out string, retainedCapacity int) error {
 		return err
 	}
 	capacity := projectedBuilderCap(r.builder, len(out))
-	scratch := saturatingAdd(r.held, saturatingAdd(capacity, max(len(out), retainedCapacity)))
+	// Borrowed literal/token slices are already included in the input roots.
+	scratch := saturatingAdd(r.held, saturatingAdd(capacity, retainedCapacity))
 	if capacity > r.builder.Cap() {
 		scratch = saturatingAdd(scratch, r.builder.Cap())
 	}

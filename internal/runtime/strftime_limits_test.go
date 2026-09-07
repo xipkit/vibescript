@@ -190,3 +190,22 @@ func TestStrftimeUnicodeProjectionPollsCancellation(t *testing.T) {
 		}
 	}
 }
+
+func TestStrftimeBorrowedInputPeak(t *testing.T) {
+	tm := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	for _, format := range []string{"%" + strings.Repeat("-", 512<<10) + "Q", strings.Repeat("x", 4096)} {
+		probe := &Execution{memoryQuota: 1 << 30}
+		base := probe.hashCallRootBytes(NewTime(tm), []Value{NewString(format)}, nil, NewNil()) + estimatedValueBytes + estimatedStringHeaderBytes
+		var builder strings.Builder
+		peak := projectedBuilderCap(&builder, len(format))
+		exec := &Execution{quota: 1 << 30, memoryQuota: base + peak}
+		got, err := strftime(exec, tm, format)
+		if err != nil || got != format {
+			t.Fatalf("borrowed input length %d: output length %d, error %v", len(format), len(got), err)
+		}
+		exec = &Execution{quota: 1 << 30, memoryQuota: base + peak - 1}
+		if _, err := strftime(exec, tm, format); !errors.Is(err, errMemoryQuotaExceeded) {
+			t.Fatalf("borrowed input below peak: error %v, want memory quota", err)
+		}
+	}
+}

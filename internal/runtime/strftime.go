@@ -176,6 +176,8 @@ func (r strftimeRenderer) renderInto(format string, inheritedUpper bool) error {
 		}
 		if !recognized {
 			out = token.source
+		} else {
+			fieldCapacity = max(len(out), fieldCapacity)
 		}
 		if err := r.append(out, fieldCapacity); err != nil {
 			return err
