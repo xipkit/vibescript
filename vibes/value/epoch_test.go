@@ -1,6 +1,7 @@
 package value
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -32,6 +33,8 @@ func TestWrapperMutationJournalConcurrentWriters(t *testing.T) {
 
 func TestWrapperMutationJournalIdentities(t *testing.T) {
 	hash := NewHashWithCapacity(1)
+	// Journal identities must refer to heap values across stack growth.
+	t.Cleanup(func() { runtime.KeepAlive(hash) })
 	before := WrapperMutationEpoch()
 	if err := hash.HashSet(NewString("state"), NewInt(1)); err != nil {
 		t.Fatal(err)
