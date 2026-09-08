@@ -8,15 +8,19 @@ func (c *baseWalkCache) captureMutationEpochs(epoch uint64) {
 	c.wrapperEpoch = value.WrapperMutationEpoch()
 }
 
-// mutationsCurrent validates only writes since the committed walk. Env versions
-// isolate lexical binding traffic without a journal limit; wrapper identities
-// use the estimator's existing seen sets, so no collection gains ownership or
-// subscriber metadata. Unknown writes and journal overflow still discard the
-// whole memo conservatively.
 func (c *baseWalkCache) mutationsCurrent(est *memoryEstimator, epoch uint64) bool {
 	if c.epoch == epoch {
 		return true
 	}
+	return c.validateMutations(est, epoch)
+}
+
+// validateMutations validates only writes since the committed walk. Env versions
+// isolate lexical binding traffic without a journal limit; wrapper identities
+// use the estimator's existing seen sets, so no collection gains ownership or
+// subscriber metadata. Unknown writes and journal overflow still discard the
+// whole memo conservatively.
+func (c *baseWalkCache) validateMutations(est *memoryEstimator, epoch uint64) bool {
 	if c.opaqueEpoch != value.OpaqueMutationEpoch() || !est.envVersionsCurrent() {
 		return false
 	}
