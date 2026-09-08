@@ -25,6 +25,7 @@ type envBinding struct {
 // -- the root env's builtin set dominated estimation cost otherwise.
 type Env struct {
 	parent             *Env
+	mutationVersion    uint64
 	inline             [inlineEnvBindingCapacity]envBinding
 	inlineLen          uint8
 	values             map[string]Value
@@ -102,7 +103,12 @@ type Env struct {
 	neutralityRevoked bool
 }
 
-// bumpEpochUnlessNeutral advances the process-wide mutation epoch for a binding
+func (e *Env) bumpMutationVersion() {
+	e.mutationVersion++
+	value.BumpLocalMutationEpoch()
+}
+
+// bumpEpochUnlessNeutral advances this environment's mutation version for a binding
 // write to this scope, unless the scope is epoch-neutral — inside an active
 // block-iteration region, where every check re-walks the scope fresh so its own
 // binding writes cannot stale the memoized prefix (see the epochNeutral field
@@ -111,7 +117,7 @@ type Env struct {
 // to an outer scope bump unconditionally.
 func (e *Env) bumpEpochUnlessNeutral() {
 	if !e.epochNeutral {
-		value.BumpMutationEpoch()
+		e.bumpMutationVersion()
 	}
 }
 
@@ -287,7 +293,7 @@ func (e *Env) getBoundValue(name string, lastMutable *Env) (Value, bool) {
 	if idx, ok := e.inlineIndex(name); ok {
 		val := e.inline[idx].value
 		if lazy, ok := lazyValue(val); ok {
-			value.BumpMutationEpoch()
+			e.bumpMutationVersion()
 			previous := val
 			val = lazy.materialize()
 			publishBindingReplacement(previous, val)
@@ -298,7 +304,7 @@ func (e *Env) getBoundValue(name string, lastMutable *Env) (Value, bool) {
 	}
 	if val, ok := e.values[name]; ok {
 		if lazy, ok := lazyValue(val); ok {
-			value.BumpMutationEpoch()
+			e.bumpMutationVersion()
 			previous := val
 			val = lazy.materialize()
 			publishBindingReplacement(previous, val)
@@ -331,7 +337,7 @@ func (e *Env) getSkipping(name string, skip map[*Env]struct{}) (Value, bool) {
 		if idx, ok := scope.inlineIndex(name); ok {
 			val := scope.inline[idx].value
 			if lazy, ok := lazyValue(val); ok {
-				value.BumpMutationEpoch()
+				scope.bumpMutationVersion()
 				previous := val
 				val = lazy.materialize()
 				publishBindingReplacement(previous, val)
@@ -342,7 +348,7 @@ func (e *Env) getSkipping(name string, skip map[*Env]struct{}) (Value, bool) {
 		}
 		if val, ok := scope.values[name]; ok {
 			if lazy, ok := lazyValue(val); ok {
-				value.BumpMutationEpoch()
+				scope.bumpMutationVersion()
 				previous := val
 				val = lazy.materialize()
 				publishBindingReplacement(previous, val)
@@ -794,7 +800,7 @@ func (e *Env) bumpEpochUnlessScalarRebind(old, val Value) {
 	if committableScalar(old) && committableScalar(val) {
 		return
 	}
-	value.BumpMutationEpoch()
+	e.bumpMutationVersion()
 }
 
 func (e *Env) setDynamic(name string, val Value) {
@@ -904,7 +910,7 @@ func (e *Env) materializeStatic(name string, val Value) Value {
 	if !ok {
 		return val
 	}
-	value.BumpMutationEpoch()
+	e.bumpMutationVersion()
 	materialized := lazy.materialize()
 	publishBindingReplacement(val, materialized)
 	e.statics[name] = materialized

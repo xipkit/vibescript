@@ -154,11 +154,11 @@ func (exec *Execution) beginRegionBaseWalk(est *memoryEstimator, scalars int) ba
 
 	boundary := exec.blockRegionBoundary
 	epoch := value.MutationEpoch()
-	if !c.valid || c.epoch != epoch || c.topo != exec.baseTopoVersion || c.regionBoundary != boundary {
+	if !c.valid || !c.mutationsCurrent(est, epoch) || c.topo != exec.baseTopoVersion || c.regionBoundary != boundary {
 		est.journal = nil
 		est.reset()
 		est.dormant = nil
-		c.epoch = epoch
+		c.captureMutationEpochs(epoch)
 		c.topo = exec.baseTopoVersion
 		c.regionBoundary = boundary
 		c.graphBytes = exec.estimateGraphBasePrefix(est, boundary)

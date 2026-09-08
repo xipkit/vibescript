@@ -116,7 +116,7 @@ func (v Value) SetArrayElems(elems []Value) {
 		return
 	}
 	if ad, ok := v.data.(*arrayData); ok {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		if !sameElemStart(ad.elems, elems) {
 			// Elements that start somewhere else are a different allocation --
 			// a mutator's freshly built slice, or an append that outgrew its
@@ -144,7 +144,7 @@ func (v Value) SetArrayWindow(elems []Value, head int) {
 		return
 	}
 	if ad, ok := v.data.(*arrayData); ok {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		ad.elems = elems
 		ad.head = clampWindowHead(head)
 	}

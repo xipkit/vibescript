@@ -2765,7 +2765,7 @@ func (exec *Execution) assignToEvaluatedIndex(target *IndexExpr, obj Value, indi
 			return err
 		}
 		publishBindingReplacement(arr[pos], stored)
-		bumpMutationEpoch()
+		obj.BumpMutationEpoch()
 		arr[pos] = stored
 		return nil
 	case KindHash, KindObject:

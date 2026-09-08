@@ -31,7 +31,7 @@ func (exec *Execution) appendArrayCharged(left, right Value) (handled bool, err 
 		return false, nil
 	}
 	c := exec.baseWalkCache
-	if c == nil || !c.valid || c.epoch != value.MutationEpoch() ||
+	if c == nil || !c.valid || !c.mutationsCurrent(&exec.memoryEst, value.MutationEpoch()) ||
 		c.topo != exec.baseTopoVersion || c.regionBoundary != noBlockRegion {
 		return false, nil
 	}
@@ -113,7 +113,7 @@ func (exec *Execution) hashStoreCharged(target, key, val Value) (handled bool, e
 		return false, nil
 	}
 	c := exec.baseWalkCache
-	if c == nil || !c.valid || c.epoch != value.MutationEpoch() ||
+	if c == nil || !c.valid || !c.mutationsCurrent(&exec.memoryEst, value.MutationEpoch()) ||
 		c.topo != exec.baseTopoVersion || c.regionBoundary != noBlockRegion {
 		return false, nil
 	}

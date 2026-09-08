@@ -236,7 +236,7 @@ func (exec *Execution) addRetainedOutput(val Value) {
 	if c == nil || !c.valid {
 		return
 	}
-	if exec.baseWalkOpen || c.epoch != value.MutationEpoch() || c.topo != exec.baseTopoVersion ||
+	if exec.baseWalkOpen || !c.mutationsCurrent(&exec.memoryEst, value.MutationEpoch()) || c.topo != exec.baseTopoVersion ||
 		c.regionBoundary != exec.currentWalkBoundary() {
 		c.valid = false
 		return
@@ -275,7 +275,7 @@ func (exec *Execution) retainedOutputMarginalBytes() int {
 		return 0
 	}
 	if c := exec.baseWalkCache; c != nil && c.valid && !exec.baseWalkOpen &&
-		c.epoch == value.MutationEpoch() && c.topo == exec.baseTopoVersion &&
+		c.mutationsCurrent(&exec.memoryEst, value.MutationEpoch()) && c.topo == exec.baseTopoVersion &&
 		c.regionBoundary == exec.currentWalkBoundary() {
 		return c.outputBytes
 	}
