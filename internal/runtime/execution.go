@@ -613,7 +613,8 @@ func (exec *Execution) popEnv() {
 	if len(exec.envStack) == 0 {
 		return
 	}
-	env := exec.envStack[len(exec.envStack)-1]
+	last := len(exec.envStack) - 1
+	env := exec.envStack[last]
 	// Mirrors pushEnv: the decrement is taken ahead of the region branch on the
 	// same test as the increment, so the two pair up whatever the region state
 	// was at either end.
@@ -629,7 +630,8 @@ func (exec *Execution) popEnv() {
 		}
 		exec.nonBaseParentDepth--
 	}
-	if exec.blockRegionActive && env != nil {
+	regionScope := exec.blockRegionActive && env != nil
+	if regionScope {
 		// A block-iteration region scope: its push skipped the topo bump (see
 		// pushEnv), so its pop must too. The decision is keyed on
 		// blockRegionActive, not the scope's epochNeutral flag, so it holds even
@@ -648,15 +650,18 @@ func (exec *Execution) popEnv() {
 		// acquisition (markRegionNeutral). Leaving it set at worst over-charges a
 		// reused scope, never undercounts.
 		env.epochNeutral = false
-		exec.envStack = exec.envStack[:len(exec.envStack)-1]
-		return
-	}
-	if !exec.poppingDuplicateTop() {
+	} else if !exec.poppingDuplicateTop() {
 		exec.baseTopoVersion++
 	}
-	exec.envStack = exec.envStack[:len(exec.envStack)-1]
-	if len(exec.dormant) > 0 {
-		exec.retractDormantBeyond(len(exec.envStack))
+	exec.envStack[last] = nil
+	// Growing the stack copies its embedded backing array, which remains
+	// reachable through exec even after envStack moves to a larger allocation.
+	if last < len(exec.envStackArr) {
+		exec.envStackArr[last] = nil
+	}
+	exec.envStack = exec.envStack[:last]
+	if !regionScope && len(exec.dormant) > 0 {
+		exec.retractDormantBeyond(last)
 	}
 }
 

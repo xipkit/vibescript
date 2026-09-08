@@ -144,6 +144,7 @@ func (exec *Execution) reconcileDormant() {
 			exec.dormantBytes -= d.bytes
 			exec.dormantSlots -= d.slotCount
 			delete(exec.dormantSet, d.env)
+			exec.dormant[len(exec.dormant)-1] = dormantFrame{}
 			exec.dormant = exec.dormant[:len(exec.dormant)-1]
 			continue
 		}
@@ -207,6 +208,7 @@ func (exec *Execution) retractDormantBeyond(length int) {
 		exec.dormantBytes -= d.bytes
 		exec.dormantSlots -= d.slotCount
 		delete(exec.dormantSet, d.env)
+		exec.dormant[len(exec.dormant)-1] = dormantFrame{}
 		exec.dormant = exec.dormant[:len(exec.dormant)-1]
 	}
 }
@@ -227,6 +229,7 @@ func (exec *Execution) retractAllDormant() {
 	if len(exec.dormant) == 0 {
 		return
 	}
+	clear(exec.dormant)
 	exec.dormant = exec.dormant[:0]
 	exec.dormantBytes = 0
 	exec.dormantSlots = 0
