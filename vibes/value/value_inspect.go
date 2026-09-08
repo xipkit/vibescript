@@ -26,14 +26,15 @@ func (v Value) Inspect() string {
 
 // InspectBounded renders v like Inspect but stops once the formatted output
 // would exceed limit bytes, returning the partial output and
-// ErrStringRenderTruncated. A non-positive limit means unbounded and behaves
-// exactly like Inspect. Like StringBounded, it writes into a single growing
-// buffer and checks the budget after each piece, so a hostile composite cannot
-// allocate an output much larger than limit before the budget trips. Cycle
-// handling is identical to Inspect.
+// ErrStringRenderTruncated. A non-positive limit disables the byte budget.
+// Regardless of limit, descent beyond 16,384 nested composites stops with
+// partial output and ErrStringRenderDepthExceeded. Like StringBounded, it writes
+// into a single growing buffer and checks the budget after each piece, so a
+// hostile composite cannot allocate an output much larger than limit before
+// the budget trips. Cycle handling is identical to Inspect.
 func (v Value) InspectBounded(limit int) (string, error) {
 	var buf strings.Builder
-	state := newValueStringState()
+	state := newBoundedValueStringState()
 	if err := v.appendInspect(&buf, state, limit); err != nil {
 		return buf.String(), err
 	}
@@ -115,6 +116,12 @@ func (v Value) appendInspectArray(buf *strings.Builder, state *valueStringState,
 		if _, seen := state.arrays[id]; seen {
 			return appendBounded(buf, cycleMarker, limit)
 		}
+	}
+	if err := state.enterComposite(buf, limit); err != nil {
+		return err
+	}
+	defer state.leaveComposite()
+	if id.Ptr != 0 {
 		state.arrays[id] = struct{}{}
 		defer delete(state.arrays, id)
 	}
@@ -144,6 +151,12 @@ func (v Value) appendInspectHash(buf *strings.Builder, state *valueStringState, 
 		if _, seen := state.maps[ptr]; seen {
 			return appendBounded(buf, cycleMarker, limit)
 		}
+	}
+	if err := state.enterComposite(buf, limit); err != nil {
+		return err
+	}
+	defer state.leaveComposite()
+	if ptr != 0 {
 		state.maps[ptr] = struct{}{}
 		defer delete(state.maps, ptr)
 	}

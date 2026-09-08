@@ -66,7 +66,9 @@ Tier 2 below. Concretely:
   `BuiltinPayload`, `ClassPayload`, `EnumPayload`, `EnumValuePayload`,
   `FunctionPayload`, `InstancePayload`) and their accessors; bounded
   rendering (`StringBounded`, `InspectBounded`,
-  `ErrStringRenderTruncated`); the domain scalars (`Money`, `Duration`,
+  `ErrStringRenderTruncated`, `ErrStringRenderDepthExceeded`); bounded rendering
+  rejects descent beyond 16,384 nested composites even with no byte budget;
+  the domain scalars (`Money`, `Duration`,
   `Range`, `Regex`) and their methods and constructors; the conversion
   and parsing helpers (`FormatFloat`, `ValueToInt64`, `NumericToSeconds`,
   `ParseMoneyLiteral`, `ParseDurationString`, `SecondsDuration`,

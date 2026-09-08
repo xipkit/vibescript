@@ -207,28 +207,37 @@ func FormatFloat(f float64) string {
 // the process runs out of memory. Callers detect it with errors.Is.
 var ErrStringRenderTruncated = errors.New("value: string rendering exceeded byte limit")
 
+// ErrStringRenderDepthExceeded reports that StringBounded or InspectBounded
+// stopped before descending beyond 16,384 nested composites. This limit applies
+// independently of the byte budget, including when that budget is unbounded.
+// Callers detect it with errors.Is; it is distinct from byte truncation.
+var ErrStringRenderDepthExceeded = errors.New("value: string rendering exceeded nesting limit 16384")
+
+const maxBoundedRenderDepth = 16384
+
 // StringBounded renders v like String but stops once the formatted output
 // would exceed limit bytes, returning the partial output and
-// ErrStringRenderTruncated. A non-positive limit means unbounded and behaves
-// exactly like String. Rendering writes directly into a single growing buffer
-// and checks the budget after each element, so a hostile composite cannot
+// ErrStringRenderTruncated. A non-positive limit disables the byte budget.
+// Regardless of limit, descent beyond 16,384 nested composites stops with
+// partial output and ErrStringRenderDepthExceeded. Rendering writes directly
+// into a single growing buffer and checks the budget after each element, so a
+// hostile composite cannot
 // allocate intermediate per-element strings or a final joined buffer larger
 // than roughly limit plus one element before the limit trips. Cycle handling
 // is identical to String.
 func (v Value) StringBounded(limit int) (string, error) {
-	if limit <= 0 {
-		return v.String(), nil
-	}
-
 	switch v.kind {
 	case KindArray, KindHash:
 		var buf strings.Builder
-		state := newValueStringState()
+		state := newBoundedValueStringState()
 		if err := v.appendString(&buf, state, limit); err != nil {
 			return buf.String(), err
 		}
 		return buf.String(), nil
 	default:
+		if limit <= 0 {
+			return v.String(), nil
+		}
 		// A big integer whose rendering provably exceeds the budget is refused
 		// before the (superlinear) base conversion runs; the partial output is
 		// empty because no digits were ever materialized.
@@ -253,8 +262,10 @@ func (v Value) StringBounded(limit int) (string, error) {
 }
 
 type valueStringState struct {
-	arrays map[SliceIdentity]struct{}
-	maps   map[uintptr]struct{}
+	arrays     map[SliceIdentity]struct{}
+	maps       map[uintptr]struct{}
+	depth      int
+	depthLimit int
 	// chargeBytes, when set, is invoked with each scalar payload's byte
 	// length before the sizing walk scans it (escape counting reads the
 	// whole payload), so a caller's byte budget can interrupt the sizing
@@ -262,6 +273,27 @@ type valueStringState struct {
 	// sizing unmetered, as the rendering guards that charge separately
 	// expect.
 	chargeBytes func(bytes int) error
+}
+
+func newBoundedValueStringState() *valueStringState {
+	state := newValueStringState()
+	state.depthLimit = maxBoundedRenderDepth
+	return state
+}
+
+func (s *valueStringState) enterComposite(buf *strings.Builder, limit int) error {
+	if limit > 0 && buf.Len() >= limit {
+		return ErrStringRenderTruncated
+	}
+	if s.depthLimit > 0 && s.depth >= s.depthLimit {
+		return ErrStringRenderDepthExceeded
+	}
+	s.depth++
+	return nil
+}
+
+func (s *valueStringState) leaveComposite() {
+	s.depth--
 }
 
 func newValueStringState() *valueStringState {
@@ -309,6 +341,12 @@ func (v Value) appendString(buf *strings.Builder, state *valueStringState, limit
 			if _, seen := state.arrays[id]; seen {
 				return appendBounded(buf, "<cycle>", limit)
 			}
+		}
+		if err := state.enterComposite(buf, limit); err != nil {
+			return err
+		}
+		defer state.leaveComposite()
+		if id.Ptr != 0 {
 			state.arrays[id] = struct{}{}
 			defer delete(state.arrays, id)
 		}
@@ -345,6 +383,12 @@ func (v Value) appendString(buf *strings.Builder, state *valueStringState, limit
 			if _, seen := state.maps[ptr]; seen {
 				return appendBounded(buf, "<cycle>", limit)
 			}
+		}
+		if err := state.enterComposite(buf, limit); err != nil {
+			return err
+		}
+		defer state.leaveComposite()
+		if ptr != 0 {
 			state.maps[ptr] = struct{}{}
 			defer delete(state.maps, ptr)
 		}
