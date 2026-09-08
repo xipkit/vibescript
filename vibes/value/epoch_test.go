@@ -8,8 +8,8 @@ import (
 func TestWrapperMutationJournalConcurrentWriters(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 4 {
+		hash := NewHashWithCapacity(1)
 		wg.Go(func() {
-			hash := NewHashWithCapacity(1)
 			identity := HashIdentity(hash)
 			for i := range 1000 {
 				before := WrapperMutationEpoch()
