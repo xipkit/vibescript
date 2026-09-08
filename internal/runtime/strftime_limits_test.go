@@ -175,9 +175,11 @@ func TestStrftimePaddedUnicodeRefusesBeforeAllocation(t *testing.T) {
 func TestStrftimeUnchangedGoLayoutWithinOutputLimit(t *testing.T) {
 	tm := time.Date(2006, 1, 2, 15, 4, 5, 0, time.UTC)
 	format := strings.Repeat("2006", 8193)
-	got, err := callTimeStrftime(nil, tm, []Value{NewString(format)}, nil, NewNil())
-	if err != nil || got.String() != format {
-		t.Fatalf("unchanged layout length = %d, error = %v", len(got.String()), err)
+	for _, exec := range []*Execution{nil, {quota: 1 << 30, memoryQuota: 256 << 10}} {
+		got, err := callTimeStrftime(exec, tm, []Value{NewString(format)}, nil, NewNil())
+		if err != nil || got.String() != format {
+			t.Fatalf("unchanged layout length = %d, error = %v", len(got.String()), err)
+		}
 	}
 }
 

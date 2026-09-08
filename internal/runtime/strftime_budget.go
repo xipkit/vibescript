@@ -66,11 +66,16 @@ func (r strftimeRenderer) format(format string, args []Value, block Value, check
 		return "", err
 	}
 	if checkLayout && !strings.ContainsRune(format, '%') && containsGoLayoutSignature(format) {
-		// The diagnostic's confirmation uses Go's formatter. Reserve its
-		// bounded numeric fields and any repeated host-provided zone name.
-		zone, _ := r.t.Zone()
-		projected := saturatingAdd(saturatingMul(len(format), 32), saturatingMul(strings.Count(format, "MST"), len(zone)))
-		if err := r.budget.check(len(format), saturatingMul(projected, 3)); err != nil {
+		if err := r.budget.check(len(format), 0); err != nil {
+			return "", err
+		}
+		projected, err := goLayoutOutputBytes(r.t, format, r.budget)
+		if err != nil {
+			return "", err
+		}
+		// Go's growing byte buffer and copied result can coexist. Include
+		// buffer rounding and the bounded error text in the fixed allowance.
+		if err := r.budget.check(len(format), saturatingAdd(saturatingMul(projected, 3), 4096)); err != nil {
 			return "", err
 		}
 		if projected > 64*maxFormatOutputBytes {
