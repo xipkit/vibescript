@@ -272,23 +272,33 @@ func TestStringScanMatchesFindAllParity(t *testing.T) {
 		// Zero-width and alternation-with-empty-branch patterns exercise the
 		// empty-match suppression at every position.
 		``, `b*`, `(ab)*`, `a|`, `^|$`, `\b|x`, `a??`, `(?:)`,
+		`(?m)^|$`, `(?s).`, `(?i)a`, `(?U)a*`, `(?P<word>\b.)`,
+		`(a.*z|a)`, `\b..`, `�`, `^a$`, `\Aa\z`, `^$`, `\A\z`,
+		`a?^`, `(?:^a|^b)`, `(?:^a|b)`, `(?:^a)?`, `(?:^a)*`, `(?:^a)+`,
 	}
 	texts := []string{
 		"", "a", "abc", "abcd", "a1 b2 c3", "a-b-c", "the cat sat on a cataract",
 		"a b c", "  spaced  ", "line1\nline2\nline3", "über café",
 		"café", "naïve", "wwww", "wwwww", "ωωωω",
-		"fΩobar", "aaa", "x", "baaab", "abababc", ",,,",
+		"fΩobar", "aaa", "x", "baaab", "abababc", ",,,", "a\xffb", "\xc3\xa9\xff",
 	}
 
 	for _, pattern := range patterns {
 		re := regexp.MustCompile(pattern)
 		source := `def run(text) text.scan(` + goStringToVibescript(pattern) + `) end`
 		script := compileScript(t, source)
+		blockScript := compileScript(t, `def run(text)
+  out = []
+  text.scan(`+goStringToVibescript(pattern)+`) { |m| out.push(m) }
+  out
+end`)
 		for _, text := range texts {
 			t.Run(pattern+"/"+text, func(t *testing.T) {
 				t.Parallel()
 				want := scanWantFromRegexp(re, text)
 				got := callFunc(t, script, "run", []Value{NewString(text)})
+				compareArrays(t, got, want)
+				got = callFunc(t, blockScript, "run", []Value{NewString(text)})
 				compareArrays(t, got, want)
 			})
 		}
@@ -945,75 +955,25 @@ func tightestScanQuota(t *testing.T, source string, text Value) int {
 	return hi
 }
 
-// TestStringScanBlockChargesIndexTable is the regression for the reviewer's P1 on
-// the block form of String#scan: the engine's [][]int index table stays live for
-// the whole block loop, but the block path early-returned before reserving the
-// footprint the non-block path folds into its accumulator baseline. Under a tight
-// memory quota a block-form scan could therefore hold the large match table (and
-// any matches the block retained) while every per-match memory check, which sees
-// only the execution's reachable roots, missed the table -- letting the true peak
-// exceed the quota by the table's size.
-//
-// The block body here is empty, so it charges no per-iteration memory: the index
-// table is the only large live allocation while the loop runs. A many-empty-groups
-// pattern over a sizable subject makes that table dominate. The test pins the
-// tightest quota that still admits the empty-body block scan and asserts it sits at
-// or above the table's projected footprint, proving the reservation now charges the
-// table for the loop's lifetime. Without the fix the table rode along uncharged and
-// the tightest quota would be far below that footprint.
-func TestStringScanBlockChargesIndexTable(t *testing.T) {
+func TestStringScanBlockKeepsOnlyCurrentMatch(t *testing.T) {
 	t.Parallel()
-
-	const groups = 40
-	pattern := strings.Repeat("()", groups) // ~80 bytes, well under the pattern cap.
-	const count = 4_000
-	subject := NewString(strings.Repeat("a", count))
-
-	// The empty-groups pattern matches once per position plus once at the end, so the
-	// engine returns count+1 matches; project that table's footprint.
-	matches := len(regexp.MustCompile(pattern).FindAllStringSubmatchIndex(subject.String(), -1))
-	if matches != count+1 {
-		t.Fatalf("match count = %d, want %d (fixture out of sync)", matches, count+1)
-	}
-	tableBytes := projectedRegexSubmatchIndexBytes(matches, groups)
-	if tableBytes <= 0 {
-		t.Fatalf("projected index footprint = %d, want a positive table", tableBytes)
-	}
-
-	// An empty block body charges no per-iteration memory, so the held index table is
-	// the loop's only large allocation. The result is the receiver, never an array.
-	emptyBlockScan := `def run(text)
-  text.scan("` + pattern + `") do |m| end
-end`
-	tightest := tightestScanQuota(t, emptyBlockScan, subject)
-
-	// The reservation folds the whole table into the baseline, so the tightest quota
-	// that still admits the scan must cover at least that table. Before the fix the
-	// table was uncharged and the tightest quota sat far below tableBytes.
-	if tightest < tableBytes {
-		t.Fatalf("tightest block-scan quota = %d, want >= index table footprint %d (table must be charged)", tightest, tableBytes)
-	}
-
-	// Sanity: a quota one byte below the tightest peak rejects, and a generous quota
-	// admits, proving the bound comes from the held table and not an unrelated limit.
-	reject := compileScriptWithConfig(t, Config{StepQuota: 1 << 30, MemoryQuotaBytes: tightest - 1}, emptyBlockScan)
-	requireCallRuntimeErrorType(t, reject, "run", []Value{subject}, CallOptions{}, runtimeErrorTypeLimit)
-
-	roomy := compileScriptWithConfig(t, Config{StepQuota: 1 << 30, MemoryQuotaBytes: tightest + 64*1024}, emptyBlockScan)
-	if _, err := roomy.Call(context.Background(), "run", []Value{subject}, CallOptions{}); err != nil {
-		t.Fatalf("block scan under a roomy quota = %v, want success", err)
+	pattern := strings.Repeat("()", 40)
+	subject := NewString(strings.Repeat("a", 4000))
+	script := compileScriptWithConfig(t, Config{StepQuota: 1 << 30, MemoryQuotaBytes: 64 << 10}, `def run(text)
+  count = 0
+  text.scan("`+pattern+`") { |m| count = count + 1 }
+  count
+end`)
+	got := callFunc(t, script, "run", []Value{subject})
+	if got.Int() != 4001 {
+		t.Errorf("scan of 4000 bytes with empty groups = %v, want 4001 under 64 KiB", got)
 	}
 }
 
-// TestStringScanBlockReleasesIndexTableReservation confirms the block-form scan's
-// index-table reservation is balanced: it is released once the loop finishes, so a
-// scan that fits its own peak does not leave reserved scratch behind to wrongly
-// reject later allocations. A sparse no-match scan reserves an empty table and must
-// succeed under a tight quota, and code after the scan must still see the full quota.
-func TestStringScanBlockReleasesIndexTableReservation(t *testing.T) {
+func TestStringScanBlockNoMatchLeavesQuotaAvailable(t *testing.T) {
 	t.Parallel()
 
-	// The pattern never matches, so the index table is empty and the block never runs;
+	// The pattern never matches and the block never runs;
 	// the post-scan array must allocate against the full quota with no leftover charge.
 	source := `def run(text)
   text.scan("z") do |m| end
@@ -1029,51 +989,19 @@ end`
 	compareArrays(t, got, []Value{NewInt(1), NewInt(2), NewInt(3)})
 }
 
-// TestStringScanBlockChargesCallRootsWithIndexTable is the regression for the
-// reviewer's P2 on the block form of String#scan: the engine's [][]int index
-// table and the builtin's live call roots (the receiver/pattern/block) coexist at
-// the loop's peak, but the block-form preflight charged them through separate
-// checks that never saw both at once. The reserved table is folded into
-// reservedScratchBytes, which the in-function check sees; the call roots are
-// charged only by the pre-call checkCallMemoryRoots, which never sees the
-// reserved table. So a quota larger than the table alone AND larger than the call
-// roots alone, but smaller than table + call roots, slipped past both checks
-// before the block loop ran -- exactly the seam the non-block path closes by
-// seeding the call roots into its accumulator baseline alongside the same table.
-//
-// The exploit needs the receiver to be live ONLY as a call root: a receiver bound
-// to an environment variable is already counted by estimateMemoryUsageBase, so it
-// would be charged regardless. text.reverse produces a fresh ephemeral string that
-// is the scan's receiver but is reachable from no environment, so before the fix
-// it was invisible to the in-function index-table check. The pattern matches the
-// receiver densely enough that the projected index table is comparable to the
-// receiver, so the gap between "table alone" and "table + receiver" is wide.
-//
-// At the loop's peak three comparably sized allocations are live together: the
-// original text parameter (an environment root), the reversed ephemeral receiver
-// (a call root), and the held index table. The tightest quota that still admits
-// the empty-body block scan must therefore cover all three. Before the fix the
-// ephemeral receiver rode along uncharged at that combined peak, so the tightest
-// quota sat near table + parameter (two of the three) and admitted scans whose
-// true peak exceeded the quota by the receiver's footprint.
-func TestStringScanBlockChargesCallRootsWithIndexTable(t *testing.T) {
+// The ephemeral reversed receiver, the source parameter, and the current
+// index row coexist, so the quota must cover them together.
+func TestStringScanBlockChargesCallRootsWithCursor(t *testing.T) {
 	t.Parallel()
 
-	// Sixty single-rune capture groups per match: each match's submatch slice is
-	// (2 + 2*60) ints, so a modest match count still builds a sizable index table.
 	const (
 		groups = 60
-		tokens = 1000
+		tokens = 100
 	)
 	token := strings.Repeat("a", groups) // one full pattern match.
-	// Filler pads each token so the receiver's byte footprint is comparable to the
-	// index table; it is all 'b', which the all-'a' pattern never matches.
 	filler := strings.Repeat("b", 940)
 	subject := NewString(strings.Repeat(token+filler, tokens))
 
-	// The receiver the block-form scan actually matches is text.reverse, a fresh
-	// ephemeral string reachable from no environment root. Build the same value the
-	// runtime would so the projection uses the receiver's real match set.
 	reversedRunes := []rune(subject.String())
 	for i, j := 0, len(reversedRunes)-1; i < j; i, j = i+1, j-1 {
 		reversedRunes[i], reversedRunes[j] = reversedRunes[j], reversedRunes[i]
@@ -1086,42 +1014,18 @@ func TestStringScanBlockChargesCallRootsWithIndexTable(t *testing.T) {
 	if matches != tokens {
 		t.Fatalf("match count = %d, want %d (fixture out of sync)", matches, tokens)
 	}
-	tableBytes := projectedRegexSubmatchIndexBytes(matches, groups)
-	if tableBytes <= 0 {
-		t.Fatalf("projected index footprint = %d, want a positive table", tableBytes)
-	}
+	indexBytes := regexSubmatchIndexRowBytes(groups)
 
-	// Empty block body: no per-iteration allocation, so the only large live values
-	// at peak are the text parameter, the reversed ephemeral receiver, and the held
-	// index table.
 	source := `def run(text)
   text.reverse.scan("` + patternBody + `") do |m| end
 end`
 	tightest := tightestScanQuota(t, source, subject)
 
-	// Three comparably sized allocations are live together at the loop's peak: the
-	// text parameter (an environment root, charged by the base), the reversed
-	// ephemeral receiver (a call root), and the held index table. The tightest
-	// admitting quota must cover all three. text.reverse preserves length, so the
-	// parameter and receiver have the same footprint; the bound is therefore the
-	// parameter plus the receiver plus the table.
-	//
-	// This three-way bound is what distinguishes the fix from the bug. Before the
-	// fix the in-function check saw only parameter + table and the pre-call check
-	// saw only parameter + receiver -- each two of the three -- so the tightest
-	// quota sat near parameter + table (~two thirds of the true peak) and admitted
-	// scans whose real peak exceeded the quota by the receiver's footprint. The fix
-	// charges the receiver together with the held table, so the tightest quota rises
-	// to cover all three. Asserting against parameter + receiver + table fails on
-	// the bug (which omits one of the receiver) and holds on the fix.
-	wantAtLeast := receiverBytes + receiverBytes + tableBytes
+	wantAtLeast := receiverBytes + receiverBytes + indexBytes
 	if tightest < wantAtLeast {
-		t.Fatalf("tightest block-scan quota = %d, want >= parameter + receiver + index table footprint %d (call roots must be charged with the held table)", tightest, wantAtLeast)
+		t.Fatalf("tightest block-scan quota = %d, want >= parameter + receiver + current index row footprint %d (call roots must be charged with current indices)", tightest, wantAtLeast)
 	}
 
-	// A quota one byte below that combined peak rejects, and a generous quota
-	// admits, proving the bound comes from the coexisting table and call roots and
-	// not an unrelated limit.
 	reject := compileScriptWithConfig(t, Config{StepQuota: 1 << 30, MemoryQuotaBytes: tightest - 1}, source)
 	requireCallRuntimeErrorType(t, reject, "run", []Value{subject}, CallOptions{}, runtimeErrorTypeLimit)
 
