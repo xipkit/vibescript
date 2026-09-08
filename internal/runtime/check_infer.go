@@ -590,40 +590,50 @@ func (c *scriptChecker) bindLocalExactValueFact(name string, valueFact checkLoca
 		} else {
 			valueFact.staticChoice = cloneCheckStaticChoiceFact(valueFact.staticChoice)
 		}
-		for _, frame := range c.localClassValues {
-			for otherName, otherFact := range frame {
-				if otherName == name {
-					continue
-				}
-				sameRoot, newContainsOther, otherContainsNew, sharesNested := staticValueMutableRelationships(valueFact.staticVals, otherFact.staticVals)
-				if !sameRoot && !newContainsOther && !otherContainsNew && !sharesNested {
-					continue
-				}
-				definiteRoot := sameRoot && len(valueFact.staticVals) == 1 &&
-					len(otherFact.staticVals) == 1
-				if definiteRoot {
-					c.linkContainerIdentityAlias(name, otherName)
-				} else {
-					c.linkContainerAlias(name, otherName)
-				}
-				switch {
-				case sameRoot || sharesNested:
-					c.linkStaticValueAlias(name, otherName)
-				default:
-					if newContainsOther {
-						c.linkStaticValueDependency(otherName, name)
-					}
-					if otherContainsNew {
-						c.linkStaticValueDependency(name, otherName)
-					}
-				}
-			}
-		}
+		c.linkLocalStaticValueRelationships(name, valueFact.staticVals)
 		if c.localClassValues[i] == nil {
 			c.localClassValues[i] = make(checkClassValueFrame)
 		}
 		c.localClassValues[i][name] = valueFact
 		return
+	}
+}
+
+func (c *scriptChecker) linkLocalStaticValueRelationships(name string, values []Expression) {
+	// Only array and hash static values can contain mutable identities. Scalar
+	// facts need no comparisons against any of the previously bound locals.
+	if !slices.ContainsFunc(values, staticLiteralHasMutableIdentity) {
+		return
+	}
+	for _, frame := range c.localClassValues {
+		noteCheckWork(len(frame))
+		for otherName, otherFact := range frame {
+			if otherName == name || !slices.ContainsFunc(otherFact.staticVals, staticLiteralHasMutableIdentity) {
+				continue
+			}
+			sameRoot, newContainsOther, otherContainsNew, sharesNested := staticValueMutableRelationships(values, otherFact.staticVals)
+			if !sameRoot && !newContainsOther && !otherContainsNew && !sharesNested {
+				continue
+			}
+			definiteRoot := sameRoot && len(values) == 1 &&
+				len(otherFact.staticVals) == 1
+			if definiteRoot {
+				c.linkContainerIdentityAlias(name, otherName)
+			} else {
+				c.linkContainerAlias(name, otherName)
+			}
+			switch {
+			case sameRoot || sharesNested:
+				c.linkStaticValueAlias(name, otherName)
+			default:
+				if newContainsOther {
+					c.linkStaticValueDependency(otherName, name)
+				}
+				if otherContainsNew {
+					c.linkStaticValueDependency(name, otherName)
+				}
+			}
+		}
 	}
 }
 
@@ -668,6 +678,9 @@ func staticValueMutableRelationships(left, right []Expression) (
 }
 
 func mutableStaticContainers(expr Expression) map[Expression]struct{} {
+	if !staticLiteralHasMutableIdentity(expr) {
+		return nil
+	}
 	containers := make(map[Expression]struct{})
 	var collect func(Expression)
 	collect = func(current Expression) {
