@@ -89,6 +89,10 @@ func (exec *Execution) blockRegionDriverDepth() int { return exec.undeclaredBuil
 // the memoized prefix excludes every active region's scopes — while tracking the
 // innermost driver's builtin depth, so the memo engages in whichever block body
 // is currently executing.
+//
+// A blockless native loop that does not mutate reachable roots may also open a
+// region. Its suffix is empty, so the whole graph is stable, while periodic
+// checks still account for temporary scratch held during native operations.
 func (exec *Execution) beginBlockIterationRegion() blockRegionScope {
 	scope := blockRegionScope{
 		exec:             exec,
