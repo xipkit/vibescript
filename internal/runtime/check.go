@@ -191,6 +191,7 @@ type scriptChecker struct {
 	summaryYieldReentryWalks   int
 	walkedNodes                uint64
 	typeExprNodeCounts         map[*TypeExpr]int
+	containerTypeArms          map[containerTypeArmKey]containerTypeArmResult
 	shapeRefinements           map[*TypeExpr]shapeRefinementState
 	summaryYieldsActive        bool
 	summaryBlockAvailable      bool
@@ -11845,8 +11846,8 @@ func (c *scriptChecker) reachableCallParamFacts(
 		}
 		captured := c.callArgumentFacts[expr]
 		local := c.localTypeFor(ident.Name)
-		if local == nil || !typeExprHasContainerArm(local) ||
-			typeExprMayIncludeCallable(local) || captured == nil || !typeExprHasContainerArm(captured) {
+		if local == nil || !c.typeExprHasContainerArm(local) ||
+			typeExprMayIncludeCallable(local) || captured == nil || !c.typeExprHasContainerArm(captured) {
 			if !c.pureCallArgument(expr) {
 				clear(containerIdentities)
 			}

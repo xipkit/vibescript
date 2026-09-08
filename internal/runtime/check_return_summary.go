@@ -251,7 +251,7 @@ func (c *scriptChecker) scriptCallFailureArgumentFacts(expr Expression) map[stri
 			return
 		}
 		ident, ok := arg.(*Identifier)
-		if !ok || !typeExprHasContainerArm(c.localTypeFor(ident.Name)) {
+		if !ok || !c.typeExprHasContainerArm(c.localTypeFor(ident.Name)) {
 			return
 		}
 		if _, skip := ambiguous[ident.Name]; skip {
