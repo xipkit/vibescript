@@ -226,6 +226,7 @@ type scriptChecker struct {
 	selfClassContext           bool
 	selfScopeFnClasses         map[*ScriptFunction]*ClassDef
 	selfScopeClassFns          map[*ScriptFunction]struct{}
+	classAccessorMethods       map[*ClassDef][]*ScriptFunction
 	localNameUnions            []map[string]struct{}
 	liveLocalNames             []map[string]struct{}
 	localCallBypassScopes      []map[string]int
@@ -519,8 +520,8 @@ func checkTypeRootWithParentAndGlobals(script *Script, globals map[string]Value,
 	if script == nil {
 		return nil
 	}
-	root := newEnvWithCapacity(nil, len(script.classes)+len(globals))
-	script.engine.attachBuiltins(root, len(script.functions)+len(script.enums))
+	root := newCallRoot(script, len(globals))
+	script.engine.attachBuiltins(root, 0)
 	if parent != nil {
 		if parent.parent == nil {
 			parent = cloneCheckRoot(parent)
@@ -528,19 +529,7 @@ func checkTypeRootWithParentAndGlobals(script *Script, globals map[string]Value,
 		}
 		root.parent = parent
 	}
-	callFunctions := cloneFunctionsForCall(script.functions, root)
-	for name, fn := range callFunctions {
-		root.DefineStatic(name, NewFunction(fn))
-	}
-	callClasses := cloneClassesForCall(script.classes, root)
-	for name, classDef := range callClasses {
-		root.Define(name, NewClass(classDef))
-	}
-	callEnums := cloneEnumsForCall(script.enums)
-	for name, enumDef := range callEnums {
-		root.DefineStatic(name, NewEnum(enumDef))
-	}
-	rebinder := newCallFunctionRebinder(script, root, callClasses, callEnums)
+	rebinder := newCallFunctionRebinder(script, root, nil, nil)
 	for name, val := range globals {
 		if !overrideGlobals && root.hasOwnBinding(name) {
 			continue
@@ -1449,10 +1438,28 @@ func moduleCheckContextKey(root *Env) string {
 	scopes := make([]string, 0, 4)
 	for scope := root; scope != nil; scope = scope.parent {
 		bindings := make([]string, 0, scope.dynamicLen()+len(scope.statics))
+		declarations := scope.declarations
+		if declarations != nil {
+			bindings = append(bindings, fmt.Sprintf("declarations:%p", declarations.script))
+		}
 		scope.rangeDynamicBindings(func(name string, val Value) {
+			if declarations != nil && val.Kind() == KindClass && valueClass(val) != nil && valueClass(val) == declarations.classes[name].Value() {
+				return
+			}
 			bindings = append(bindings, "d:"+name+"="+moduleCheckValueKey(val))
 		})
 		scope.rangeStaticBindings(func(name string, val Value) {
+			// Materializing a declaration does not change the checking context.
+			// Globals and overrides use dynamic bindings, while imported exports
+			// never replace a declaration owned by this root.
+			if declarations != nil {
+				if val.Kind() == KindFunction && declarations.script.functions[name] != nil {
+					return
+				}
+				if val.Kind() == KindEnum && valueEnum(val) != nil && valueEnum(val) == declarations.enums[name].Value() {
+					return
+				}
+			}
 			bindings = append(bindings, "s:"+name+"="+moduleCheckValueKey(val))
 		})
 		slices.Sort(bindings)
@@ -2382,7 +2389,8 @@ func (c *scriptChecker) checkRuntimeClassBodies(skip map[string]struct{}, suppre
 	if c.runtimeTypeRoot == nil {
 		return
 	}
-	for _, name := range c.script.classOrder {
+	noteCheckWork(len(c.script.classInitializers))
+	for _, name := range c.script.classInitializers {
 		if _, deferred := skip[name]; deferred {
 			continue
 		}
@@ -14604,8 +14612,10 @@ func checkRootOwnBinding(root *Env, name string) (Value, bool) {
 		}
 		return val, true
 	}
-	val, ok := root.statics[name]
-	return val, ok
+	if val, ok := root.statics[name]; ok {
+		return val, true
+	}
+	return root.materializeDeclaration(name)
 }
 
 func checkRootBinding(root *Env, name string) (Value, bool) {

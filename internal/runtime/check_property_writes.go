@@ -50,10 +50,9 @@ func (c *scriptChecker) seedInstanceIvarFacts(fn *ScriptFunction) {
 	if c.selfClass == nil || c.selfClassContext {
 		return
 	}
-	for _, method := range c.selfClass.Methods {
-		if method.Accessor == functionAccessorNone || method.AccessorName == "" {
-			continue
-		}
+	methods := c.instanceAccessorMethods(c.selfClass)
+	noteCheckWork(len(methods))
+	for _, method := range methods {
 		ty := c.instanceIvarContract(method.AccessorName)
 		if ty == nil {
 			continue
@@ -92,6 +91,24 @@ func (c *scriptChecker) seedInstanceIvarFacts(fn *ScriptFunction) {
 		}
 		c.bindLocalTypeInCurrentFrame(ivarFactKey(method.AccessorName), unionTypeExprs(fact, checkTypeNil))
 	}
+}
+
+func (c *scriptChecker) instanceAccessorMethods(classDef *ClassDef) []*ScriptFunction {
+	if methods, ok := c.classAccessorMethods[classDef]; ok {
+		return methods
+	}
+	var methods []*ScriptFunction
+	noteCheckWork(len(classDef.Methods))
+	for _, method := range classDef.Methods {
+		if method.Accessor != functionAccessorNone && method.AccessorName != "" {
+			methods = append(methods, method)
+		}
+	}
+	if c.classAccessorMethods == nil {
+		c.classAccessorMethods = make(map[*ClassDef][]*ScriptFunction)
+	}
+	c.classAccessorMethods[classDef] = methods
+	return methods
 }
 
 // captureReachableConstructorIvarFacts records the ivar state on every
