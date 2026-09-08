@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -79,4 +80,19 @@ func TestPrintResult(t *testing.T) {
 			t.Fatalf("printResult(large hash) wrote %d bytes, want none on limit error", buf.Len())
 		}
 	})
+}
+
+func TestPrintResultDepthError(t *testing.T) {
+	t.Parallel()
+	v := value.NewInt(1)
+	for range 16385 {
+		v = value.NewArray([]value.Value{v})
+	}
+	var buf bytes.Buffer
+	if err := printResult(&buf, v); !errors.Is(err, value.ErrStringRenderDepthExceeded) {
+		t.Fatalf("printResult(deep array) error = %v, want depth error", err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("printResult(deep array) wrote %d bytes, want none on depth error", buf.Len())
+	}
 }

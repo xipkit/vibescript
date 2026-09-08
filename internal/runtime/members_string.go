@@ -2363,6 +2363,12 @@ func boundedReplacementString(exec *Execution, result Value) (string, error) {
 			}
 			return "", guardLimitErrorf("output exceeds limit %d bytes", maxRegexInputBytes)
 		}
+		if errors.Is(err, value.ErrStringRenderDepthExceeded) {
+			if chargeErr := exec.chargeStringScan(len(replacement)); chargeErr != nil {
+				return "", chargeErr
+			}
+			return "", &guardLimitError{err: err}
+		}
 		return "", err
 	}
 	return replacement, nil
