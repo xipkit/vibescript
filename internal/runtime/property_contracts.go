@@ -127,7 +127,7 @@ func (exec *Execution) normalizeIvarWrite(inst *Instance, name string, value Val
 	}
 	normalized, err := normalizeValueForType(value, ty, typeContext{
 		owner:    owner,
-		env:      accessor.Env,
+		env:      inst.Class.bindMethod(accessor).Env,
 		fallback: exec.root,
 		exec:     exec,
 	})

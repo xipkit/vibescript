@@ -51,6 +51,7 @@ type Script struct {
 	functions           map[string]*ScriptFunction
 	classes             map[string]*ClassDef
 	classOrder          []string
+	classInitializers   []string
 	deferredClassBodies map[string]struct{}
 	enums               map[string]*EnumDef
 	symbolLiterals      map[*SymbolLiteral]Value

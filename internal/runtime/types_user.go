@@ -19,6 +19,8 @@ type ClassDef struct {
 	// call so Outer::Inner resolves like any other scoped constant.
 	NestedModules []string
 	Body          []Statement
+	env           *Env
+	boundMethods  map[*ScriptFunction]*ScriptFunction
 	bodyRan       bool
 	owner         *Script
 }
