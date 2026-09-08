@@ -2769,6 +2769,10 @@ func arrayUniq(exec *Execution, receiver Value, args []Value, kwargs map[string]
 	}
 	arr := receiver.Array()
 	if valueBlock(block) == nil {
+		// The native loop does not mutate its roots, so a region can memoize
+		// the whole live graph. Keep periodic checks: equality scratch below
+		// its pricing granule still relies on them while a probe holds it.
+		defer exec.beginBlockIterationRegion().end()
 		// Charge the receiver before anything touches it. The big-integer key
 		// charge below sizes itself by walking every element, and for a
 		// scalar-only array it finds no words and returns having charged
@@ -2808,6 +2812,7 @@ func arrayUniq(exec *Execution, receiver Value, args []Value, kwargs map[string]
 	var seen valueSet
 	seen.bindMetering(exec)
 	var blockArg [1]Value
+	defer exec.beginBlockIterationRegion().end()
 	for _, item := range arr {
 		if err := exec.step(); err != nil {
 			return NewNil(), err
