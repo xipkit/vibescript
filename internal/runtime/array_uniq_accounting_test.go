@@ -54,7 +54,7 @@ end`, peak),
 	// The large live ballast keeps the equality scratch below its pricing
 	// granule. String comparisons still cross periodic memory-check boundaries
 	// while the hash key slices are live, so those checks cannot be skipped.
-	var fields []string
+	fields := make([]string, 0, 16)
 	for i := range 16 {
 		fields = append(fields, fmt.Sprintf("k%d: payload", i))
 	}
