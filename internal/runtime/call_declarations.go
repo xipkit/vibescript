@@ -3,6 +3,7 @@ package runtime
 import (
 	"maps"
 	"strings"
+	"weak"
 )
 
 // Compiled declaration tables are immutable. Only declarations a call reads
@@ -10,9 +11,12 @@ import (
 // state before the entrypoint runs. Snapshots detach metadata before exposing a
 // previously unread declaration through an environment returned to the host.
 type callDeclarations struct {
-	script   *Script
-	classes  map[string]*ClassDef
-	enums    map[string]*EnumDef
+	script *Script
+	// Bindings and live values own declaration state. Weak memo entries keep
+	// aliases canonical without retaining overwritten classes or enums.
+	classes  map[string]weak.Pointer[ClassDef]
+	enums    map[string]weak.Pointer[EnumDef]
+	rebinder weak.Pointer[callFunctionRebinder]
 	snapshot bool
 }
 
@@ -27,10 +31,6 @@ func newCallRoot(script *Script, capacity int) *Env {
 		root.values = make(map[string]Value, capacity)
 	}
 	return root
-}
-
-func bindDeclarationsForCall(script *Script, root *Env) {
-	root.declarations = &callDeclarations{script: script}
 }
 
 func (d *callDeclarations) cloneShallow() *callDeclarations {
@@ -87,7 +87,7 @@ func (e *Env) materializeDeclaration(name string) (Value, bool) {
 }
 
 func (d *callDeclarations) class(env *Env, name string) (*ClassDef, bool) {
-	if classDef, ok := d.classes[name]; ok {
+	if classDef := d.classes[name].Value(); classDef != nil {
 		return classDef, true
 	}
 	compiled, ok := d.script.classes[name]
@@ -117,13 +117,24 @@ func (d *callDeclarations) class(env *Env, name string) (*ClassDef, bool) {
 		}
 	}
 	if d.classes == nil {
-		d.classes = make(map[string]*ClassDef)
+		d.classes = make(map[string]weak.Pointer[ClassDef])
 	}
-	d.classes[name] = classDef
+	d.classes[name] = weak.Make(classDef)
+	if rebinder := d.rebinder.Value(); rebinder != nil {
+		if rebinder.callClasses == nil {
+			rebinder.callClasses = make(map[string]*ClassDef)
+		}
+		rebinder.callClasses[name] = classDef
+	}
 	if !env.hasDynamic(name) {
 		if _, bound := env.statics[name]; !bound {
 			env.Define(name, NewClass(classDef))
 		}
+	}
+	// A qualified root binding can be overwritten independently of the
+	// containing namespace, whose nested constant must retain the same state.
+	if namespace, _, nested := strings.Cut(name, "::"); nested {
+		d.class(env, namespace)
 	}
 	for _, short := range classDef.NestedModules {
 		if nested, ok := d.class(env, name+"::"+short); ok {
@@ -134,7 +145,7 @@ func (d *callDeclarations) class(env *Env, name string) (*ClassDef, bool) {
 }
 
 func (d *callDeclarations) enum(env *Env, name string) (*EnumDef, bool) {
-	if enumDef, ok := d.enums[name]; ok {
+	if enumDef := d.enums[name].Value(); enumDef != nil {
 		return enumDef, true
 	}
 	compiled, ok := d.script.enums[name]
@@ -143,15 +154,57 @@ func (d *callDeclarations) enum(env *Env, name string) (*EnumDef, bool) {
 	}
 	enumDef := cloneEnumDef(compiled, compiled.owner)
 	if d.enums == nil {
-		d.enums = make(map[string]*EnumDef)
+		d.enums = make(map[string]weak.Pointer[EnumDef])
 	}
-	d.enums[name] = enumDef
+	d.enums[name] = weak.Make(enumDef)
+	if rebinder := d.rebinder.Value(); rebinder != nil {
+		if rebinder.callEnums == nil {
+			rebinder.callEnums = make(map[string]*EnumDef)
+		}
+		rebinder.callEnums[name] = enumDef
+	}
 	if !env.hasDynamic(name) {
 		if _, bound := env.statics[name]; !bound {
 			env.DefineStatic(name, NewEnum(enumDef))
 		}
 	}
 	return enumDef, true
+}
+
+// Deferred globals can rebind a declaration after its root binding changes.
+// Their rebinder owns that state while an unread lazy binding keeps it alive;
+// the declaration cache itself must not extend either lifetime.
+func (d *callDeclarations) retainForDeferredGlobals(rebinder *callFunctionRebinder) {
+	d.rebinder = weak.Make(rebinder)
+	for name, ref := range d.classes {
+		if classDef := ref.Value(); classDef != nil {
+			if rebinder.callClasses == nil {
+				rebinder.callClasses = make(map[string]*ClassDef)
+			}
+			rebinder.callClasses[name] = classDef
+		}
+	}
+	for name, ref := range d.enums {
+		if enumDef := ref.Value(); enumDef != nil {
+			if rebinder.callEnums == nil {
+				rebinder.callEnums = make(map[string]*EnumDef)
+			}
+			rebinder.callEnums[name] = enumDef
+		}
+	}
+}
+
+func materializeClassInitializers(script *Script, root *Env) map[string]*ClassDef {
+	if len(script.classInitializers) == 0 {
+		return nil
+	}
+	classes := make(map[string]*ClassDef, len(script.classInitializers))
+	for _, name := range script.classInitializers {
+		if classDef, ok := root.declarations.class(root, name); ok {
+			classes[name] = classDef
+		}
+	}
+	return classes
 }
 
 // Unbound methods share their immutable compiled definitions until invoked.

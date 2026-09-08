@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+	"weak"
 
 	"github.com/mgomes/vibescript/internal/ast"
 	"github.com/mgomes/vibescript/vibes/source"
@@ -852,25 +853,25 @@ func cloneEnvForHost(env *Env, state hostValueCloneState) *Env {
 		clone.DefineStatic(name, cloneValueForHostWithState(val, state))
 	}
 	if env.declarations != nil {
-		for name, classDef := range env.declarations.classes {
-			classClone, reachable := state.classes[classDef]
+		for name, ref := range env.declarations.classes {
+			classClone, reachable := state.classes[ref.Value()]
 			if !reachable {
 				continue
 			}
 			if clone.declarations.classes == nil {
-				clone.declarations.classes = make(map[string]*ClassDef)
+				clone.declarations.classes = make(map[string]weak.Pointer[ClassDef])
 			}
-			clone.declarations.classes[name] = classClone
+			clone.declarations.classes[name] = weak.Make(classClone)
 		}
-		for name, enumDef := range env.declarations.enums {
-			enumClone, reachable := state.enums[enumDef]
+		for name, ref := range env.declarations.enums {
+			enumClone, reachable := state.enums[ref.Value()]
 			if !reachable {
 				continue
 			}
 			if clone.declarations.enums == nil {
-				clone.declarations.enums = make(map[string]*EnumDef)
+				clone.declarations.enums = make(map[string]weak.Pointer[EnumDef])
 			}
-			clone.declarations.enums[name] = enumClone
+			clone.declarations.enums[name] = weak.Make(enumClone)
 		}
 	}
 	// A call frame captured by an escaped closure carries the block its method

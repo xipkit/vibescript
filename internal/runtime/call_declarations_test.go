@@ -298,3 +298,69 @@ end`)
 		})
 	}
 }
+
+// Not parallel: the retention tests measure process-wide heap.
+func TestOverwrittenClassStateReleasedDuringCall(t *testing.T) {
+	var heaps []uint64
+	engine := MustNewEngine(Config{MemoryQuotaBytes: 64 << 20})
+	engine.RegisterBuiltin("heap_sample", func(exec *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+		runtime.GC()
+		var stats runtime.MemStats
+		runtime.ReadMemStats(&stats)
+		heaps = append(heaps, stats.HeapAlloc)
+		return NewNil(), nil
+	})
+	script := compileScriptWithEngine(t, engine, `class Discarded
+ def self.fill
+  @@payload = "x" * (16 * 1024 * 1024)
+ end
+end
+def warm
+ 1
+end
+def run
+ heap_sample()
+ Discarded.fill
+ warm()
+ Discarded = nil
+ heap_sample()
+ 1
+end`)
+	result, err := script.Call(context.Background(), "run", nil, CallOptions{})
+	if err != nil || result.Int() != 1 {
+		t.Fatalf("run = %v, %v; want 1, nil", result, err)
+	}
+	delta := int64(heaps[1]) - int64(heaps[0])
+	t.Logf("retained bytes during call: %d", delta)
+	if delta > 4<<20 {
+		t.Fatalf("overwritten class retained %d bytes during run, want at most %d", delta, 4<<20)
+	}
+}
+
+func TestDeferredGlobalPreservesOverwrittenClassState(t *testing.T) {
+	engine := MustNewEngine(Config{})
+	engine.RegisterBuiltin("force_gc", func(_ *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+		runtime.GC()
+		return NewNil(), nil
+	})
+	script := compileScriptWithEngine(t, engine, `class Counter
+  def self.set(n)
+    @@value = n
+  end
+  def self.value
+    @@value
+  end
+end
+def run
+  Counter.set(19)
+  Counter = nil
+  force_gc()
+  delayed[0].value
+end`)
+	got := callScript(t, context.Background(), script, "run", nil, CallOptions{
+		Globals: map[string]Value{"delayed": NewArray([]Value{NewClass(script.classes["Counter"])})},
+	})
+	if got.Int() != 19 {
+		t.Fatalf("deferred class after root override = %v, want 19", got)
+	}
+}

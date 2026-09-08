@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/mgomes/vibescript/internal/ast"
 )
@@ -42,15 +41,8 @@ func (s *Script) Call(ctx context.Context, name string, args []Value, opts CallO
 
 	// Bodies still initialize in declaration order, and their per-call state
 	// exists before adapters bind so setup quota refusals precede host code.
-	for _, className := range s.classInitializers {
-		// Preserve nested state through its namespace even when a host global
-		// replaces the nested declaration's qualified root binding.
-		if namespace, _, nested := strings.Cut(className, "::"); nested {
-			root.materializeDeclaration(namespace)
-		}
-		root.materializeDeclaration(className)
-	}
-	rebinder := newCallFunctionRebinder(s, root, nil, nil)
+	classes := materializeClassInitializers(s, root)
+	rebinder := newCallFunctionRebinder(s, root, classes, nil)
 	rebinder.inboundDataFast = scanInboundCallValues(args, opts.Keywords)
 
 	exec := newExecutionForCall(s, ctx, root, opts)
@@ -77,7 +69,7 @@ func (s *Script) Call(ctx context.Context, name string, args []Value, opts CallO
 		return NewNil(), exec.wrapError(err, fn.Pos)
 	}
 
-	if err := initializeClassBodiesForCall(exec, root, root.declarations.classes, s.classInitializers, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
+	if err := initializeClassBodiesForCall(exec, root, classes, s.classInitializers, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
 		return NewNil(), err
 	}
 	if err := exec.checkContext(); err != nil {
@@ -147,15 +139,9 @@ func (s *Script) callWithLazyGlobals(ctx context.Context, name string, args []Va
 
 	// Bodies still initialize in declaration order, and their per-call state
 	// exists before adapters bind so setup quota refusals precede host code.
-	for _, className := range s.classInitializers {
-		// Preserve nested state through its namespace even when a host global
-		// replaces the nested declaration's qualified root binding.
-		if namespace, _, nested := strings.Cut(className, "::"); nested {
-			root.materializeDeclaration(namespace)
-		}
-		root.materializeDeclaration(className)
-	}
-	rebinder := newCallFunctionRebinder(s, root, nil, nil)
+	classes := materializeClassInitializers(s, root)
+	rebinder := newCallFunctionRebinder(s, root, classes, nil)
+	root.declarations.retainForDeferredGlobals(rebinder)
 	rebinder.inboundDataFast = scanInboundCallValues(args, opts.Keywords)
 
 	exec := newExecutionForCall(s, ctx, root, opts)
@@ -182,7 +168,7 @@ func (s *Script) callWithLazyGlobals(ctx context.Context, name string, args []Va
 		return NewNil(), exec.wrapError(err, fn.Pos)
 	}
 
-	if err := initializeClassBodiesForCall(exec, root, root.declarations.classes, s.classInitializers, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
+	if err := initializeClassBodiesForCall(exec, root, classes, s.classInitializers, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
 		return NewNil(), err
 	}
 	if err := exec.checkContext(); err != nil {
@@ -322,30 +308,6 @@ func cloneFunctionsForCall(functions map[string]*ScriptFunction, env *Env) map[s
 		cloned[name] = cloneFunctionForEnv(fn, env)
 	}
 	return cloned
-}
-
-type callFunctionBinding struct {
-	fn  *ScriptFunction
-	env *Env
-}
-
-func (binding callFunctionBinding) materialize() Value {
-	return NewFunction(cloneFunctionForEnv(binding.fn, binding.env))
-}
-
-func bindFunctionsForCall(functions map[string]*ScriptFunction, root *Env) {
-	if len(functions) == 1 {
-		for name, fn := range functions {
-			root.DefineStatic(name, NewFunction(cloneFunctionForEnv(fn, root)))
-		}
-		return
-	}
-	for name, fn := range functions {
-		// Static: function clones are immutable per call, so they are accounted
-		// once instead of on every quota check. Reassigning the name from script
-		// code demotes the binding to dynamic.
-		root.DefineStatic(name, newLazyValue(callFunctionBinding{fn: fn, env: root}))
-	}
 }
 
 func materializeCallFunction(root *Env, name string) (*ScriptFunction, bool) {
