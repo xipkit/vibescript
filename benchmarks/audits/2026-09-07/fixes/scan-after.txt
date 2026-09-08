@@ -1,0 +1,50 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringScanEarlyReturn/n=1024/scan         	   37546	      3110 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=1024/scan         	   38833	      3047 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=1024/scan         	   39283	      3066 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=1024/match        	   31035	      3807 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=1024/match        	   31470	      3821 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=1024/match        	   31968	      3772 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=16384/scan        	   39189	      3084 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=16384/scan        	   39024	      3111 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=16384/scan        	   37356	      3060 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=16384/match       	   31359	      3876 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=16384/match       	   30312	      3913 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=16384/match       	   30194	      4130 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=262144/scan       	   36465	      3268 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=262144/scan       	   36781	      3124 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=262144/scan       	   38295	      3174 ns/op	    4904 B/op	      32 allocs/op
+BenchmarkStringScanEarlyReturn/n=262144/match      	   29132	      4355 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=262144/match      	   29222	      4101 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanEarlyReturn/n=262144/match      	   29288	      4043 ns/op	    6784 B/op	      53 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=a     	     193	    611040 ns/op	   38623 B/op	    3100 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=a     	     196	    605893 ns/op	   38623 B/op	    3100 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=a     	     201	    583991 ns/op	   38623 B/op	    3100 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=(a)   	     168	    723036 ns/op	  120742 B/op	    5150 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=(a)   	     168	    719056 ns/op	  120742 B/op	    5150 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=(a)   	     163	    721702 ns/op	  120743 B/op	    5150 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=..    	     386	    304572 ns/op	   22736 B/op	    1571 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=..    	     381	    316165 ns/op	   22735 B/op	    1571 allocs/op
+BenchmarkStringScanBlockDrain/n=1024/pattern=..    	     358	    311897 ns/op	   22736 B/op	    1571 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=a    	      13	  10212087 ns/op	  545722 B/op	   49181 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=a    	      13	   9728327 ns/op	  545722 B/op	   49181 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=a    	      13	   9435375 ns/op	  545734 B/op	   49181 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=(a)  	      10	  11347862 ns/op	 1856777 B/op	   81952 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=(a)  	       9	  12130449 ns/op	 1856787 B/op	   81952 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=(a)  	       9	  11891296 ns/op	 1856802 B/op	   81952 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=..   	      25	   4976443 ns/op	  283969 B/op	   24611 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=..   	      26	   4917902 ns/op	  283965 B/op	   24611 allocs/op
+BenchmarkStringScanBlockDrain/n=16384/pattern=..   	      26	   5186377 ns/op	  283965 B/op	   24611 allocs/op
+BenchmarkStringScanSparseDrain/a                   	    7544	     14702 ns/op	    4857 B/op	      31 allocs/op
+BenchmarkStringScanSparseDrain/a                   	    7610	     14636 ns/op	    4857 B/op	      31 allocs/op
+BenchmarkStringScanSparseDrain/a                   	    7144	     14497 ns/op	    4857 B/op	      31 allocs/op
+BenchmarkStringScanSparseDrain/a+                  	    7503	     14680 ns/op	    5217 B/op	      35 allocs/op
+BenchmarkStringScanSparseDrain/a+                  	    7742	     14745 ns/op	    5217 B/op	      35 allocs/op
+BenchmarkStringScanSparseDrain/a+                  	    7586	     14703 ns/op	    5217 B/op	      35 allocs/op
+BenchmarkStringScanSparseDrain/^a                  	   32416	      3657 ns/op	    5360 B/op	      38 allocs/op
+BenchmarkStringScanSparseDrain/^a                  	   32731	      3663 ns/op	    5360 B/op	      38 allocs/op
+BenchmarkStringScanSparseDrain/^a                  	   31026	      3641 ns/op	    5360 B/op	      38 allocs/op
+PASS

@@ -1,0 +1,83 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop     	    6086	    100375 ns/op	    3800 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop     	    6414	    100167 ns/op	    3800 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop     	    6241	    103032 ns/op	    3800 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop     	    6178	    102158 ns/op	    3800 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop     	    6308	    100167 ns/op	    3800 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop     	    6308	    100466 ns/op	    3800 B/op	      14 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250         	    1135	    583739 ns/op	  119146 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250         	    1046	    579319 ns/op	  119146 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250         	    1050	    580304 ns/op	  119146 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250         	    1038	    585353 ns/op	  119146 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250         	    1038	    578975 ns/op	  119146 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250         	    1041	    584701 ns/op	  119146 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500         	     507	   1166931 ns/op	  236557 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500         	     511	   1140861 ns/op	  236557 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500         	     518	   1140355 ns/op	  236557 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500         	     536	   1166483 ns/op	  236557 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500         	     525	   1145423 ns/op	  236557 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500         	     516	   1142463 ns/op	  236557 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000        	     266	   2264001 ns/op	  467299 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000        	     262	   2270085 ns/op	  467299 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000        	     264	   2333924 ns/op	  467299 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000        	     256	   2310229 ns/op	  467299 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000        	     262	   2279468 ns/op	  467299 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000        	     258	   2328285 ns/op	  467299 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000        	     126	   4714165 ns/op	  987728 B/op	   13872 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000        	     128	   4633225 ns/op	  987728 B/op	   13872 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000        	     122	   4765366 ns/op	  987728 B/op	   13872 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000        	     128	   4614197 ns/op	  987727 B/op	   13872 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000        	     124	   4792134 ns/op	  987728 B/op	   13872 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000        	     123	   4733512 ns/op	  987728 B/op	   13872 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/none         	33699265	        17.98 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/none         	33550791	        17.69 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/none         	33081469	        18.07 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/none         	33012909	        18.10 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/none         	33886099	        18.07 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/none         	33648870	        18.12 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/environment  	17947144	        35.12 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/environment  	17821848	        38.43 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/environment  	17379087	        34.19 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/environment  	17141244	        34.71 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/environment  	17270037	        34.60 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/environment  	17392101	        34.29 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/wrapper      	10115634	        59.59 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/wrapper      	10272433	        60.02 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/wrapper      	10220130	        58.72 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/wrapper      	10328458	        57.77 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/wrapper      	10339783	        57.73 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/wrapper      	10376702	        56.86 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/overflow     	    3291	    185160 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/overflow     	    3271	    183586 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/overflow     	    3235	    191348 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/overflow     	    3153	    191357 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/overflow     	    3139	    187359 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=1000/overflow     	    3214	    187704 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/none        	32670946	        18.10 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/none        	33335805	        18.64 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/none        	32794333	        18.00 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/none        	33148881	        17.75 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/none        	32678077	        18.57 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/none        	33772951	        18.34 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/environment 	15653262	        34.61 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/environment 	15358213	        34.22 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/environment 	17495932	        34.14 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/environment 	15679202	        33.94 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/environment 	16527066	        34.19 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/environment 	15058161	        34.25 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/wrapper     	 9187118	        59.23 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/wrapper     	 9647491	        59.72 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/wrapper     	 9526209	        58.76 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/wrapper     	 8931434	        59.93 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/wrapper     	 8946604	        58.77 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/wrapper     	 9844551	        58.02 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/overflow    	     351	   1757905 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/overflow    	     318	   1721598 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/overflow    	     350	   1677330 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/overflow    	     348	   1695033 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/overflow    	     343	   1765168 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryMemoMutationIsolation/rows=10000/overflow    	     349	   1722798 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+PASS

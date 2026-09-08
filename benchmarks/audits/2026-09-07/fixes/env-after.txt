@@ -1,0 +1,8 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionRecursiveFib 	      16	   7073531 ns/op	   21044 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFib 	      15	   7171178 ns/op	   21053 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFib 	      16	   7149086 ns/op	   21044 B/op	      82 allocs/op
+PASS
