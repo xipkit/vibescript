@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -184,5 +185,116 @@ end`)
 	want := NewArray([]Value{NewInt(11), NewInt(7), NewString("Ready")})
 	if !got.Equal(want) {
 		t.Fatalf("run after host mutations = %v, want %v", got, want)
+	}
+}
+
+func TestReturnedEnvironmentDropsOverwrittenClassState(t *testing.T) {
+	engine := MustNewEngine(Config{MemoryQuotaBytes: 64 << 20})
+	script := compileScriptWithEngine(t, engine, `class Discarded
+  def self.fill
+    @@payload = "x" * (16 * 1024 * 1024)
+  end
+end
+class Exported
+  def marker
+    1
+  end
+end
+def run
+  Discarded.fill
+  Discarded = nil
+  Exported
+end`)
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	result := callScript(t, context.Background(), script, "run", nil, CallOptions{})
+	env := valueClass(result).Methods["marker"].Env
+	got, ok := env.Get("Discarded")
+	if !ok || !got.IsNil() {
+		t.Fatalf("returned environment Discarded = %v, %t; want nil, true", got, ok)
+	}
+	runtime.GC()
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	runtime.KeepAlive(result)
+	if retained := int64(after.HeapAlloc) - int64(before.HeapAlloc); retained > 4<<20 {
+		t.Fatalf("returned environment retained %d bytes from an overwritten class, want at most %d", retained, 4<<20)
+	}
+}
+
+func TestReturnedEnvironmentPreservesInitializedNestedNamespace(t *testing.T) {
+	engine := MustNewEngine(Config{})
+	engine.RegisterBuiltin("replace_nested_binding", func(exec *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+		exec.root.Assign("Outer::Inner", NewNil())
+		return NewNil(), nil
+	})
+	script := compileScriptWithEngine(t, engine, `module Outer
+  module Inner
+    VALUE = 19
+    def self.value
+      VALUE
+    end
+  end
+end
+class Exported
+  def marker
+    1
+  end
+end
+def run
+  replace_nested_binding()
+  Exported
+end`)
+	for _, override := range []Value{NewNil(), NewArray([]Value{NewInt(7)})} {
+		t.Run(override.Kind().String(), func(t *testing.T) {
+			result := callScript(t, context.Background(), script, "run", nil, CallOptions{
+				Globals: map[string]Value{"unused": override},
+			})
+			env := valueClass(result).Methods["marker"].Env
+			outer, ok := env.Get("Outer")
+			if !ok || outer.Kind() != KindClass {
+				t.Fatalf("returned environment Outer = %v, %t; want a module, true", outer, ok)
+			}
+			inner := valueClass(valueClass(outer).ClassVars["Inner"])
+			if inner == nil {
+				t.Fatal("returned Outer namespace lost Inner")
+			}
+			if got := inner.ClassVars["VALUE"]; !got.Equal(NewInt(19)) {
+				t.Errorf("returned Outer::Inner::VALUE = %v, want 19", got)
+			}
+		})
+	}
+}
+
+func TestReturnedEnvironmentPreservesInboundEnumAliases(t *testing.T) {
+	script := compileScriptDefault(t, `enum Status
+  Ready
+end
+class Exported
+  def marker
+    1
+  end
+end
+def run(item)
+  [Exported, item]
+end`)
+	for _, item := range []Value{NewEnum(script.enums["Status"]), NewEnumValue(script.enums["Status"].Members["Ready"])} {
+		t.Run(item.Kind().String(), func(t *testing.T) {
+			result := callScript(t, context.Background(), script, "run", []Value{item}, CallOptions{})
+			env := valueClass(result.Array()[0]).Methods["marker"].Env
+			got, ok := env.Get("Status")
+			if !ok || got.Kind() != KindEnum {
+				t.Fatalf("returned environment Status = %v, %t; want enum, true", got, ok)
+			}
+			alias := result.Array()[1]
+			if alias.Kind() == KindEnum {
+				if valueEnum(alias) != valueEnum(got) {
+					t.Error("returned enum and returned environment Status have different identities")
+				}
+			} else if valueEnumValue(alias) != valueEnum(got).Members["Ready"] {
+				t.Error("returned enum member and returned environment Status::Ready have different identities")
+			}
+		})
 	}
 }

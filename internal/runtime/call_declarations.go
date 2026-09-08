@@ -16,6 +16,19 @@ type callDeclarations struct {
 	snapshot bool
 }
 
+func newCallRoot(script *Script, capacity int) *Env {
+	state := &struct {
+		env          Env
+		declarations callDeclarations
+	}{declarations: callDeclarations{script: script}}
+	root := &state.env
+	root.declarations = &state.declarations
+	if capacity > inlineEnvBindingCapacity {
+		root.values = make(map[string]Value, capacity)
+	}
+	return root
+}
+
 func bindDeclarationsForCall(script *Script, root *Env) {
 	root.declarations = &callDeclarations{script: script}
 }
@@ -66,9 +79,8 @@ func (e *Env) materializeDeclaration(name string) (Value, bool) {
 		val := NewClass(classDef)
 		return val, true
 	}
-	if enumDef, ok := d.enum(name); ok {
+	if enumDef, ok := d.enum(e, name); ok {
 		val := NewEnum(enumDef)
-		e.DefineStatic(name, val)
 		return val, true
 	}
 	return Value{}, false
@@ -121,7 +133,7 @@ func (d *callDeclarations) class(env *Env, name string) (*ClassDef, bool) {
 	return classDef, true
 }
 
-func (d *callDeclarations) enum(name string) (*EnumDef, bool) {
+func (d *callDeclarations) enum(env *Env, name string) (*EnumDef, bool) {
 	if enumDef, ok := d.enums[name]; ok {
 		return enumDef, true
 	}
@@ -134,6 +146,11 @@ func (d *callDeclarations) enum(name string) (*EnumDef, bool) {
 		d.enums = make(map[string]*EnumDef)
 	}
 	d.enums[name] = enumDef
+	if !env.hasDynamic(name) {
+		if _, bound := env.statics[name]; !bound {
+			env.DefineStatic(name, NewEnum(enumDef))
+		}
+	}
 	return enumDef, true
 }
 

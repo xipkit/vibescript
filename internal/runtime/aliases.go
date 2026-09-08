@@ -853,16 +853,24 @@ func cloneEnvForHost(env *Env, state hostValueCloneState) *Env {
 	}
 	if env.declarations != nil {
 		for name, classDef := range env.declarations.classes {
+			classClone, reachable := state.classes[classDef]
+			if !reachable {
+				continue
+			}
 			if clone.declarations.classes == nil {
 				clone.declarations.classes = make(map[string]*ClassDef)
 			}
-			clone.declarations.classes[name] = cloneClassForHostWithState(classDef, state)
+			clone.declarations.classes[name] = classClone
 		}
 		for name, enumDef := range env.declarations.enums {
+			enumClone, reachable := state.enums[enumDef]
+			if !reachable {
+				continue
+			}
 			if clone.declarations.enums == nil {
 				clone.declarations.enums = make(map[string]*EnumDef)
 			}
-			clone.declarations.enums[name] = cloneEnumForHost(enumDef, state)
+			clone.declarations.enums[name] = enumClone
 		}
 	}
 	// A call frame captured by an escaped closure carries the block its method

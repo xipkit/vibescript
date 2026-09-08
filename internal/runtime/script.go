@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/mgomes/vibescript/internal/ast"
 )
@@ -31,10 +32,9 @@ func (s *Script) Call(ctx context.Context, name string, args []Value, opts CallO
 	}
 
 	rootCapacity := len(opts.Globals) + len(opts.Capabilities)*2
-	root := newEnvWithCapacity(nil, rootCapacity)
+	root := newCallRoot(s, rootCapacity)
 	s.engine.attachBuiltins(root, 1)
 
-	bindDeclarationsForCall(s, root)
 	fn, ok := materializeCallFunction(root, name)
 	if !ok {
 		return NewNil(), fmt.Errorf("function %s not found", name)
@@ -43,6 +43,11 @@ func (s *Script) Call(ctx context.Context, name string, args []Value, opts CallO
 	// Bodies still initialize in declaration order, and their per-call state
 	// exists before adapters bind so setup quota refusals precede host code.
 	for _, className := range s.classInitializers {
+		// Preserve nested state through its namespace even when a host global
+		// replaces the nested declaration's qualified root binding.
+		if namespace, _, nested := strings.Cut(className, "::"); nested {
+			root.materializeDeclaration(namespace)
+		}
 		root.materializeDeclaration(className)
 	}
 	rebinder := newCallFunctionRebinder(s, root, nil, nil)
@@ -132,10 +137,9 @@ func (s *Script) callWithLazyGlobals(ctx context.Context, name string, args []Va
 	}
 
 	rootCapacity := len(opts.Globals) + len(opts.Capabilities)*2
-	root := newEnvWithCapacity(nil, rootCapacity)
+	root := newCallRoot(s, rootCapacity)
 	s.engine.attachBuiltins(root, 1)
 
-	bindDeclarationsForCall(s, root)
 	fn, ok := materializeCallFunction(root, name)
 	if !ok {
 		return NewNil(), fmt.Errorf("function %s not found", name)
@@ -144,6 +148,11 @@ func (s *Script) callWithLazyGlobals(ctx context.Context, name string, args []Va
 	// Bodies still initialize in declaration order, and their per-call state
 	// exists before adapters bind so setup quota refusals precede host code.
 	for _, className := range s.classInitializers {
+		// Preserve nested state through its namespace even when a host global
+		// replaces the nested declaration's qualified root binding.
+		if namespace, _, nested := strings.Cut(className, "::"); nested {
+			root.materializeDeclaration(namespace)
+		}
 		root.materializeDeclaration(className)
 	}
 	rebinder := newCallFunctionRebinder(s, root, nil, nil)

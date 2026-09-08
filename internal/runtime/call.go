@@ -898,7 +898,7 @@ func (r *callFunctionRebinder) class(name string) (*ClassDef, bool) {
 
 func (r *callFunctionRebinder) enum(name string) (*EnumDef, bool) {
 	if r.root.declarations != nil {
-		return r.root.declarations.enum(name)
+		return r.root.declarations.enum(r.root, name)
 	}
 	enumDef, ok := r.callEnums[name]
 	return enumDef, ok
