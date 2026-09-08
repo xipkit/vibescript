@@ -378,7 +378,8 @@ func (p *jsonValueParser) parseString() (string, error) {
 			if err := p.reserve(estimatedStringHeaderBytes + len(value)); err != nil {
 				return "", err
 			}
-			return value, nil
+			// A retained value or key must not keep the source document alive.
+			return strings.Clone(value), nil
 		case b == '\\':
 			return p.parseEscapedString(start)
 		case b < 0x20:
