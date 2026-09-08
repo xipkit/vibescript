@@ -275,6 +275,7 @@ func TestStringScanMatchesFindAllParity(t *testing.T) {
 		`(?m)^|$`, `(?s).`, `(?i)a`, `(?U)a*`, `(?P<word>\b.)`,
 		`(a.*z|a)`, `\b..`, `�`, `^a$`, `\Aa\z`, `^$`, `\A\z`,
 		`a?^`, `(?:^a|^b)`, `(?:^a|b)`, `(?:^a)?`, `(?:^a)*`, `(?:^a)+`,
+		`(?:^)(?:)`, `(?:\A)(?:)`, `(?:^)(?:$)`, `(?:^)(?:|)`,
 	}
 	texts := []string{
 		"", "a", "abc", "abcd", "a1 b2 c3", "a-b-c", "the cat sat on a cataract",

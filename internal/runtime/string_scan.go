@@ -104,10 +104,10 @@ type stringScanCursor struct {
 }
 
 func (c *stringScanCursor) find(text string) ([]int, error) {
-	if _, literal := c.re.LiteralPrefix(); c.position == 0 || literal {
+	if prefix, literal := c.re.LiteralPrefix(); c.position == 0 || literal && prefix != "" {
 		// Keep literal-prefix acceleration for dense matches and sparse tails.
-		// Go also reports complete for whole-input anchored literals, whose
-		// successful first match has already consumed the entire subject.
+		// A complete empty literal can still contain start assertions, so it
+		// must take the context-aware path after its first empty match.
 		loc := c.re.FindStringSubmatchIndex(text[c.position:])
 		return offsetRegexSubmatchIndexInPlace(loc, c.position), nil
 	}
