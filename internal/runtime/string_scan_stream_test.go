@@ -54,17 +54,31 @@ end`)
 
 func TestStringScanBlockNestingLimitEarlyReturn(t *testing.T) {
 	t.Parallel()
-	pattern := strings.Repeat("(", 999) + "." + strings.Repeat(")", 999)
-	script := compileScriptWithConfig(t, Config{StepQuota: Unlimited, MemoryQuotaBytes: 2 << 20}, `def run(text, pattern)
+	for _, test := range []struct {
+		name   string
+		core   string
+		groups int
+	}{
+		{name: "suffix", core: ".", groups: 999},
+		{name: "left context", core: `\b.`, groups: 998},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pattern := strings.Repeat("(", test.groups) + test.core + strings.Repeat(")", test.groups)
+			script := compileScriptWithConfig(t, Config{StepQuota: Unlimited, MemoryQuotaBytes: 2 << 20}, `def run(text, pattern)
   text.scan(pattern) { |m| return m.size }
   0
 end`)
-	got := callFunc(t, script, "run", []Value{NewString(strings.Repeat("a", 64<<10)), NewString(pattern)})
-	if got.Int() != 999 {
-		t.Errorf("deep-pattern early-return scan = %v, want 999 under 2 MiB", got)
+			got := callFunc(t, script, "run", []Value{NewString(strings.Repeat("a ", 32<<10)), NewString(pattern)})
+			if got.Int() != int64(test.groups) {
+				t.Errorf("deep-pattern early-return scan = %v, want %d under 2 MiB", got, test.groups)
+			}
+		})
 	}
 }
 
+// Adding left context to a pattern at Go's AST-height limit requires the exact
+// bounded-table fallback after its first yield. That retained table must count
+// against the quota even when the block discards each result.
 func TestStringScanBlockNestingLimitQuota(t *testing.T) {
 	t.Parallel()
 	pattern := strings.Repeat("(", 998) + `\b.` + strings.Repeat(")", 998)
