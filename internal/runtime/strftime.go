@@ -86,40 +86,30 @@ import (
 // space-padded offset renders a quirky, lossy form (%_z -> " +530"); Vibescript
 // keeps the offset intact rather than reproducing that degenerate behavior.
 //
-// A directive's width is script-controlled, and several directives turn it into a
-// run of pad bytes (or, for %N/%L, a run of trailing zero digits). exec carries
-// the sandbox memory quota so the renderer can preflight each width-driven run
-// against the running output size before allocating it, mirroring the string
-// padding helpers. A width like %1000000000N that would project past the quota is
-// rejected with a memory-quota error rather than allocating a multi-gigabyte
-// buffer the post-call check would only catch after the fact. A nil exec (or one
-// with no quota) skips the check, leaving the unbounded behavior to callers that
-// run outside the sandbox.
+// Formatting is bounded by the output cap and the execution's work and memory
+// quotas, including compound expansion and temporary padded fields.
 func strftime(exec *Execution, t time.Time, format string) (string, error) {
 	r := strftimeRenderer{exec: exec, t: t}
-	return r.render(format, false)
+	return r.format(format, nil, NewNil(), false)
 }
 
-// strftimeRenderer holds the per-call state the render pass threads through its
-// helpers: the execution whose memory quota bounds width-driven allocations, and
-// the receiver time. It exists so the padding helpers can preflight an oversized
-// width against the quota before materializing a huge buffer.
 type strftimeRenderer struct {
-	exec *Execution
-	t    time.Time
+	exec          *Execution
+	t             time.Time
+	budget        *strftimeBudget
+	builder       *strings.Builder
+	held          int
+	prefix        int
+	written       int
+	fieldCapacity *int
 }
 
-// checkPad rejects a pending pad run that, added to the bytes already written in
-// this render pass, would exceed the memory quota. written is the builder's
-// current byte length and padBytes is the number of pad bytes about to be
-// appended; both are clamped with saturating arithmetic so a pathological width
-// cannot overflow int before the quota rejects it. It returns nil when no quota
-// is enforced, leaving small formats on the allocation-free fast path.
 func (r strftimeRenderer) checkPad(written, padBytes int) error {
-	if r.exec == nil {
-		return nil
+	size := saturatingAdd(written-r.written, padBytes)
+	if err := r.checkField(size); err != nil {
+		return err
 	}
-	return r.exec.checkProjectedStringBytes(saturatingAdd(written, padBytes))
+	return r.budget.charge(size)
 }
 
 // caseFlag captures the case transformation applied to a directive's rendered
@@ -141,35 +131,60 @@ const (
 // alongside the output already produced.
 func (r strftimeRenderer) render(format string, inheritedUpper bool) (string, error) {
 	var b strings.Builder
-	b.Grow(len(format) + 16)
+	r.builder = &b
+	if err := r.renderInto(format, inheritedUpper); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
 
-	for i := 0; i < len(format); i++ {
-		c := format[i]
-		if c != '%' {
-			b.WriteByte(c)
+func (r strftimeRenderer) renderInto(format string, inheritedUpper bool) error {
+	b := r.builder
+	for i := 0; i < len(format); {
+		r.written = b.Len()
+		if format[i] != '%' {
+			end := i + 1
+			for end < len(format) && format[end] != '%' && end-i < 4096 {
+				end++
+			}
+			if err := r.append(format[i:end], 0); err != nil {
+				return err
+			}
+			i = end
 			continue
 		}
-
-		token, ok := scanStrftimeDirective(format, i)
+		token, ok, scanErr := scanStrftimeDirectiveBudget(format, i, r.budget)
+		if scanErr != nil {
+			return scanErr
+		}
+		if err := r.budget.charge(0); err != nil {
+			return err
+		}
 		if !ok {
-			// A bare trailing percent has no directive, which Ruby rejects.
-			return "", fmt.Errorf("time.strftime invalid format: %q", format)
+			diagnostic := format
+			if len(diagnostic) > 256 {
+				diagnostic = diagnostic[:256] + "..."
+			}
+			return fmt.Errorf("time.strftime invalid format: %q", diagnostic)
 		}
-
-		out, recognized, err := r.renderDirective(token, inheritedUpper, b.Len())
+		var fieldCapacity int
+		field := r
+		field.fieldCapacity = &fieldCapacity
+		out, recognized, err := field.renderDirective(token, inheritedUpper, b.Len())
 		if err != nil {
-			return "", err
+			return err
 		}
-		if recognized {
-			b.WriteString(out)
+		if !recognized {
+			out = token.source
 		} else {
-			// Unknown directive: emit the percent sequence verbatim like Ruby.
-			b.WriteString(token.source)
+			fieldCapacity = max(len(out), fieldCapacity)
 		}
-		i += len(token.source) - 1
+		if err := r.append(out, fieldCapacity); err != nil {
+			return err
+		}
+		i += len(token.source)
 	}
-
-	return b.String(), nil
+	return nil
 }
 
 // strftimeToken captures one parsed percent directive: the full source slice
@@ -197,10 +212,20 @@ type strftimeToken struct {
 // directive byte (e.g. a bare trailing "%" or "%6"), which Ruby rejects as an
 // invalid format.
 func scanStrftimeDirective(format string, start int) (strftimeToken, bool) {
+	token, ok, _ := scanStrftimeDirectiveBudget(format, start, nil)
+	return token, ok
+}
+
+func scanStrftimeDirectiveBudget(format string, start int, budget *strftimeBudget) (strftimeToken, bool, error) {
 	tok := strftimeToken{}
 	j := start + 1
 
 	for j < len(format) {
+		if budget != nil && j%4096 == 0 {
+			if err := budget.charge(0); err != nil {
+				return strftimeToken{}, false, err
+			}
+		}
 		switch format[j] {
 		case '-':
 			// Ruby treats - as no-padding whenever it appears in the flag set, so
@@ -221,31 +246,46 @@ func scanStrftimeDirective(format string, start int) (strftimeToken, bool) {
 	}
 flagsDone:
 
-	widthStart := j
+	widthStart, width, overflow := j, 0, false
+	const maxInt = int(^uint(0) >> 1)
 	for j < len(format) && format[j] >= '0' && format[j] <= '9' {
+		if budget != nil && j%4096 == 0 {
+			if err := budget.charge(0); err != nil {
+				return strftimeToken{}, false, err
+			}
+		}
+		digit := int(format[j] - '0')
+		if width > (maxInt-digit)/10 {
+			overflow = true
+		}
+		if !overflow {
+			width = width*10 + digit
+		}
 		j++
 	}
-	if j > widthStart {
-		// The run is a bounded decimal slice, but guard against overflow on a
-		// pathological width so an extreme value falls back to no explicit width
-		// rather than panicking.
-		if w, err := strconv.Atoi(format[widthStart:j]); err == nil {
-			tok.hasWidth, tok.width = true, w
-		}
+	// Overflow keeps the existing no-explicit-width behavior without allocating
+	// strconv's error copy of the complete decimal input.
+	if j > widthStart && !overflow {
+		tok.hasWidth, tok.width = true, width
 	}
 
 	for j < len(format) && format[j] == ':' {
+		if budget != nil && j%4096 == 0 {
+			if err := budget.charge(0); err != nil {
+				return strftimeToken{}, false, err
+			}
+		}
 		tok.colons++
 		j++
 	}
 
 	if j >= len(format) {
-		return strftimeToken{}, false
+		return strftimeToken{}, false, nil
 	}
 
 	tok.source = format[start : j+1]
 	tok.directive = format[j]
-	return tok, true
+	return tok, true, nil
 }
 
 // strftimeFieldKind classifies how a directive consumes width and padding.
@@ -277,7 +317,9 @@ func (r strftimeRenderer) renderDirective(tok strftimeToken, inheritedUpper bool
 		return "", false, nil
 	}
 
-	value, padChar, defaultWidth, kind, ok, err := r.field(tok, written)
+	fieldToken := tok
+	fieldToken.upper = tok.upper || inheritedUpper
+	value, padChar, defaultWidth, kind, ok, err := r.field(fieldToken, written)
 	if err != nil {
 		return "", false, err
 	}
@@ -295,7 +337,10 @@ func (r strftimeRenderer) renderDirective(tok strftimeToken, inheritedUpper bool
 		// the nested names while the # flag does not reach into a compound at all
 		// (so it never propagates). The expanded result is then padded to the
 		// requested width as a single field.
-		expanded := r.expandCompound(value, tok.upper || inheritedUpper)
+		expanded, err := r.expandCompound(value, tok.upper || inheritedUpper)
+		if err != nil {
+			return "", false, err
+		}
 		padded, err := r.padCompound(expanded, tok, written)
 		if err != nil {
 			return "", false, err
@@ -321,6 +366,23 @@ func (r strftimeRenderer) renderDirective(tok strftimeToken, inheritedUpper bool
 		}
 		return padded, true, nil
 	default:
+		if kind == fieldName {
+			transformed, err := r.caseSize(value, shift)
+			if err != nil {
+				return "", false, err
+			}
+			padding := 0
+			if !tok.noPad && value != "" {
+				width := defaultWidth
+				if tok.hasWidth {
+					width = tok.width
+				}
+				padding = max(0, width-len(value))
+			}
+			if err := r.checkField(saturatingAdd(transformed, padding)); err != nil {
+				return "", false, err
+			}
+		}
 		padded, err := r.applyPad(value, padChar, defaultWidth, tok, written)
 		if err != nil {
 			return "", false, err
@@ -409,6 +471,23 @@ func (r strftimeRenderer) field(tok strftimeToken, written int) (value string, p
 		return strftimeOffset(t, tok.colons), '0', 0, fieldOffset, true, nil
 	case 'Z':
 		name, _ := t.Zone()
+		if r.budget != nil {
+			if err := r.budget.charge(len(name)); err != nil {
+				return "", 0, 0, fieldName, false, err
+			}
+		}
+		size, err := r.caseSize(name, directiveCase(tok, false))
+		if err != nil {
+			return "", 0, 0, fieldName, false, err
+		}
+		if err := r.checkField(size); err != nil {
+			return "", 0, 0, fieldName, false, err
+		}
+		if r.budget != nil {
+			if err := r.budget.charge(size); err != nil {
+				return "", 0, 0, fieldName, false, err
+			}
+		}
 		return name, ' ', 0, fieldName, true, nil
 	case 'n':
 		return "\n", ' ', 1, fieldLiteral, true, nil
@@ -701,16 +780,18 @@ func isoWeekday(wd time.Weekday) int {
 	return int(wd)
 }
 
-// expandCompound expands a compound directive's fixed sub-format, propagating the
-// ^ flag (inheritedUpper) the compound directive carried. The sub-formats are
-// literal and contain only supported single-byte directives with no width
-// modifier, so neither the malformed-format path nor a width-driven memory-quota
-// rejection can fire here; a non-nil error would indicate a programming mistake in
-// a compound directive definition and is surfaced as a panic.
-func (r strftimeRenderer) expandCompound(format string, inheritedUpper bool) string {
-	out, err := r.render(format, inheritedUpper)
-	if err != nil {
-		panic(fmt.Sprintf("runtime: invalid compound strftime directive %q: %v", format, err))
+// Compound sub-formats are fixed and nest at most twice. Carry the parent
+// builder reservation into each expansion and propagate resource errors.
+func (r strftimeRenderer) expandCompound(format string, inheritedUpper bool) (string, error) {
+	r.held = saturatingAdd(r.held, r.builder.Cap())
+	r.prefix = saturatingAdd(r.prefix, r.written)
+	var b strings.Builder
+	r.builder = &b
+	if err := r.renderInto(format, inheritedUpper); err != nil {
+		return "", err
 	}
-	return out
+	if r.fieldCapacity != nil {
+		*r.fieldCapacity = b.Cap()
+	}
+	return b.String(), nil
 }

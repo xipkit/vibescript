@@ -1372,7 +1372,7 @@ their `!` variants):
 | --- | --- |
 | `JSON.parse` input / `JSON.stringify` output | 1 MiB |
 | `JSON.parse` / `JSON.stringify` nesting depth | 10,000 arrays/objects |
-| `format` / `sprintf` / `String#%` output size | 1 MiB |
+| `format` / `sprintf` / `String#%` / `Time#strftime` output size | 1 MiB |
 | Regex pattern size (`Regex.*`, `match`, `match?`, `scan`, `sub`/`gsub` with `regex: true`) | 16 KiB |
 | Regex text, replacement, and output size | 1 MiB |
 | `scan` match-index table (worst case) | 256 MiB |

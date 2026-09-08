@@ -55,6 +55,9 @@ func checkStrftimeGivenGoLayout(t time.Time, format string) error {
 	if t.Format(format) == format {
 		return nil
 	}
+	if len(format) > 256 {
+		format = format[:256] + "..."
+	}
 	return fmt.Errorf("time.strftime expects a percent format such as \"%%Y-%%m-%%d\"; %q is a Go layout, use format for that", format)
 }
 
