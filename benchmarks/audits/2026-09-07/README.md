@@ -9,14 +9,14 @@ The audit covers compilation/checking, call setup, quota accounting, collections
 
 | Order | Finding | Measured impact |
 |---|---|---|
-| 1 | Popped call frames retain dead locals | Clearing inaccessible stack slots frees 64 MiB during a call configured with a 48 MiB quota |
-| 2 | JSON tokens retain their full source document | 32 one-byte results retain 17.0 MB after GC; escaped-token control does not |
-| 3 | `uniq` repeatedly walks the receiver under a memory quota | Scalar-key block: 28.4 / 101.3 / 435.2 ms for 200 / 400 / 800 rows; 800 rows without memory quota: 0.94 ms |
-| 4 | Whole-script checking clones all declarations per function | 100 / 200 / 400 independent functions: 2.62 / 10.14 / 40.09 MB per check |
-| 5 | Scalar local facts trigger pairwise alias scans | 400 integer assignments: 4.39 MB and 84,369 allocations; 87.7% of profile allocation in `mutableStaticContainers` |
-| 6 | Block `String#scan` buffers every match before yielding | Immediate return on a 256 KiB input: 27.0 ms, 37.02 MB, 262,211 allocations |
-| 7 | Unused declarations impose per-call setup | Entry point returning `1`: 3.4 KB alone versus 929.8 KB with 1,000 unused classes |
-| 8 | A global mutation epoch invalidates unrelated quota caches | Stable 10,000-row graph: 0 nodes walked on a cache hit versus 60,005 nodes / 1.81 ms after an unrelated environment write |
+| 1 | [#1247: Popped call frames retain dead locals](https://github.com/xipkit/vibescript/issues/1247) | Clearing inaccessible stack slots frees 64 MiB during a call configured with a 48 MiB quota |
+| 2 | [#1248: JSON tokens retain their full source document](https://github.com/xipkit/vibescript/issues/1248) | 32 one-byte results retain 17.0 MB after GC; escaped-token control does not |
+| 3 | [#1249: `uniq` repeatedly walks the receiver under a memory quota](https://github.com/xipkit/vibescript/issues/1249) | Scalar-key block: 28.4 / 101.3 / 435.2 ms for 200 / 400 / 800 rows; 800 rows without memory quota: 0.94 ms |
+| 4 | [#1250: Whole-script checking clones all declarations per function](https://github.com/xipkit/vibescript/issues/1250) | 100 / 200 / 400 independent functions: 2.62 / 10.14 / 40.09 MB per check |
+| 5 | [#1251: Scalar local facts trigger pairwise alias scans](https://github.com/xipkit/vibescript/issues/1251) | 400 integer assignments: 4.39 MB and 84,369 allocations; 87.7% of profile allocation in `mutableStaticContainers` |
+| 6 | [#1252: Block `String#scan` buffers every match before yielding](https://github.com/xipkit/vibescript/issues/1252) | Immediate return on a 256 KiB input: 27.0 ms, 37.02 MB, 262,211 allocations |
+| 7 | [#1253: Unused declarations impose per-call setup](https://github.com/xipkit/vibescript/issues/1253) | Entry point returning `1`: 3.4 KB alone versus 929.8 KB with 1,000 unused classes |
+| 8 | [#1254: A global mutation epoch invalidates unrelated quota caches](https://github.com/xipkit/vibescript/issues/1254) | Stable 10,000-row graph: 0 nodes walked on a cache hit versus 60,005 nodes / 1.81 ms after an unrelated environment write |
 
 All timing table values above use medians of three focused runs. Retained-heap examples use explicit GC and causal controls. MB denotes decimal bytes; MiB denotes powers of two. The global-epoch numbers are isolated estimator checks, not end-to-end throughput. The popped-frame issue lasts during a live call until slots are overwritten or the execution dies; it is not an engine leak across completed calls.
 
