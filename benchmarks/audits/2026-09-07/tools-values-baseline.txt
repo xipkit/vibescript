@@ -1,0 +1,31 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/cmd/vibes
+cpu: Apple M4
+BenchmarkLSPDefinitionLargeDocument                  	   70570	      1596 ns/op	    1879 B/op	      20 allocs/op
+BenchmarkLSPPublishDiagnosticsLargeDocument          	 3356466	        34.93 ns/op	      48 B/op	       1 allocs/op
+BenchmarkLSPPublishDiagnosticsLargeDocumentCacheMiss 	      39	   2574446 ns/op	 2646958 B/op	   20249 allocs/op
+BenchmarkLSPCompletionLargeDocument                  	   17385	      5869 ns/op	    4252 B/op	      26 allocs/op
+BenchmarkLSPHoverLargeDocument                       	   18915	      6338 ns/op	    1868 B/op	      27 allocs/op
+BenchmarkLSPDocumentSymbolLargeDocument              	  204114	       542.5 ns/op	     422 B/op	      10 allocs/op
+BenchmarkLSPDocumentSymbolLargeDocumentCacheMiss     	     451	    261847 ns/op	  721722 B/op	      81 allocs/op
+BenchmarkSnapshotWatchTargetsLargeModuleRoot         	      34	   3321931 ns/op	 1316808 B/op	    8595 allocs/op
+BenchmarkWatchKnownSnapshotChangedLargeModuleRoot    	      64	   1709434 ns/op	  295056 B/op	    2049 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/cmd/vibes	3.226s
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/vibes/value
+cpu: Apple M4
+BenchmarkValueStringLargeComposite/array_100000         	      32	   3502935 ns/op	 6642488 B/op	      36 allocs/op
+BenchmarkValueStringLargeComposite/hash_10000           	     165	    724805 ns/op	  908057 B/op	      27 allocs/op
+BenchmarkValueStringLargeComposite/bounded_array_100000 	   11934	      9977 ns/op	   12592 B/op	      14 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/vibes/value	0.571s
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/vibes/capability/events
+cpu: Apple M4
+BenchmarkCapabilityPublishValidated 	   84727	      1237 ns/op	    2392 B/op	      20 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/vibes/capability/events	0.424s

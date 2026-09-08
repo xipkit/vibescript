@@ -1,0 +1,68 @@
+File: runtime.test
+Type: cpu
+Time: 2026-09-07 20:21:38 EDT
+Duration: 3.51s, Total samples = 3.09s (88.09%)
+Showing nodes accounting for 2.94s, 95.15% of 3.09s total
+Dropped 50 nodes (cum <= 0.02s)
+Showing top 60 nodes out of 124
+      flat  flat%   sum%        cum   cum%
+     1.50s 48.54% 48.54%      1.50s 48.54%  runtime.kevent
+     0.36s 11.65% 60.19%      0.36s 11.65%  runtime.madvise
+     0.12s  3.88% 64.08%      0.34s 11.00%  internal/runtime/maps.(*Iter).Next
+     0.09s  2.91% 66.99%      0.12s  3.88%  runtime.mapassign
+     0.07s  2.27% 69.26%      0.07s  2.27%  runtime.tryDeferToSpanScan
+     0.06s  1.94% 71.20%      0.08s  2.59%  runtime.mapaccess2_faststr
+     0.06s  1.94% 73.14%      0.06s  1.94%  runtime.spanOf (inline)
+     0.05s  1.62% 74.76%      0.05s  1.62%  internal/runtime/maps.(*groupReference).ctrls (inline)
+     0.04s  1.29% 76.05%      0.20s  6.47%  gcWriteBarrier
+     0.04s  1.29% 77.35%      0.21s  6.80%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).stringPayloadSize
+     0.04s  1.29% 78.64%      0.69s 22.33%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).value
+     0.04s  1.29% 79.94%      0.09s  2.91%  runtime.mapassign_faststr
+     0.04s  1.29% 81.23%      0.04s  1.29%  runtime.typePointers.next
+     0.04s  1.29% 82.52%      0.04s  1.29%  sync/atomic.(*Uint64).Add (inline)
+     0.03s  0.97% 83.50%      0.03s  0.97%  aeshashbody
+     0.03s  0.97% 84.47%      0.41s 13.27%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+     0.03s  0.97% 85.44%      0.28s  9.06%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+     0.03s  0.97% 86.41%      0.18s  5.83%  runtime.wbBufFlush1
+     0.02s  0.65% 87.06%      0.02s  0.65%  github.com/mgomes/vibescript/vibes/value.Value.String
+     0.02s  0.65% 87.70%      0.14s  4.53%  github.com/mgomes/vibescript/vibes/value.Value.hashSetInternal
+     0.02s  0.65% 88.35%      0.02s  0.65%  internal/runtime/maps.(*groupReference).key (inline)
+     0.02s  0.65% 89.00%      0.04s  1.29%  runtime.(*timers).check
+     0.02s  0.65% 89.64%      0.08s  2.59%  runtime.findObject
+     0.02s  0.65% 90.29%      0.35s 11.33%  runtime.mapIterNext
+     0.02s  0.65% 90.94%      0.02s  0.65%  runtime.memclrNoHeapPointers
+     0.02s  0.65% 91.59%      0.02s  0.65%  runtime.memequal
+     0.01s  0.32% 91.91%      0.02s  0.65%  github.com/mgomes/vibescript/internal/runtime.(*Execution).chargeValueKeySteps
+     0.01s  0.32% 92.23%      0.19s  6.15%  github.com/mgomes/vibescript/internal/runtime.mapStructuralBytes (inline)
+     0.01s  0.32% 92.56%      0.02s  0.65%  internal/runtime/maps.typedmemmove
+     0.01s  0.32% 92.88%      0.02s  0.65%  runtime.(*timer).unlockAndRun
+     0.01s  0.32% 93.20%      0.02s  0.65%  runtime.bgsweep
+     0.01s  0.32% 93.53%      0.02s  0.65%  runtime.execute
+     0.01s  0.32% 93.85%      0.05s  1.62%  runtime.findRunnable
+     0.01s  0.32% 94.17%      0.03s  0.97%  runtime.gcBgMarkWorker.func2
+     0.01s  0.32% 94.50%      0.05s  1.62%  runtime.mapaccess2
+     0.01s  0.32% 94.82%      0.02s  0.65%  runtime.sweepone
+     0.01s  0.32% 95.15%      0.02s  0.65%  runtime.typedmemclr
+         0     0% 95.15%      0.59s 19.09%  github.com/mgomes/vibescript/internal/runtime.(*Execution).autoInvokeIfNeeded
+         0     0% 95.15%      0.63s 20.39%  github.com/mgomes/vibescript/internal/runtime.(*Execution).beginBaseWalk
+         0     0% 95.15%      0.22s  7.12%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemory (inline)
+         0     0% 95.15%      0.22s  7.12%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryMetered
+         0     0% 95.15%      0.29s  9.39%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryValue (inline)
+         0     0% 95.15%      0.29s  9.39%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryWith
+         0     0% 95.15%      0.41s 13.27%  github.com/mgomes/vibescript/internal/runtime.(*Execution).envStackGraphBytes
+         0     0% 95.15%      0.20s  6.47%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateGraphBase
+         0     0% 95.15%      0.41s 13.27%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateGraphBaseFast
+         0     0% 95.15%      0.51s 16.50%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateMemoryUsage
+         0     0% 95.15%      0.59s 19.09%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalAssignmentValue (inline)
+         0     0% 95.15%      0.59s 19.09%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalAssignmentValueWithExpectation
+         0     0% 95.15%      0.59s 19.09%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithAuto
+         0     0% 95.15%      0.59s 19.09%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithExpectation
+         0     0% 95.15%      1.09s 35.28%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalForLoop
+         0     0% 95.15%      1.09s 35.28%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalForStatement (inline)
+         0     0% 95.15%      1.09s 35.28%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalLocalScopeStatements
+         0     0% 95.15%      1.09s 35.28%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatement
+         0     0% 95.15%      1.09s 35.28%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatementWithLocalBindings
+         0     0% 95.15%      1.09s 35.28%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatements
+         0     0% 95.15%      0.59s 19.09%  github.com/mgomes/vibescript/internal/runtime.(*Execution).finishMemberExpr
+         0     0% 95.15%      0.21s  6.80%  github.com/mgomes/vibescript/internal/runtime.(*Execution).hashCallRootBytes (inline)
+         0     0% 95.15%      0.21s  6.80%  github.com/mgomes/vibescript/internal/runtime.(*Execution).hashCallRootUsage

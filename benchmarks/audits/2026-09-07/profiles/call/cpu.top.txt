@@ -1,0 +1,56 @@
+File: runtime.test
+Type: cpu
+Time: 2026-09-07 20:21:42 EDT
+Duration: 2.46s, Total samples = 2.22s (90.41%)
+Showing nodes accounting for 2.11s, 95.05% of 2.22s total
+Dropped 28 nodes (cum <= 0.01s)
+      flat  flat%   sum%        cum   cum%
+     1.58s 71.17% 71.17%      1.58s 71.17%  runtime.kevent
+     0.22s  9.91% 81.08%      0.22s  9.91%  runtime.madvise
+     0.05s  2.25% 83.33%      0.06s  2.70%  runtime.mapaccess2_faststr
+     0.03s  1.35% 84.68%      0.03s  1.35%  runtime.mapaccess1_faststr
+     0.02s   0.9% 85.59%      0.18s  8.11%  github.com/mgomes/vibescript/internal/runtime.(*Env).DefineStatic
+     0.02s   0.9% 86.49%      0.03s  1.35%  github.com/mgomes/vibescript/internal/runtime.(*Env).deleteDynamic
+     0.02s   0.9% 87.39%      0.05s  2.25%  internal/runtime/maps.(*Iter).Next
+     0.02s   0.9% 88.29%      0.03s  1.35%  runtime.(*mspan).writeHeapBitsSmall
+     0.02s   0.9% 89.19%      0.12s  5.41%  runtime.mallocgc
+     0.02s   0.9% 90.09%      0.04s  1.80%  runtime.mapassign_faststr
+     0.02s   0.9% 90.99%      0.02s   0.9%  runtime.tryDeferToSpanScan
+     0.02s   0.9% 91.89%      0.02s   0.9%  runtime.typePointers.next
+     0.01s  0.45% 92.34%      0.37s 16.67%  github.com/mgomes/vibescript/internal/runtime.bindFunctionsForCall
+     0.01s  0.45% 92.79%      0.05s  2.25%  runtime.bulkBarrierPreWrite
+     0.01s  0.45% 93.24%      0.02s   0.9%  runtime.deductAssistCredit
+     0.01s  0.45% 93.69%      0.02s   0.9%  runtime.findObject
+     0.01s  0.45% 94.14%      0.02s   0.9%  runtime.mallocgcSmallScanHeader
+     0.01s  0.45% 94.59%      0.02s   0.9%  runtime.newMarkBits
+     0.01s  0.45% 95.05%      0.05s  2.25%  runtime.wbBufFlush1
+         0     0% 95.05%      0.03s  1.35%  gcWriteBarrier
+         0     0% 95.05%      0.42s 18.92%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0% 95.05%      0.42s 18.92%  github.com/mgomes/vibescript/internal/runtime.BenchmarkCallManyUnusedFunctions
+         0     0% 95.05%      0.02s   0.9%  github.com/mgomes/vibescript/internal/runtime.newExecutionForCall
+         0     0% 95.05%      0.02s   0.9%  runtime.(*mcache).nextFree
+         0     0% 95.05%      0.02s   0.9%  runtime.(*mcache).refill
+         0     0% 95.05%      0.02s   0.9%  runtime.(*mcentral).cacheSpan
+         0     0% 95.05%      0.02s   0.9%  runtime.(*mcentral).grow
+         0     0% 95.05%      0.02s   0.9%  runtime.(*mheap).alloc
+         0     0% 95.05%      0.24s 10.81%  runtime.(*mheap).alloc.func1
+         0     0% 95.05%      0.24s 10.81%  runtime.(*mheap).allocSpan
+         0     0% 95.05%      0.02s   0.9%  runtime.(*mheap).initSpan
+         0     0% 95.05%      0.02s   0.9%  runtime.(*wbBuf).get2 (inline)
+         0     0% 95.05%      0.13s  5.86%  runtime.convT
+         0     0% 95.05%      0.78s 35.14%  runtime.gcMarkTermination.func3
+         0     0% 95.05%      0.80s 36.04%  runtime.gcStart.func4
+         0     0% 95.05%      0.03s  1.35%  runtime.heapSetTypeNoHeader (inline)
+         0     0% 95.05%      0.06s  2.70%  runtime.mallocgcSmallScanNoHeader
+         0     0% 95.05%      0.05s  2.25%  runtime.mapIterNext
+         0     0% 95.05%      1.58s 71.17%  runtime.netpoll
+         0     0% 95.05%      0.03s  1.35%  runtime.newobject
+         0     0% 95.05%      1.58s 71.17%  runtime.startTheWorldWithSema
+         0     0% 95.05%      0.22s  9.91%  runtime.sysUsed (inline)
+         0     0% 95.05%      0.22s  9.91%  runtime.sysUsedOS (inline)
+         0     0% 95.05%      1.88s 84.68%  runtime.systemstack
+         0     0% 95.05%      0.05s  2.25%  runtime.typedmemmove
+         0     0% 95.05%      0.05s  2.25%  runtime.wbBufFlush
+         0     0% 95.05%      0.05s  2.25%  runtime.wbBufFlush.func1
+         0     0% 95.05%      0.42s 18.92%  testing.(*B).launch
+         0     0% 95.05%      0.42s 18.92%  testing.(*B).runN

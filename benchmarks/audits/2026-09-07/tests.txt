@@ -1,0 +1,16 @@
+?   	github.com/mgomes/vibescript	[no test files]
+ok  	github.com/mgomes/vibescript/cmd/vibes	2.814s
+ok  	github.com/mgomes/vibescript/internal/ast	0.392s
+ok  	github.com/mgomes/vibescript/internal/capabilitydata	0.203s
+?   	github.com/mgomes/vibescript/internal/jobqueueoptions	[no test files]
+ok  	github.com/mgomes/vibescript/internal/parser	1.093s
+ok  	github.com/mgomes/vibescript/internal/runtime	37.503s
+ok  	github.com/mgomes/vibescript/internal/tools/analyze	1.165s
+ok  	github.com/mgomes/vibescript/vibes	0.912s
+ok  	github.com/mgomes/vibescript/vibes/capability/contextcap	0.200s
+ok  	github.com/mgomes/vibescript/vibes/capability/db	0.553s
+ok  	github.com/mgomes/vibescript/vibes/capability/events	0.380s
+ok  	github.com/mgomes/vibescript/vibes/capability/jobqueue	1.086s
+ok  	github.com/mgomes/vibescript/vibes/internal/capabilitycontract	0.692s
+ok  	github.com/mgomes/vibescript/vibes/source	1.251s
+ok  	github.com/mgomes/vibescript/vibes/value	0.928s

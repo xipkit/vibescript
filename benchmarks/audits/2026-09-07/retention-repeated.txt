@@ -1,0 +1,80 @@
+=== RUN   TestAuditJSONExtractRetainsDocument
+    audit_capability_benchmark_test.go:30: id token "x": input=524310 bytes output=1 bytes aliases input=true
+    audit_capability_benchmark_test.go:30: id token "\u0078": input=524315 bytes output=1 bytes aliases input=false
+--- PASS: TestAuditJSONExtractRetainsDocument (0.00s)
+=== RUN   TestAuditJSONKeyRetainsDocument
+    audit_capability_benchmark_test.go:51: key token "tiny": input=524310 bytes output=4 bytes aliases input=true
+    audit_capability_benchmark_test.go:51: key token "\u0074iny": input=524315 bytes output=4 bytes aliases input=false
+--- PASS: TestAuditJSONKeyRetainsDocument (0.00s)
+=== RUN   TestAuditJSONExtractRetainedHeap
+=== RUN   TestAuditJSONExtractRetainedHeap/"x"
+    audit_capability_benchmark_test.go:86: 32 calls, 524288-byte documents, 32 result bytes: retained heap delta=17047536 bytes
+=== RUN   TestAuditJSONExtractRetainedHeap/"\u0078"
+    audit_capability_benchmark_test.go:86: 32 calls, 524288-byte documents, 32 result bytes: retained heap delta=-1936 bytes
+--- PASS: TestAuditJSONExtractRetainedHeap (0.07s)
+    --- PASS: TestAuditJSONExtractRetainedHeap/"x" (0.04s)
+    --- PASS: TestAuditJSONExtractRetainedHeap/"\u0078" (0.03s)
+=== RUN   TestAuditMemoryPoppedEnvRetention
+=== RUN   TestAuditMemoryPoppedEnvRetention/one_call
+    audit_memory_benchmark_test.go:77: probe=1 active_envs=1 stale_envs=0 heap_before=1947584 heap_after=1944240 freed=3344
+    audit_memory_benchmark_test.go:77: probe=2 active_envs=1 stale_envs=6 heap_before=35545480 heap_after=1990552 freed=33554928
+=== RUN   TestAuditMemoryPoppedEnvRetention/descending_depths
+    audit_memory_benchmark_test.go:77: probe=1 active_envs=1 stale_envs=0 heap_before=1992216 heap_after=1988888 freed=3328
+    audit_memory_benchmark_test.go:77: probe=2 active_envs=1 stale_envs=36 heap_before=69119672 heap_after=2002856 freed=67116816
+--- PASS: TestAuditMemoryPoppedEnvRetention (0.33s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/one_call (0.11s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/descending_depths (0.22s)
+=== RUN   TestAuditJSONExtractRetainsDocument
+    audit_capability_benchmark_test.go:30: id token "x": input=524310 bytes output=1 bytes aliases input=true
+    audit_capability_benchmark_test.go:30: id token "\u0078": input=524315 bytes output=1 bytes aliases input=false
+--- PASS: TestAuditJSONExtractRetainsDocument (0.00s)
+=== RUN   TestAuditJSONKeyRetainsDocument
+    audit_capability_benchmark_test.go:51: key token "tiny": input=524310 bytes output=4 bytes aliases input=true
+    audit_capability_benchmark_test.go:51: key token "\u0074iny": input=524315 bytes output=4 bytes aliases input=false
+--- PASS: TestAuditJSONKeyRetainsDocument (0.00s)
+=== RUN   TestAuditJSONExtractRetainedHeap
+=== RUN   TestAuditJSONExtractRetainedHeap/"x"
+    audit_capability_benchmark_test.go:86: 32 calls, 524288-byte documents, 32 result bytes: retained heap delta=17036720 bytes
+=== RUN   TestAuditJSONExtractRetainedHeap/"\u0078"
+    audit_capability_benchmark_test.go:86: 32 calls, 524288-byte documents, 32 result bytes: retained heap delta=-2304 bytes
+--- PASS: TestAuditJSONExtractRetainedHeap (0.05s)
+    --- PASS: TestAuditJSONExtractRetainedHeap/"x" (0.03s)
+    --- PASS: TestAuditJSONExtractRetainedHeap/"\u0078" (0.03s)
+=== RUN   TestAuditMemoryPoppedEnvRetention
+=== RUN   TestAuditMemoryPoppedEnvRetention/one_call
+    audit_memory_benchmark_test.go:77: probe=1 active_envs=1 stale_envs=0 heap_before=1992712 heap_after=1989400 freed=3312
+    audit_memory_benchmark_test.go:77: probe=2 active_envs=1 stale_envs=6 heap_before=35546136 heap_after=1991192 freed=33554944
+=== RUN   TestAuditMemoryPoppedEnvRetention/descending_depths
+    audit_memory_benchmark_test.go:77: probe=1 active_envs=1 stale_envs=0 heap_before=1992856 heap_after=1989528 freed=3328
+    audit_memory_benchmark_test.go:77: probe=2 active_envs=1 stale_envs=36 heap_before=69120472 heap_after=2003656 freed=67116816
+--- PASS: TestAuditMemoryPoppedEnvRetention (0.33s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/one_call (0.11s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/descending_depths (0.21s)
+=== RUN   TestAuditJSONExtractRetainsDocument
+    audit_capability_benchmark_test.go:30: id token "x": input=524310 bytes output=1 bytes aliases input=true
+    audit_capability_benchmark_test.go:30: id token "\u0078": input=524315 bytes output=1 bytes aliases input=false
+--- PASS: TestAuditJSONExtractRetainsDocument (0.00s)
+=== RUN   TestAuditJSONKeyRetainsDocument
+    audit_capability_benchmark_test.go:51: key token "tiny": input=524310 bytes output=4 bytes aliases input=true
+    audit_capability_benchmark_test.go:51: key token "\u0074iny": input=524315 bytes output=4 bytes aliases input=false
+--- PASS: TestAuditJSONKeyRetainsDocument (0.00s)
+=== RUN   TestAuditJSONExtractRetainedHeap
+=== RUN   TestAuditJSONExtractRetainedHeap/"x"
+    audit_capability_benchmark_test.go:86: 32 calls, 524288-byte documents, 32 result bytes: retained heap delta=17036544 bytes
+=== RUN   TestAuditJSONExtractRetainedHeap/"\u0078"
+    audit_capability_benchmark_test.go:86: 32 calls, 524288-byte documents, 32 result bytes: retained heap delta=-2288 bytes
+--- PASS: TestAuditJSONExtractRetainedHeap (0.05s)
+    --- PASS: TestAuditJSONExtractRetainedHeap/"x" (0.03s)
+    --- PASS: TestAuditJSONExtractRetainedHeap/"\u0078" (0.03s)
+=== RUN   TestAuditMemoryPoppedEnvRetention
+=== RUN   TestAuditMemoryPoppedEnvRetention/one_call
+    audit_memory_benchmark_test.go:77: probe=1 active_envs=1 stale_envs=0 heap_before=1992952 heap_after=1989624 freed=3328
+    audit_memory_benchmark_test.go:77: probe=2 active_envs=1 stale_envs=6 heap_before=35546360 heap_after=1991416 freed=33554944
+=== RUN   TestAuditMemoryPoppedEnvRetention/descending_depths
+    audit_memory_benchmark_test.go:77: probe=1 active_envs=1 stale_envs=0 heap_before=1993080 heap_after=1989864 freed=3216
+    audit_memory_benchmark_test.go:77: probe=2 active_envs=1 stale_envs=36 heap_before=69120648 heap_after=2003832 freed=67116816
+--- PASS: TestAuditMemoryPoppedEnvRetention (0.33s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/one_call (0.11s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/descending_depths (0.22s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	1.560s

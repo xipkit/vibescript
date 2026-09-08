@@ -1,0 +1,37 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:26:48 EDT
+Showing nodes accounting for 1764.12MB, 98.27% of 1795.23MB total
+Dropped 75 nodes (cum <= 8.98MB)
+      flat  flat%   sum%        cum   cum%
+ 1574.57MB 87.71% 87.71%  1574.57MB 87.71%  github.com/mgomes/vibescript/internal/runtime.mutableStaticContainers
+   89.03MB  4.96% 92.67%   106.12MB  5.91%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).captureEvaluatedDestructureFactWithAuto
+   35.60MB  1.98% 94.65%  1612.67MB 89.83%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).bindLocalExactValueFact
+   18.17MB  1.01% 95.66%    18.17MB  1.01%  github.com/mgomes/vibescript/internal/runtime.collectBindingTarget
+   13.08MB  0.73% 96.39%    13.08MB  0.73%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).recordLiveLocalNames (inline)
+   11.59MB  0.65% 97.04%    11.59MB  0.65%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).pinExpressionFact (inline)
+   11.09MB  0.62% 97.65%    11.09MB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).advanceLocalBindingGeneration (inline)
+      10MB  0.56% 98.21%  1776.13MB 98.94%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkStatement
+    0.50MB 0.028% 98.24%  1787.20MB 99.55%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarningsWithGlobals
+    0.50MB 0.028% 98.27%  1785.70MB 99.47%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.func2.(*scriptChecker).checkFunction.1
+         0     0% 98.27%  1787.20MB 99.55%  github.com/mgomes/vibescript/internal/runtime.(*Script).CheckWarnings (inline)
+         0     0% 98.27%  1787.20MB 99.55%  github.com/mgomes/vibescript/internal/runtime.(*Script).CheckWarningsWithOptions (inline)
+         0     0% 98.27%  1787.20MB 99.55%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarnings (inline)
+         0     0% 98.27%  1787.20MB 99.55%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarningsMode
+         0     0% 98.27%  1615.67MB 90.00%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).bindExpressionLocalValueFact
+         0     0% 98.27%   106.12MB  5.91%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).captureEvaluatedDestructureFactWithExpectation
+         0     0% 98.27%  1785.70MB 99.47%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkFunction (inline)
+         0     0% 98.27%  1786.20MB 99.50%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript
+         0     0% 98.27%  1785.70MB 99.47%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.(*scriptChecker).withFreshRuntimeTypeRootForCallable.func7
+         0     0% 98.27%  1785.70MB 99.47%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.func2
+         0     0% 98.27%  1776.13MB 98.94%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkStatements
+         0     0% 98.27%  1636.34MB 91.15%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).inferAssignStatementTypes
+         0     0% 98.27%    13.08MB  0.73%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).predeclareStatementLiveNames
+         0     0% 98.27%    10.59MB  0.59%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).recordBindingTarget
+         0     0% 98.27%  1785.70MB 99.47%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshLocalInference
+         0     0% 98.27%  1786.20MB 99.50%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshRuntimeTypeRoot
+         0     0% 98.27%  1786.20MB 99.50%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshRuntimeTypeRootForCallable (inline)
+         0     0% 98.27%  1787.20MB 99.55%  github.com/mgomes/vibescript/internal/runtime.BenchmarkAuditCheckerScaling.func1
+         0     0% 98.27%  1574.57MB 87.71%  github.com/mgomes/vibescript/internal/runtime.staticValueMutableRelationships
+         0     0% 98.27%  1783.70MB 99.36%  testing.(*B).launch
+         0     0% 98.27%  1787.20MB 99.55%  testing.(*B).runN

@@ -1,0 +1,61 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:21:38 EDT
+Showing nodes accounting for 4.37GB, 99.59% of 4.39GB total
+Dropped 51 nodes (cum <= 0.02GB)
+      flat  flat%   sum%        cum   cum%
+    0.89GB 20.31% 20.31%     0.89GB 20.31%  maps.clone
+    0.89GB 20.25% 40.57%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).cloneMap
+    0.81GB 18.55% 59.11%     0.81GB 18.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).remember
+    0.71GB 16.29% 75.40%     0.71GB 16.29%  slices.Clone[go.shape.[]github.com/mgomes/vibescript/vibes/value.Value,go.shape.struct { github.com/mgomes/vibescript/vibes/value.kind github.com/mgomes/vibescript/vibes/value.ValueKind; github.com/mgomes/vibescript/vibes/value.data interface {}; github.com/mgomes/vibescript/vibes/value.scalar uint64 }] (inline)
+    0.31GB  7.12% 82.52%     0.31GB  7.12%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).stringPayloadSize
+    0.22GB  5.06% 87.58%     0.22GB  5.06%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).admit
+    0.17GB  3.89% 91.48%     0.17GB  3.89%  github.com/mgomes/vibescript/vibes/value.NewHashWithTrustedOrder
+    0.12GB  2.69% 94.17%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+    0.10GB  2.39% 96.56%     0.10GB  2.39%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hashWrapperBytes
+    0.06GB  1.33% 97.89%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).cloneArray
+    0.06GB  1.32% 99.21%     1.38GB 31.40%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataValue
+    0.02GB  0.39% 99.59%     0.03GB  0.61%  github.com/mgomes/vibescript/internal/runtime.capabilityBenchRows
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).Clone (inline)
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).CloneWithOptions
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).Hash
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).clone
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*Execution).beginBaseWalk
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemory (inline)
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryMetered
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*Execution).envStackGraphBytes
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateGraphBaseFast
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateMemoryUsage
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalCallExpr
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpression (inline)
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithAuto
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalLocalScopeStatements (inline)
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalMemberCallExpr
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatement
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatementWithLocalBindings
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatements
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*Execution).invokeCallable
+         0     0% 99.59%     4.35GB 99.22%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0% 99.59%     1.38GB 31.40%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).fastCopyInbound
+         0     0% 99.59%     1.38GB 31.40%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).rebindInboundValue
+         0     0% 99.59%     1.38GB 31.40%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).rebindValues
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.(*dbCapabilityAdapter).Bind.(*dbCapabilityAdapter).wrapCall.func3
+         0     0% 99.59%     0.22GB  5.06%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).scan
+         0     0% 99.59%     0.22GB  5.06%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).scanTopLevel (inline)
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).env
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).inlineBindingValue
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).value
+         0     0% 99.59%     0.54GB 12.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).valuePayload (inline)
+         0     0% 99.59%     4.38GB 99.83%  github.com/mgomes/vibescript/internal/runtime.BenchmarkCapabilityContractLargeArgs.func1
+         0     0% 99.59%     1.38GB 31.40%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataEntries
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/internal/runtime.executeFunctionForCall
+         0     0% 99.59%     1.91GB 43.60%  github.com/mgomes/vibescript/internal/runtime.prepareCallEnvForFunction
+         0     0% 99.59%     0.22GB  5.06%  github.com/mgomes/vibescript/internal/runtime.scanInboundCallValues
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/vibes/capability/db.(*Capability).CallUpdate
+         0     0% 99.59%     2.22GB 50.55%  github.com/mgomes/vibescript/vibes/capability/db.(*Capability).callUpdateValidated
+         0     0% 99.59%     0.71GB 16.29%  github.com/mgomes/vibescript/vibes/value.Value.HashKeyOrder
+         0     0% 99.59%     0.89GB 20.31%  maps.Clone[go.shape.map[string]github.com/mgomes/vibescript/vibes/value.Value,go.shape.string,go.shape.struct { github.com/mgomes/vibescript/vibes/value.kind github.com/mgomes/vibescript/vibes/value.ValueKind; github.com/mgomes/vibescript/vibes/value.data interface {}; github.com/mgomes/vibescript/vibes/value.scalar uint64 }] (inline)
+         0     0% 99.59%     4.36GB 99.23%  testing.(*B).launch
+         0     0% 99.59%     0.03GB   0.6%  testing.(*B).run1.func1
+         0     0% 99.59%     4.38GB 99.83%  testing.(*B).runN

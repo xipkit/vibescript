@@ -1,0 +1,9 @@
+timestamp=20260908T002133Z
+pattern=^BenchmarkCapabilityContractLargeArgs/rows_10000$
+package=./internal/runtime
+benchtime=2s
+count=1
+cpu=1
+go_version=go version go1.26.3 darwin/arm64
+git_commit=6e9710c4
+command=go test ./internal/runtime -run ^$ -bench ^BenchmarkCapabilityContractLargeArgs/rows_10000$ -benchmem -count 1 -benchtime 2s -cpu 1 -cpuprofile /tmp/vibescript-perf-evidence-20260907/capability/cpu.out -memprofile /tmp/vibescript-perf-evidence-20260907/capability/mem.out

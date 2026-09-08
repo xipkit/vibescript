@@ -1,0 +1,22 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:26:50 EDT
+Showing nodes accounting for 1508.19MB, 98.94% of 1524.28MB total
+Dropped 60 nodes (cum <= 7.62MB)
+      flat  flat%   sum%        cum   cum%
+  868.71MB 56.99% 56.99%  1102.24MB 72.31%  github.com/mgomes/vibescript/internal/runtime.cloneClassesForCall
+  233.53MB 15.32% 72.31%   233.53MB 15.32%  github.com/mgomes/vibescript/internal/runtime.cloneFunctionForEnv (inline)
+  172.60MB 11.32% 83.64%   172.60MB 11.32%  github.com/mgomes/vibescript/internal/runtime.newEnvWithCapacity (inline)
+  124.29MB  8.15% 91.79%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).value
+  109.05MB  7.15% 98.94%   109.05MB  7.15%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*Execution).beginBaseWalk
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemory (inline)
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryMetered
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateGraphBaseFast
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateMemoryUsage
+         0     0% 98.94%  1514.70MB 99.37%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).env
+         0     0% 98.94%   233.34MB 15.31%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).mapBindingValue
+         0     0% 98.94%  1520.23MB 99.73%  github.com/mgomes/vibescript/internal/runtime.BenchmarkAuditUnusedDeclarations.func1
+         0     0% 98.94%  1518.71MB 99.63%  testing.(*B).launch
+         0     0% 98.94%  1520.23MB 99.73%  testing.(*B).runN

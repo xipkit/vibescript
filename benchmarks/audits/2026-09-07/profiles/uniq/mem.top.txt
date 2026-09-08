@@ -1,0 +1,66 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:21:31 EDT
+Showing nodes accounting for 82.96MB, 100% of 82.96MB total
+Showing top 60 nodes out of 125
+      flat  flat%   sum%        cum   cum%
+      62MB 74.74% 74.74%       62MB 74.74%  github.com/mgomes/vibescript/vibes/value.sortedMapKeys[go.shape.struct { github.com/mgomes/vibescript/vibes/value.kind github.com/mgomes/vibescript/vibes/value.ValueKind; github.com/mgomes/vibescript/vibes/value.data interface {}; github.com/mgomes/vibescript/vibes/value.scalar uint64 }]
+       4MB  4.82% 79.56%        4MB  4.82%  maps.clone
+    2.07MB  2.49% 82.06%     5.07MB  6.11%  github.com/mgomes/vibescript/internal/runtime.cloneHostHashValue
+    1.50MB  1.81% 83.87%     1.50MB  1.81%  github.com/mgomes/vibescript/internal/runtime.benchmarkCompositeRows
+    1.50MB  1.81% 85.68%     1.50MB  1.81%  github.com/mgomes/vibescript/vibes/value.Value.hashSetInternal
+    1.02MB  1.23% 86.91%     6.09MB  7.34%  github.com/mgomes/vibescript/internal/runtime.cloneValueForHostWithState
+    1.02MB  1.23% 88.13%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.uniqueValuesMetered
+    1.01MB  1.21% 89.35%     1.01MB  1.21%  fmt.Sprintf
+       1MB  1.21% 90.55%        1MB  1.21%  github.com/mgomes/vibescript/vibes/value.NewHashWithCapacity (inline)
+    0.88MB  1.06% 91.61%     1.41MB  1.70%  compress/flate.NewWriter (inline)
+    0.81MB  0.98% 92.59%     0.81MB  0.98%  pgregory.net/rapid.expandRangeTable
+    0.57MB  0.68% 93.27%     0.57MB  0.68%  runtime/pprof.StartCPUProfile
+    0.53MB  0.64% 93.91%     0.53MB  0.64%  compress/flate.newDeflateFast (inline)
+    0.51MB  0.62% 94.53%     0.51MB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).stringPayloadSize
+    0.51MB  0.61% 95.15%     4.51MB  5.44%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataValue
+    0.51MB  0.61% 95.76%     0.51MB  0.61%  github.com/mgomes/vibescript/internal/runtime.buildStaticMemberSpecs
+    0.51MB  0.61% 96.38%     0.51MB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).admit
+    0.50MB  0.61% 96.98%     0.50MB  0.61%  runtime/pprof.(*profMap).lookup
+    0.50MB   0.6% 97.59%     0.50MB   0.6%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hashWrapperBytes
+    0.50MB   0.6% 98.19%     0.50MB   0.6%  regexp/syntax.appendRange
+    0.50MB   0.6% 98.79%     0.50MB   0.6%  runtime.mallocgc
+    0.50MB   0.6% 99.40%     0.50MB   0.6%  github.com/mgomes/vibescript/vibes/value.Value.HashEntriesInto
+    0.50MB   0.6%   100%     0.50MB   0.6%  text/template/parse.(*ListNode).append
+         0     0%   100%     0.53MB  0.64%  compress/flate.(*compressor).init
+         0     0%   100%     1.41MB  1.70%  compress/gzip.(*Writer).Write
+         0     0%   100%     0.50MB   0.6%  github.com/google/go-cmp/cmp.init
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).autoInvokeIfNeeded
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*Execution).beginBaseWalk
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemory (inline)
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryMetered
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*Execution).envStackGraphBytes
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateGraphBaseFast
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*Execution).estimateMemoryUsage
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpression (inline)
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithAuto
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalLocalScopeStatements (inline)
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatement
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatementWithLocalBindings
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatements
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).finishMemberExpr
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*Execution).invokeCallable
+         0     0%   100%    75.15MB 90.58%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0%   100%     4.51MB  5.44%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).fastCopyInbound
+         0     0%   100%     4.51MB  5.44%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).rebindInboundValue
+         0     0%   100%     4.51MB  5.44%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).rebindValues
+         0     0%   100%     0.51MB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).scan
+         0     0%   100%     0.51MB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).scanTopLevel (inline)
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.(*memberTable).buildAll.guardMemberReceiver.func1
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).env
+         0     0%   100%     0.51MB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).inlineBindingValue
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).value
+         0     0%   100%     1.01MB  1.22%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).valuePayload (inline)
+         0     0%   100%       62MB 74.74%  github.com/mgomes/vibescript/internal/runtime.(*valueSet).addCounted
+         0     0%   100%    76.65MB 92.39%  github.com/mgomes/vibescript/internal/runtime.BenchmarkArrayUniqCompositeRows
+         0     0%   100%        1MB  1.21%  github.com/mgomes/vibescript/internal/runtime.NewHashWithCapacity (inline)
+         0     0%   100%     0.57MB  0.68%  github.com/mgomes/vibescript/internal/runtime.TestMain
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.arrayMemberTransforms.func6
+         0     0%   100%    63.02MB 75.97%  github.com/mgomes/vibescript/internal/runtime.arrayUniq

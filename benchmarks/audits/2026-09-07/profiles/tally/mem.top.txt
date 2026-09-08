@@ -1,0 +1,30 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:21:42 EDT
+Showing nodes accounting for 3.23GB, 99.17% of 3.26GB total
+Dropped 62 nodes (cum <= 0.02GB)
+      flat  flat%   sum%        cum   cum%
+    1.93GB 59.10% 59.10%     1.93GB 59.10%  github.com/mgomes/vibescript/vibes/value.NewHashWithCapacity (inline)
+    1.31GB 40.07% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.arrayMemberGrouping.func6
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).autoInvokeIfNeeded
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalAssignmentValue (inline)
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalAssignmentValueWithExpectation
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithAuto
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithExpectation
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalForLoop
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalForStatement (inline)
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalLocalScopeStatements (inline)
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatement
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatementWithLocalBindings
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatements
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).finishMemberExpr
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*Execution).invokeCallable
+         0     0% 99.17%     3.25GB 99.85%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0% 99.17%     3.23GB 99.17%  github.com/mgomes/vibescript/internal/runtime.(*memberTable).buildAll.guardMemberReceiver.func1
+         0     0% 99.17%     3.25GB 99.85%  github.com/mgomes/vibescript/internal/runtime.BenchmarkExecutionTallyUniqueLoop
+         0     0% 99.17%     1.93GB 59.10%  github.com/mgomes/vibescript/internal/runtime.NewHashWithCapacity (inline)
+         0     0% 99.17%     3.25GB 99.85%  github.com/mgomes/vibescript/internal/runtime.benchmarkExecutionTallyLoop
+         0     0% 99.17%     3.23GB 99.18%  github.com/mgomes/vibescript/internal/runtime.executeFunctionForCall
+         0     0% 99.17%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.prepareCallEnvForFunction
+         0     0% 99.17%     3.24GB 99.48%  testing.(*B).launch
+         0     0% 99.17%     3.25GB 99.85%  testing.(*B).runN

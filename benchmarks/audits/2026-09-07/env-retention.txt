@@ -1,0 +1,12 @@
+=== RUN   TestAuditMemoryPoppedEnvRetention
+=== RUN   TestAuditMemoryPoppedEnvRetention/one_call
+    audit_memory_benchmark_test.go:75: probe=1 active_envs=1 stale_envs=0 heap_before=1933040 heap_after=1920432 freed=12608
+    audit_memory_benchmark_test.go:75: probe=2 active_envs=1 stale_envs=6 heap_before=35526944 heap_after=1972016 freed=33554928
+=== RUN   TestAuditMemoryPoppedEnvRetention/descending_depths
+    audit_memory_benchmark_test.go:75: probe=1 active_envs=1 stale_envs=0 heap_before=1973696 heap_after=1970368 freed=3328
+    audit_memory_benchmark_test.go:75: probe=2 active_envs=1 stale_envs=36 heap_before=69106600 heap_after=1989784 freed=67116816
+--- PASS: TestAuditMemoryPoppedEnvRetention (0.26s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/one_call (0.09s)
+    --- PASS: TestAuditMemoryPoppedEnvRetention/descending_depths (0.17s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.634s

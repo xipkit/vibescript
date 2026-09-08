@@ -1,0 +1,60 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq         	      26	   4650617 ns/op	 1329713 B/op	   21773 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq         	      32	   4782741 ns/op	 1329698 B/op	   21773 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq         	      32	   4659898 ns/op	 1329698 B/op	   21773 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq_do_|row|_row_end         	      12	   8894684 ns/op	 2285744 B/op	   41679 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq_do_|row|_row_end         	      13	   9028266 ns/op	 2285727 B/op	   41679 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq_do_|row|_row_end         	      12	   9241354 ns/op	 2285746 B/op	   41679 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq_do_|row|_row[:id]_end    	     439	    272664 ns/op	  388517 B/op	    1872 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq_do_|row|_row[:id]_end    	     447	    258782 ns/op	  388517 B/op	    1872 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=200/values.uniq_do_|row|_row[:id]_end    	     470	    257312 ns/op	  388516 B/op	    1872 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq                          	       6	  18820139 ns/op	 4576097 B/op	   83480 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq                          	       6	  18806632 ns/op	 4576097 B/op	   83480 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq                          	       6	  18949729 ns/op	 4576097 B/op	   83480 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq_do_|row|_row_end         	       3	  35587861 ns/op	 8407586 B/op	  163287 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq_do_|row|_row_end         	       3	  34945125 ns/op	 8407586 B/op	  163287 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq_do_|row|_row_end         	       3	  35373347 ns/op	 8407586 B/op	  163287 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq_do_|row|_row[:id]_end    	     242	    488689 ns/op	  773769 B/op	    3678 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq_do_|row|_row[:id]_end    	     236	    489582 ns/op	  773769 B/op	    3678 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=400/values.uniq_do_|row|_row[:id]_end    	     244	    481876 ns/op	  773769 B/op	    3678 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq                          	       2	  70630708 ns/op	16828852 B/op	  326892 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq                          	       2	  72554584 ns/op	16828852 B/op	  326892 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq                          	       2	  72182250 ns/op	16828852 B/op	  326892 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq_do_|row|_row_end         	       1	 137499750 ns/op	32171448 B/op	  646501 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq_do_|row|_row_end         	       1	 145573125 ns/op	32171448 B/op	  646501 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq_do_|row|_row_end         	       1	 142046209 ns/op	32171448 B/op	  646501 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq_do_|row|_row[:id]_end    	     100	   1003968 ns/op	 1548198 B/op	    7287 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq_do_|row|_row[:id]_end    	     121	    941433 ns/op	 1548195 B/op	    7287 allocs/op
+BenchmarkAuditCompositeUniq/quota=-1/n=800/values.uniq_do_|row|_row[:id]_end    	     127	    942064 ns/op	 1548194 B/op	    7287 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq                    	       6	  18205111 ns/op	 1370814 B/op	   21842 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq                    	       6	  18899222 ns/op	 1370814 B/op	   21842 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq                    	       6	  18580632 ns/op	 1370814 B/op	   21842 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq_do_|row|_row_end   	       2	  50335292 ns/op	 2360628 B/op	   41795 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq_do_|row|_row_end   	       2	  50952979 ns/op	 2360628 B/op	   41795 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq_do_|row|_row_end   	       2	  51983542 ns/op	 2360628 B/op	   41795 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq_do_|row|_row[:id]_end         	       4	  28388427 ns/op	  462958 B/op	    1986 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq_do_|row|_row[:id]_end         	       4	  28993573 ns/op	  462958 B/op	    1986 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=200/values.uniq_do_|row|_row[:id]_end         	       4	  25646833 ns/op	  462958 B/op	    1986 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq                               	       1	 109295750 ns/op	 4651600 B/op	   83560 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq                               	       1	 116570333 ns/op	 4651600 B/op	   83560 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq                               	       1	 102191750 ns/op	 4651600 B/op	   83560 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq_do_|row|_row_end              	       1	 250856917 ns/op	 8548400 B/op	  163417 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq_do_|row|_row_end              	       1	 255957291 ns/op	 8548400 B/op	  163417 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq_do_|row|_row_end              	       1	 260658000 ns/op	 8548400 B/op	  163417 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq_do_|row|_row[:id]_end         	       1	 101315042 ns/op	  915272 B/op	    3809 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq_do_|row|_row[:id]_end         	       1	 101775083 ns/op	  915272 B/op	    3809 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=400/values.uniq_do_|row|_row[:id]_end         	       1	 100789250 ns/op	  915272 B/op	    3809 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq                               	       1	 687676250 ns/op	16967872 B/op	  326976 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq                               	       1	 684626042 ns/op	16967872 B/op	  326976 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq                               	       1	 698122584 ns/op	16967872 B/op	  326976 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq_do_|row|_row_end              	       1	1548924125 ns/op	32439296 B/op	  646639 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq_do_|row|_row_end              	       1	1564469292 ns/op	32439296 B/op	  646639 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq_do_|row|_row_end              	       1	1563341334 ns/op	32439296 B/op	  646639 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq_do_|row|_row[:id]_end         	       1	 422234083 ns/op	 1818136 B/op	    7430 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq_do_|row|_row[:id]_end         	       1	 435186500 ns/op	 1818152 B/op	    7430 allocs/op
+BenchmarkAuditCompositeUniq/quota=67108864/n=800/values.uniq_do_|row|_row[:id]_end         	       1	 439450458 ns/op	 1818152 B/op	    7430 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	16.014s

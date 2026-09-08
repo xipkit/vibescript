@@ -1,0 +1,18 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditMemoryUnrelatedMutation/rows=1000/unrelated_mutation=false         	13863582	        17.35 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=1000/unrelated_mutation=false         	13940857	        17.42 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=1000/unrelated_mutation=false         	13881423	        17.31 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=1000/unrelated_mutation=true          	    1495	    161180 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=1000/unrelated_mutation=true          	    1490	    161240 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=1000/unrelated_mutation=true          	    1453	    165453 ns/op	      6005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=10000/unrelated_mutation=false        	13194451	        17.75 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=10000/unrelated_mutation=false        	13382523	        17.89 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=10000/unrelated_mutation=false        	12806613	        19.17 ns/op	         0 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=10000/unrelated_mutation=true         	     129	   1806088 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=10000/unrelated_mutation=true         	     126	   1836829 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+BenchmarkAuditMemoryUnrelatedMutation/rows=10000/unrelated_mutation=true         	     128	   1784276 ns/op	     60005 nodes/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	4.588s

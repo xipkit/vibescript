@@ -1,0 +1,24 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:21:45 EDT
+Showing nodes accounting for 3.41GB, 99.62% of 3.42GB total
+Dropped 60 nodes (cum <= 0.02GB)
+      flat  flat%   sum%        cum   cum%
+    2.34GB 68.47% 68.47%     2.34GB 68.47%  github.com/mgomes/vibescript/internal/runtime.(*Env).growStatics (inline)
+    0.54GB 15.81% 84.28%     0.54GB 15.81%  github.com/mgomes/vibescript/internal/runtime.bindFunctionsForCall
+    0.41GB 12.02% 96.30%     0.41GB 12.02%  github.com/mgomes/vibescript/internal/runtime.newExecutionForCall
+    0.09GB  2.71% 99.01%     0.09GB  2.71%  github.com/mgomes/vibescript/internal/runtime.newEnvWithCapacity (inline)
+    0.02GB  0.61% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.cloneFunctionForEnv (inline)
+         0     0% 99.62%     2.34GB 68.47%  github.com/mgomes/vibescript/internal/runtime.(*Engine).attachBuiltins
+         0     0% 99.62%     2.34GB 68.47%  github.com/mgomes/vibescript/internal/runtime.(*Engine).bindBuiltinsLocked (inline)
+         0     0% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*Env).Get (inline)
+         0     0% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*Env).getBoundValue
+         0     0% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*Env).getWithScope
+         0     0% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.(*Env).materializeStatic
+         0     0% 99.62%     3.41GB 99.77%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0% 99.62%     3.41GB 99.81%  github.com/mgomes/vibescript/internal/runtime.BenchmarkCallManyUnusedFunctions
+         0     0% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.callFunctionBinding.materialize
+         0     0% 99.62%     0.02GB  0.61%  github.com/mgomes/vibescript/internal/runtime.materializeCallFunction
+         0     0% 99.62%     0.05GB  1.38%  github.com/mgomes/vibescript/internal/runtime.prepareCallEnvForFunction
+         0     0% 99.62%     3.41GB 99.80%  testing.(*B).launch
+         0     0% 99.62%     3.41GB 99.81%  testing.(*B).runN

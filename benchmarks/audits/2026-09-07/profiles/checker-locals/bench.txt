@@ -1,0 +1,7 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditCheckerScaling/locals/400         	     336	   3458669 ns/op	 4390252 B/op	   84369 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	1.843s

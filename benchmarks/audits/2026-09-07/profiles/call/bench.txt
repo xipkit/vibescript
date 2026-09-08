@@ -1,0 +1,7 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallManyUnusedFunctions 	  174411	     12586 ns/op	   19816 B/op	     211 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	2.655s

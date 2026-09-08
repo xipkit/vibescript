@@ -1,0 +1,123 @@
+# Vibescript benchmark run
+# timestamp: 2026-09-08T00:20:28Z
+# git_commit: 6e9710c4
+# go_version: go version go1.26.3 darwin/arm64
+# package: ./internal/runtime
+# bench_pattern: ^Benchmark
+# count: 1
+# benchtime: 100ms
+# cpu: 1
+# command: go test ./internal/runtime -run ^$ -bench ^Benchmark -benchmem -count 1 -benchtime 100ms -cpu 1
+
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCapabilityContractLargeReturn/rows_100       	     691	    149327 ns/op	  142824 B/op	     572 allocs/op
+BenchmarkCapabilityContractLargeReturn/rows_1000      	      76	   1524656 ns/op	 1641768 B/op	    4223 allocs/op
+BenchmarkCapabilityContractLargeReturn/rows_10000     	       7	  15829208 ns/op	14507272 B/op	   40515 allocs/op
+BenchmarkJobQueueCapabilityLargeReturn/rows_100       	     645	    181360 ns/op	  173040 B/op	     546 allocs/op
+BenchmarkJobQueueCapabilityLargeReturn/rows_1000      	      63	   1878156 ns/op	 2163680 B/op	    4208 allocs/op
+BenchmarkJobQueueCapabilityLargeReturn/rows_10000     	       6	  19701764 ns/op	18700325 B/op	   40559 allocs/op
+BenchmarkCapabilityContractLargeArgs/rows_100         	     582	    200401 ns/op	  221432 B/op	     978 allocs/op
+BenchmarkCapabilityContractLargeArgs/rows_1000        	      57	   2054756 ns/op	 2522088 B/op	    8247 allocs/op
+BenchmarkCapabilityContractLargeArgs/rows_10000       	       5	  22144092 ns/op	23052936 B/op	   80654 allocs/op
+BenchmarkCapabilityContractDeepNestedReturn           	     346	    341305 ns/op	  328455 B/op	    1183 allocs/op
+BenchmarkDeepNestingUnderQuota/depth-500              	      37	   3165378 ns/op	   73475 B/op	    1034 allocs/op
+BenchmarkDeepNestingUnderQuota/depth-1000             	       9	  11920824 ns/op	  142627 B/op	    2039 allocs/op
+BenchmarkDeepNestingUnderQuota/depth-2000             	       3	  48240056 ns/op	  281066 B/op	    4050 allocs/op
+BenchmarkDeepNestingUnquotaed/depth-500               	     859	    144667 ns/op	   35890 B/op	    1016 allocs/op
+BenchmarkDeepNestingUnquotaed/depth-1000              	     427	    289897 ns/op	   67892 B/op	    2016 allocs/op
+BenchmarkDeepNestingUnquotaed/depth-2000              	     210	    575375 ns/op	  131898 B/op	    4016 allocs/op
+BenchmarkExecutionArithmeticLoop                      	    1291	     97349 ns/op	    3769 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline                       	     162	    724546 ns/op	   78264 B/op	      52 allocs/op
+BenchmarkExecutionEachRowsScalarAccumulator           	     122	    968173 ns/op	  558820 B/op	    2482 allocs/op
+BenchmarkExecutionGroupByHashRowsLowCardinality       	      85	   1528800 ns/op	 1291741 B/op	    5574 allocs/op
+BenchmarkExecutionGroupByStableHashRowsLowCardinality 	      84	   1506499 ns/op	 1291157 B/op	    5580 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality     	      86	   1484911 ns/op	 1269741 B/op	    5549 allocs/op
+BenchmarkExecutionHashTransformValuesLoop             	     272	    427736 ns/op	  203057 B/op	      51 allocs/op
+BenchmarkExecutionArrayPushAccumulation               	     187	    644630 ns/op	   67157 B/op	     828 allocs/op
+BenchmarkExecutionArrayConcatAccumulation             	     140	    833335 ns/op	   80369 B/op	    1231 allocs/op
+BenchmarkExecutionMethodDispatchLoop                  	     272	    480401 ns/op	    6945 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop                  	     100	   1329385 ns/op	  492825 B/op	    6709 allocs/op
+BenchmarkExecutionJSONParseLoop                       	     433	    284223 ns/op	   89197 B/op	    1317 allocs/op
+BenchmarkExecutionJSONStringifyLoop                   	     187	    639494 ns/op	   53509 B/op	     520 allocs/op
+BenchmarkExecutionRegexReplaceAllLoop                 	     476	    287171 ns/op	   29790 B/op	     989 allocs/op
+BenchmarkExecutionTallyLoop                           	      55	   2085965 ns/op	  203508 B/op	     675 allocs/op
+BenchmarkExecutionTallyUniqueLoop                     	      10	  10597458 ns/op	10467527 B/op	     850 allocs/op
+BenchmarkExecutionRecursiveFib                        	      16	   6783724 ns/op	   21044 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota                   	       5	  21626692 ns/op	   24678 B/op	      96 allocs/op
+BenchmarkExecutionEachRowsPureBody                    	      87	   1388650 ns/op	 1251004 B/op	    5538 allocs/op
+BenchmarkExecutionMapRowsPureBody                     	     100	   1223468 ns/op	  655769 B/op	    2532 allocs/op
+BenchmarkExecutionMapRowsScalarAccumulator            	     100	   1491058 ns/op	  655553 B/op	    2529 allocs/op
+BenchmarkExecutionHashEachHostBuilt                   	     159	    768823 ns/op	  218519 B/op	      41 allocs/op
+BenchmarkExecutionHashEachHostBuiltAccumulator        	      46	   2564671 ns/op	 1123062 B/op	    4107 allocs/op
+BenchmarkExecutionHashSelectHostBuilt                 	     138	    883801 ns/op	  366154 B/op	      49 allocs/op
+BenchmarkExecutionHashTransformValuesTyped            	     152	    791917 ns/op	  366984 B/op	      55 allocs/op
+BenchmarkExecutionHashSelectTyped                     	     133	    888282 ns/op	  366154 B/op	      49 allocs/op
+BenchmarkExecutionHashTransformKeysHostBuilt          	     100	   1136146 ns/op	  513393 B/op	    3081 allocs/op
+BenchmarkExecutionHashTransformKeysTyped              	     100	   1157486 ns/op	  513393 B/op	    3081 allocs/op
+BenchmarkCombineErrors                                	470408372	         0.2635 ns/op	       0 B/op	       0 allocs/op
+BenchmarkJSONMaterialization/array/512                	    9063	     13101 ns/op	   40176 B/op	      16 allocs/op
+BenchmarkJSONMaterialization/array/1024               	    5016	     24458 ns/op	   72944 B/op	      17 allocs/op
+BenchmarkJSONMaterialization/object/512               	    1678	     70047 ns/op	  159576 B/op	     543 allocs/op
+BenchmarkJSONMaterialization/object/1024              	     855	    140154 ns/op	  315304 B/op	    1061 allocs/op
+BenchmarkJSONMaterialization/escaped/512              	    3471	     35347 ns/op	   56560 B/op	    1552 allocs/op
+BenchmarkJSONMaterialization/escaped/1024             	    1717	     69789 ns/op	  105712 B/op	    3089 allocs/op
+BenchmarkArrayOfHashesBuildUnderQuota/n=250           	     237	    494951 ns/op	  241546 B/op	    2312 allocs/op
+BenchmarkArrayOfHashesBuildUnderQuota/n=500           	     120	   1000025 ns/op	  476916 B/op	    4567 allocs/op
+BenchmarkArrayOfHashesBuildUnderQuota/n=1000          	      81	   1983484 ns/op	  943582 B/op	    9078 allocs/op
+BenchmarkArrayOfHashesBuildUnderQuota/n=2000          	      28	   4238228 ns/op	 1934296 B/op	   18098 allocs/op
+BenchmarkArrayOfHashesBuildUnquotaed/n=250            	     625	    187579 ns/op	  186867 B/op	    2023 allocs/op
+BenchmarkArrayOfHashesBuildUnquotaed/n=500            	     328	    356084 ns/op	  369302 B/op	    4024 allocs/op
+BenchmarkArrayOfHashesBuildUnquotaed/n=1000           	     165	    723605 ns/op	  730076 B/op	    8025 allocs/op
+BenchmarkArrayOfHashesBuildUnquotaed/n=2000           	     100	   1500901 ns/op	 1508965 B/op	   16027 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=250                 	     202	    604005 ns/op	  119124 B/op	    1602 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=500                 	     100	   1179966 ns/op	  236545 B/op	    3355 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=1000                	      58	   2385255 ns/op	  467300 B/op	    6861 allocs/op
+BenchmarkHashReadLoopUnderQuota/n=2000                	      30	   4708862 ns/op	  987759 B/op	   13872 allocs/op
+BenchmarkArrayReadLoopUnderQuota/n=250                	     351	    365098 ns/op	   31751 B/op	     280 allocs/op
+BenchmarkArrayReadLoopUnderQuota/n=500                	     164	    739286 ns/op	   58191 B/op	     531 allocs/op
+BenchmarkArrayReadLoopUnderQuota/n=1000               	      91	   1457385 ns/op	  106971 B/op	    1032 allocs/op
+BenchmarkArrayReadLoopUnderQuota/n=2000               	      48	   2817332 ns/op	  261875 B/op	    2034 allocs/op
+BenchmarkCompileControlFlowWorkload                   	    9010	     18665 ns/op	   14745 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                         	    5002	     26884 ns/op	   19001 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                       	     418	    295707 ns/op	  248856 B/op	    2221 allocs/op
+BenchmarkCallShortScript                              	   99271	      1120 ns/op	    3408 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions                      	    8526	     13751 ns/op	   19816 B/op	     211 allocs/op
+BenchmarkCallControlFlowWorkload                      	    1720	     81143 ns/op	   15489 B/op	     169 allocs/op
+BenchmarkExecutionStepLoop                            	      70	   1665720 ns/op	    3747 B/op	      12 allocs/op
+BenchmarkBuiltinMemberDispatchLoop                    	     301	    422494 ns/op	    4864 B/op	      23 allocs/op
+BenchmarkCallTypedCompositeValidation                 	     236	    494440 ns/op	   84562 B/op	     548 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop              	      46	   2873907 ns/op	  920958 B/op	   11364 allocs/op
+BenchmarkExecutionTimeParseFormatLoop                 	    1230	    114962 ns/op	   11834 B/op	     348 allocs/op
+BenchmarkExecutionStringNormalizeLoop                 	     478	    244148 ns/op	   60517 B/op	    1544 allocs/op
+BenchmarkStringLengthLoopASCII                        	     435	    293765 ns/op	    4525 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode                      	     255	    472681 ns/op	    4529 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII                         	     400	    317484 ns/op	    4558 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode                       	     120	    982759 ns/op	    4572 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII                        	     249	    486597 ns/op	    4561 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode                      	      49	   2564048 ns/op	    4602 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII                         	     352	    347468 ns/op	    8575 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode                       	     163	    732601 ns/op	    9383 B/op	     419 allocs/op
+BenchmarkExecutionStringTemplateManyPlaceholders      	      45	   2628798 ns/op	   35918 B/op	     149 allocs/op
+BenchmarkStringTemplateMalformedOpeners               	    3319	     37734 ns/op	    8448 B/op	       2 allocs/op
+BenchmarkArrayIncludeCompositeRowsMiss                	     182	    653795 ns/op	  622653 B/op	    3097 allocs/op
+BenchmarkArrayCountCompositeRowsMiss                  	      28	   5066330 ns/op	  622728 B/op	    3097 allocs/op
+BenchmarkArrayUniqCompositeRows                       	       1	 322022500 ns/op	 9950720 B/op	  185276 allocs/op
+BenchmarkExecutionHashTransformLoop                   	      90	   1612289 ns/op	  403716 B/op	    3244 allocs/op
+BenchmarkModuleRequireCacheHit                        	   19677	      6131 ns/op	    6592 B/op	      37 allocs/op
+BenchmarkModuleRequireCacheMiss                       	    3068	     39252 ns/op	   17337 B/op	     147 allocs/op
+BenchmarkModuleRequireRepeatedMissingSuggestion       	   46220	      2596 ns/op	    4176 B/op	      26 allocs/op
+BenchmarkComplexRunAnalytics                          	    1231	     93396 ns/op	   27114 B/op	     250 allocs/op
+BenchmarkComplexRunTyped                              	    8257	     18649 ns/op	   10504 B/op	      97 allocs/op
+BenchmarkComplexRunMassive                            	     669	    185496 ns/op	   70883 B/op	     519 allocs/op
+BenchmarkRegexNamespaceScanning/dense                 	     864	    139169 ns/op	   74272 B/op	    4118 allocs/op
+BenchmarkRegexNamespaceScanning/sparse                	   31303	      3811 ns/op	   12864 B/op	      25 allocs/op
+BenchmarkRegexNamespaceScanning/long_literal          	   19113	      6220 ns/op	    8992 B/op	      38 allocs/op
+BenchmarkTypedHashNoChangeBoundary/typed              	      91	   2115734 ns/op	 1897344 B/op	      58 allocs/op
+BenchmarkTypedHashNoChangeBoundary/untyped            	     100	   1494287 ns/op	 1250176 B/op	      57 allocs/op
+BenchmarkTypedHashNoChangeBoundarySmallSymbolKeys/typed         	   40730	      2984 ns/op	    4960 B/op	      25 allocs/op
+BenchmarkTypedHashNoChangeBoundarySmallSymbolKeys/untyped       	   42362	      2811 ns/op	    4960 B/op	      25 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	18.121s

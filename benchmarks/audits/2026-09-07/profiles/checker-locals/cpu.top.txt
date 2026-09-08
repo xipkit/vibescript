@@ -1,0 +1,67 @@
+File: runtime.test
+Type: cpu
+Time: 2026-09-07 20:26:47 EDT
+Duration: 1.64s, Total samples = 1.39s (84.67%)
+Showing nodes accounting for 1.39s, 100% of 1.39s total
+Showing top 60 nodes out of 124
+      flat  flat%   sum%        cum   cum%
+        1s 71.94% 71.94%         1s 71.94%  runtime.kevent
+     0.08s  5.76% 77.70%      0.08s  5.76%  runtime.madvise
+     0.04s  2.88% 80.58%      0.08s  5.76%  internal/runtime/maps.(*Iter).Next
+     0.03s  2.16% 82.73%      0.03s  2.16%  internal/runtime/atomic.(*UnsafePointer).Load (inline)
+     0.02s  1.44% 84.17%      0.23s 16.55%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).bindLocalExactValueFact
+     0.02s  1.44% 85.61%      0.02s  1.44%  runtime.heapArenaOf (inline)
+     0.02s  1.44% 87.05%      0.13s  9.35%  runtime.mallocgc
+     0.02s  1.44% 88.49%      0.04s  2.88%  runtime.tryDeferToSpanScan
+     0.01s  0.72% 89.21%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).captureEvaluatedDestructureFactWithAuto
+     0.01s  0.72% 89.93%      0.11s  7.91%  github.com/mgomes/vibescript/internal/runtime.staticValueMutableRelationships
+     0.01s  0.72% 90.65%      0.01s  0.72%  internal/chacha8rand.block
+     0.01s  0.72% 91.37%      0.01s  0.72%  internal/runtime/maps.(*groupReference).ctrls (inline)
+     0.01s  0.72% 92.09%      0.01s  0.72%  runtime.(*mSpanList).remove
+     0.01s  0.72% 92.81%      0.01s  0.72%  runtime.(*sweepLocked).sweep
+     0.01s  0.72% 93.53%      0.01s  0.72%  runtime.(*timers).siftDown
+     0.01s  0.72% 94.24%      0.01s  0.72%  runtime.acquirem (inline)
+     0.01s  0.72% 94.96%      0.02s  1.44%  runtime.bgsweep
+     0.01s  0.72% 95.68%      0.01s  0.72%  runtime.execute
+     0.01s  0.72% 96.40%      0.07s  5.04%  runtime.mallocgcSmallScanNoHeader
+     0.01s  0.72% 97.12%      0.01s  0.72%  runtime.memclrNoHeapPointers
+     0.01s  0.72% 97.84%      0.01s  0.72%  runtime.nextFreeFast (inline)
+     0.01s  0.72% 98.56%      0.01s  0.72%  runtime.rand
+     0.01s  0.72% 99.28%      0.01s  0.72%  runtime.spanOf (inline)
+     0.01s  0.72%   100%      0.01s  0.72%  runtime.typePointers.next
+         0     0%   100%      0.03s  2.16%  gcWriteBarrier
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*Script).CheckWarnings (inline)
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*Script).CheckWarningsWithOptions (inline)
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarnings (inline)
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarningsMode
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarningsWithGlobals
+         0     0%   100%      0.23s 16.55%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).bindExpressionLocalValueFact
+         0     0%   100%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).captureEvaluatedDestructureFactWithExpectation
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkFunction (inline)
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.(*scriptChecker).withFreshRuntimeTypeRootForCallable.func7
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.func2
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.func2.(*scriptChecker).checkFunction.1
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkStatement
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkStatements
+         0     0%   100%      0.24s 17.27%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).inferAssignStatementTypes
+         0     0%   100%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).normalizeCheckStaticValues
+         0     0%   100%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).recordBindingTarget
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshLocalInference
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshRuntimeTypeRoot
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshRuntimeTypeRootForCallable (inline)
+         0     0%   100%      0.26s 18.71%  github.com/mgomes/vibescript/internal/runtime.BenchmarkAuditCheckerScaling.func1
+         0     0%   100%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.collectBindingTarget
+         0     0%   100%      0.10s  7.19%  github.com/mgomes/vibescript/internal/runtime.mutableStaticContainers
+         0     0%   100%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.typeExprArms
+         0     0%   100%      0.01s  0.72%  github.com/mgomes/vibescript/internal/runtime.typeExprHasContainerArm
+         0     0%   100%      0.02s  1.44%  internal/runtime/maps.(*table).grow
+         0     0%   100%      0.02s  1.44%  internal/runtime/maps.(*table).rehash
+         0     0%   100%      0.01s  0.72%  internal/runtime/maps.(*table).reset
+         0     0%   100%      0.10s  7.19%  internal/runtime/maps.NewEmptyMap (inline)
+         0     0%   100%      0.01s  0.72%  internal/runtime/maps.newGroups (inline)
+         0     0%   100%      0.02s  1.44%  internal/runtime/maps.newTable
+         0     0%   100%      0.01s  0.72%  internal/runtime/maps.newarray
+         0     0%   100%      0.01s  0.72%  internal/runtime/maps.rand
+         0     0%   100%      0.01s  0.72%  runtime.(*inlineUnwinder).resolveInternal (inline)
+         0     0%   100%      0.01s  0.72%  runtime.(*mcache).nextFree

@@ -1,0 +1,29 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-07 20:26:46 EDT
+Showing nodes accounting for 3.99GB, 98.91% of 4.04GB total
+Dropped 68 nodes (cum <= 0.02GB)
+      flat  flat%   sum%        cum   cum%
+    2.31GB 57.33% 57.33%     2.31GB 57.33%  github.com/mgomes/vibescript/internal/runtime.cloneFunctionForEnv (inline)
+    1.11GB 27.50% 84.83%     1.11GB 27.50%  github.com/mgomes/vibescript/internal/runtime.(*Env).growStatics (inline)
+    0.57GB 14.08% 98.91%     2.88GB 71.40%  github.com/mgomes/vibescript/internal/runtime.cloneFunctionsForCall (inline)
+         0     0% 98.91%     1.11GB 27.50%  github.com/mgomes/vibescript/internal/runtime.(*Engine).attachBuiltins
+         0     0% 98.91%     1.11GB 27.50%  github.com/mgomes/vibescript/internal/runtime.(*Engine).bindBuiltinsLocked (inline)
+         0     0% 98.91%     4.03GB 99.83%  github.com/mgomes/vibescript/internal/runtime.(*Script).CheckWarnings (inline)
+         0     0% 98.91%     4.03GB 99.83%  github.com/mgomes/vibescript/internal/runtime.(*Script).CheckWarningsWithOptions (inline)
+         0     0% 98.91%     4.03GB 99.83%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarnings (inline)
+         0     0% 98.91%     4.03GB 99.83%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarningsMode
+         0     0% 98.91%     4.03GB 99.83%  github.com/mgomes/vibescript/internal/runtime.(*Script).checkWarningsWithGlobals
+         0     0% 98.91%     0.02GB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkFunction (inline)
+         0     0% 98.91%     4.01GB 99.32%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript
+         0     0% 98.91%     0.02GB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.(*scriptChecker).withFreshRuntimeTypeRootForCallable.func7
+         0     0% 98.91%     0.02GB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).checkScript.func2
+         0     0% 98.91%     0.02GB  0.62%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshLocalInference
+         0     0% 98.91%     4.01GB 99.23%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshRuntimeTypeRoot
+         0     0% 98.91%        4GB 98.97%  github.com/mgomes/vibescript/internal/runtime.(*scriptChecker).withFreshRuntimeTypeRootForCallable (inline)
+         0     0% 98.91%     4.03GB 99.87%  github.com/mgomes/vibescript/internal/runtime.BenchmarkAuditCheckerScaling.func1
+         0     0% 98.91%     0.02GB   0.5%  github.com/mgomes/vibescript/internal/runtime.checkTypeRoot (inline)
+         0     0% 98.91%        4GB 99.11%  github.com/mgomes/vibescript/internal/runtime.checkTypeRootWithParentAndGlobals
+         0     0% 98.91%     3.99GB 98.72%  testing.(*B).launch
+         0     0% 98.91%     0.05GB  1.15%  testing.(*B).run1.func1
+         0     0% 98.91%     4.03GB 99.87%  testing.(*B).runN
