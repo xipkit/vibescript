@@ -423,8 +423,15 @@ func splitOnASCIIWhitespaceLimit(text string, limit, count int) []string {
 	i := 0
 	n := len(text)
 	for i < n {
-		for i < n && isRubyASCIISpace(text[i]) {
+		end := n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += whitespacePrefixSIMD(text[i:], false)
 		}
 		if i >= n {
 			break
@@ -434,8 +441,15 @@ func splitOnASCIIWhitespaceLimit(text string, limit, count int) []string {
 			return fields
 		}
 		start := i
-		for i < n && !isRubyASCIISpace(text[i]) {
+		end = n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && !isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += nonWhitespacePrefixSIMD(text[i:])
 		}
 		fields = append(fields, text[start:i])
 	}
@@ -462,8 +476,15 @@ func splitOnASCIIWhitespaceLimitProjection(text string, limit int) stringSplitPr
 	i := 0
 	n := len(text)
 	for i < n {
-		for i < n && isRubyASCIISpace(text[i]) {
+		end := n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += whitespacePrefixSIMD(text[i:], false)
 		}
 		if i >= n {
 			break
@@ -473,8 +494,15 @@ func splitOnASCIIWhitespaceLimitProjection(text string, limit int) stringSplitPr
 			return projection
 		}
 		start := i
-		for i < n && !isRubyASCIISpace(text[i]) {
+		end = n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && !isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += nonWhitespacePrefixSIMD(text[i:])
 		}
 		projection.add(text, text[start:i])
 	}
@@ -900,8 +928,15 @@ func stringSplitWhitespaceResult(exec *Execution, text string, limit, count int)
 	i := 0
 	n := len(text)
 	for i < n {
-		for i < n && isRubyASCIISpace(text[i]) {
+		end := n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += whitespacePrefixSIMD(text[i:], false)
 		}
 		if i >= n {
 			break
@@ -913,8 +948,15 @@ func stringSplitWhitespaceResult(exec *Execution, text string, limit, count int)
 			return NewArray(values), nil
 		}
 		start := i
-		for i < n && !isRubyASCIISpace(text[i]) {
+		end = n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && !isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += nonWhitespacePrefixSIMD(text[i:])
 		}
 		if err := appendStringSplitPart(exec, &values, text, text[start:i]); err != nil {
 			return NewNil(), err
@@ -3143,9 +3185,16 @@ func isRubyStripSpace(b byte) bool {
 // rubyLstrip trims leading Ruby strip-family whitespace (including NUL) from
 // text.
 func rubyLstrip(text string) string {
+	end := len(text)
+	if whitespaceSIMD && end > whitespaceProbeBytes {
+		end = whitespaceProbeBytes
+	}
 	start := 0
-	for start < len(text) && isRubyStripSpace(text[start]) {
+	for start < end && isRubyStripSpace(text[start]) {
 		start++
+	}
+	if whitespaceSIMD && start == whitespaceProbeBytes && start < len(text) {
+		start += whitespacePrefixSIMD(text[start:], true)
 	}
 	return text[start:]
 }
@@ -3153,9 +3202,16 @@ func rubyLstrip(text string) string {
 // rubyRstrip trims trailing Ruby strip-family whitespace (including NUL) from
 // text.
 func rubyRstrip(text string) string {
+	start := 0
+	if whitespaceSIMD && len(text) > whitespaceProbeBytes {
+		start = len(text) - whitespaceProbeBytes
+	}
 	end := len(text)
-	for end > 0 && isRubyStripSpace(text[end-1]) {
+	for end > start && isRubyStripSpace(text[end-1]) {
 		end--
+	}
+	if whitespaceSIMD && len(text)-end == whitespaceProbeBytes && end > 0 {
+		end -= whitespaceSuffixSIMD(text[:end], true)
 	}
 	return text[:end]
 }

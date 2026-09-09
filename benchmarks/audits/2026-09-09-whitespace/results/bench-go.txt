@@ -1,0 +1,350 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   83569	      1264 ns/op	  12.66 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   98108	      1243 ns/op	  12.87 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	  101583	      1181 ns/op	  13.55 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	  103539	      1168 ns/op	  13.70 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   43488	      2735 ns/op	1497.65 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   73222	      1653 ns/op	2478.64 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	  100330	      1196 ns/op	3426.16 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   98846	      1199 ns/op	3417.04 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4660	     26110 ns/op	2510.02 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   22118	      5182 ns/op	12647.48 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   99506	      1192 ns/op	54988.45 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	  100611	      1192 ns/op	54960.17 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   74485	      1586 ns/op	  10.09 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   75288	      1586 ns/op	  10.09 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   87772	      1381 ns/op	  11.59 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   70616	      1718 ns/op	   9.32 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   68814	      1758 ns/op	   9.10 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   68893	      1716 ns/op	   9.32 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14607	      8238 ns/op	 497.24 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1465	     82059 ns/op	  49.92 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   39867	      3007 ns/op	1362.01 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2336	     51679 ns/op	  79.26 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2691	     44550 ns/op	  91.94 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2644	     44593 ns/op	  91.85 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1218	     99282 ns/op	 660.10 MB/s	  118090 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      94	   1337390 ns/op	  49.00 MB/s	 1788686 B/op	   27715 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4480	     27340 ns/op	2397.06 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     153	    782760 ns/op	  83.72 MB/s	 1256016 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     172	    694872 ns/op	  94.31 MB/s	  927590 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     172	    690237 ns/op	  94.95 MB/s	  930449 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   92792	      1257 ns/op	  12.73 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   96420	      1247 ns/op	  12.83 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	  100435	      1184 ns/op	  13.52 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	  102045	      1175 ns/op	  13.62 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   43814	      2736 ns/op	1497.34 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   72657	      1667 ns/op	2456.60 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   99546	      1207 ns/op	3394.76 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	  100994	      1209 ns/op	3388.27 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4764	     26100 ns/op	2510.94 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   20925	      5446 ns/op	12034.37 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   99308	      1203 ns/op	54499.71 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	  101682	      1203 ns/op	54497.29 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   74611	      1580 ns/op	  10.13 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   75236	      1593 ns/op	  10.04 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   89016	      1381 ns/op	  11.58 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   68194	      1746 ns/op	   9.17 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   68990	      1732 ns/op	   9.24 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   68950	      1717 ns/op	   9.32 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14768	      8101 ns/op	 505.60 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1500	     80997 ns/op	  50.57 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   39896	      3021 ns/op	1355.82 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2374	     51705 ns/op	  79.22 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2739	     44411 ns/op	  92.23 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2685	     44556 ns/op	  91.93 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1240	     98482 ns/op	 665.46 MB/s	  118090 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      90	   1328189 ns/op	  49.34 MB/s	 1800539 B/op	   27716 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4513	     27256 ns/op	2404.50 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     153	    780370 ns/op	  83.98 MB/s	 1256368 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     174	    690635 ns/op	  94.89 MB/s	  932565 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     174	    691736 ns/op	  94.74 MB/s	  927532 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   96318	      1224 ns/op	  13.07 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   99606	      1210 ns/op	  13.22 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	  105124	      1151 ns/op	  13.90 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	  105494	      1152 ns/op	  13.89 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   44242	      2768 ns/op	1479.88 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   70528	      1651 ns/op	2480.65 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   96488	      1209 ns/op	3388.53 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   98504	      1211 ns/op	3381.48 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4803	     25621 ns/op	2557.92 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   22204	      5294 ns/op	12379.44 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   99184	      1207 ns/op	54278.13 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	   99794	      1200 ns/op	54595.31 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   75476	      1594 ns/op	  10.04 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   75650	      1589 ns/op	  10.07 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   86683	      1394 ns/op	  11.48 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   69037	      1733 ns/op	   9.23 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   70113	      1738 ns/op	   9.20 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   68458	      1727 ns/op	   9.27 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14670	      8136 ns/op	 503.46 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1407	     82698 ns/op	  49.53 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   39044	      3007 ns/op	1362.35 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2299	     52086 ns/op	  78.64 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2655	     44583 ns/op	  91.87 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2671	     44980 ns/op	  91.06 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1237	     99349 ns/op	 659.66 MB/s	  118090 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      96	   1323917 ns/op	  49.50 MB/s	 1788818 B/op	   27715 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4586	     27244 ns/op	2405.53 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     153	    777731 ns/op	  84.27 MB/s	 1252444 B/op	   14667 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     171	    690808 ns/op	  94.87 MB/s	  928743 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     172	    688973 ns/op	  95.12 MB/s	  929181 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   95732	      1243 ns/op	  12.87 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   97413	      1231 ns/op	  13.00 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	  103318	      1173 ns/op	  13.64 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	   92794	      1169 ns/op	  13.69 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   44190	      2724 ns/op	1503.90 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   71023	      1640 ns/op	2497.06 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   99841	      1193 ns/op	3432.40 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	  100842	      1195 ns/op	3426.44 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4797	     25534 ns/op	2566.65 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   22905	      5210 ns/op	12578.05 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   98734	      1189 ns/op	55140.51 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	   90064	      1242 ns/op	52787.13 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   74973	      1585 ns/op	  10.09 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   75650	      1593 ns/op	  10.04 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   85228	      1386 ns/op	  11.54 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   68803	      1725 ns/op	   9.28 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   69756	      1717 ns/op	   9.32 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   69408	      1722 ns/op	   9.29 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14727	      8112 ns/op	 504.94 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1537	     80423 ns/op	  50.93 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   40046	      3006 ns/op	1362.83 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2313	     51292 ns/op	  79.86 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2760	     44553 ns/op	  91.93 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2708	     44435 ns/op	  92.18 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1230	     99433 ns/op	 659.09 MB/s	  118090 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      91	   1321988 ns/op	  49.57 MB/s	 1802569 B/op	   27716 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4513	     27213 ns/op	2408.22 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     153	    774235 ns/op	  84.65 MB/s	 1252088 B/op	   14667 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     174	    688785 ns/op	  95.15 MB/s	  933184 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     175	    688620 ns/op	  95.17 MB/s	  932958 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   88653	      1308 ns/op	  12.23 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   92955	      1286 ns/op	  12.44 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	   97633	      1230 ns/op	  13.00 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	   96693	      1253 ns/op	  12.77 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   40551	      2955 ns/op	1385.97 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   68888	      1722 ns/op	2378.17 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   94950	      1260 ns/op	3250.74 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   96807	      1244 ns/op	3291.48 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4376	     26981 ns/op	2428.93 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   21547	      5448 ns/op	12030.43 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   98121	      1232 ns/op	53207.55 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	   95374	      1231 ns/op	53228.01 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   71011	      1651 ns/op	   9.69 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   71737	      1655 ns/op	   9.67 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   84024	      1430 ns/op	  11.19 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   67531	      1802 ns/op	   8.88 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   65852	      1803 ns/op	   8.88 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   66766	      1818 ns/op	   8.80 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   13702	      8708 ns/op	 470.36 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1384	     85838 ns/op	  47.72 MB/s	  112195 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   37104	      3199 ns/op	1280.32 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2229	     53248 ns/op	  76.92 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2629	     46095 ns/op	  88.86 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2595	     46224 ns/op	  88.61 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1152	    103995 ns/op	 630.18 MB/s	  118091 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      93	   1384551 ns/op	  47.33 MB/s	 1794783 B/op	   27716 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4134	     28264 ns/op	2318.74 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     148	    807124 ns/op	  81.20 MB/s	 1256820 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     166	    719135 ns/op	  91.13 MB/s	  932056 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     166	    719275 ns/op	  91.11 MB/s	  933038 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   91198	      1295 ns/op	  12.35 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   93390	      1284 ns/op	  12.46 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	   98458	      1217 ns/op	  13.14 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	   98274	      1217 ns/op	  13.15 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   41805	      2882 ns/op	1421.46 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   71174	      1675 ns/op	2444.95 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   97446	      1248 ns/op	3281.28 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   95402	      1244 ns/op	3292.85 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4527	     26482 ns/op	2474.75 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   21135	      5606 ns/op	11689.49 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   95778	      1252 ns/op	52356.32 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	   95462	      1251 ns/op	52403.86 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   72450	      1659 ns/op	   9.65 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   72945	      1661 ns/op	   9.63 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   84764	      1422 ns/op	  11.25 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   67326	      1793 ns/op	   8.92 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   67267	      1789 ns/op	   8.94 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   67530	      1790 ns/op	   8.94 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14055	      8525 ns/op	 480.47 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1430	     84207 ns/op	  48.64 MB/s	  112195 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   37868	      3115 ns/op	1314.75 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2264	     52402 ns/op	  78.16 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2667	     44960 ns/op	  91.10 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2660	     45167 ns/op	  90.68 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1206	    101100 ns/op	 648.23 MB/s	  118091 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      96	   1343622 ns/op	  48.78 MB/s	 1785403 B/op	   27715 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4438	     27383 ns/op	2393.29 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     151	    785924 ns/op	  83.39 MB/s	 1259440 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     170	    695494 ns/op	  94.23 MB/s	  929255 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     171	    700011 ns/op	  93.62 MB/s	  935124 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   92721	      1253 ns/op	  12.77 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   97623	      1246 ns/op	  12.84 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	  102307	      1178 ns/op	  13.59 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	  102001	      1181 ns/op	  13.54 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   42337	      2757 ns/op	1485.73 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   70382	      1698 ns/op	2411.61 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   98469	      1207 ns/op	3392.70 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	  100393	      1212 ns/op	3380.52 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4639	     25866 ns/op	2533.64 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   22490	      5322 ns/op	12314.17 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   97998	      1206 ns/op	54336.30 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	  100802	      1199 ns/op	54641.09 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   73471	      1607 ns/op	   9.95 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   74803	      1593 ns/op	  10.05 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   87082	      1384 ns/op	  11.56 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   68803	      1752 ns/op	   9.13 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   69115	      1739 ns/op	   9.20 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   68480	      1740 ns/op	   9.20 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14468	      8222 ns/op	 498.20 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1486	     81541 ns/op	  50.23 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   39225	      3050 ns/op	1343.11 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2264	     52146 ns/op	  78.55 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2628	     45145 ns/op	  90.73 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2719	     45127 ns/op	  90.77 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1209	    102380 ns/op	 640.13 MB/s	  118090 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      94	   1351615 ns/op	  48.49 MB/s	 1791008 B/op	   27715 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4326	     27549 ns/op	2378.86 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     151	    785469 ns/op	  83.44 MB/s	 1257267 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     172	    693294 ns/op	  94.53 MB/s	  939659 B/op	   13882 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     172	    689041 ns/op	  95.11 MB/s	  925688 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   92139	      1267 ns/op	  12.63 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   94729	      1249 ns/op	  12.81 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	  102681	      1181 ns/op	  13.54 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	  102948	      1180 ns/op	  13.56 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   43382	      2754 ns/op	1487.23 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   72163	      1655 ns/op	2474.32 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   98248	      1203 ns/op	3405.13 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   98586	      1200 ns/op	3412.18 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4754	     25788 ns/op	2541.34 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   23025	      5129 ns/op	12778.46 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   98785	      1198 ns/op	54711.97 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	  100580	      1202 ns/op	54545.13 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   75252	      1601 ns/op	  10.00 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   75490	      1591 ns/op	  10.05 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   85534	      1388 ns/op	  11.53 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   68606	      1725 ns/op	   9.27 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   67713	      1731 ns/op	   9.24 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   69946	      1739 ns/op	   9.20 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   14605	      8228 ns/op	 497.81 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1485	     81834 ns/op	  50.05 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   39284	      3041 ns/op	1346.95 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2324	     51602 ns/op	  79.38 MB/s	   93609 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2632	     44790 ns/op	  91.45 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2713	     44812 ns/op	  91.40 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1190	     99966 ns/op	 655.58 MB/s	  118091 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      97	   1336489 ns/op	  49.04 MB/s	 1798730 B/op	   27716 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4509	     27296 ns/op	2400.96 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     153	    785900 ns/op	  83.39 MB/s	 1257798 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     172	    692863 ns/op	  94.59 MB/s	  936804 B/op	   13882 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     172	    689709 ns/op	  95.02 MB/s	  933941 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   87194	      1305 ns/op	  12.26 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   92382	      1297 ns/op	  12.34 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	   97575	      1237 ns/op	  12.94 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	   97885	      1243 ns/op	  12.87 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   41000	      2918 ns/op	1403.54 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   70773	      1662 ns/op	2465.00 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   97863	      1239 ns/op	3305.66 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   98073	      1225 ns/op	3342.39 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4563	     26758 ns/op	2449.26 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   22291	      5221 ns/op	12552.18 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   97389	      1222 ns/op	53630.22 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	   97894	      1234 ns/op	53111.97 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   71803	      1638 ns/op	   9.77 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   72735	      1646 ns/op	   9.72 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   85166	      1420 ns/op	  11.27 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   67932	      1795 ns/op	   8.91 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   65781	      1813 ns/op	   8.83 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   66387	      1815 ns/op	   8.81 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   13785	      8699 ns/op	 470.84 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1405	     83805 ns/op	  48.88 MB/s	  112194 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   37552	      3187 ns/op	1285.26 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2281	     53489 ns/op	  76.58 MB/s	   93610 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2584	     45985 ns/op	  89.07 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2618	     46134 ns/op	  88.79 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1153	    103793 ns/op	 631.41 MB/s	  118091 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      92	   1383542 ns/op	  47.37 MB/s	 1792707 B/op	   27715 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4290	     28346 ns/op	2312.03 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     147	    812916 ns/op	  80.62 MB/s	 1259511 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     166	    707521 ns/op	  92.63 MB/s	  930088 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     168	    708127 ns/op	  92.55 MB/s	  931287 B/op	   13881 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkWhitespaceStrip/16/long-padding-10         	   90663	      1299 ns/op	  12.32 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/short-padding-10        	   93150	      1276 ns/op	  12.54 MB/s	    3808 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/16/no-padding-10           	   99813	      1242 ns/op	  12.88 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/16/unicode-10              	   97369	      1230 ns/op	  13.01 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/long-padding-10       	   40873	      2921 ns/op	1402.35 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/short-padding-10      	   69362	      1717 ns/op	2386.09 MB/s	    7888 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/4096/no-padding-10         	   94812	      1258 ns/op	3254.95 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/4096/unicode-10            	   95646	      1246 ns/op	3286.36 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/long-padding-10      	    4543	     26822 ns/op	2443.40 MB/s	    3800 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/short-padding-10     	   21075	      5437 ns/op	12054.28 MB/s	   69328 B/op	      14 allocs/op
+BenchmarkWhitespaceStrip/65536/no-padding-10        	   95046	      1261 ns/op	51960.98 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceStrip/65536/unicode-10           	   95302	      1255 ns/op	52238.27 MB/s	    3792 B/op	      13 allocs/op
+BenchmarkWhitespaceSplit/16/long-fields-10          	   72127	      1681 ns/op	   9.52 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/short-fields-10         	   70988	      1674 ns/op	   9.56 MB/s	    4272 B/op	      21 allocs/op
+BenchmarkWhitespaceSplit/16/all-space-10            	   82726	      1435 ns/op	  11.15 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/16/unicode-10              	   67815	      1786 ns/op	   8.96 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/long-then-short-10      	   66661	      1801 ns/op	   8.88 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/16/short-then-long-10      	   66814	      1790 ns/op	   8.94 MB/s	    4368 B/op	      25 allocs/op
+BenchmarkWhitespaceSplit/4096/long-fields-10        	   13880	      8626 ns/op	 474.84 MB/s	   10952 B/op	      61 allocs/op
+BenchmarkWhitespaceSplit/4096/short-fields-10       	    1413	     84231 ns/op	  48.63 MB/s	  112195 B/op	    1765 allocs/op
+BenchmarkWhitespaceSplit/4096/all-space-10          	   37856	      3186 ns/op	1285.77 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/4096/unicode-10            	    2235	     53226 ns/op	  76.96 MB/s	   93610 B/op	     955 allocs/op
+BenchmarkWhitespaceSplit/4096/long-then-short-10    	    2558	     46063 ns/op	  88.92 MB/s	   64001 B/op	     903 allocs/op
+BenchmarkWhitespaceSplit/4096/short-then-long-10    	    2588	     46275 ns/op	  88.51 MB/s	   64009 B/op	     905 allocs/op
+BenchmarkWhitespaceSplit/65536/long-fields-10       	    1152	    103877 ns/op	 630.90 MB/s	  118091 B/op	     553 allocs/op
+BenchmarkWhitespaceSplit/65536/short-fields-10      	      90	   1395466 ns/op	  46.96 MB/s	 1794468 B/op	   27716 allocs/op
+BenchmarkWhitespaceSplit/65536/all-space-10         	    4170	     28361 ns/op	2310.81 MB/s	    3984 B/op	      14 allocs/op
+BenchmarkWhitespaceSplit/65536/unicode-10           	     145	    819708 ns/op	  79.95 MB/s	 1257855 B/op	   14668 allocs/op
+BenchmarkWhitespaceSplit/65536/long-then-short-10   	     164	    720785 ns/op	  90.92 MB/s	  933172 B/op	   13881 allocs/op
+BenchmarkWhitespaceSplit/65536/short-then-long-10   	     165	    719265 ns/op	  91.12 MB/s	  928969 B/op	   13881 allocs/op
+PASS

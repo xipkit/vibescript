@@ -1,0 +1,1 @@
+- **Performance: SIMD whitespace split and trim scans.** Long whitespace runs can use optional Go 1.27 SIMD through ARM64 and guarded AVX2 implementations, preserving Ruby byte classes, scalar fallbacks, and quota accounting.
