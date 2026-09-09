@@ -4119,7 +4119,10 @@ func stringMemberQuery(property string) (Value, error) {
 				// there is no match, so the block form short-circuits here too.
 				return NewNil(), nil
 			}
-			matchData := newMatchData(text, indices, regexSubexpNames(pattern))
+			matchData, err := newMatchData(exec, text, indices, regexSubexpNames(pattern), receiver, args, kwargs, block)
+			if err != nil {
+				return NewNil(), err
+			}
 			if valueBlock(block) != nil {
 				// Ruby's String#match(pattern) { |m| ... } yields the match data and
 				// returns the block's result. MatchData supports the same index access
