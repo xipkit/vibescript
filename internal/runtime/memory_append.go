@@ -81,6 +81,7 @@ func (exec *Execution) appendArrayCharged(left, right Value) (handled bool, err 
 	used := saturatingAdd(exec.estimateScalarBase(), saturatingAdd(c.graphBytes, marginal))
 	if exec.memoryExceeded(used) {
 		c.valid = false
+		c.unmemoizedPrefix = false
 		return true, exec.memoryQuotaExceededError()
 	}
 
@@ -89,6 +90,7 @@ func (exec *Execution) appendArrayCharged(left, right Value) (handled bool, err 
 		// Unreachable for an in-capacity append; if the backing ever moved
 		// anyway, the delta model no longer describes the graph.
 		c.valid = false
+		c.unmemoizedPrefix = false
 		return true, nil
 	}
 	c.graphBytes = saturatingAdd(c.graphBytes, marginal)
@@ -165,6 +167,7 @@ func (exec *Execution) hashStoreCharged(target, key, val Value) (handled bool, e
 	used := saturatingAdd(exec.estimateScalarBase(), saturatingAdd(c.graphBytes, marginal))
 	if exec.memoryExceeded(used) {
 		c.valid = false
+		c.unmemoizedPrefix = false
 		return true, exec.memoryQuotaExceededError()
 	}
 
@@ -172,6 +175,7 @@ func (exec *Execution) hashStoreCharged(target, key, val Value) (handled bool, e
 		// The write itself failed after the walk committed the entry's
 		// identities; the memo no longer matches the graph.
 		c.valid = false
+		c.unmemoizedPrefix = false
 		return true, setErr
 	}
 	if orderCapAfter := value.HashOrderCapacity(target); orderCapAfter != orderCapBefore {

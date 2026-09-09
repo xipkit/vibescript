@@ -3809,6 +3809,7 @@ func (exec *Execution) executeGeneratedSetter(fn *ScriptFunction, callEnv *Env) 
 	bumpMutationEpoch()
 	publishBindingReplacement(valueInstance(self).Ivars[fn.AccessorName], val)
 	valueInstance(self).Ivars[fn.AccessorName] = val
+	exec.noteAssignmentMapMutation(valueInstance(self).Ivars)
 	val = callEnv.settleArrayAppendResult(val)
 	if err := exec.checkContext(); err != nil {
 		return NewNil(), err
@@ -4014,6 +4015,7 @@ func (exec *Execution) bindFunctionParamValue(fn *ScriptFunction, env *Env, para
 				bumpMutationEpoch()
 				publishBindingReplacement(inst.Ivars[param.Name], normalized)
 				inst.Ivars[param.Name] = normalized
+				exec.noteAssignmentMapMutation(inst.Ivars)
 			}
 		}
 	}

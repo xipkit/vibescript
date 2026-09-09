@@ -2560,6 +2560,7 @@ func (exec *Execution) assignToMember(obj Value, property string, value Value, p
 	bumpMutationEpoch()
 	publishBindingReplacement(vars[property], value)
 	vars[property] = value
+	exec.noteAssignmentMapMutation(vars)
 	return nil
 }
 
@@ -2570,9 +2571,10 @@ func (exec *Execution) assign(target Expression, value Value, env *Env) error {
 			bumpMutationEpoch()
 			publishBindingReplacement(valueClass(self).ClassVars[t.Name], value)
 			valueClass(self).ClassVars[t.Name] = value
+			exec.noteAssignmentMapMutation(valueClass(self).ClassVars)
 			return nil
 		}
-		env.Assign(t.Name, value)
+		exec.assignBinding(env, t.Name, value)
 		return nil
 	case *DestructureTarget:
 		return exec.assignDestructure(t, value, func(target Expression, value Value) error {
@@ -2612,6 +2614,7 @@ func (exec *Execution) assign(target Expression, value Value, env *Env) error {
 		bumpMutationEpoch()
 		publishBindingReplacement(inst.Ivars[t.Name], normalized)
 		inst.Ivars[t.Name] = normalized
+		exec.noteAssignmentMapMutation(inst.Ivars)
 		return nil
 	case *ClassVarExpr:
 		self, ok := env.Get("self")
@@ -2623,11 +2626,13 @@ func (exec *Execution) assign(target Expression, value Value, env *Env) error {
 			bumpMutationEpoch()
 			publishBindingReplacement(valueInstance(self).Class.ClassVars[t.Name], value)
 			valueInstance(self).Class.ClassVars[t.Name] = value
+			exec.noteAssignmentMapMutation(valueInstance(self).Class.ClassVars)
 			return nil
 		case KindClass:
 			bumpMutationEpoch()
 			publishBindingReplacement(valueClass(self).ClassVars[t.Name], value)
 			valueClass(self).ClassVars[t.Name] = value
+			exec.noteAssignmentMapMutation(valueClass(self).ClassVars)
 			return nil
 		default:
 			return exec.errorAt(target.Pos(), "no class context for class var")
@@ -2729,7 +2734,11 @@ func (exec *Execution) assignToEvaluatedMember(target *MemberExpr, obj, value Va
 		if err != nil {
 			return err
 		}
-		return hashSet(obj, key, stored)
+		if err := hashSet(obj, key, stored); err != nil {
+			return err
+		}
+		exec.noteAssignmentValueMutation(obj)
+		return nil
 	case KindInstance, KindClass:
 		return exec.assignToMember(obj, target.Property, value, target.Pos())
 	default:
@@ -2767,6 +2776,7 @@ func (exec *Execution) assignToEvaluatedIndex(target *IndexExpr, obj Value, indi
 		publishBindingReplacement(arr[pos], stored)
 		obj.BumpMutationEpoch()
 		arr[pos] = stored
+		exec.noteAssignmentValueMutation(obj)
 		return nil
 	case KindHash, KindObject:
 		if len(indices) != 1 {
@@ -2797,6 +2807,7 @@ func (exec *Execution) assignToEvaluatedIndex(target *IndexExpr, obj Value, indi
 		if err := hashSet(obj, indices[0], value); err != nil {
 			return exec.errorAt(target.IndexPos(0), "%s", err.Error())
 		}
+		exec.noteAssignmentValueMutation(obj)
 		return nil
 	case KindInstance:
 		// obj[i, ...] = value dispatches to a user-defined []= method with the
@@ -3148,7 +3159,9 @@ func (exec *Execution) assignArrayAppendResult(name string, base, extras []Value
 	}
 	buffer = append(buffer, extras...)
 	result := arrayValueFromAppendBuffer(buffer)
-	env.assignArrayAppendBuffer(name, result, buffer)
+	assignment := env.assignValueWithAppendBufferHandling(name, result, false)
+	assignment.scope.setArrayAppendBuffer(name, buffer)
+	exec.noteBindingAssignment(assignment)
 	return result
 }
 
@@ -4706,7 +4719,7 @@ type compoundAssignmentTarget struct {
 func (exec *Execution) prepareLogicalAssignmentTarget(target Expression, env *Env) (compoundAssignmentTarget, error) {
 	if ident, ok := target.(*Identifier); ok {
 		assignLocal := func(value Value) error {
-			env.Assign(ident.Name, value)
+			exec.assignBinding(env, ident.Name, value)
 			return nil
 		}
 		assignClassConstant := func(value Value) error {

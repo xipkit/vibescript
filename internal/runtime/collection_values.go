@@ -934,13 +934,14 @@ func (root mutableRoot) get() (Value, bool) {
 // the copy replaces the slot's previous occupant, so the slot count does not
 // grow, and publishing here would make the next write through the same slot
 // copy again -- turning a mutating loop quadratic.
-func (root mutableRoot) rebind(val Value) {
+func (root mutableRoot) rebind(exec *Execution, val Value) {
 	switch root.kind {
 	case mutableRootLocal:
-		root.env.Assign(root.name, val)
+		exec.assignBinding(root.env, root.name, val)
 	case mutableRootIvar, mutableRootClassVar:
 		bumpMutationEpoch()
 		root.vars[root.name] = val
+		exec.noteAssignmentMapMutation(root.vars)
 	}
 	val.AdoptSoleRef()
 }
@@ -1295,7 +1296,7 @@ func (exec *Execution) walkMutablePath(path mutablePath, env *Env) (Value, []uin
 			return NewNil(), nil, false, true, err
 		}
 		exec.recordIsolationForward(current, copied)
-		path.root.rebind(copied)
+		path.root.rebind(exec, copied)
 		return copied, nil, true, true, nil
 	}
 	leaf, _, addressable, resolved, err := exec.readAddressablePath(path, env, false)
@@ -1430,7 +1431,7 @@ func (exec *Execution) isolateMutablePath(path mutablePath, env *Env) (Value, []
 			return NewNil(), nil, err
 		}
 		exec.recordIsolationForward(current, copied)
-		path.root.rebind(copied)
+		path.root.rebind(exec, copied)
 		current = copied
 	}
 	// The chain lists the containers above the leaf, which the leaf's own
@@ -1494,7 +1495,7 @@ func (exec *Execution) replaceMutableLeaf(replacement Value) (Value, error) {
 		}
 		replacement.AdoptSoleRef()
 		exec.recordIsolationForward(current, replacement)
-		path.root.rebind(replacement)
+		path.root.rebind(exec, replacement)
 		return replacement, nil
 	}
 	if isCollection(current) && !exec.exclusivelyHeld(current) {
@@ -1503,7 +1504,7 @@ func (exec *Execution) replaceMutableLeaf(replacement Value) (Value, error) {
 			return NewNil(), err
 		}
 		exec.recordIsolationForward(current, copied)
-		path.root.rebind(copied)
+		path.root.rebind(exec, copied)
 		current = copied
 	}
 	for i := range path.steps[:len(path.steps)-1] {
@@ -1937,6 +1938,7 @@ func (exec *Execution) storeMutableStep(container Value, step *mutablePathStep, 
 		}
 		container.BumpMutationEpoch()
 		elems[i] = val
+		exec.noteAssignmentValueMutation(container)
 		return nil
 	case KindHash, KindObject:
 		if err := objectTagMutationError(container, "assignment"); err != nil {
@@ -1945,6 +1947,7 @@ func (exec *Execution) storeMutableStep(container Value, step *mutablePathStep, 
 		if err := container.HashSetOwned(step.index, val); err != nil {
 			return exec.errorAt(step.pos, "%s", err.Error())
 		}
+		exec.noteAssignmentValueMutation(container)
 		return nil
 	default:
 		return nil

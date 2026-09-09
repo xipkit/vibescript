@@ -109,17 +109,19 @@ func (e *Env) bumpMutationVersion() {
 	value.BumpLocalMutationEpoch()
 }
 
-// bumpEpochUnlessNeutral advances this environment's mutation version for a binding
-// write to this scope, unless the scope is epoch-neutral — inside an active
-// block-iteration region, where every check re-walks the scope fresh so its own
-// binding writes cannot stale the memoized prefix (see the epochNeutral field
-// and memory_blockregion.go). Only writes whose target is this scope may use it;
+// bumpEpochUnlessNeutral records a binding write in this scope's version. A
+// region-local scope does not advance the global epoch: every check walks it
+// fresh, so its writes cannot stale the memoized prefix. Its local version still
+// identifies committed assignment work for step accounting.
+// Only writes whose target is this scope may use it;
 // writes that mutate shared value state (through the value package) or resolve
 // to an outer scope bump unconditionally.
 func (e *Env) bumpEpochUnlessNeutral() {
-	if !e.epochNeutral {
-		e.bumpMutationVersion()
+	if e.epochNeutral {
+		e.mutationVersion++
+		return
 	}
+	e.bumpMutationVersion()
 }
 
 // markRegionNeutral initializes a freshly acquired or created call frame's
@@ -433,36 +435,43 @@ func (e *Env) Assign(name string, val Value) bool {
 }
 
 func (e *Env) assignArrayAppendBuffer(name string, val Value, buffer []Value) bool {
-	scope := e.assignValueWithAppendBufferHandling(name, val, false)
-	scope.setArrayAppendBuffer(name, buffer)
+	assignment := e.assignValueWithAppendBufferHandling(name, val, false)
+	assignment.scope.setArrayAppendBuffer(name, buffer)
 	return true
 }
 
 func (e *Env) assignValue(name string, val Value) *Env {
-	return e.assignValueWithAppendBufferHandling(name, val, true)
+	return e.assignValueWithAppendBufferHandling(name, val, true).scope
 }
 
-func (e *Env) assignValueWithAppendBufferHandling(name string, val Value, dropAppendBuffer bool) *Env {
+type bindingAssignment struct {
+	scope   *Env
+	version uint64
+}
+
+func (e *Env) assignValueWithAppendBufferHandling(name string, val Value, dropAppendBuffer bool) bindingAssignment {
 	last := e
 	for scope := e; scope != nil; scope = scope.parent {
 		if scope.frozen {
 			inValues := scope.hasDynamic(name)
 			_, inStatics := scope.statics[name]
 			if inValues || inStatics {
+				assignment := bindingAssignment{scope: last, version: last.mutationVersion}
 				last.setDynamic(name, val)
 				last.dropStatic(name)
 				if dropAppendBuffer {
 					last.dropArrayAppendBuffer(name)
 				}
-				return last
+				return assignment
 			}
 			continue
 		}
+		assignment := bindingAssignment{scope: scope, version: scope.mutationVersion}
 		if scope.setExistingDynamic(name, val) {
 			if dropAppendBuffer {
 				scope.dropArrayAppendBuffer(name)
 			}
-			return scope
+			return assignment
 		}
 		if _, ok := scope.statics[name]; ok || scope.hasDeclaration(name) {
 			// The binding is no longer immutable-by-binding; demote it
@@ -472,7 +481,7 @@ func (e *Env) assignValueWithAppendBufferHandling(name string, val Value, dropAp
 			if dropAppendBuffer {
 				scope.dropArrayAppendBuffer(name)
 			}
-			return scope
+			return assignment
 		}
 		if scope.assignBoundary {
 			if scope.rebindOuter && scope.parent != nil {
@@ -485,48 +494,51 @@ func (e *Env) assignValueWithAppendBufferHandling(name string, val Value, dropAp
 			if dropAppendBuffer {
 				scope.dropArrayAppendBuffer(name)
 			}
-			return scope
+			return assignment
 		}
 		last = scope
 	}
+	assignment := bindingAssignment{scope: last, version: last.mutationVersion}
 	last.setDynamic(name, val)
 	last.dropStatic(name)
 	if dropAppendBuffer {
 		last.dropArrayAppendBuffer(name)
 	}
-	return last
+	return assignment
 }
 
-func (e *Env) assignExistingValue(name string, val Value) (*Env, bool) {
+func (e *Env) assignExistingValue(name string, val Value) (bindingAssignment, bool) {
 	last := e
 	for scope := e; scope != nil; scope = scope.parent {
 		if scope.frozen {
 			inValues := scope.hasDynamic(name)
 			_, inStatics := scope.statics[name]
 			if inValues || inStatics {
+				assignment := bindingAssignment{scope: last, version: last.mutationVersion}
 				last.setDynamic(name, val)
 				last.dropStatic(name)
 				last.dropArrayAppendBuffer(name)
-				return last, true
+				return assignment, true
 			}
 			continue
 		}
+		assignment := bindingAssignment{scope: scope, version: scope.mutationVersion}
 		if scope.setExistingDynamic(name, val) {
 			scope.dropArrayAppendBuffer(name)
-			return scope, true
+			return assignment, true
 		}
 		if _, ok := scope.statics[name]; ok || scope.hasDeclaration(name) {
 			scope.dropStatic(name)
 			scope.setDynamic(name, val)
 			scope.dropArrayAppendBuffer(name)
-			return scope, true
+			return assignment, true
 		}
 		if scope.assignBoundary && !scope.rebindOuter {
-			return nil, false
+			return bindingAssignment{}, false
 		}
 		last = scope
 	}
-	return nil, false
+	return bindingAssignment{}, false
 }
 
 func (e *Env) arrayAppendBuffer(name string) ([]Value, bool) {
@@ -787,13 +799,10 @@ func (e *Env) setExistingDynamic(name string, val Value) bool {
 // region memo removes. Any rebind that is not scalar-to-scalar still bumps, so
 // a growing or aliasing value invalidates the memo exactly as before.
 func (e *Env) bumpEpochUnlessScalarRebind(old, val Value) {
-	if e.epochNeutral {
-		return
-	}
 	if committableScalar(old) && committableScalar(val) {
 		return
 	}
-	e.bumpMutationVersion()
+	e.bumpEpochUnlessNeutral()
 }
 
 func (e *Env) setDynamic(name string, val Value) {

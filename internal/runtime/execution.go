@@ -81,13 +81,16 @@ type CallOptions struct {
 
 // Execution holds the runtime state for a single script evaluation.
 type Execution struct {
-	engine       *Engine
-	script       *Script
-	ctx          context.Context
-	quota        int
-	memoryQuota  int
-	recursionCap int
-	steps        int
+	engine                *Engine
+	script                *Script
+	ctx                   context.Context
+	quota                 int
+	memoryQuota           int
+	recursionCap          int
+	steps                 int
+	assignmentBaseDirty   bool
+	assignmentSuffixDirty bool
+	assignmentWalkNodes   int
 	// predeclareScanDebt carries the nodes a predeclaration scan walked that
 	// did not fill a whole step, so that many small scans still add up to one.
 	// Truncating per scan lost them: a loop over a hundred empty rescue clauses

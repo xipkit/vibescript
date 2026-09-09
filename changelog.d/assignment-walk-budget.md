@@ -1,0 +1,1 @@
+Memory-accounting walks caused by assignments now consume the step quota. Repeated wrapper assignments can no longer drive unbounded accounting work under a small step budget, while unrelated mutations remain uncharged.
