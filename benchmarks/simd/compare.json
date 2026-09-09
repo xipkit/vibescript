@@ -1,0 +1,6 @@
+{
+  "fixture": "internal/runtime/ascii_case_compare_benchmark_test.go",
+  "benchmark": "BenchmarkStringCaseComparison",
+  "cases": 36,
+  "sources": ["internal/runtime/ascii_case_compare*.go", "internal/runtime/members_string.go"]
+}

@@ -1,0 +1,6 @@
+{
+  "fixture": "internal/runtime/compile_literal_spans_benchmark_test.go",
+  "benchmark": "BenchmarkCompile(LiteralSpans|RepeatedSmallLiterals|SnippetRepresentativeWorkloads|(ControlFlow|Typed|Massive)Workload)",
+  "cases": 70,
+  "sources": ["internal/parser/lexer*.go"]
+}

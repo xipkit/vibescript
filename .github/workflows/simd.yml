@@ -17,7 +17,7 @@ jobs:
   native:
     name: Native SIMD (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +55,9 @@ jobs:
         with:
           go-version: '1.27.1'
           cache-dependency-path: head/go.sum
+
+      - name: Check benchmark profile selection and result validation
+        run: python3 -B -m unittest discover -s scripts -p 'test_simd_profiles.py'
 
       - name: Record native CPU and build settings
         run: |
@@ -112,15 +115,18 @@ jobs:
         if: runner.os == 'Linux'
         env:
           GODEBUG: cpu.avx2=off
+          VIBES_ESTIMATOR_VERIFY: '1'
+          VIBES_ENV_RECYCLE_VERIFY: '1'
         run: go test -timeout 30m -count=1 ./...
 
-      - name: Share the reviewed benchmark fixture with the PR base
-        if: github.event_name == 'pull_request'
+      - name: Select profiles and share their reviewed fixtures with the base
         run: |
-          # This fixture uses only helpers and APIs present in the PR base.
-          # Add future fixtures individually after reviewing that constraint.
-          cp internal/runtime/ascii_scan_benchmark_test.go ../base/internal/runtime/ascii_scan_benchmark_test.go
-          git hash-object internal/runtime/ascii_scan_benchmark_test.go > "$RUNNER_TEMP/simd-results/benchmark-fixture.txt"
+          base=()
+          if [[ -d ../base ]]; then
+            base=(--base ../base)
+          fi
+          python3 scripts/simd_profiles.py prepare --head . "${base[@]}" \
+            --output "$RUNNER_TEMP/simd-results/profiles.json"
 
       - name: Build benchmark binaries with the same toolchain
         env:
@@ -145,7 +151,7 @@ jobs:
         env:
           GOMAXPROCS: '1'
         run: |
-          benchmarks='^BenchmarkString((Length|Index|RIndex|Slice)Loop(ASCII|Unicode)|ASCII(ShortCalls|Classification))$'
+          benchmarks="$(python3 scripts/simd_profiles.py pattern "$RUNNER_TEMP/simd-results/profiles.json")"
           for round in 1 2 3 4 5 6; do
             revisions=(head)
             if [[ -d ../base ]]; then
@@ -157,23 +163,29 @@ jobs:
             fi
             for experiment in nosimd simd; do
               for revision in "${revisions[@]}"; do
-                "$RUNNER_TEMP/simd-binaries/$revision-$experiment.test" \
-                  -test.run '^$' -test.bench "$benchmarks" \
-                  -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms \
-                  | tee -a "$RUNNER_TEMP/simd-results/$revision-$experiment.txt"
+                (
+                  cd "../$revision/internal/runtime"
+                  "$RUNNER_TEMP/simd-binaries/$revision-$experiment.test" \
+                    -test.run '^$' -test.bench "$benchmarks" \
+                    -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms
+                ) | tee -a "$RUNNER_TEMP/simd-results/$revision-$experiment.txt"
               done
             done
             if [[ "$RUNNER_OS" == Linux ]]; then
-              GODEBUG=cpu.avx2=off "$RUNNER_TEMP/simd-binaries/head-simd.test" \
-                -test.run '^$' -test.bench "$benchmarks" \
-                -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms \
-                | tee -a "$RUNNER_TEMP/simd-results/head-simd-avx2-disabled.txt"
+              (
+                cd internal/runtime
+                GODEBUG=cpu.avx2=off "$RUNNER_TEMP/simd-binaries/head-simd.test" \
+                  -test.run '^$' -test.bench "$benchmarks" \
+                  -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms
+              ) | tee -a "$RUNNER_TEMP/simd-results/head-simd-avx2-disabled.txt"
             fi
           done
-          for output in "$RUNNER_TEMP"/simd-results/{head,base}-*.txt; do
-            [[ -f "$output" ]] || continue
-            awk '/^BenchmarkString/ { count++ } END { exit count != 246 }' "$output"
-          done
+          fallback=()
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            fallback=(--avx2-disabled)
+          fi
+          python3 scripts/simd_profiles.py validate \
+            "$RUNNER_TEMP/simd-results/profiles.json" "$RUNNER_TEMP/simd-results" "${fallback[@]}"
 
       - name: Explain benchmark artifacts
         run: |
@@ -181,10 +193,10 @@ jobs:
           Native benchmarks use Go 1.27.1, one CPU, and six samples per case.
           Prebuilt base and head binaries alternate their order across rounds.
           Artifacts include CPU details, revision SHAs, time, bytes, and allocations
-          for ASCII and Unicode string length, index, reverse index, and slicing
-          through `Script.Call`, plus short and invalid-UTF-8 calls and direct
-          ASCII-classifier controls. The reviewed fixture is copied to the PR
-          base so newly added benchmarks exercise both production versions.
+          for eight ASCII and Unicode string-loop controls plus selected profiles.
+          `profiles.json` records which profiles changed, their case counts, and
+          fixture hashes. Only selected reviewed fixtures are copied to the PR
+          base, so newly added benchmarks exercise both production versions.
 
           Compare `base-simd.txt` with `head-simd.txt` for the PR change under the
           same experiment, and `base-nosimd.txt` with `head-nosimd.txt` for the

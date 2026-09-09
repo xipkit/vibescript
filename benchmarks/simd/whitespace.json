@@ -1,0 +1,6 @@
+{
+  "fixture": "internal/runtime/whitespace_benchmark_test.go",
+  "benchmark": "BenchmarkWhitespace(Strip|Split)",
+  "cases": 30,
+  "sources": ["internal/runtime/whitespace_scan*.go", "internal/runtime/members_string.go"]
+}

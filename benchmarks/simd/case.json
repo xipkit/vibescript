@@ -1,0 +1,6 @@
+{
+  "fixture": "internal/runtime/ascii_case_benchmark_test.go",
+  "benchmark": "BenchmarkStringASCIICase",
+  "cases": 28,
+  "sources": ["internal/runtime/ascii_case.go", "internal/runtime/ascii_case_generic.go", "internal/runtime/ascii_case_simd*.go", "internal/runtime/members_string.go"]
+}
