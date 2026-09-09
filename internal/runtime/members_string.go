@@ -3168,9 +3168,16 @@ func isRubyStripSpace(b byte) bool {
 // rubyLstrip trims leading Ruby strip-family whitespace (including NUL) from
 // text.
 func rubyLstrip(text string) string {
+	end := len(text)
+	if whitespaceSIMD && end > whitespaceProbeBytes {
+		end = whitespaceProbeBytes
+	}
 	start := 0
-	for start < len(text) && isRubyStripSpace(text[start]) {
+	for start < end && isRubyStripSpace(text[start]) {
 		start++
+	}
+	if whitespaceSIMD && start == whitespaceProbeBytes && start < len(text) {
+		start += whitespacePrefixSIMD(text[start:], true)
 	}
 	return text[start:]
 }
@@ -3178,9 +3185,16 @@ func rubyLstrip(text string) string {
 // rubyRstrip trims trailing Ruby strip-family whitespace (including NUL) from
 // text.
 func rubyRstrip(text string) string {
+	start := 0
+	if whitespaceSIMD && len(text) > whitespaceProbeBytes {
+		start = len(text) - whitespaceProbeBytes
+	}
 	end := len(text)
-	for end > 0 && isRubyStripSpace(text[end-1]) {
+	for end > start && isRubyStripSpace(text[end-1]) {
 		end--
+	}
+	if whitespaceSIMD && len(text)-end == whitespaceProbeBytes && end > 0 {
+		end -= whitespaceSuffixSIMD(text[:end], true)
 	}
 	return text[:end]
 }
