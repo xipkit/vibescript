@@ -2,9 +2,10 @@
 
 Apple M4, darwin/arm64, Go 1.26.3 and Go 1.27.1. Baseline is
 `be97d5eb77205a0f9dc8013aedff9129f7c7cd8e`; measured local head is
-`3484a86428cd08e582b0c21572617907b842b975`. The final change preserves its
-production kernels and selected benchmark bodies. A later prerequisite fix
-only changes untimed formatter benchmark setup. Both revisions run identical
+`3484a86428cd08e582b0c21572617907b842b975`. These local numbers precede the
+AMD64 wrapper follow-up described below. The word/vector kernels and selected
+benchmark bodies are preserved; a prerequisite fix changes untimed formatter
+benchmark setup. Both revisions run identical
 isolated controls, selected fixtures, and workload inputs. Five prebuilt binaries rotate their starting order over ten rounds,
 with 100 ms per case per round and no concurrent local builds or benchmarks.
 Each binary emits 61 cases and 610 measured rows.
@@ -66,3 +67,19 @@ and identical experiment, then alternate the prebuilt binaries with
 hash, binary hashes, and the word-only overlay build. The native SIMD workflow
 independently measures matching base/head builds on ARM64 and AMD64, including
 matched AVX2-disabled builds on AMD64.
+
+## AMD64 caller inlining
+
+The first native AMD64 run found 8-10% slower short index/rindex calls despite
+the long-input gains. Compiler diagnostics showed the classifier wrapper cost
+rising from16 to78, which pushed `stringRuneLen` from34 to96 and prevented
+inlining (budget80). The AMD64 entry wrapper now delegates directly to its
+word/vector kernel: cost61, restoring `stringRuneLen` inlining at79 on both
+Go1.26.3 and Go1.27.1. The ARM64 entry guard remains in its existing form.
+
+Nonnegative index offsets also bypass the normalization helper, preserving the
+previous cheap common path after its inlining budget changed. Negative offsets
+still use the same normalization and error handling. These changes preserve
+logical charges and allocations. Native CI on the final commit measures their
+performance; the historical local table above is not a new timing claim for
+this follow-up.

@@ -1,4 +1,4 @@
-//go:build !go1.27 || !goexperiment.simd || (!arm64 && !amd64)
+//go:build !amd64 && (!go1.27 || !goexperiment.simd || !arm64)
 
 package runtime
 

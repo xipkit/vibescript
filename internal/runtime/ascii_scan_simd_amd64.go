@@ -4,6 +4,11 @@ package runtime
 
 import "simd/archsimd"
 
+// Keep this wrapper small enough for stringRuneLen to inline on AMD64.
+func stringIsASCII(text string) bool {
+	return stringIsASCIIVector(text)
+}
+
 func stringIsASCIIVector(text string) bool {
 	if len(text) < 64 || !archsimd.X86.AVX2() {
 		return stringIsASCIIWords(text)

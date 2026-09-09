@@ -4226,11 +4226,14 @@ func stringIndexResult(exec *Execution, receiver, needle Value, offset int) (Val
 	if needle.Kind() != KindString {
 		return NewNil(), fmt.Errorf("string.index substring must be string")
 	}
-	effective, ok := stringEffectiveOffset(receiver.String(), offset)
-	if !ok {
-		return NewNil(), nil
+	if offset < 0 {
+		effective, ok := stringEffectiveOffset(receiver.String(), offset)
+		if !ok {
+			return NewNil(), nil
+		}
+		offset = effective
 	}
-	index, err := stringRuneIndex(exec, receiver.String(), needle.String(), effective)
+	index, err := stringRuneIndex(exec, receiver.String(), needle.String(), offset)
 	if err != nil {
 		return NewNil(), err
 	}
