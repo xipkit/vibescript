@@ -9,7 +9,7 @@ import (
 
 func benchmarkWhitespaceCall(b *testing.B, method, text string) {
 	b.Helper()
-	script := compileScriptWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, "def run(s)\ns."+method+"\nend")
+	script := simdBenchmarkCompileWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, "def run(s)\ns."+method+"\nend")
 	args := []Value{NewString(text)}
 	b.ReportAllocs()
 	b.SetBytes(int64(len(text)))
