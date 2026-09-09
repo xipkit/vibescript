@@ -64,6 +64,25 @@ class SIMDProfilesTest(unittest.TestCase):
         (self.head / self.source).unlink()
         self.assertEqual(simd_profiles.prepare(self.head, self.base)["cases"], 10)
 
+    def test_deleted_profile_uses_its_base_definition(self):
+        (self.head / self.profile).unlink()
+        self.write(self.head, self.source, "changed production code\n")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertEqual(plan["groups"][1]["name"], "small")
+        self.assertFalse((self.head / self.profile).exists())
+
+    def test_deleted_profile_without_head_fixture_is_inactive(self):
+        (self.head / self.profile).unlink()
+        (self.head / self.fixture).unlink()
+        self.assertEqual(simd_profiles.prepare(self.head, self.base)["cases"], 8)
+
+    def test_renamed_profile_is_selected_once(self):
+        (self.head / self.profile).rename(self.head / "benchmarks/simd/renamed.json")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertEqual(plan["groups"][1]["name"], "renamed")
+
     def test_copy_is_limited_to_selected_fixtures(self):
         self.write(self.head, self.fixture, "updated standalone fixture\n")
         self.write(self.head, self.source, "updated production code\n")

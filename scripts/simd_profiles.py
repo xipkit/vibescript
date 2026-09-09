@@ -44,33 +44,48 @@ def source_snapshot(root, patterns):
     return files
 
 
+def profile_files(root):
+    if root is None:
+        return {}
+    return {
+        path.relative_to(root).as_posix(): repo_path(root, path.relative_to(root).as_posix()).read_bytes()
+        for path in (root / PROFILE_DIRECTORY).glob("*.json")
+    }
+
+
 def prepare(head, base):
     """Select changed profiles and copy only their fixtures to the PR base."""
     groups = [dict(CONTROLS)]
-    for profile_path in sorted((head / PROFILE_DIRECTORY).glob("*.json")):
-        profile_bytes = profile_path.read_bytes()
-        profile = json.loads(profile_bytes)
+    head_profiles = profile_files(head)
+    base_profiles = profile_files(base)
+    head_fixtures = {json.loads(data)["fixture"] for data in head_profiles.values()}
+    for relative_profile in sorted(head_profiles.keys() | base_profiles.keys()):
+        head_bytes = head_profiles.get(relative_profile)
+        base_bytes = base_profiles.get(relative_profile)
+        profile = json.loads(head_bytes if head_bytes is not None else base_bytes)
         fixture = profile["fixture"]
         if not fixture.startswith("internal/runtime/") or not fixture.endswith("_benchmark_test.go"):
             raise ValueError(f"invalid benchmark fixture: {fixture}")
         fixture_path = repo_path(head, fixture)
         if type(profile["cases"]) is not int or profile["cases"] <= 0:
-            raise ValueError(f"invalid case count: {profile_path}")
+            raise ValueError(f"invalid case count: {relative_profile}")
         re.compile(profile["benchmark"])
         for pattern in profile["sources"]:
             repo_path(head, pattern)
         if base is None or not fixture_path.is_file():
             continue
+        # A renamed profile uses its head definition instead of running twice.
+        if head_bytes is None and fixture in head_fixtures:
+            continue
         fixture_bytes = fixture_path.read_bytes()
-        relative_profile = profile_path.relative_to(head).as_posix()
         changed = (
-            profile_bytes != optional_bytes(repo_path(base, relative_profile))
+            head_bytes != base_bytes
             or fixture_bytes != optional_bytes(repo_path(base, fixture))
             or source_snapshot(head, profile["sources"]) != source_snapshot(base, profile["sources"])
         )
         if changed:
             groups.append({
-                "name": profile_path.stem,
+                "name": PurePosixPath(relative_profile).stem,
                 **profile,
                 "fixture_sha256": hashlib.sha256(fixture_bytes).hexdigest(),
             })
