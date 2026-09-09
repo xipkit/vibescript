@@ -3997,6 +3997,7 @@ func (exec *Execution) bindFunctionParamValue(fn *ScriptFunction, env *Env, para
 				bumpMutationEpoch()
 				publishBindingReplacement(inst.Ivars[param.Name], normalized)
 				inst.Ivars[param.Name] = normalized
+				exec.noteAssignmentMapMutation(inst.Ivars)
 			}
 		}
 	}

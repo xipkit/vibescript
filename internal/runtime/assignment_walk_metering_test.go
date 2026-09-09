@@ -66,6 +66,23 @@ def run(depth)
   end
   42
 end`},
+		{"ivar parameter", `class Box
+  property cur
+  def initialize
+    @cur = [1]
+  end
+  def replace(@cur)
+  end
+end
+def run(depth)
+  box = Box.new
+  i = 0
+  while i < depth
+    box.replace([box.cur])
+    i = i + 1
+  end
+  42
+end`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			script := compileScriptWithConfig(t, Config{StepQuota: 40_000, MemoryQuotaBytes: 8 << 20}, tc.source)
