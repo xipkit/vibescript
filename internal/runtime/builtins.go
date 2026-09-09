@@ -700,7 +700,7 @@ func prepareFormatString(exec *Execution, pattern string, values []Value) (prepa
 		i++
 		if i >= len(pattern) {
 			var err error
-			total, err = addProjectedFormatBytes(total, 2)
+			total, err = addProjectedFormatBytes(total, len("%!(NOVERB)"))
 			if err != nil {
 				return preparedFormatString{}, err
 			}
