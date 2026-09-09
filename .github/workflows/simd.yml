@@ -11,6 +11,10 @@ on:
         description: Full candidate commit SHA
         required: true
         default: c31ea6888de0502612b07bcb759fa88b83f5e77d
+      profile_only:
+        description: Skip completed benchmark trials and capture CPU profiles
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,6 +26,7 @@ jobs:
     env:
       SIMD_BASE: ${{ inputs.base_ref }}
       SIMD_HEAD: ${{ inputs.head_ref }}
+      SIMD_PROFILE_ONLY: ${{ inputs.profile_only }}
     steps:
       - uses: actions/checkout@v4
         with:

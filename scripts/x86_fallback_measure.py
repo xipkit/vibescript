@@ -21,7 +21,7 @@ pattern = "^Benchmark(SIMDString.*|StringASCIICase|StringCaseComparison|JSONSpan
 manifest = {
     "revisions": revisions,
     "trees": {},
-    "rounds": 10,
+    "rounds": 0 if os.environ.get("SIMD_PROFILE_ONLY") == "true" else 10,
     "benchtime": "100ms",
     "affinity_cpu": cpu,
     "benchmark_pattern": pattern,
@@ -77,7 +77,7 @@ for revision in revisions:
         with (out / f"{revision}-{mode}.asm").open("w") as log:
             subprocess.run(
                 ["go", "tool", "objdump", "-s",
-                 "(jsonValueParser.*parseString|unicodeDowncase|stringCase.*|asciiCase.*|stringRune.*|stringIsASCII.*)",
+                 "(jsonValueParser.*parse(String|EscapedContents).*|unicodeDowncase|caseInsensitiveEqual|stringCase.*|asciiCase.*|stringRune.*|stringIsASCII.*)",
                  str(binary)], env=env, stdout=log, check=True,
             )
 
@@ -115,20 +115,20 @@ for trial in range(manifest["rounds"]):
             (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
 for revision in revisions:
-    command = [
-        "taskset", "-c", str(cpu), str(binaries / f"{revision}-simd"),
-        "-test.run=^$", "-test.bench=^BenchmarkJSONSpans$/^parse$/^65536$/^dense-escape$",
-        "-test.cpu=1", "-test.count=1", "-test.benchtime=3s", "-test.benchmem",
-        "-test.cpuprofile=" + str(out / f"{revision}-dense-parse.pprof"),
-    ]
-    with (out / f"{revision}-dense-parse-profile.txt").open("w") as log:
-        subprocess.run(
-            command, cwd=root / revision / "internal/runtime",
-            env=dict(env, GOEXPERIMENT="simd"), stdout=log, check=True,
-        )
-    with (out / f"{revision}-dense-parse-top.txt").open("w") as log:
-        subprocess.run(
-            ["go", "tool", "pprof", "-top", "-nodecount=50", str(binaries / f"{revision}-simd"),
-             str(out / f"{revision}-dense-parse.pprof")], env=env, stdout=log, check=True,
-        )
+    for workload in ("json", "index", "rindex"):
+        profile = out / f"{revision}-{workload}.pprof"
+        command = ["taskset", "-c", str(cpu), str(binaries / f"{revision}-simd")]
+        with (out / f"{revision}-{workload}-profile.txt").open("w") as log:
+            subprocess.run(
+                command, cwd=root / revision / "internal/runtime",
+                env=dict(env, GOEXPERIMENT="simd", SIMD_PROFILE_FILE=str(profile), SIMD_PROFILE_WORKLOAD=workload),
+                stdout=log, check=True,
+            )
+        assert profile.stat().st_size > 0
+        with (out / f"{revision}-{workload}-top.txt").open("w") as log:
+            subprocess.run(
+                ["go", "tool", "pprof", "-top", "-nodecount=50", str(binaries / f"{revision}-simd"), str(profile)],
+                env=env, stdout=log, check=True,
+            )
+(out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 print("Completed all", len(manifest["samples"]), "samples and CPU profiles.", flush=True)

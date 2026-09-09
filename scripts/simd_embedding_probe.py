@@ -29,6 +29,7 @@ def prepare(source, destination):
 
 import (
     "context"
+    "os"
     "regexp"
     "testing"
 
@@ -56,11 +57,62 @@ func parseProbeJSON(text string) (Value, error) {
 }
 
 func main() {
+    if path := os.Getenv("SIMD_PROFILE_FILE"); path != "" {
+        if err := profileWorkload(path, os.Getenv("SIMD_PROFILE_WORKLOAD")); err != nil { panic(err) }
+        return
+    }
     testing.Main(regexp.MatchString, nil, []testing.InternalBenchmark{
 '''
     main += "".join(f'        {{Name: "{name}", F: {name}}},\n' for name in benchmarks)
     main += "    }, nil)\n}\n"
     (destination / "main.go").write_text(main)
+    (destination / "profile.go").write_text('''package main
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "os"
+    "runtime/pprof"
+    "time"
+)
+
+func profileWorkload(path, workload string) error {
+    var source string
+    var args []Value
+    switch workload {
+    case "json":
+        encoded, err := json.Marshal(jsonSpanBenchmarkPayload("dense-escape", 65536))
+        if err != nil { return err }
+        source = "def run(input) JSON.parse(input) end"
+        args = []Value{NewString(`{"payload":` + string(encoded) + `,"id":7}`)}
+    case "index":
+        source = "def run(text, needle, n) total = 0; for i in 1..n; total = total + text.index(needle); end; total; end"
+        args = []Value{NewString(simdBenchmarkUnicodeStringText()), NewString("終"), NewInt(200)}
+    case "rindex":
+        source = "def run(text, needle, n) total = 0; for i in 1..n; total = total + text.rindex(needle); end; total; end"
+        args = []Value{NewString(simdBenchmarkUnicodeStringText()), NewString("é"), NewInt(200)}
+    default:
+        return fmt.Errorf("unknown profile workload %q", workload)
+    }
+    script, err := MustNewEngine(Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}).Compile(source)
+    if err != nil { return err }
+    if _, err := script.Call(context.Background(), "run", args, CallOptions{}); err != nil { return err }
+    file, err := os.Create(path)
+    if err != nil { return err }
+    defer file.Close()
+    if err := pprof.StartCPUProfile(file); err != nil { return err }
+    defer pprof.StopCPUProfile()
+    until := time.Now().Add(3 * time.Second)
+    calls := 0
+    for time.Now().Before(until) {
+        if _, err := script.Call(context.Background(), "run", args, CallOptions{}); err != nil { return err }
+        calls++
+    }
+    fmt.Printf("Profiled %s: %d calls\\n", workload, calls)
+    return nil
+}
+''')
     (destination / "fixture-hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")
 
 
