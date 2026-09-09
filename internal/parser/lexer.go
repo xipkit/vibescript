@@ -1175,6 +1175,31 @@ func isBaseDigit(r rune, base int) bool {
 	return v < base
 }
 
+// readQuotedASCII consumes ordinary text before the next string delimiter or
+// non-ASCII rune. Leaving that boundary unread keeps escapes, interpolation,
+// invalid UTF-8, and line changes on the rune scanner's existing paths.
+func (l *lexer) readQuotedASCII(quote byte) string {
+	start := l.offset
+	end := start
+	for end < len(l.input) {
+		ch := l.input[end]
+		if ch == quote || ch == '\\' || ch == 0 || ch == '\n' || ch >= utf8.RuneSelf || (quote == '"' && ch == '#') {
+			break
+		}
+		end++
+	}
+	if end == start {
+		return ""
+	}
+	l.prevLine = l.line
+	l.prevColumn = l.column + end - start - 1
+	l.column += end - start
+	l.offset = end
+	l.width = 1
+	l.ch = rune(l.input[end-1])
+	return l.input[start:end]
+}
+
 func (l *lexer) readDoubleQuotedString() (string, bool, string) {
 	var decoded strings.Builder
 	interpolated := false
@@ -1259,7 +1284,13 @@ func (l *lexer) readDoubleQuotedString() (string, bool, string) {
 				}
 			}
 		default:
-			decoded.WriteRune(l.ch)
+			if l.ch < utf8.RuneSelf && l.ch != '\n' {
+				start := l.currentOffset()
+				l.readQuotedASCII('"')
+				decoded.WriteString(l.input[start:l.offset])
+			} else {
+				decoded.WriteRune(l.ch)
+			}
 		}
 	}
 }
@@ -1405,7 +1436,13 @@ func (l *lexer) readSingleQuotedString() (string, string) {
 				sb.WriteRune(l.ch)
 			}
 		default:
-			sb.WriteRune(l.ch)
+			if l.ch < utf8.RuneSelf && l.ch != '\n' {
+				start := l.currentOffset()
+				l.readQuotedASCII('\'')
+				sb.WriteString(l.input[start:l.offset])
+			} else {
+				sb.WriteRune(l.ch)
+			}
 		}
 	}
 }
