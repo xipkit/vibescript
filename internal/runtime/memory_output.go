@@ -121,10 +121,9 @@ func (exec *Execution) pushOutputWalkRoot(walk outputWalkRoot) {
 // charge zeroes the counter.
 //
 // What the counter holds is the bind charge's construction walk, and nothing else.
-// The retained-output walk it once also held is no longer recorded at all: that
-// walk is forced by a memo miss whose cause cannot be attributed to this
-// execution, so charging it billed one script for another's mutations (see
-// outputWalkBytes).
+// Retained-output walks caused by this script's writes and conservative calls
+// are billed separately by their accounting sessions. Misses caused only by
+// unrelated executions remain uncharged (see outputWalkBytes).
 //
 // The root is unregistered before the charge so the memory check inside the step
 // charge does not re-walk the output this driver is abandoning.
@@ -149,6 +148,9 @@ func (exec *Execution) endOutputWalkRoot(err error) error {
 		exec.outputWalkRoots[last] = nil
 		exec.outputWalkRoots = exec.outputWalkRoots[:last]
 	}
+	if len(exec.outputWalkRoots) == 0 {
+		exec.outputCallInvalidated = false
+	}
 	if chargeErr := exec.chargeRetainedOutputWalk(); chargeErr != nil && err == nil {
 		return chargeErr
 	}
@@ -166,15 +168,24 @@ func (exec *Execution) outputWalkBytes(est *memoryEstimator) int {
 	for _, walk := range exec.outputWalkRoots {
 		total = saturatingAdd(total, walk(est))
 	}
-	// This traversal is deliberately NOT recorded for billing. It happens whenever
-	// the base-walk memo cannot answer, and the memo is keyed on a process-wide
-	// mutation epoch that any execution in the process advances -- so an unrelated
-	// script's mutation forces this walk exactly as this script's own does, and
-	// there is no state on the Execution that tells the two apart. Billing it let
-	// a concurrent mutator drive an innocent lookup's step usage from 10,053 nodes
-	// to 166,753. What is still billed is the bind charge's construction walk,
-	// which happens because this execution built a charge (see newBlockBindCharge).
+	// The enclosing accounting session bills script writes and self-invalidating
+	// calls, not this traversal alone: an unrelated execution's opaque mutation
+	// or journal overflow may force the same walk without this script causing it.
 	return total
+}
+
+// ownsRetainedOutputWalk distinguishes a call's own conservative invalidation
+// from unrelated mutation traffic. Inside an undeclared builtin below the
+// driver, every check must bypass the memo, even after its first invalidation
+// has been consumed. The driver's own region still uses its normal memo.
+// Checks induced by estimator step billing still measure memory, but cannot
+// recursively bill that same accounting work again.
+func (exec *Execution) ownsRetainedOutputWalk() bool {
+	if len(exec.outputWalkRoots) == 0 || exec.estimatorWalkCharging {
+		return false
+	}
+	return exec.outputCallInvalidated || exec.undeclaredBuiltinDepth > 0 &&
+		(!exec.blockRegionActive || exec.undeclaredBuiltinDepth != exec.blockRegionBuiltinDepth)
 }
 
 // chargeRetainedOutputWalk bills the step quota for the estimator work recorded
@@ -201,11 +212,9 @@ func (exec *Execution) outputWalkBytes(est *memoryEstimator) int {
 // lookup went on to process 50,000 present keys, which invoke nothing and can
 // cost no steps, against a quota that charge had already exhausted.
 //
-// Despite the name, what is recorded is NOT the retained-output walk. That walk is
-// unbilled (see outputWalkBytes for why). What reaches this counter is the bind
-// charge's construction walk, which happens because this execution built a charge
-// and is therefore attributable to it. A lookup whose callback binds no named rest
-// builds no charge, records nothing here, and pays nothing.
+// This counter holds only the bind charge's construction walk. Accounting
+// sessions bill attributable retained-output work separately. A callback without
+// a named rest builds no bind charge and records no construction work here.
 func (exec *Execution) chargeRetainedOutputWalk() error {
 	nodes := exec.outputWalkNodes
 	if nodes == 0 {

@@ -133,6 +133,8 @@ type Execution struct {
 	// outputWalkNodes counts the graph nodes the output roots have been walked
 	// over since a driver last billed them (see chargeRetainedOutputWalk).
 	outputWalkNodes           int
+	outputCallInvalidated     bool
+	estimatorWalkCharging     bool
 	bindingOwner              *Script
 	capabilityContracts       map[*Builtin]CapabilityMethodContract
 	capabilityContractScopes  map[*Builtin]*capabilityContractScope

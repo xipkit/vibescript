@@ -321,6 +321,9 @@ func (exec *Execution) invokeCallable(callee, receiver Value, args []Value, kwar
 		declaredPure := builtin.declaredNonMutating()
 		if !declaredPure {
 			bumpMutationEpoch()
+			if len(exec.outputWalkRoots) > 0 {
+				exec.outputCallInvalidated = true
+			}
 		}
 		// An accumulator-metered section only vouches for the loop that opened
 		// it, never for a nested builtin's allocations, so dispatch suspends
