@@ -1,0 +1,109 @@
+package runtime
+
+import (
+	"math/rand"
+	"strings"
+	"testing"
+)
+
+func auditReferenceSpace(b byte, strip bool) bool {
+	return b == ' ' || b >= 9 && b <= 13 || strip && b == 0
+}
+
+func auditCheckSpaceSpans(t *testing.T, text string) {
+	t.Helper()
+	for _, strip := range []bool{false, true} {
+		prefix := 0
+		for prefix < len(text) && auditReferenceSpace(text[prefix], strip) {
+			prefix++
+		}
+		suffix := 0
+		for suffix < len(text) && auditReferenceSpace(text[len(text)-suffix-1], strip) {
+			suffix++
+		}
+		if got := auditSIMDSpacePrefix(text, strip); got != prefix {
+			t.Fatalf("SIMD prefix(%q, strip=%v) = %d, want %d", text, strip, got, prefix)
+		}
+		if got := auditGoSpacePrefix(text, strip); got != prefix {
+			t.Fatalf("Go prefix(%q, strip=%v) = %d, want %d", text, strip, got, prefix)
+		}
+		if got := auditSIMDSpaceSuffix(text, strip); got != suffix {
+			t.Fatalf("SIMD suffix(%q, strip=%v) = %d, want %d", text, strip, got, suffix)
+		}
+		if got := auditGoSpaceSuffix(text, strip); got != suffix {
+			t.Fatalf("Go suffix(%q, strip=%v) = %d, want %d", text, strip, got, suffix)
+		}
+	}
+	prefix := 0
+	for prefix < len(text) && !auditReferenceSpace(text[prefix], false) {
+		prefix++
+	}
+	if got := auditSIMDNonSpacePrefix(text); got != prefix {
+		t.Fatalf("SIMD nonspace prefix(%q) = %d, want %d", text, got, prefix)
+	}
+	if got := auditGoNonSpacePrefix(text); got != prefix {
+		t.Fatalf("Go nonspace prefix(%q) = %d, want %d", text, got, prefix)
+	}
+}
+
+func TestAuditSpaceAllBytes(t *testing.T) {
+	for _, n := range []int{0, 1, 7, 8, 15, 16, 17, 23, 24, 31, 32, 33, 47, 48, 63, 64, 65, 127, 128} {
+		padding := strings.Repeat(" \t\r\n\v\f", n/6+1)[:n]
+		for b := range 256 {
+			value := string([]byte{byte(b)})
+			auditCheckSpaceSpans(t, padding+value+padding)
+			auditCheckSpaceSpans(t, strings.Repeat("x", n)+value+padding)
+			auditCheckSpaceSpans(t, strings.Repeat(value, n))
+		}
+	}
+}
+
+func TestAuditSpaceEveryStop(t *testing.T) {
+	for n := range 161 {
+		for stop := range n + 1 {
+			auditCheckSpaceSpans(t, strings.Repeat(" ", stop)+strings.Repeat("x", n-stop))
+			auditCheckSpaceSpans(t, strings.Repeat("\x00", stop)+strings.Repeat("x", n-stop))
+			auditCheckSpaceSpans(t, strings.Repeat("x", stop)+strings.Repeat(" ", n-stop))
+		}
+	}
+}
+
+func TestAuditSpaceUnicodeAndInvalidUTF8(t *testing.T) {
+	for _, text := range []string{"", "\u00a0", "\u1680", "\u2003", "\ufeff", "\xff\xfe", "a\x00b", "\u00a0 a", "a \u2003"} {
+		for _, n := range []int{0, 8, 16, 24, 32, 64, 4096} {
+			padding := strings.Repeat(" ", n)
+			auditCheckSpaceSpans(t, padding+text+padding)
+		}
+	}
+}
+
+func TestAuditSpaceRandom(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x5ace))
+	spaces := " \t\n\v\f\r\x00"
+	for range 10000 {
+		data := make([]byte, rng.Intn(513))
+		for i := range data {
+			if rng.Intn(2) == 0 {
+				data[i] = spaces[rng.Intn(len(spaces))]
+			} else {
+				data[i] = byte(rng.Intn(256))
+			}
+		}
+		auditCheckSpaceSpans(t, string(data))
+	}
+}
+
+func TestAuditSpaceAllocations(t *testing.T) {
+	spaces := strings.Repeat(" \t\r\n\v\f\x00", 1024)
+	text := strings.Repeat("word\xc3\xa9", 1024)
+	got := 0
+	allocs := testing.AllocsPerRun(100, func() {
+		got = auditSIMDSpacePrefix(spaces, true) + auditSIMDSpaceSuffix(spaces, true) + auditSIMDNonSpacePrefix(text)
+	})
+	if want := 2*len(spaces) + len(text); got != want {
+		t.Fatalf("combined spans = %d, want %d", got, want)
+	}
+	if allocs != 0 {
+		t.Fatalf("SIMD whitespace spans allocated %v times, want 0", allocs)
+	}
+}

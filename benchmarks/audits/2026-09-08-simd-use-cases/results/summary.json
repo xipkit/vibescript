@@ -1,0 +1,2444 @@
+{
+  "original": {
+    "upcase-ascii/16/ascii": {
+      "ns": 1489.0,
+      "ns_min": 1454.0,
+      "ns_max": 1509.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "upcase-ascii/16/unicode": {
+      "ns": 1480.5,
+      "ns_min": 1443.0,
+      "ns_max": 1502.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "upcase-ascii/16/invalid": {
+      "ns": 1487.0,
+      "ns_min": 1447.0,
+      "ns_max": 1496.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/ascii": {
+      "ns": 1486.5,
+      "ns_min": 1444.0,
+      "ns_max": 1524.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/unicode": {
+      "ns": 1487.5,
+      "ns_min": 1444.0,
+      "ns_max": 1502.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/invalid": {
+      "ns": 1487.5,
+      "ns_min": 1438.0,
+      "ns_max": 1509.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/ascii": {
+      "ns": 1489.0,
+      "ns_min": 1448.0,
+      "ns_max": 1505.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/unicode": {
+      "ns": 1492.5,
+      "ns_min": 1448.0,
+      "ns_max": 1501.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/invalid": {
+      "ns": 1489.5,
+      "ns_min": 1456.0,
+      "ns_max": 1516.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/ascii": {
+      "ns": 1488.5,
+      "ns_min": 1443.0,
+      "ns_max": 1568.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/unicode": {
+      "ns": 1487.0,
+      "ns_min": 1443.0,
+      "ns_max": 1508.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/invalid": {
+      "ns": 1487.5,
+      "ns_min": 1447.0,
+      "ns_max": 1498.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "casecmp/16/equal": {
+      "ns": 1436.5,
+      "ns_min": 1398.0,
+      "ns_max": 1460.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/equal": {
+      "ns": 1449.0,
+      "ns_min": 1403.0,
+      "ns_max": 1538.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/first-mismatch": {
+      "ns": 1429.0,
+      "ns_min": 1393.0,
+      "ns_max": 1451.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/first-mismatch": {
+      "ns": 1441.5,
+      "ns_min": 1373.0,
+      "ns_max": 1451.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/last-mismatch": {
+      "ns": 1440.0,
+      "ns_min": 1391.0,
+      "ns_max": 1484.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/last-mismatch": {
+      "ns": 1447.0,
+      "ns_min": 1413.0,
+      "ns_max": 1463.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/unicode": {
+      "ns": 1411.5,
+      "ns_min": 1371.0,
+      "ns_max": 1437.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/unicode": {
+      "ns": 1443.0,
+      "ns_min": 1401.0,
+      "ns_max": 1453.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/invalid": {
+      "ns": 1443.5,
+      "ns_min": 1398.0,
+      "ns_max": 1465.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/invalid": {
+      "ns": 1435.5,
+      "ns_min": 1391.0,
+      "ns_max": 1453.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/invalid-tail": {
+      "ns": 1441.5,
+      "ns_min": 1398.0,
+      "ns_max": 1451.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/invalid-tail": {
+      "ns": 1444.0,
+      "ns_min": 1399.0,
+      "ns_max": 1451.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/16/long-fields": {
+      "ns": 1613.5,
+      "ns_min": 1566.0,
+      "ns_max": 1632.0,
+      "bytes": 4304.0,
+      "allocs": 21.0
+    },
+    "split/16/short-fields": {
+      "ns": 1618.0,
+      "ns_min": 1579.0,
+      "ns_max": 1660.0,
+      "bytes": 4304.0,
+      "allocs": 21.0
+    },
+    "split/16/all-space": {
+      "ns": 1399.5,
+      "ns_min": 1364.0,
+      "ns_max": 1417.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/16/unicode": {
+      "ns": 1744.0,
+      "ns_min": 1692.0,
+      "ns_max": 1764.0,
+      "bytes": 4400.0,
+      "allocs": 25.0
+    },
+    "strip/16/long-padding": {
+      "ns": 1256.5,
+      "ns_min": 1215.0,
+      "ns_max": 1264.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/16/short-padding": {
+      "ns": 1246.0,
+      "ns_min": 1206.0,
+      "ns_max": 1258.0,
+      "bytes": 3840.0,
+      "allocs": 14.0
+    },
+    "strip/16/no-padding": {
+      "ns": 1195.0,
+      "ns_min": 1163.0,
+      "ns_max": 1202.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/16/unicode": {
+      "ns": 1195.5,
+      "ns_min": 1155.0,
+      "ns_max": 1210.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-ascii/4096/ascii": {
+      "ns": 3714.0,
+      "ns_min": 3586.0,
+      "ns_max": 3788.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/4096/unicode": {
+      "ns": 3702.5,
+      "ns_min": 3600.0,
+      "ns_max": 3754.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/4096/invalid": {
+      "ns": 3708.0,
+      "ns_min": 3602.0,
+      "ns_max": 3742.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/ascii": {
+      "ns": 3709.0,
+      "ns_min": 3609.0,
+      "ns_max": 3742.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/unicode": {
+      "ns": 3695.5,
+      "ns_min": 3612.0,
+      "ns_max": 3730.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/invalid": {
+      "ns": 3713.5,
+      "ns_min": 3618.0,
+      "ns_max": 3782.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/ascii": {
+      "ns": 4198.5,
+      "ns_min": 4095.0,
+      "ns_max": 4248.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/unicode": {
+      "ns": 4298.0,
+      "ns_min": 4236.0,
+      "ns_max": 4349.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/invalid": {
+      "ns": 4014.5,
+      "ns_min": 3938.0,
+      "ns_max": 4076.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/ascii": {
+      "ns": 3697.5,
+      "ns_min": 3603.0,
+      "ns_max": 3739.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/unicode": {
+      "ns": 3699.5,
+      "ns_min": 3590.0,
+      "ns_max": 3785.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/invalid": {
+      "ns": 3703.0,
+      "ns_min": 3587.0,
+      "ns_max": 3729.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "casecmp/4096/equal": {
+      "ns": 4458.5,
+      "ns_min": 4231.0,
+      "ns_max": 4499.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/equal": {
+      "ns": 3745.0,
+      "ns_min": 3556.0,
+      "ns_max": 3773.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/first-mismatch": {
+      "ns": 1532.5,
+      "ns_min": 1486.0,
+      "ns_max": 1541.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/first-mismatch": {
+      "ns": 1633.0,
+      "ns_min": 1581.0,
+      "ns_max": 1650.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/last-mismatch": {
+      "ns": 4458.0,
+      "ns_min": 4383.0,
+      "ns_max": 4644.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/last-mismatch": {
+      "ns": 3746.5,
+      "ns_min": 3598.0,
+      "ns_max": 3784.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/unicode": {
+      "ns": 4285.0,
+      "ns_min": 4113.0,
+      "ns_max": 4398.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/unicode": {
+      "ns": 10374.0,
+      "ns_min": 9947.0,
+      "ns_max": 10858.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/invalid": {
+      "ns": 4459.0,
+      "ns_min": 4232.0,
+      "ns_max": 4607.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/invalid": {
+      "ns": 4447.5,
+      "ns_min": 4213.0,
+      "ns_max": 4599.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/invalid-tail": {
+      "ns": 4451.5,
+      "ns_min": 4205.0,
+      "ns_max": 4608.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/invalid-tail": {
+      "ns": 4430.5,
+      "ns_min": 4197.0,
+      "ns_max": 4572.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/4096/long-fields": {
+      "ns": 8076.5,
+      "ns_min": 7850.0,
+      "ns_max": 8273.0,
+      "bytes": 10984.0,
+      "allocs": 61.0
+    },
+    "split/4096/short-fields": {
+      "ns": 80649.0,
+      "ns_min": 77216.0,
+      "ns_max": 84285.0,
+      "bytes": 112226.0,
+      "allocs": 1765.0
+    },
+    "split/4096/all-space": {
+      "ns": 3028.0,
+      "ns_min": 2934.0,
+      "ns_max": 3052.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/4096/unicode": {
+      "ns": 51260.0,
+      "ns_min": 49457.0,
+      "ns_max": 51873.0,
+      "bytes": 93641.0,
+      "allocs": 955.0
+    },
+    "strip/4096/long-padding": {
+      "ns": 2717.0,
+      "ns_min": 2635.0,
+      "ns_max": 2745.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/4096/short-padding": {
+      "ns": 1673.5,
+      "ns_min": 1649.0,
+      "ns_max": 1693.0,
+      "bytes": 7920.0,
+      "allocs": 14.0
+    },
+    "strip/4096/no-padding": {
+      "ns": 1218.0,
+      "ns_min": 1192.0,
+      "ns_max": 1226.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/4096/unicode": {
+      "ns": 1216.0,
+      "ns_min": 1190.0,
+      "ns_max": 1222.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-ascii/65536/ascii": {
+      "ns": 30164.0,
+      "ns_min": 29618.0,
+      "ns_max": 31050.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/65536/unicode": {
+      "ns": 30266.5,
+      "ns_min": 29932.0,
+      "ns_max": 30920.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/65536/invalid": {
+      "ns": 30228.0,
+      "ns_min": 30000.0,
+      "ns_max": 30950.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/ascii": {
+      "ns": 30346.0,
+      "ns_min": 30232.0,
+      "ns_max": 31068.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/unicode": {
+      "ns": 30257.5,
+      "ns_min": 30144.0,
+      "ns_max": 31151.0,
+      "bytes": 134928.5,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/invalid": {
+      "ns": 30309.0,
+      "ns_min": 30079.0,
+      "ns_max": 30863.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/ascii": {
+      "ns": 41385.0,
+      "ns_min": 40806.0,
+      "ns_max": 41553.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/unicode": {
+      "ns": 43365.0,
+      "ns_min": 42861.0,
+      "ns_max": 43955.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/invalid": {
+      "ns": 38299.5,
+      "ns_min": 37443.0,
+      "ns_max": 39106.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/ascii": {
+      "ns": 30303.0,
+      "ns_min": 29671.0,
+      "ns_max": 30576.0,
+      "bytes": 134928.5,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/unicode": {
+      "ns": 30266.5,
+      "ns_min": 29897.0,
+      "ns_max": 30480.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/invalid": {
+      "ns": 30310.5,
+      "ns_min": 29695.0,
+      "ns_max": 30840.0,
+      "bytes": 134929.0,
+      "allocs": 16.0
+    },
+    "casecmp/65536/equal": {
+      "ns": 48473.5,
+      "ns_min": 45499.0,
+      "ns_max": 49149.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/equal": {
+      "ns": 37699.0,
+      "ns_min": 36465.0,
+      "ns_max": 38396.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/first-mismatch": {
+      "ns": 1529.0,
+      "ns_min": 1478.0,
+      "ns_max": 1543.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/first-mismatch": {
+      "ns": 3288.0,
+      "ns_min": 3151.0,
+      "ns_max": 3326.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/last-mismatch": {
+      "ns": 47610.5,
+      "ns_min": 45162.0,
+      "ns_max": 48827.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/last-mismatch": {
+      "ns": 37385.0,
+      "ns_min": 35823.0,
+      "ns_max": 37790.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/unicode": {
+      "ns": 42695.5,
+      "ns_min": 41492.0,
+      "ns_max": 43051.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/unicode": {
+      "ns": 143647.5,
+      "ns_min": 140161.0,
+      "ns_max": 145803.0,
+      "bytes": 3826.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/invalid": {
+      "ns": 48677.0,
+      "ns_min": 44358.0,
+      "ns_max": 48966.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/invalid": {
+      "ns": 48503.0,
+      "ns_min": 44223.0,
+      "ns_max": 48683.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/invalid-tail": {
+      "ns": 48639.5,
+      "ns_min": 47757.0,
+      "ns_max": 49106.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/invalid-tail": {
+      "ns": 48715.0,
+      "ns_min": 47613.0,
+      "ns_max": 48864.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/65536/long-fields": {
+      "ns": 98207.5,
+      "ns_min": 94697.0,
+      "ns_max": 98658.0,
+      "bytes": 118122.0,
+      "allocs": 553.0
+    },
+    "split/65536/short-fields": {
+      "ns": 1316589.5,
+      "ns_min": 1266811.0,
+      "ns_max": 1341403.0,
+      "bytes": 1793652.0,
+      "allocs": 27715.5
+    },
+    "split/65536/all-space": {
+      "ns": 27087.5,
+      "ns_min": 25554.0,
+      "ns_max": 27269.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/65536/unicode": {
+      "ns": 774090.0,
+      "ns_min": 750976.0,
+      "ns_max": 782285.0,
+      "bytes": 1252176.5,
+      "allocs": 14667.0
+    },
+    "strip/65536/long-padding": {
+      "ns": 25499.0,
+      "ns_min": 24049.0,
+      "ns_max": 25724.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/65536/short-padding": {
+      "ns": 5416.0,
+      "ns_min": 5264.0,
+      "ns_max": 5459.0,
+      "bytes": 69360.0,
+      "allocs": 14.0
+    },
+    "strip/65536/no-padding": {
+      "ns": 1210.0,
+      "ns_min": 1186.0,
+      "ns_max": 1221.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/65536/unicode": {
+      "ns": 1213.5,
+      "ns_min": 1191.0,
+      "ns_max": 1228.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-default/4096/ascii": {
+      "ns": 24390.5,
+      "ns_min": 23211.0,
+      "ns_max": 24836.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "upcase-default/4096/unicode": {
+      "ns": 23656.0,
+      "ns_min": 22547.0,
+      "ns_max": 23892.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "downcase-default/4096/ascii": {
+      "ns": 24779.5,
+      "ns_min": 23634.0,
+      "ns_max": 25201.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "downcase-default/4096/unicode": {
+      "ns": 23912.5,
+      "ns_min": 22633.0,
+      "ns_max": 24284.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "capitalize-default/4096/ascii": {
+      "ns": 25394.0,
+      "ns_min": 24247.0,
+      "ns_max": 25625.0,
+      "bytes": 30096.0,
+      "allocs": 26.0
+    },
+    "capitalize-default/4096/unicode": {
+      "ns": 24603.5,
+      "ns_min": 23485.0,
+      "ns_max": 24779.0,
+      "bytes": 30104.0,
+      "allocs": 27.0
+    },
+    "swapcase-default/4096/ascii": {
+      "ns": 324248.5,
+      "ns_min": 310852.0,
+      "ns_max": 329784.0,
+      "bytes": 707064.0,
+      "allocs": 2745.0
+    },
+    "swapcase-default/4096/unicode": {
+      "ns": 236355.5,
+      "ns_min": 227265.0,
+      "ns_max": 241713.0,
+      "bytes": 458640.5,
+      "allocs": 2355.0
+    },
+    "regexp-escape/16/plain": {
+      "ns": 2176.5,
+      "ns_min": 2129.0,
+      "ns_max": 2221.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/16/sparse-meta": {
+      "ns": 2469.0,
+      "ns_min": 2408.0,
+      "ns_max": 2501.0,
+      "bytes": 4776.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/16/dense-meta": {
+      "ns": 2497.0,
+      "ns_min": 2439.0,
+      "ns_max": 2524.0,
+      "bytes": 4776.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/16/unicode": {
+      "ns": 2169.0,
+      "ns_min": 2116.0,
+      "ns_max": 2193.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/4096/plain": {
+      "ns": 5216.5,
+      "ns_min": 4994.0,
+      "ns_max": 5277.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/4096/sparse-meta": {
+      "ns": 9300.5,
+      "ns_min": 8910.0,
+      "ns_max": 9356.0,
+      "bytes": 9616.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/4096/dense-meta": {
+      "ns": 22165.0,
+      "ns_min": 21283.0,
+      "ns_max": 22486.0,
+      "bytes": 12944.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/4096/unicode": {
+      "ns": 5203.5,
+      "ns_min": 4996.0,
+      "ns_max": 5261.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/65536/plain": {
+      "ns": 50806.0,
+      "ns_min": 47832.0,
+      "ns_max": 51227.0,
+      "bytes": 4753.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/65536/sparse-meta": {
+      "ns": 107750.0,
+      "ns_min": 102391.0,
+      "ns_max": 112533.0,
+      "bytes": 78482.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/65536/dense-meta": {
+      "ns": 332624.0,
+      "ns_min": 315509.0,
+      "ns_max": 338102.0,
+      "bytes": 127639.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/65536/unicode": {
+      "ns": 50690.5,
+      "ns_min": 47947.0,
+      "ns_max": 51149.0,
+      "bytes": 4753.0,
+      "allocs": 23.0
+    }
+  },
+  "go": {
+    "upcase-ascii/16/ascii": {
+      "ns": 1496.5,
+      "ns_min": 1452.0,
+      "ns_max": 1507.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "upcase-ascii/16/unicode": {
+      "ns": 1485.5,
+      "ns_min": 1454.0,
+      "ns_max": 1512.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "upcase-ascii/16/invalid": {
+      "ns": 1488.5,
+      "ns_min": 1444.0,
+      "ns_max": 1550.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/ascii": {
+      "ns": 1487.5,
+      "ns_min": 1459.0,
+      "ns_max": 1511.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/unicode": {
+      "ns": 1497.5,
+      "ns_min": 1449.0,
+      "ns_max": 1526.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/invalid": {
+      "ns": 1491.5,
+      "ns_min": 1445.0,
+      "ns_max": 1574.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/ascii": {
+      "ns": 1491.0,
+      "ns_min": 1448.0,
+      "ns_max": 1509.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/unicode": {
+      "ns": 1499.0,
+      "ns_min": 1432.0,
+      "ns_max": 1544.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/invalid": {
+      "ns": 1498.0,
+      "ns_min": 1436.0,
+      "ns_max": 1543.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/ascii": {
+      "ns": 1493.0,
+      "ns_min": 1438.0,
+      "ns_max": 1535.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/unicode": {
+      "ns": 1493.5,
+      "ns_min": 1437.0,
+      "ns_max": 1521.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/invalid": {
+      "ns": 1497.5,
+      "ns_min": 1451.0,
+      "ns_max": 1524.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "casecmp/16/equal": {
+      "ns": 1437.5,
+      "ns_min": 1388.0,
+      "ns_max": 1477.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/equal": {
+      "ns": 1452.5,
+      "ns_min": 1399.0,
+      "ns_max": 1497.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/first-mismatch": {
+      "ns": 1436.5,
+      "ns_min": 1377.0,
+      "ns_max": 1476.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/first-mismatch": {
+      "ns": 1443.5,
+      "ns_min": 1390.0,
+      "ns_max": 1471.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/last-mismatch": {
+      "ns": 1440.0,
+      "ns_min": 1392.0,
+      "ns_max": 1475.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/last-mismatch": {
+      "ns": 1446.0,
+      "ns_min": 1400.0,
+      "ns_max": 1488.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/unicode": {
+      "ns": 1409.0,
+      "ns_min": 1368.0,
+      "ns_max": 1455.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/unicode": {
+      "ns": 1440.5,
+      "ns_min": 1396.0,
+      "ns_max": 1498.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/invalid": {
+      "ns": 1441.0,
+      "ns_min": 1390.0,
+      "ns_max": 1486.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/invalid": {
+      "ns": 1439.5,
+      "ns_min": 1390.0,
+      "ns_max": 1480.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/invalid-tail": {
+      "ns": 1443.5,
+      "ns_min": 1388.0,
+      "ns_max": 1505.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/invalid-tail": {
+      "ns": 1442.5,
+      "ns_min": 1390.0,
+      "ns_max": 1478.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/16/long-fields": {
+      "ns": 1615.0,
+      "ns_min": 1564.0,
+      "ns_max": 1671.0,
+      "bytes": 4304.0,
+      "allocs": 21.0
+    },
+    "split/16/short-fields": {
+      "ns": 1615.5,
+      "ns_min": 1573.0,
+      "ns_max": 1663.0,
+      "bytes": 4304.0,
+      "allocs": 21.0
+    },
+    "split/16/all-space": {
+      "ns": 1410.5,
+      "ns_min": 1368.0,
+      "ns_max": 1427.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/16/unicode": {
+      "ns": 1753.5,
+      "ns_min": 1688.0,
+      "ns_max": 1786.0,
+      "bytes": 4400.0,
+      "allocs": 25.0
+    },
+    "strip/16/long-padding": {
+      "ns": 1265.0,
+      "ns_min": 1223.0,
+      "ns_max": 1289.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/16/short-padding": {
+      "ns": 1258.5,
+      "ns_min": 1218.0,
+      "ns_max": 1288.0,
+      "bytes": 3840.0,
+      "allocs": 14.0
+    },
+    "strip/16/no-padding": {
+      "ns": 1195.5,
+      "ns_min": 1159.0,
+      "ns_max": 1225.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/16/unicode": {
+      "ns": 1198.0,
+      "ns_min": 1157.0,
+      "ns_max": 1227.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-ascii/4096/ascii": {
+      "ns": 2676.5,
+      "ns_min": 2627.0,
+      "ns_max": 2775.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/4096/unicode": {
+      "ns": 2690.0,
+      "ns_min": 2640.0,
+      "ns_max": 2764.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/4096/invalid": {
+      "ns": 2675.0,
+      "ns_min": 2630.0,
+      "ns_max": 2793.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/ascii": {
+      "ns": 2678.0,
+      "ns_min": 2605.0,
+      "ns_max": 2754.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/unicode": {
+      "ns": 2681.0,
+      "ns_min": 2621.0,
+      "ns_max": 2713.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/invalid": {
+      "ns": 2680.0,
+      "ns_min": 2668.0,
+      "ns_max": 2708.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/ascii": {
+      "ns": 2669.0,
+      "ns_min": 2613.0,
+      "ns_max": 2739.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/unicode": {
+      "ns": 2679.5,
+      "ns_min": 2600.0,
+      "ns_max": 2786.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/invalid": {
+      "ns": 2660.0,
+      "ns_min": 2627.0,
+      "ns_max": 2765.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/ascii": {
+      "ns": 2674.0,
+      "ns_min": 2636.0,
+      "ns_max": 2769.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/unicode": {
+      "ns": 2681.0,
+      "ns_min": 2629.0,
+      "ns_max": 2746.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/invalid": {
+      "ns": 2682.0,
+      "ns_min": 2602.0,
+      "ns_max": 2743.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "casecmp/4096/equal": {
+      "ns": 2081.0,
+      "ns_min": 2008.0,
+      "ns_max": 2128.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/equal": {
+      "ns": 3792.5,
+      "ns_min": 3653.0,
+      "ns_max": 3890.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/first-mismatch": {
+      "ns": 1533.0,
+      "ns_min": 1492.0,
+      "ns_max": 1546.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/first-mismatch": {
+      "ns": 1640.5,
+      "ns_min": 1575.0,
+      "ns_max": 1650.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/last-mismatch": {
+      "ns": 2079.0,
+      "ns_min": 2002.0,
+      "ns_max": 2095.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/last-mismatch": {
+      "ns": 3768.0,
+      "ns_min": 3619.0,
+      "ns_max": 3813.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/unicode": {
+      "ns": 2038.5,
+      "ns_min": 1958.0,
+      "ns_max": 2096.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/unicode": {
+      "ns": 10409.5,
+      "ns_min": 9961.0,
+      "ns_max": 10719.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/invalid": {
+      "ns": 2078.0,
+      "ns_min": 2001.0,
+      "ns_max": 2105.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/invalid": {
+      "ns": 2051.5,
+      "ns_min": 1987.0,
+      "ns_max": 2091.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/invalid-tail": {
+      "ns": 2084.5,
+      "ns_min": 2011.0,
+      "ns_max": 2126.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/invalid-tail": {
+      "ns": 2096.5,
+      "ns_min": 2028.0,
+      "ns_max": 2173.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/4096/long-fields": {
+      "ns": 7207.5,
+      "ns_min": 6980.0,
+      "ns_max": 7668.0,
+      "bytes": 10984.0,
+      "allocs": 61.0
+    },
+    "split/4096/short-fields": {
+      "ns": 80660.0,
+      "ns_min": 77188.0,
+      "ns_max": 81655.0,
+      "bytes": 112226.0,
+      "allocs": 1765.0
+    },
+    "split/4096/all-space": {
+      "ns": 2587.0,
+      "ns_min": 2505.0,
+      "ns_max": 2658.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/4096/unicode": {
+      "ns": 51195.0,
+      "ns_min": 49117.0,
+      "ns_max": 52597.0,
+      "bytes": 93641.0,
+      "allocs": 955.0
+    },
+    "strip/4096/long-padding": {
+      "ns": 2997.0,
+      "ns_min": 2885.0,
+      "ns_max": 3084.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/4096/short-padding": {
+      "ns": 1675.5,
+      "ns_min": 1649.0,
+      "ns_max": 1741.0,
+      "bytes": 7920.0,
+      "allocs": 14.0
+    },
+    "strip/4096/no-padding": {
+      "ns": 1219.0,
+      "ns_min": 1178.0,
+      "ns_max": 1261.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/4096/unicode": {
+      "ns": 1221.0,
+      "ns_min": 1182.0,
+      "ns_max": 1266.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-ascii/65536/ascii": {
+      "ns": 15988.5,
+      "ns_min": 15747.0,
+      "ns_max": 16348.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/65536/unicode": {
+      "ns": 15942.5,
+      "ns_min": 15552.0,
+      "ns_max": 16259.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/65536/invalid": {
+      "ns": 15948.0,
+      "ns_min": 15672.0,
+      "ns_max": 16295.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/ascii": {
+      "ns": 15764.5,
+      "ns_min": 15480.0,
+      "ns_max": 16086.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/unicode": {
+      "ns": 15658.5,
+      "ns_min": 15530.0,
+      "ns_max": 16301.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/invalid": {
+      "ns": 15759.5,
+      "ns_min": 15598.0,
+      "ns_max": 16259.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/ascii": {
+      "ns": 15765.5,
+      "ns_min": 15594.0,
+      "ns_max": 16935.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/unicode": {
+      "ns": 15756.5,
+      "ns_min": 15579.0,
+      "ns_max": 16146.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/invalid": {
+      "ns": 15873.5,
+      "ns_min": 15487.0,
+      "ns_max": 16114.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/ascii": {
+      "ns": 15756.5,
+      "ns_min": 15538.0,
+      "ns_max": 16077.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/unicode": {
+      "ns": 15888.5,
+      "ns_min": 15563.0,
+      "ns_max": 16015.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/invalid": {
+      "ns": 15786.0,
+      "ns_min": 15648.0,
+      "ns_max": 16031.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "casecmp/65536/equal": {
+      "ns": 10753.5,
+      "ns_min": 10513.0,
+      "ns_max": 11021.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/equal": {
+      "ns": 37799.0,
+      "ns_min": 36996.0,
+      "ns_max": 38556.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/first-mismatch": {
+      "ns": 1533.0,
+      "ns_min": 1479.0,
+      "ns_max": 1589.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/first-mismatch": {
+      "ns": 3292.0,
+      "ns_min": 3179.0,
+      "ns_max": 3426.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/last-mismatch": {
+      "ns": 10701.5,
+      "ns_min": 10454.0,
+      "ns_max": 10960.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/last-mismatch": {
+      "ns": 37715.0,
+      "ns_min": 36978.0,
+      "ns_max": 38770.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/unicode": {
+      "ns": 10399.5,
+      "ns_min": 10107.0,
+      "ns_max": 10672.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/unicode": {
+      "ns": 143692.0,
+      "ns_min": 138044.0,
+      "ns_max": 151781.0,
+      "bytes": 3826.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/invalid": {
+      "ns": 10764.5,
+      "ns_min": 10504.0,
+      "ns_max": 10928.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/invalid": {
+      "ns": 10322.0,
+      "ns_min": 10039.0,
+      "ns_max": 10453.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/invalid-tail": {
+      "ns": 10744.0,
+      "ns_min": 10481.0,
+      "ns_max": 10892.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/invalid-tail": {
+      "ns": 11004.5,
+      "ns_min": 10780.0,
+      "ns_max": 11226.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/65536/long-fields": {
+      "ns": 83787.5,
+      "ns_min": 80742.0,
+      "ns_max": 85605.0,
+      "bytes": 118122.0,
+      "allocs": 553.0
+    },
+    "split/65536/short-fields": {
+      "ns": 1317886.5,
+      "ns_min": 1270096.0,
+      "ns_max": 1350922.0,
+      "bytes": 1797179.5,
+      "allocs": 27716.0
+    },
+    "split/65536/all-space": {
+      "ns": 19568.5,
+      "ns_min": 19062.0,
+      "ns_max": 20010.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/65536/unicode": {
+      "ns": 770600.0,
+      "ns_min": 744985.0,
+      "ns_max": 789996.0,
+      "bytes": 1254892.5,
+      "allocs": 14667.0
+    },
+    "strip/65536/long-padding": {
+      "ns": 29620.0,
+      "ns_min": 28210.0,
+      "ns_max": 30340.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/65536/short-padding": {
+      "ns": 5398.5,
+      "ns_min": 5281.0,
+      "ns_max": 5631.0,
+      "bytes": 69360.0,
+      "allocs": 14.0
+    },
+    "strip/65536/no-padding": {
+      "ns": 1216.0,
+      "ns_min": 1181.0,
+      "ns_max": 1254.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/65536/unicode": {
+      "ns": 1219.5,
+      "ns_min": 1189.0,
+      "ns_max": 1254.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-default/4096/ascii": {
+      "ns": 24543.0,
+      "ns_min": 23659.0,
+      "ns_max": 25030.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "upcase-default/4096/unicode": {
+      "ns": 23660.0,
+      "ns_min": 22848.0,
+      "ns_max": 24336.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "downcase-default/4096/ascii": {
+      "ns": 24854.5,
+      "ns_min": 24312.0,
+      "ns_max": 25510.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "downcase-default/4096/unicode": {
+      "ns": 23948.0,
+      "ns_min": 23110.0,
+      "ns_max": 24825.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "capitalize-default/4096/ascii": {
+      "ns": 25552.0,
+      "ns_min": 24702.0,
+      "ns_max": 26107.0,
+      "bytes": 30096.0,
+      "allocs": 26.0
+    },
+    "capitalize-default/4096/unicode": {
+      "ns": 24643.0,
+      "ns_min": 23726.0,
+      "ns_max": 25419.0,
+      "bytes": 30104.0,
+      "allocs": 27.0
+    },
+    "swapcase-default/4096/ascii": {
+      "ns": 327880.0,
+      "ns_min": 319442.0,
+      "ns_max": 337038.0,
+      "bytes": 707065.5,
+      "allocs": 2745.0
+    },
+    "swapcase-default/4096/unicode": {
+      "ns": 237799.5,
+      "ns_min": 229518.0,
+      "ns_max": 245008.0,
+      "bytes": 458640.0,
+      "allocs": 2355.0
+    },
+    "regexp-escape/16/plain": {
+      "ns": 2186.5,
+      "ns_min": 2123.0,
+      "ns_max": 2267.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/16/sparse-meta": {
+      "ns": 2494.5,
+      "ns_min": 2415.0,
+      "ns_max": 2589.0,
+      "bytes": 4776.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/16/dense-meta": {
+      "ns": 2536.5,
+      "ns_min": 2452.0,
+      "ns_max": 2670.0,
+      "bytes": 4776.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/16/unicode": {
+      "ns": 2182.0,
+      "ns_min": 2126.0,
+      "ns_max": 2297.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/4096/plain": {
+      "ns": 3259.0,
+      "ns_min": 3136.0,
+      "ns_max": 3430.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/4096/sparse-meta": {
+      "ns": 6504.0,
+      "ns_min": 6308.0,
+      "ns_max": 6740.0,
+      "bytes": 9616.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/4096/dense-meta": {
+      "ns": 23428.5,
+      "ns_min": 22367.0,
+      "ns_max": 24355.0,
+      "bytes": 12944.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/4096/unicode": {
+      "ns": 3277.5,
+      "ns_min": 3148.0,
+      "ns_max": 3647.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/65536/plain": {
+      "ns": 18577.5,
+      "ns_min": 17788.0,
+      "ns_max": 19065.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/65536/sparse-meta": {
+      "ns": 62780.5,
+      "ns_min": 60082.0,
+      "ns_max": 65317.0,
+      "bytes": 78481.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/65536/dense-meta": {
+      "ns": 346979.0,
+      "ns_min": 328996.0,
+      "ns_max": 360770.0,
+      "bytes": 127639.5,
+      "allocs": 24.0
+    },
+    "regexp-escape/65536/unicode": {
+      "ns": 18557.5,
+      "ns_min": 17672.0,
+      "ns_max": 19150.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    }
+  },
+  "simd": {
+    "upcase-ascii/16/ascii": {
+      "ns": 1497.5,
+      "ns_min": 1476.0,
+      "ns_max": 1554.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "upcase-ascii/16/unicode": {
+      "ns": 1493.0,
+      "ns_min": 1480.0,
+      "ns_max": 1561.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "upcase-ascii/16/invalid": {
+      "ns": 1486.0,
+      "ns_min": 1479.0,
+      "ns_max": 1563.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/ascii": {
+      "ns": 1489.5,
+      "ns_min": 1480.0,
+      "ns_max": 1581.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/unicode": {
+      "ns": 1499.0,
+      "ns_min": 1477.0,
+      "ns_max": 1575.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "downcase-ascii/16/invalid": {
+      "ns": 1494.0,
+      "ns_min": 1479.0,
+      "ns_max": 1578.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/ascii": {
+      "ns": 1495.0,
+      "ns_min": 1478.0,
+      "ns_max": 1572.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/unicode": {
+      "ns": 1498.5,
+      "ns_min": 1484.0,
+      "ns_max": 1549.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "swapcase-ascii/16/invalid": {
+      "ns": 1491.0,
+      "ns_min": 1461.0,
+      "ns_max": 1558.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/ascii": {
+      "ns": 1497.0,
+      "ns_min": 1456.0,
+      "ns_max": 1562.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/unicode": {
+      "ns": 1489.5,
+      "ns_min": 1452.0,
+      "ns_max": 1560.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "capitalize-ascii/16/invalid": {
+      "ns": 1499.0,
+      "ns_min": 1459.0,
+      "ns_max": 1552.0,
+      "bytes": 3872.0,
+      "allocs": 15.0
+    },
+    "casecmp/16/equal": {
+      "ns": 1446.0,
+      "ns_min": 1403.0,
+      "ns_max": 1493.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/equal": {
+      "ns": 1447.0,
+      "ns_min": 1404.0,
+      "ns_max": 1555.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/first-mismatch": {
+      "ns": 1432.0,
+      "ns_min": 1404.0,
+      "ns_max": 1488.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/first-mismatch": {
+      "ns": 1437.5,
+      "ns_min": 1405.0,
+      "ns_max": 1498.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/last-mismatch": {
+      "ns": 1442.0,
+      "ns_min": 1409.0,
+      "ns_max": 1507.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/last-mismatch": {
+      "ns": 1444.5,
+      "ns_min": 1420.0,
+      "ns_max": 1521.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/unicode": {
+      "ns": 1409.5,
+      "ns_min": 1380.0,
+      "ns_max": 1497.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/unicode": {
+      "ns": 1439.5,
+      "ns_min": 1405.0,
+      "ns_max": 1525.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/invalid": {
+      "ns": 1442.5,
+      "ns_min": 1405.0,
+      "ns_max": 1523.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/invalid": {
+      "ns": 1440.5,
+      "ns_min": 1412.0,
+      "ns_max": 1510.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/16/invalid-tail": {
+      "ns": 1444.0,
+      "ns_min": 1410.0,
+      "ns_max": 1502.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/16/invalid-tail": {
+      "ns": 1444.5,
+      "ns_min": 1410.0,
+      "ns_max": 1511.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/16/long-fields": {
+      "ns": 1626.5,
+      "ns_min": 1579.0,
+      "ns_max": 1686.0,
+      "bytes": 4304.0,
+      "allocs": 21.0
+    },
+    "split/16/short-fields": {
+      "ns": 1628.5,
+      "ns_min": 1592.0,
+      "ns_max": 1686.0,
+      "bytes": 4304.0,
+      "allocs": 21.0
+    },
+    "split/16/all-space": {
+      "ns": 1409.5,
+      "ns_min": 1379.0,
+      "ns_max": 1462.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/16/unicode": {
+      "ns": 1763.0,
+      "ns_min": 1704.0,
+      "ns_max": 1821.0,
+      "bytes": 4400.0,
+      "allocs": 25.0
+    },
+    "strip/16/long-padding": {
+      "ns": 1266.0,
+      "ns_min": 1240.0,
+      "ns_max": 1310.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/16/short-padding": {
+      "ns": 1259.5,
+      "ns_min": 1230.0,
+      "ns_max": 1310.0,
+      "bytes": 3840.0,
+      "allocs": 14.0
+    },
+    "strip/16/no-padding": {
+      "ns": 1196.0,
+      "ns_min": 1172.0,
+      "ns_max": 1255.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/16/unicode": {
+      "ns": 1196.0,
+      "ns_min": 1176.0,
+      "ns_max": 1207.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-ascii/4096/ascii": {
+      "ns": 2417.0,
+      "ns_min": 2399.0,
+      "ns_max": 2539.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/4096/unicode": {
+      "ns": 2415.0,
+      "ns_min": 2397.0,
+      "ns_max": 2466.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/4096/invalid": {
+      "ns": 2431.5,
+      "ns_min": 2417.0,
+      "ns_max": 2476.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/ascii": {
+      "ns": 2432.5,
+      "ns_min": 2408.0,
+      "ns_max": 2471.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/unicode": {
+      "ns": 2442.5,
+      "ns_min": 2407.0,
+      "ns_max": 2513.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/4096/invalid": {
+      "ns": 2436.5,
+      "ns_min": 2410.0,
+      "ns_max": 2452.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/ascii": {
+      "ns": 2432.5,
+      "ns_min": 2393.0,
+      "ns_max": 2490.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/unicode": {
+      "ns": 2437.5,
+      "ns_min": 2389.0,
+      "ns_max": 2509.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/4096/invalid": {
+      "ns": 2435.5,
+      "ns_min": 2393.0,
+      "ns_max": 2556.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/ascii": {
+      "ns": 2419.5,
+      "ns_min": 2407.0,
+      "ns_max": 2471.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/unicode": {
+      "ns": 2438.0,
+      "ns_min": 2402.0,
+      "ns_max": 2567.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/4096/invalid": {
+      "ns": 2433.5,
+      "ns_min": 2401.0,
+      "ns_max": 2531.0,
+      "bytes": 12048.0,
+      "allocs": 16.0
+    },
+    "casecmp/4096/equal": {
+      "ns": 1816.0,
+      "ns_min": 1762.0,
+      "ns_max": 1839.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/equal": {
+      "ns": 3778.0,
+      "ns_min": 3674.0,
+      "ns_max": 3804.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/first-mismatch": {
+      "ns": 1535.5,
+      "ns_min": 1503.0,
+      "ns_max": 1624.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/first-mismatch": {
+      "ns": 1643.0,
+      "ns_min": 1604.0,
+      "ns_max": 1655.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/last-mismatch": {
+      "ns": 1818.0,
+      "ns_min": 1767.0,
+      "ns_max": 1832.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/last-mismatch": {
+      "ns": 3778.5,
+      "ns_min": 3670.0,
+      "ns_max": 3803.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/unicode": {
+      "ns": 1767.5,
+      "ns_min": 1724.0,
+      "ns_max": 1785.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/unicode": {
+      "ns": 10506.5,
+      "ns_min": 10002.0,
+      "ns_max": 10781.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/invalid": {
+      "ns": 1813.0,
+      "ns_min": 1758.0,
+      "ns_max": 1828.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/invalid": {
+      "ns": 1802.5,
+      "ns_min": 1763.0,
+      "ns_max": 1812.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/4096/invalid-tail": {
+      "ns": 1809.0,
+      "ns_min": 1789.0,
+      "ns_max": 1826.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/4096/invalid-tail": {
+      "ns": 1851.0,
+      "ns_min": 1830.0,
+      "ns_max": 1894.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/4096/long-fields": {
+      "ns": 4734.5,
+      "ns_min": 4660.0,
+      "ns_max": 4780.0,
+      "bytes": 10984.0,
+      "allocs": 61.0
+    },
+    "split/4096/short-fields": {
+      "ns": 83709.0,
+      "ns_min": 81341.0,
+      "ns_max": 84392.0,
+      "bytes": 112226.0,
+      "allocs": 1765.0
+    },
+    "split/4096/all-space": {
+      "ns": 1704.0,
+      "ns_min": 1658.0,
+      "ns_max": 1725.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/4096/unicode": {
+      "ns": 52871.5,
+      "ns_min": 51455.0,
+      "ns_max": 55018.0,
+      "bytes": 93641.0,
+      "allocs": 955.0
+    },
+    "strip/4096/long-padding": {
+      "ns": 1500.0,
+      "ns_min": 1464.0,
+      "ns_max": 1524.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/4096/short-padding": {
+      "ns": 1678.0,
+      "ns_min": 1643.0,
+      "ns_max": 1720.0,
+      "bytes": 7920.0,
+      "allocs": 14.0
+    },
+    "strip/4096/no-padding": {
+      "ns": 1224.5,
+      "ns_min": 1200.0,
+      "ns_max": 1261.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/4096/unicode": {
+      "ns": 1223.5,
+      "ns_min": 1197.0,
+      "ns_max": 1263.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-ascii/65536/ascii": {
+      "ns": 15696.5,
+      "ns_min": 15432.0,
+      "ns_max": 16123.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/65536/unicode": {
+      "ns": 15643.0,
+      "ns_min": 15357.0,
+      "ns_max": 15891.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "upcase-ascii/65536/invalid": {
+      "ns": 15602.0,
+      "ns_min": 15446.0,
+      "ns_max": 16145.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/ascii": {
+      "ns": 15846.5,
+      "ns_min": 15628.0,
+      "ns_max": 16384.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/unicode": {
+      "ns": 15812.5,
+      "ns_min": 15662.0,
+      "ns_max": 16152.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "downcase-ascii/65536/invalid": {
+      "ns": 15860.0,
+      "ns_min": 15588.0,
+      "ns_max": 16124.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/ascii": {
+      "ns": 15398.5,
+      "ns_min": 15100.0,
+      "ns_max": 15815.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/unicode": {
+      "ns": 15328.0,
+      "ns_min": 15041.0,
+      "ns_max": 15772.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "swapcase-ascii/65536/invalid": {
+      "ns": 15395.0,
+      "ns_min": 15035.0,
+      "ns_max": 15712.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/ascii": {
+      "ns": 15671.0,
+      "ns_min": 15418.0,
+      "ns_max": 16082.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/unicode": {
+      "ns": 15684.0,
+      "ns_min": 15413.0,
+      "ns_max": 16082.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "capitalize-ascii/65536/invalid": {
+      "ns": 15613.5,
+      "ns_min": 15358.0,
+      "ns_max": 16203.0,
+      "bytes": 134928.0,
+      "allocs": 16.0
+    },
+    "casecmp/65536/equal": {
+      "ns": 5970.0,
+      "ns_min": 5908.0,
+      "ns_max": 6133.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/equal": {
+      "ns": 37683.5,
+      "ns_min": 37288.0,
+      "ns_max": 38495.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/first-mismatch": {
+      "ns": 1526.0,
+      "ns_min": 1487.0,
+      "ns_max": 1551.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/first-mismatch": {
+      "ns": 3279.0,
+      "ns_min": 3218.0,
+      "ns_max": 3332.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/last-mismatch": {
+      "ns": 5967.0,
+      "ns_min": 5908.0,
+      "ns_max": 6014.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/last-mismatch": {
+      "ns": 37526.0,
+      "ns_min": 36681.0,
+      "ns_max": 37850.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/unicode": {
+      "ns": 5786.0,
+      "ns_min": 5696.0,
+      "ns_max": 5821.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/unicode": {
+      "ns": 145313.5,
+      "ns_min": 139933.0,
+      "ns_max": 149439.0,
+      "bytes": 3826.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/invalid": {
+      "ns": 5983.0,
+      "ns_min": 5919.0,
+      "ns_max": 6015.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/invalid": {
+      "ns": 5765.5,
+      "ns_min": 5661.0,
+      "ns_max": 5812.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp/65536/invalid-tail": {
+      "ns": 5975.5,
+      "ns_min": 5822.0,
+      "ns_max": 6034.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "casecmp-predicate/65536/invalid-tail": {
+      "ns": 6545.0,
+      "ns_min": 6353.0,
+      "ns_max": 6583.0,
+      "bytes": 3824.0,
+      "allocs": 12.0
+    },
+    "split/65536/long-fields": {
+      "ns": 43372.0,
+      "ns_min": 42645.0,
+      "ns_max": 44071.0,
+      "bytes": 118121.0,
+      "allocs": 553.0
+    },
+    "split/65536/short-fields": {
+      "ns": 1363686.5,
+      "ns_min": 1332607.0,
+      "ns_max": 1386506.0,
+      "bytes": 1795281.5,
+      "allocs": 27716.0
+    },
+    "split/65536/all-space": {
+      "ns": 4607.0,
+      "ns_min": 4494.0,
+      "ns_max": 4732.0,
+      "bytes": 4016.0,
+      "allocs": 14.0
+    },
+    "split/65536/unicode": {
+      "ns": 798803.0,
+      "ns_min": 782124.0,
+      "ns_max": 810309.0,
+      "bytes": 1257120.0,
+      "allocs": 14668.0
+    },
+    "strip/65536/long-padding": {
+      "ns": 4513.0,
+      "ns_min": 4425.0,
+      "ns_max": 4534.0,
+      "bytes": 3832.0,
+      "allocs": 14.0
+    },
+    "strip/65536/short-padding": {
+      "ns": 5345.5,
+      "ns_min": 5199.0,
+      "ns_max": 5476.0,
+      "bytes": 69360.0,
+      "allocs": 14.0
+    },
+    "strip/65536/no-padding": {
+      "ns": 1219.5,
+      "ns_min": 1189.0,
+      "ns_max": 1231.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "strip/65536/unicode": {
+      "ns": 1220.0,
+      "ns_min": 1199.0,
+      "ns_max": 1245.0,
+      "bytes": 3824.0,
+      "allocs": 13.0
+    },
+    "upcase-default/4096/ascii": {
+      "ns": 24514.0,
+      "ns_min": 23873.0,
+      "ns_max": 24783.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "upcase-default/4096/unicode": {
+      "ns": 23720.0,
+      "ns_min": 23075.0,
+      "ns_max": 24022.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "downcase-default/4096/ascii": {
+      "ns": 24838.0,
+      "ns_min": 24203.0,
+      "ns_max": 24993.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "downcase-default/4096/unicode": {
+      "ns": 24039.5,
+      "ns_min": 23226.0,
+      "ns_max": 24285.0,
+      "bytes": 25584.0,
+      "allocs": 23.0
+    },
+    "capitalize-default/4096/ascii": {
+      "ns": 25467.0,
+      "ns_min": 24785.0,
+      "ns_max": 25774.0,
+      "bytes": 30096.0,
+      "allocs": 26.0
+    },
+    "capitalize-default/4096/unicode": {
+      "ns": 24721.5,
+      "ns_min": 24013.0,
+      "ns_max": 24902.0,
+      "bytes": 30104.0,
+      "allocs": 27.0
+    },
+    "swapcase-default/4096/ascii": {
+      "ns": 329006.5,
+      "ns_min": 318130.0,
+      "ns_max": 332888.0,
+      "bytes": 707065.0,
+      "allocs": 2745.0
+    },
+    "swapcase-default/4096/unicode": {
+      "ns": 237354.5,
+      "ns_min": 231717.0,
+      "ns_max": 239889.0,
+      "bytes": 458640.0,
+      "allocs": 2355.0
+    },
+    "regexp-escape/16/plain": {
+      "ns": 2175.5,
+      "ns_min": 2130.0,
+      "ns_max": 2206.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/16/sparse-meta": {
+      "ns": 2480.5,
+      "ns_min": 2434.0,
+      "ns_max": 2515.0,
+      "bytes": 4776.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/16/dense-meta": {
+      "ns": 2511.5,
+      "ns_min": 2446.0,
+      "ns_max": 2541.0,
+      "bytes": 4776.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/16/unicode": {
+      "ns": 2173.5,
+      "ns_min": 2115.0,
+      "ns_max": 2207.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/4096/plain": {
+      "ns": 5552.5,
+      "ns_min": 3504.0,
+      "ns_max": 9084.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/4096/sparse-meta": {
+      "ns": 6705.5,
+      "ns_min": 4644.0,
+      "ns_max": 10816.0,
+      "bytes": 9616.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/4096/dense-meta": {
+      "ns": 18893.0,
+      "ns_min": 18495.0,
+      "ns_max": 25235.0,
+      "bytes": 12944.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/4096/unicode": {
+      "ns": 4835.5,
+      "ns_min": 2882.0,
+      "ns_max": 9085.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/65536/plain": {
+      "ns": 92750.0,
+      "ns_min": 33477.0,
+      "ns_max": 113511.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    },
+    "regexp-escape/65536/sparse-meta": {
+      "ns": 56720.5,
+      "ns_min": 27093.0,
+      "ns_max": 134218.0,
+      "bytes": 78481.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/65536/dense-meta": {
+      "ns": 282024.0,
+      "ns_min": 274811.0,
+      "ns_max": 378981.0,
+      "bytes": 127638.0,
+      "allocs": 24.0
+    },
+    "regexp-escape/65536/unicode": {
+      "ns": 49600.5,
+      "ns_min": 20028.0,
+      "ns_max": 113889.0,
+      "bytes": 4752.0,
+      "allocs": 23.0
+    }
+  }
+}

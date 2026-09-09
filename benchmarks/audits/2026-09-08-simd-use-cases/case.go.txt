@@ -1,0 +1,163 @@
+package runtime
+
+import (
+	"encoding/binary"
+	"simd/archsimd"
+)
+
+// Each high bit marks an ASCII letter. Clear input high bits before adding so
+// carries never cross a byte boundary; exclude the original high bits afterward.
+func auditGoCaseMask(word uint64) uint64 {
+	folded := (word | 0x2020202020202020) & 0x7f7f7f7f7f7f7f7f
+	letters := (folded + 0x1f1f1f1f1f1f1f1f) &^ (folded + 0x0505050505050505)
+	return (letters &^ word & 0x8080808080808080) >> 2
+}
+
+func auditGoUpcase(text string) string {
+	out := make([]byte, len(text))
+	i := 0
+	for ; i+8 <= len(text); i += 8 {
+		var tile [8]byte
+		copy(tile[:], text[i:i+8])
+		word := binary.LittleEndian.Uint64(tile[:])
+		binary.LittleEndian.PutUint64(out[i:i+8], word&^auditGoCaseMask(word))
+	}
+	for ; i < len(text); i++ {
+		out[i] = asciiUpper(text[i])
+	}
+	return string(out)
+}
+
+func auditSIMDUpcase(text string) string {
+	out := make([]byte, len(text))
+	delta := archsimd.BroadcastUint8x16('a' - 'A')
+	low := archsimd.BroadcastUint8x16('a')
+	width := archsimd.BroadcastUint8x16(26)
+	i := 0
+	for ; i+16 <= len(text); i += 16 {
+		var tile [16]byte
+		copy(tile[:], text[i:i+16])
+		value := archsimd.LoadUint8x16Array(&tile)
+		letters := value.Sub(low).Less(width)
+		value.AndNot(delta.Masked(letters)).Store(out[i : i+16])
+	}
+	for ; i < len(text); i++ {
+		out[i] = asciiUpper(text[i])
+	}
+	return string(out)
+}
+
+func auditGoDowncase(text string) string {
+	out := make([]byte, len(text))
+	i := 0
+	for ; i+8 <= len(text); i += 8 {
+		var tile [8]byte
+		copy(tile[:], text[i:i+8])
+		word := binary.LittleEndian.Uint64(tile[:])
+		binary.LittleEndian.PutUint64(out[i:i+8], word|auditGoCaseMask(word))
+	}
+	for ; i < len(text); i++ {
+		out[i] = asciiLower(text[i])
+	}
+	return string(out)
+}
+
+func auditSIMDDowncase(text string) string {
+	out := make([]byte, len(text))
+	delta := archsimd.BroadcastUint8x16('a' - 'A')
+	low := archsimd.BroadcastUint8x16('A')
+	width := archsimd.BroadcastUint8x16(26)
+	i := 0
+	for ; i+16 <= len(text); i += 16 {
+		var tile [16]byte
+		copy(tile[:], text[i:i+16])
+		value := archsimd.LoadUint8x16Array(&tile)
+		letters := value.Sub(low).Less(width)
+		value.Or(delta.Masked(letters)).Store(out[i : i+16])
+	}
+	for ; i < len(text); i++ {
+		out[i] = asciiLower(text[i])
+	}
+	return string(out)
+}
+
+func auditGoSwapCase(text string) string {
+	out := make([]byte, len(text))
+	i := 0
+	for ; i+8 <= len(text); i += 8 {
+		var tile [8]byte
+		copy(tile[:], text[i:i+8])
+		word := binary.LittleEndian.Uint64(tile[:])
+		binary.LittleEndian.PutUint64(out[i:i+8], word^auditGoCaseMask(word))
+	}
+	for ; i < len(text); i++ {
+		out[i] = auditCaseSwapByte(text[i])
+	}
+	return string(out)
+}
+
+func auditSIMDSwapCase(text string) string {
+	out := make([]byte, len(text))
+	delta := archsimd.BroadcastUint8x16('a' - 'A')
+	low := archsimd.BroadcastUint8x16('a')
+	width := archsimd.BroadcastUint8x16(26)
+	i := 0
+	for ; i+16 <= len(text); i += 16 {
+		var tile [16]byte
+		copy(tile[:], text[i:i+16])
+		value := archsimd.LoadUint8x16Array(&tile)
+		letters := value.Or(delta).Sub(low).Less(width)
+		value.Xor(delta.Masked(letters)).Store(out[i : i+16])
+	}
+	for ; i < len(text); i++ {
+		out[i] = auditCaseSwapByte(text[i])
+	}
+	return string(out)
+}
+
+func auditGoCapitalize(text string) string {
+	out := make([]byte, len(text))
+	i := 0
+	for ; i+8 <= len(text); i += 8 {
+		var tile [8]byte
+		copy(tile[:], text[i:i+8])
+		word := binary.LittleEndian.Uint64(tile[:])
+		binary.LittleEndian.PutUint64(out[i:i+8], word|auditGoCaseMask(word))
+	}
+	for ; i < len(text); i++ {
+		out[i] = asciiLower(text[i])
+	}
+	out[0] = asciiUpper(text[0])
+	return string(out)
+}
+
+func auditSIMDCapitalize(text string) string {
+	out := make([]byte, len(text))
+	delta := archsimd.BroadcastUint8x16('a' - 'A')
+	low := archsimd.BroadcastUint8x16('A')
+	width := archsimd.BroadcastUint8x16(26)
+	i := 0
+	for ; i+16 <= len(text); i += 16 {
+		var tile [16]byte
+		copy(tile[:], text[i:i+16])
+		value := archsimd.LoadUint8x16Array(&tile)
+		letters := value.Sub(low).Less(width)
+		value.Or(delta.Masked(letters)).Store(out[i : i+16])
+	}
+	for ; i < len(text); i++ {
+		out[i] = asciiLower(text[i])
+	}
+	out[0] = asciiUpper(text[0])
+	return string(out)
+}
+
+func auditCaseSwapByte(c byte) byte {
+	switch {
+	case c >= 'A' && c <= 'Z':
+		return c + ('a' - 'A')
+	case c >= 'a' && c <= 'z':
+		return c - ('a' - 'A')
+	default:
+		return c
+	}
+}

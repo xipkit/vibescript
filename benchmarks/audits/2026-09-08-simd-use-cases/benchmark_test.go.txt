@@ -1,0 +1,132 @@
+package runtime
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+)
+
+func auditUseCaseText(pattern string, n int) string {
+	return strings.Repeat(pattern, n/len(pattern)) + strings.Repeat("a", n%len(pattern))
+}
+
+func auditUseCaseCall(b *testing.B, expression string, args []Value) {
+	b.Helper()
+	script := compileScriptWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, "def run(s, other)\n"+expression+"\nend")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := script.Call(context.Background(), "run", args, CallOptions{}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkAuditUseCases(b *testing.B) {
+	for _, n := range []int{16, 4096, 65536} {
+		for _, operation := range []string{"upcase", "downcase", "swapcase", "capitalize"} {
+			for _, kind := range []string{"ascii", "unicode", "invalid"} {
+				pattern := "aBcDeFgHiJ01234_[~"
+				if kind == "unicode" {
+					pattern = "é界🙂aZ"
+				} else if kind == "invalid" {
+					pattern = "aZ\xff\xfe"
+				}
+				text := auditUseCaseText(pattern, n)
+				b.Run(fmt.Sprintf("%s-ascii/%d/%s", operation, n, kind), func(b *testing.B) {
+					auditUseCaseCall(b, "s."+operation+"(:ascii)", []Value{NewString(text), NewNil()})
+				})
+			}
+		}
+		for _, kind := range []string{"equal", "first-mismatch", "last-mismatch", "unicode", "invalid", "invalid-tail"} {
+			a := auditUseCaseText("aBcDef012_[", n)
+			other := auditReferenceUpcase(a)
+			switch kind {
+			case "first-mismatch":
+				other = "!" + other[1:]
+			case "last-mismatch":
+				other = other[:n-1] + "!"
+			case "unicode":
+				a = auditUseCaseText("é界aZ", n)
+				other = a
+			case "invalid":
+				a = "\xff" + a[1:]
+				other = "\xff" + other[1:]
+			case "invalid-tail":
+				a = a[:n-1] + "\xff"
+				other = other[:n-1] + "\xff"
+			}
+			for _, operation := range []string{"casecmp", "casecmp?"} {
+				b.Run(fmt.Sprintf("%s/%d/%s", strings.ReplaceAll(operation, "?", "-predicate"), n, kind), func(b *testing.B) {
+					auditUseCaseCall(b, "s."+operation+"(other)", []Value{NewString(a), NewString(other)})
+				})
+			}
+		}
+		for _, kind := range []string{"long-fields", "short-fields", "all-space", "unicode"} {
+			pattern := strings.Repeat("a", 255) + " "
+			switch kind {
+			case "short-fields":
+				pattern = "one two three four "
+			case "all-space":
+				pattern = " \t\n\r\v\f"
+			case "unicode":
+				pattern = "é\u2003界 "
+			}
+			text := auditUseCaseText(pattern, n)
+			if kind == "all-space" {
+				text = strings.Repeat(pattern, (n+len(pattern)-1)/len(pattern))[:n]
+			}
+			b.Run(fmt.Sprintf("split/%d/%s", n, kind), func(b *testing.B) {
+				auditUseCaseCall(b, "s.split", []Value{NewString(text), NewNil()})
+			})
+		}
+		for _, kind := range []string{"long-padding", "short-padding", "no-padding", "unicode"} {
+			text := strings.Repeat(" ", n/2-2) + "aBcD" + strings.Repeat("\x00", n/2-2)
+			switch kind {
+			case "short-padding":
+				text = " \t" + strings.Repeat("a", n-4) + "\x00 "
+			case "no-padding":
+				text = strings.Repeat("a", n)
+			case "unicode":
+				text = "\u2003" + strings.Repeat("a", n-6) + "\u2003"
+			}
+			b.Run(fmt.Sprintf("strip/%d/%s", n, kind), func(b *testing.B) {
+				auditUseCaseCall(b, "s.strip", []Value{NewString(text), NewNil()})
+			})
+		}
+	}
+	// Default Unicode mapping must remain independent of the byte-only prototype.
+	for _, operation := range []string{"upcase", "downcase", "capitalize", "swapcase"} {
+		for _, kind := range []string{"ascii", "unicode"} {
+			b.Run(operation+"-default/4096/"+kind, func(b *testing.B) {
+				pattern := "aBcDef012"
+				if kind == "unicode" {
+					pattern = "é界aZ"
+				}
+				text := auditUseCaseText(pattern, 4096)
+				auditUseCaseCall(b, "s."+operation, []Value{NewString(text), NewNil()})
+			})
+		}
+	}
+	for _, n := range []int{16, 4096, 65536} {
+		for _, kind := range []string{"plain", "sparse-meta", "dense-meta", "unicode"} {
+			pattern := "abcdefgh012345"
+			switch kind {
+			case "sparse-meta":
+				pattern = strings.Repeat("a", 63) + "."
+			case "dense-meta":
+				pattern = "[a]+(b)?$"
+			case "unicode":
+				pattern = "é界🙂aZ"
+			}
+			text := auditUseCaseText(pattern, n)
+			if kind == "sparse-meta" && n < 64 {
+				text = strings.Repeat("a", n-1) + "."
+			}
+			b.Run(fmt.Sprintf("regexp-escape/%d/%s", n, kind), func(b *testing.B) {
+				auditUseCaseCall(b, "Regexp.escape(s)", []Value{NewString(text), NewNil()})
+			})
+		}
+	}
+}

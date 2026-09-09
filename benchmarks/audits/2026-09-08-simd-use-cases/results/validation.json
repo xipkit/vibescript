@@ -1,0 +1,16 @@
+{
+  "toolchain": "go1.27.1 darwin/arm64",
+  "cpu": "Apple M4",
+  "experiment": "simd",
+  "base": "e6f1fca90c012885453a6c413c0826f6abff1f32",
+  "benchmark_cases": 116,
+  "samples_per_case_per_variant": 10,
+  "accounting_snapshots": 301,
+  "checks": {
+    "TestAudit_all_variants": "pass",
+    "full_suite_simd": "pass",
+    "estimator_and_recycle_oracles_simd": "pass",
+    "vet_simd": "pass"
+  },
+  "benchstat": "golang.org/x/perf v0.0.0-20260908200009-22c9c6c9d4da"
+}

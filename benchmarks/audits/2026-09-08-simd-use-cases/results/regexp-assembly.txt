@@ -1,0 +1,133 @@
+TEXT github.com/mgomes/vibescript/internal/runtime.auditSIMDRegexpQuotedSize(SB) /private/tmp/vibescript-simd-use-cases-20260908/internal/runtime/usecase_audit_regexp.go
+  usecase_audit_regexp.go:66	0x100511280		f9400b90		MOVD 16(R28), R16
+  usecase_audit_regexp.go:66	0x100511284		eb3063ff		CMP R16, RSP
+  usecase_audit_regexp.go:66	0x100511288		54000f69		BLS 123(PC)
+  usecase_audit_regexp.go:66	0x10051128c		f81c0ffe		MOVD.W R30, -64(RSP)
+  usecase_audit_regexp.go:66	0x100511290		f81f83fd		MOVD R29, -8(RSP)
+  usecase_audit_regexp.go:66	0x100511294		d10023fd		SUB $8, RSP, R29
+  usecase_audit_regexp.go:66	0x100511298		f90027e0		MOVD R0, 72(RSP)
+  usecase_audit_regexp.go:67	0x10051129c		eb02003f		CMP R2, R1
+  usecase_audit_regexp.go:67	0x1005112a0		5400032c		BGT 25(PC)
+  usecase_audit_regexp.go:72	0x1005112a4		f100803f		CMP $32, R1
+  usecase_audit_regexp.go:72	0x1005112a8		5400028b		BLT 20(PC)
+  usecase_audit_regexp.go:75	0x1005112ac		d000259b		ADRP 4923392(PC), R27
+  usecase_audit_regexp.go:75	0x1005112b0		912b837b		ADD $2784, R27, R27
+  usecase_audit_regexp.go:75	0x1005112b4		3dc00360		FMOVQ (R27), F0
+  usecase_audit_regexp.go:75	0x1005112b8		3c8183e0		FMOVQ F0, 24(RSP)
+  usecase_audit_regexp.go:76	0x1005112bc		d000259b		ADRP 4923392(PC), R27
+  usecase_audit_regexp.go:76	0x1005112c0		912bc37b		ADD $2800, R27, R27
+  usecase_audit_regexp.go:76	0x1005112c4		3dc00360		FMOVQ (R27), F0
+  usecase_audit_regexp.go:76	0x1005112c8		3c8283e0		FMOVQ F0, 40(RSP)
+  usecase_audit_regexp.go:77	0x1005112cc		3cc183e0		FMOVQ 24(RSP), F0
+  usecase_audit_regexp.go:78	0x1005112d0		3cc283e1		FMOVQ 40(RSP), F1
+  usecase_audit_regexp.go:79	0x1005112d4		d503201f		NOOP
+  usecase_audit_regexp.go:80	0x1005112d8		d503201f		NOOP
+  usecase_audit_regexp.go:81	0x1005112dc		d503201f		NOOP
+  other_gen_arm64.go:39		0x1005112e0		4f00e5e2		VMOVI $15, V2.B16
+  other_gen_arm64.go:39		0x1005112e4		4f00e403		VMOVI $0, V3.B16
+  other_gen_arm64.go:39		0x1005112e8		4f00e424		VMOVI $1, V4.B16
+  usecase_audit_regexp.go:82	0x1005112ec		aa1f03e3		MOVD ZR, R3
+  usecase_audit_regexp.go:67	0x1005112f0		aa0103e4		MOVD R1, R4
+  usecase_audit_regexp.go:82	0x1005112f4		14000035		JMP 53(PC)
+  usecase_audit_regexp.go:67	0x1005112f8		aa0103e3		MOVD R1, R3
+  usecase_audit_regexp.go:94	0x1005112fc		aa1f03e4		MOVD ZR, R4
+  usecase_audit_regexp.go:72	0x100511300		14000007		JMP 7(PC)
+  usecase_audit_regexp.go:68	0x100511304		aa1f03e0		MOVD ZR, R0
+  usecase_audit_regexp.go:68	0x100511308		aa1f03e1		MOVD ZR, R1
+  usecase_audit_regexp.go:68	0x10051130c		f85f83fd		MOVD -8(RSP), R29
+  usecase_audit_regexp.go:68	0x100511310		f84407fe		MOVD.P 64(RSP), R30
+  usecase_audit_regexp.go:68	0x100511314		d65f03c0		RET
+  usecase_audit_regexp.go:94	0x100511318		91000484		ADD $1, R4, R4
+  usecase_audit_regexp.go:94	0x10051131c		eb04007f		CMP R4, R3
+  usecase_audit_regexp.go:94	0x100511320		5400044d		BLE 34(PC)
+  usecase_audit_regexp.go:95	0x100511324		540004c9		BLS 38(PC)
+  usecase_audit_regexp.go:95	0x100511328		38646805		MOVBU (R0)(R4), R5
+  regexp_namespace.go:135	0x10051132c		aa0503e6		MOVD R5, R6
+  regexp_namespace.go:135	0x100511330		7100b8df		CMPW $46, R6
+  regexp_namespace.go:136	0x100511334		54000148		BHI 10(PC)
+  regexp_namespace.go:136	0x100511338		710090df		CMPW $36, R6
+  regexp_namespace.go:136	0x10051133c		54000240		BEQ 18(PC)
+  regexp_namespace.go:136	0x100511340		d100a0a5		SUB $40, R5, R5
+  regexp_namespace.go:136	0x100511344		d3401ca5		UBFX $0, R5, $8, R5
+  regexp_namespace.go:136	0x100511348		71000cbf		CMPW $3, R5
+  regexp_namespace.go:136	0x10051134c		540001c9		BLS 14(PC)
+  regexp_namespace.go:135	0x100511350		7100b8df		CMPW $46, R6
+  regexp_namespace.go:136	0x100511354		54000180		BEQ 12(PC)
+  regexp_namespace.go:136	0x100511358		17fffff0		JMP -16(PC)
+  regexp_namespace.go:136	0x10051135c		7100fcdf		CMPW $63, R6
+  regexp_namespace.go:136	0x100511360		54000120		BEQ 9(PC)
+  regexp_namespace.go:136	0x100511364		d1016ca6		SUB $91, R5, R6
+  regexp_namespace.go:136	0x100511368		d3401cc6		UBFX $0, R6, $8, R6
+  regexp_namespace.go:136	0x10051136c		71000cdf		CMPW $3, R6
+  regexp_namespace.go:136	0x100511370		540000a9		BLS 5(PC)
+  regexp_namespace.go:136	0x100511374		d101eca5		SUB $123, R5, R5
+  regexp_namespace.go:136	0x100511378		d3401ca5		UBFX $0, R5, $8, R5
+  regexp_namespace.go:136	0x10051137c		710008bf		CMPW $2, R5
+  regexp_namespace.go:136	0x100511380		54fffcc8		BHI -26(PC)
+  usecase_audit_regexp.go:96	0x100511384		eb01005f		CMP R1, R2
+  usecase_audit_regexp.go:96	0x100511388		54000060		BEQ 3(PC)
+  usecase_audit_regexp.go:99	0x10051138c		91000421		ADD $1, R1, R1
+  usecase_audit_regexp.go:99	0x100511390		17ffffe2		JMP -30(PC)
+  usecase_audit_regexp.go:97	0x100511394		aa1f03e0		MOVD ZR, R0
+  usecase_audit_regexp.go:97	0x100511398		aa1f03e1		MOVD ZR, R1
+  usecase_audit_regexp.go:97	0x10051139c		f85f83fd		MOVD -8(RSP), R29
+  usecase_audit_regexp.go:97	0x1005113a0		f84407fe		MOVD.P 64(RSP), R30
+  usecase_audit_regexp.go:97	0x1005113a4		d65f03c0		RET
+  usecase_audit_regexp.go:102	0x1005113a8		aa0103e0		MOVD R1, R0
+  usecase_audit_regexp.go:102	0x1005113ac		b24003e1		ORR $1, ZR, R1
+  usecase_audit_regexp.go:102	0x1005113b0		f85f83fd		MOVD -8(RSP), R29
+  usecase_audit_regexp.go:102	0x1005113b4		f84407fe		MOVD.P 64(RSP), R30
+  usecase_audit_regexp.go:102	0x1005113b8		d65f03c0		RET
+  usecase_audit_regexp.go:95	0x1005113bc		97edf1a5		CALL runtime.panicBounds(SB)
+  usecase_audit_regexp.go:91	0x1005113c0		8b0100c1		ADD R1, R6, R1
+  usecase_audit_regexp.go:82	0x1005113c4		aa0503e3		MOVD R5, R3
+  usecase_audit_regexp.go:82	0x1005113c8		cb030085		SUB R3, R4, R5
+  usecase_audit_regexp.go:82	0x1005113cc		f10040bf		CMP $16, R5
+  usecase_audit_regexp.go:82	0x1005113d0		5400044b		BLT 34(PC)
+  usecase_audit_regexp.go:83	0x1005113d4		a900ffff		STP (ZR, ZR), 8(RSP)
+  usecase_audit_regexp.go:84	0x1005113d8		91004065		ADD $16, R3, R5
+  usecase_audit_regexp.go:84	0x1005113dc		eb05009f		CMP R5, R4
+  usecase_audit_regexp.go:84	0x1005113e0		54000463		BCC 35(PC)
+  usecase_audit_regexp.go:84	0x1005113e4		eb05007f		CMP R5, R3
+  usecase_audit_regexp.go:84	0x1005113e8		54000408		BHI 32(PC)
+  usecase_audit_regexp.go:84	0x1005113ec		8b030003		ADD R3, R0, R3
+  usecase_audit_regexp.go:84	0x1005113f0		910023e6		ADD $8, RSP, R6
+  usecase_audit_regexp.go:84	0x1005113f4		eb0300df		CMP R3, R6
+  usecase_audit_regexp.go:84	0x1005113f8		54000060		BEQ 3(PC)
+  usecase_audit_regexp.go:84	0x1005113fc		3dc00065		FMOVQ (R3), F5
+  usecase_audit_regexp.go:84	0x100511400		3c8083e5		FMOVQ F5, 8(RSP)
+  usecase_audit_regexp.go:85	0x100511404		3cc083e5		FMOVQ 8(RSP), F5
+  usecase_audit_regexp.go:86	0x100511408		4e221ca6		VAND V2.B16, V5.B16, V6.B16
+  usecase_audit_regexp.go:86	0x10051140c		4e060006		VTBL V6.B16, [V0.B16], V6.B16
+  usecase_audit_regexp.go:86	0x100511410		4f07e787		VMOVI $252, V7.B16
+  usecase_audit_regexp.go:86	0x100511414		6e2744a5		VUSHL V7.B16, V5.B16, V5.B16
+  usecase_audit_regexp.go:86	0x100511418		4e050025		VTBL V5.B16, [V1.B16], V5.B16
+  usecase_audit_regexp.go:86	0x10051141c		4e261ca5		VAND V6.B16, V5.B16, V5.B16
+  usecase_audit_regexp.go:88	0x100511420		cb010043		SUB R1, R2, R3
+  compare_gen_arm64.go:129	0x100511424		6e238ca5		VCMEQ V3.B16, V5.B16, V5.B16
+  compare_gen_arm64.go:129	0x100511428		6e2058a5		VMVN V5.B16, V5.B16
+  usecase_audit_regexp.go:87	0x10051142c		4e241ca5		VAND V4.B16, V5.B16, V5.B16
+  other_gen_arm64.go:406	0x100511430		4e31b8a5		VADDV V5.B16, V5
+  other_gen_arm64.go:406	0x100511434		0e013ca6		VMOV V5.B[0], R6
+  usecase_audit_regexp.go:87	0x100511438		d3401cc6		UBFX $0, R6, $8, R6
+  usecase_audit_regexp.go:88	0x10051143c		eb0300df		CMP R3, R6
+  usecase_audit_regexp.go:88	0x100511440		54fffc0d		BLE -32(PC)
+  usecase_audit_regexp.go:89	0x100511444		aa1f03e0		MOVD ZR, R0
+  usecase_audit_regexp.go:89	0x100511448		aa1f03e1		MOVD ZR, R1
+  usecase_audit_regexp.go:89	0x10051144c		f85f83fd		MOVD -8(RSP), R29
+  usecase_audit_regexp.go:89	0x100511450		f84407fe		MOVD.P 64(RSP), R30
+  usecase_audit_regexp.go:89	0x100511454		d65f03c0		RET
+  usecase_audit_regexp.go:94	0x100511458		aa0303e5		MOVD R3, R5
+  usecase_audit_regexp.go:94	0x10051145c		aa0403e3		MOVD R4, R3
+  usecase_audit_regexp.go:94	0x100511460		aa0503e4		MOVD R5, R4
+  usecase_audit_regexp.go:82	0x100511464		17ffffae		JMP -82(PC)
+  usecase_audit_regexp.go:84	0x100511468		97edf17a		CALL runtime.panicBounds(SB)
+  usecase_audit_regexp.go:84	0x10051146c		97edf179		CALL runtime.panicBounds(SB)
+  usecase_audit_regexp.go:84	0x100511470		d503201f		NOOP
+  usecase_audit_regexp.go:66	0x100511474		a90087e0		STP (R0, R1), 8(RSP)
+  usecase_audit_regexp.go:66	0x100511478		f9000fe2		MOVD R2, 24(RSP)
+  usecase_audit_regexp.go:66	0x10051147c		aa1e03e3		MOVD R30, R3
+  usecase_audit_regexp.go:66	0x100511480		97ede930		CALL runtime.morestack_noctxt.abi0(SB)
+  usecase_audit_regexp.go:66	0x100511484		a94087e0		LDP 8(RSP), (R0, R1)
+  usecase_audit_regexp.go:66	0x100511488		f9400fe2		MOVD 24(RSP), R2
+  usecase_audit_regexp.go:66	0x10051148c		17ffff7d		JMP github.com/mgomes/vibescript/internal/runtime.auditSIMDRegexpQuotedSize(SB)

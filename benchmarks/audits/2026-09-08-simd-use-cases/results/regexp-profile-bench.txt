@@ -1,0 +1,6 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditUseCases/regexp-escape/65536/plain-10         	   10000	    106569 ns/op	    4754 B/op	      23 allocs/op
+PASS

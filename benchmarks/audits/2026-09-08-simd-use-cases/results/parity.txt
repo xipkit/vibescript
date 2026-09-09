@@ -1,0 +1,3 @@
+original: 301 snapshots, sha256 996aaa65e90d5876a1b51f462fefb54f2c091c2ff3e7214ad2551d7f8b800be0, all TestAudit checks PASS
+go: 301 snapshots, sha256 996aaa65e90d5876a1b51f462fefb54f2c091c2ff3e7214ad2551d7f8b800be0, all TestAudit checks PASS
+simd: 301 snapshots, sha256 996aaa65e90d5876a1b51f462fefb54f2c091c2ff3e7214ad2551d7f8b800be0, all TestAudit checks PASS

@@ -1,0 +1,119 @@
+package runtime
+
+import (
+	"math/rand/v2"
+	"strings"
+	"testing"
+)
+
+func auditCheckCase(t *testing.T, text string) {
+	t.Helper()
+	for _, tc := range []struct {
+		name      string
+		reference func(string) string
+		word      func(string) string
+		vector    func(string) string
+	}{
+		{"upcase", auditReferenceUpcase, auditGoUpcase, auditSIMDUpcase},
+		{"downcase", auditReferenceDowncase, auditGoDowncase, auditSIMDDowncase},
+		{"swapcase", auditReferenceSwapCase, auditGoSwapCase, auditSIMDSwapCase},
+		{"capitalize", auditReferenceCapitalize, auditGoCapitalize, auditSIMDCapitalize},
+	} {
+		if text == "" && tc.name == "capitalize" {
+			continue
+		}
+		want := tc.reference(text)
+		if got := tc.word(text); got != want {
+			t.Fatalf("Go %s(%q) = %q, want %q", tc.name, text, got, want)
+		}
+		if got := tc.vector(text); got != want {
+			t.Fatalf("SIMD %s(%q) = %q, want %q", tc.name, text, got, want)
+		}
+	}
+}
+
+func TestAuditCaseEveryByteAndBoundary(t *testing.T) {
+	for _, size := range []int{0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65} {
+		for value := range 256 {
+			text := []byte(strings.Repeat("aZ[{@`9_", (size+7)/8)[:size])
+			auditCheckCase(t, string(text))
+			for position := range size {
+				old := text[position]
+				text[position] = byte(value)
+				auditCheckCase(t, string(text))
+				text[position] = old
+			}
+		}
+	}
+}
+
+func TestAuditCaseRandomAndUnicode(t *testing.T) {
+	for _, text := range []string{
+		"", "a", "Z", "@AZ[az{", "Straße İΣ😀 AbCd", "éÉ\x00ABC xyz",
+		strings.Repeat("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 128),
+		strings.Repeat("[]{}@`0123456789", 256),
+		strings.Repeat("éΣ😀Az", 512),
+		strings.Repeat(string([]byte{0x80, 0xff, 'A', 0xc0, 'z', 0xfe}), 512),
+	} {
+		auditCheckCase(t, text)
+	}
+	random := rand.New(rand.NewPCG(121, 727))
+	for range 500 {
+		text := make([]byte, random.IntN(4097))
+		for i := range text {
+			text[i] = byte(random.Uint32())
+		}
+		auditCheckCase(t, string(text))
+	}
+}
+
+func TestAuditCaseWordMaskNeighborBytes(t *testing.T) {
+	for first := range 256 {
+		for second := range 256 {
+			var text [16]byte
+			for i := range text {
+				if i%2 == 0 {
+					text[i] = byte(first)
+				} else {
+					text[i] = byte(second)
+				}
+			}
+			auditCheckCase(t, string(text[:]))
+		}
+	}
+}
+
+var auditCaseAllocationSink string
+
+func TestAuditCaseAllocations(t *testing.T) {
+	for _, size := range []int{0, 1, 8, 16, 31, 32, 33, 64, 4096} {
+		text := strings.Repeat("aZ!9", (size+3)/4)[:size]
+		for _, tc := range []struct {
+			name      string
+			reference func(string) string
+			word      func(string) string
+			vector    func(string) string
+		}{
+			{"upcase", auditReferenceUpcase, auditGoUpcase, auditSIMDUpcase},
+			{"downcase", auditReferenceDowncase, auditGoDowncase, auditSIMDDowncase},
+			{"swapcase", auditReferenceSwapCase, auditGoSwapCase, auditSIMDSwapCase},
+			{"capitalize", auditReferenceCapitalize, auditGoCapitalize, auditSIMDCapitalize},
+		} {
+			if size == 0 && tc.name == "capitalize" {
+				continue
+			}
+			want := testing.AllocsPerRun(100, func() {
+				auditCaseAllocationSink = tc.reference(text)
+			})
+			word := testing.AllocsPerRun(100, func() {
+				auditCaseAllocationSink = tc.word(text)
+			})
+			vector := testing.AllocsPerRun(100, func() {
+				auditCaseAllocationSink = tc.vector(text)
+			})
+			if word != want || vector != want {
+				t.Errorf("%s size %d allocations: Go=%g SIMD=%g original=%g", tc.name, size, word, vector, want)
+			}
+		}
+	}
+}

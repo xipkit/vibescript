@@ -1,0 +1,90 @@
+package runtime
+
+import "simd/archsimd"
+
+func auditGoSpacePrefix(text string, strip bool) int {
+	i := 0
+	for i < len(text) && (isRubyASCIISpace(text[i]) || strip && text[i] == 0) {
+		i++
+	}
+	return i
+}
+
+func auditGoNonSpacePrefix(text string) int {
+	i := 0
+	for i < len(text) && !isRubyASCIISpace(text[i]) {
+		i++
+	}
+	return i
+}
+
+func auditGoSpaceSuffix(text string, strip bool) int {
+	i := len(text)
+	for i > 0 && (isRubyASCIISpace(text[i-1]) || strip && text[i-1] == 0) {
+		i--
+	}
+	return len(text) - i
+}
+
+func auditSIMDSpaceMask(v archsimd.Uint8x16, strip bool) archsimd.Mask8x16 {
+	mask := v.Sub(archsimd.BroadcastUint8x16(9)).LessEqual(archsimd.BroadcastUint8x16(4))
+	mask = mask.Or(v.Equal(archsimd.BroadcastUint8x16(' ')))
+	if strip {
+		mask = mask.Or(v.Equal(archsimd.BroadcastUint8x16(0)))
+	}
+	return mask
+}
+
+func auditSIMDSpacePrefix(text string, strip bool) int {
+	probe := min(len(text), 8)
+	i := auditGoSpacePrefix(text[:probe], strip)
+	if i != probe {
+		return i
+	}
+	for len(text)-i >= 16 {
+		var tile [16]byte
+		copy(tile[:], text[i:i+16])
+		v := archsimd.LoadUint8x16Array(&tile)
+		if auditSIMDSpaceMask(v, strip).ToInt8x16().ToBits().ReduceMin() != 255 {
+			break
+		}
+		i += 16
+	}
+	return i + auditGoSpacePrefix(text[i:], strip)
+}
+
+func auditSIMDNonSpacePrefix(text string) int {
+	probe := min(len(text), 8)
+	i := auditGoNonSpacePrefix(text[:probe])
+	if i != probe {
+		return i
+	}
+	for len(text)-i >= 16 {
+		var tile [16]byte
+		copy(tile[:], text[i:i+16])
+		v := archsimd.LoadUint8x16Array(&tile)
+		if auditSIMDSpaceMask(v, false).ToInt8x16().ToBits().ReduceMax() != 0 {
+			break
+		}
+		i += 16
+	}
+	return i + auditGoNonSpacePrefix(text[i:])
+}
+
+func auditSIMDSpaceSuffix(text string, strip bool) int {
+	probe := min(len(text), 8)
+	i := auditGoSpaceSuffix(text[len(text)-probe:], strip)
+	if i != probe {
+		return i
+	}
+	for len(text)-i >= 16 {
+		var tile [16]byte
+		copy(tile[:], text[len(text)-i-16:len(text)-i])
+		v := archsimd.LoadUint8x16Array(&tile)
+		if auditSIMDSpaceMask(v, strip).ToInt8x16().ToBits().ReduceMin() != 255 {
+			break
+		}
+		i += 16
+	}
+	return i + auditGoSpaceSuffix(text[:len(text)-i], strip)
+}

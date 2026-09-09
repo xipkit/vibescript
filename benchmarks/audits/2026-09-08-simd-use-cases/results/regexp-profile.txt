@@ -1,0 +1,22 @@
+File: runtime-simd.test
+Type: cpu
+Time: 2026-09-08 23:08:17 EDT
+Duration: 1.21s, Total samples = 980ms (80.84%)
+Showing nodes accounting for 980ms, 100% of 980ms total
+Showing top 15 nodes out of 32
+      flat  flat%   sum%        cum   cum%
+     430ms 43.88% 43.88%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.auditSIMDRegexpQuotedSize
+     410ms 41.84% 85.71%      430ms 43.88%  simd/archsimd.Uint8x16.ReduceSum (inline)
+      60ms  6.12% 91.84%       60ms  6.12%  simd/archsimd.Uint8x16.NotEqual (inline)
+      40ms  4.08% 95.92%       40ms  4.08%  runtime.asyncPreempt
+      30ms  3.06% 98.98%       30ms  3.06%  runtime.madvise
+      10ms  1.02%   100%       10ms  1.02%  runtime.kevent
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalCallExpr
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpression (inline)
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithAuto
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalLocalScopeStatements
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalMemberCallExpr
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatement
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatementWithLocalBindings
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalStatements
+         0     0%   100%      940ms 95.92%  github.com/mgomes/vibescript/internal/runtime.(*Execution).invokeCallable

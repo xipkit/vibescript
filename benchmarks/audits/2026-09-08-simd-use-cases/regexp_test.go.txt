@@ -1,0 +1,109 @@
+package runtime
+
+import (
+	"math"
+	"math/rand/v2"
+	"regexp"
+	"strings"
+	"testing"
+)
+
+// Keep the reference and candidates under the same indirect call, without
+// inlining that would devirtualize only the known reference function.
+//
+//go:noinline
+func auditRegexpWriteAllocs(text string, size int, write func(*strings.Builder, string)) float64 {
+	return testing.AllocsPerRun(20, func() {
+		var out strings.Builder
+		out.Grow(size)
+		write(&out, text)
+	})
+}
+
+func TestAuditRegexp(t *testing.T) {
+	implementations := []struct {
+		name  string
+		size  func(string, int) (int, bool)
+		write func(*strings.Builder, string)
+	}{
+		{"go", auditGoRegexpQuotedSize, auditGoWriteRegexpQuoted},
+		{"simd", auditSIMDRegexpQuotedSize, auditSIMDWriteRegexpQuoted},
+	}
+	check := func(t *testing.T, text string) {
+		t.Helper()
+		var original strings.Builder
+		auditReferenceWriteRegexpQuoted(&original, text)
+		want := original.String()
+		if quoted := regexp.QuoteMeta(text); want != quoted {
+			t.Fatalf("reference quote(%q) = %q; want standard-library %q", text, want, quoted)
+		}
+		for _, implementation := range implementations {
+			for _, limit := range []int{-1, 0, len(text) - 1, len(text), len(want) - 1, len(want), len(want) + 1, math.MaxInt} {
+				wantSize, wantOK := auditReferenceRegexpQuotedSize(text, limit)
+				if got, ok := implementation.size(text, limit); got != wantSize || ok != wantOK {
+					t.Fatalf("%s size(%q, %d) = (%d, %t); want (%d, %t)", implementation.name, text, limit, got, ok, wantSize, wantOK)
+				}
+			}
+			for _, prefix := range []string{"", "existing output:"} {
+				var out strings.Builder
+				out.Grow(len(prefix) + len(want))
+				out.WriteString(prefix)
+				implementation.write(&out, text)
+				if got := out.String(); got != prefix+want {
+					t.Fatalf("%s quote(%q) after prefix %q = %q; want %q", implementation.name, text, prefix, got, prefix+want)
+				}
+			}
+		}
+	}
+	t.Run("all_bytes", func(t *testing.T) {
+		for b := range 256 {
+			check(t, strings.Repeat(string(byte(b)), 65))
+			for pos := range 32 {
+				text := []byte(strings.Repeat("a", 65))
+				text[pos] = byte(b)
+				check(t, string(text))
+			}
+		}
+	})
+	t.Run("boundaries", func(t *testing.T) {
+		for _, n := range []int{0, 1, 7, 8, 15, 16, 17, 31, 32, 33, 47, 48, 49, 63, 64, 65, 127, 128, 129, 255, 256, 257} {
+			for _, seed := range []string{"a", auditRegexpMetaChars, "é日本語", "\x00\xff\xc0\x80", "abc\\"} {
+				text := strings.Repeat(seed, n/len(seed)+1)[:n]
+				check(t, text)
+				check(t, text+".")
+				check(t, "."+text)
+			}
+		}
+	})
+	t.Run("random", func(t *testing.T) {
+		rng := rand.New(rand.NewPCG(39, 71))
+		for range 1000 {
+			text := make([]byte, rng.IntN(2049))
+			for i := range text {
+				text[i] = byte(rng.Uint32())
+			}
+			check(t, string(text))
+		}
+	})
+	t.Run("allocations", func(t *testing.T) {
+		for _, text := range []string{strings.Repeat("plain", 820), strings.Repeat("a.\\é\xff", 700), strings.Repeat(auditRegexpMetaChars, 300)} {
+			wantSize, _ := auditReferenceRegexpQuotedSize(text, math.MaxInt)
+			// Indirect writer calls make the builder itself escape in this
+			// harness, so compare both sides under the same call shape.
+			wantWriteAllocs := auditRegexpWriteAllocs(text, wantSize, auditReferenceWriteRegexpQuoted)
+			t.Logf("reference quote allocations for %d bytes = %v", len(text), wantWriteAllocs)
+			for _, implementation := range implementations {
+				if got := testing.AllocsPerRun(20, func() {
+					if size, ok := implementation.size(text, math.MaxInt); !ok || size != wantSize {
+						t.Fatal("size differs in allocation check")
+					}
+				}); got != 0 {
+					t.Fatalf("%s size allocations for %d bytes = %v; want 0", implementation.name, len(text), got)
+				}
+				if got := auditRegexpWriteAllocs(text, wantSize, implementation.write); got != wantWriteAllocs {
+					t.Fatalf("%s quote allocations for %d bytes = %v; want reference %v", implementation.name, len(text), got, wantWriteAllocs)
+				}
+			}
+		}
+	})
+}
