@@ -45,6 +45,8 @@ func referenceWhitespaceSplit(text string, limit int) []string {
 }
 
 func TestWhitespaceSplitLongRuns(t *testing.T) {
+	t.Parallel()
+
 	for _, prefix := range []string{"", strings.Repeat(" \t", 128), strings.Repeat("a", 256), strings.Repeat("a b ", 64)} {
 		for _, suffix := range []string{"", strings.Repeat("\r\n", 128), strings.Repeat("é\u2003\xff\x00", 64), strings.Repeat("a b ", 64)} {
 			text := prefix + suffix
@@ -115,6 +117,8 @@ func checkWhitespaceSpans(t *testing.T, text string) {
 }
 
 func TestWhitespaceScanAllBytes(t *testing.T) {
+	t.Parallel()
+
 	for _, n := range []int{0, 1, 7, 8, 15, 16, 17, 23, 24, 31, 32, 33, 47, 48, 63, 64, 65, 127, 128, 129, 255, 256} {
 		padding := strings.Repeat(" \t\r\n\v\f", n/6+1)[:n]
 		for b := range 256 {
@@ -127,6 +131,8 @@ func TestWhitespaceScanAllBytes(t *testing.T) {
 }
 
 func TestWhitespaceScanEveryStop(t *testing.T) {
+	t.Parallel()
+
 	for n := range 161 {
 		for stop := range n + 1 {
 			checkWhitespaceSpans(t, strings.Repeat(" ", stop)+strings.Repeat("x", n-stop))
@@ -137,6 +143,8 @@ func TestWhitespaceScanEveryStop(t *testing.T) {
 }
 
 func TestWhitespaceScanUnicodeAndInvalidUTF8(t *testing.T) {
+	t.Parallel()
+
 	for _, text := range []string{"", "\u00a0", "\u1680", "\u2003", "\ufeff", "\xff\xfe", "a\x00b", "\u00a0 a", "a \u2003"} {
 		for _, n := range []int{0, 8, 16, 24, 32, 64, 4096} {
 			padding := strings.Repeat(" ", n)
@@ -146,6 +154,8 @@ func TestWhitespaceScanUnicodeAndInvalidUTF8(t *testing.T) {
 }
 
 func TestWhitespaceScanRandom(t *testing.T) {
+	t.Parallel()
+
 	rng := rand.New(rand.NewSource(0x5ace))
 	spaces := " \t\n\v\f\r\x00"
 	for range 10000 {

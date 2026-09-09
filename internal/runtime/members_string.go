@@ -423,8 +423,15 @@ func splitOnASCIIWhitespaceLimit(text string, limit, count int) []string {
 	i := 0
 	n := len(text)
 	for i < n {
-		for i < n && isRubyASCIISpace(text[i]) {
+		end := n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += whitespacePrefixSIMD(text[i:], false)
 		}
 		if i >= n {
 			break
@@ -434,8 +441,15 @@ func splitOnASCIIWhitespaceLimit(text string, limit, count int) []string {
 			return fields
 		}
 		start := i
-		for i < n && !isRubyASCIISpace(text[i]) {
+		end = n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && !isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += nonWhitespacePrefixSIMD(text[i:])
 		}
 		fields = append(fields, text[start:i])
 	}
@@ -462,8 +476,15 @@ func splitOnASCIIWhitespaceLimitProjection(text string, limit int) stringSplitPr
 	i := 0
 	n := len(text)
 	for i < n {
-		for i < n && isRubyASCIISpace(text[i]) {
+		end := n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += whitespacePrefixSIMD(text[i:], false)
 		}
 		if i >= n {
 			break
@@ -473,8 +494,15 @@ func splitOnASCIIWhitespaceLimitProjection(text string, limit int) stringSplitPr
 			return projection
 		}
 		start := i
-		for i < n && !isRubyASCIISpace(text[i]) {
+		end = n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && !isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += nonWhitespacePrefixSIMD(text[i:])
 		}
 		projection.add(text, text[start:i])
 	}
@@ -900,8 +928,15 @@ func stringSplitWhitespaceResult(exec *Execution, text string, limit, count int)
 	i := 0
 	n := len(text)
 	for i < n {
-		for i < n && isRubyASCIISpace(text[i]) {
+		end := n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += whitespacePrefixSIMD(text[i:], false)
 		}
 		if i >= n {
 			break
@@ -913,8 +948,15 @@ func stringSplitWhitespaceResult(exec *Execution, text string, limit, count int)
 			return NewArray(values), nil
 		}
 		start := i
-		for i < n && !isRubyASCIISpace(text[i]) {
+		end = n
+		if whitespaceSIMD && n-i > whitespaceProbeBytes {
+			end = i + whitespaceProbeBytes
+		}
+		for i < end && !isRubyASCIISpace(text[i]) {
 			i++
+		}
+		if whitespaceSIMD && i == end && i < n {
+			i += nonWhitespacePrefixSIMD(text[i:])
 		}
 		if err := appendStringSplitPart(exec, &values, text, text[start:i]); err != nil {
 			return NewNil(), err

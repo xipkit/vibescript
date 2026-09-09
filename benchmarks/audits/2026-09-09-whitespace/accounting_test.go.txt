@@ -1,0 +1,303 @@
+package runtime
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+)
+
+type auditAccountContext struct {
+	context.Context
+	done        chan struct{}
+	polls       int
+	cancelAfter int
+}
+
+func (c *auditAccountContext) Done() <-chan struct{} {
+	c.polls++
+	if c.cancelAfter > 0 && c.polls == c.cancelAfter {
+		close(c.done)
+	}
+	return c.done
+}
+
+func (c *auditAccountContext) Err() error {
+	select {
+	case <-c.done:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+
+type auditAccountProbe struct {
+	StepLimit   int    `json:"step_limit"`
+	MemoryLimit int    `json:"memory_limit"`
+	CancelAfter int    `json:"cancel_after"`
+	Polls       int    `json:"polls"`
+	Kind        string `json:"kind"`
+	ValueSHA256 string `json:"value_sha256"`
+	ErrorType   string `json:"error_type,omitempty"`
+	ErrorKind   string `json:"error_kind,omitempty"`
+	ErrorText   string `json:"error_text,omitempty"`
+	StepError   bool   `json:"step_error,omitempty"`
+	MemoryError bool   `json:"memory_error,omitempty"`
+	CancelError bool   `json:"cancel_error,omitempty"`
+}
+
+type auditAccountSnapshot struct {
+	Operation string              `json:"operation"`
+	Input     string              `json:"input"`
+	MinSteps  int                 `json:"min_steps"`
+	MinMemory int                 `json:"min_memory"`
+	Probes    []auditAccountProbe `json:"probes"`
+}
+
+type auditAccountInput struct {
+	name  string
+	text  string
+	other string
+}
+
+func auditAccountCall(script *Script, args []Value, steps, memory, cancelAfter int) (Value, error, auditAccountProbe) {
+	// Every test owns its engine and calls it sequentially. The public Call
+	// creates a fresh Execution from these quota fields on every invocation.
+	script.engine.config.StepQuota = steps
+	script.engine.config.MemoryQuotaBytes = memory
+	ctx := &auditAccountContext{
+		Context:     context.Background(),
+		done:        make(chan struct{}),
+		cancelAfter: cancelAfter,
+	}
+	result, err := script.Call(ctx, "run", args, CallOptions{})
+	probe := auditAccountProbe{
+		StepLimit:   steps,
+		MemoryLimit: memory,
+		CancelAfter: cancelAfter,
+		Polls:       ctx.polls,
+		Kind:        fmt.Sprint(result.Kind()),
+		ValueSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte(result.Inspect()))),
+	}
+	if err != nil {
+		probe.ErrorType = fmt.Sprintf("%T", err)
+		probe.ErrorText = err.Error()
+		var runtimeErr *RuntimeError
+		if errors.As(err, &runtimeErr) {
+			probe.ErrorKind = runtimeErr.Type
+		}
+		probe.StepError = auditAccountErrorMatches(err, errStepQuotaExceeded, steps, memory)
+		probe.MemoryError = auditAccountErrorMatches(err, errMemoryQuotaExceeded, steps, memory)
+		probe.CancelError = auditAccountErrorMatches(err, context.Canceled, steps, memory)
+	}
+	return result, err, probe
+}
+
+func auditAccountErrorMatches(err, want error, steps, memory int) bool {
+	if errors.Is(err, want) {
+		return true
+	}
+	var runtimeErr *RuntimeError
+	if !errors.As(err, &runtimeErr) {
+		return false
+	}
+	// RuntimeError deliberately terminates the unwrap chain at the public
+	// boundary. Match both its class and the complete expected quota message.
+	switch want {
+	case errStepQuotaExceeded:
+		return runtimeErr.Type == runtimeErrorTypeLimit && runtimeErr.Message == fmt.Sprintf("step quota exceeded (%d)", steps)
+	case errMemoryQuotaExceeded:
+		message := fmt.Sprintf("memory quota exceeded (%d bytes)", memory)
+		return runtimeErr.Type == runtimeErrorTypeLimit && (runtimeErr.Message == message || runtimeErr.Message == "check memory after binding call env: "+message)
+	case context.Canceled:
+		return runtimeErr.Type == runtimeErrorTypeBase && runtimeErr.Message == context.Canceled.Error()
+	default:
+		return false
+	}
+}
+
+func auditAccountMinimum(t *testing.T, script *Script, args []Value, memory bool) int {
+	t.Helper()
+	const maxSteps, maxMemory = 1 << 20, 16 << 20
+	lo, hi := 1, maxSteps
+	wantError := errStepQuotaExceeded
+	if memory {
+		hi = maxMemory
+		wantError = errMemoryQuotaExceeded
+	}
+	for lo < hi {
+		mid := lo + (hi-lo)/2
+		steps, bytes := maxSteps, maxMemory
+		if memory {
+			bytes = mid
+		} else {
+			steps = mid
+		}
+		_, err, _ := auditAccountCall(script, args, steps, bytes, 0)
+		if err == nil {
+			hi = mid
+		} else if auditAccountErrorMatches(err, wantError, steps, bytes) {
+			lo = mid + 1
+		} else {
+			t.Fatalf("search memory=%t limit=%d: unexpected error: %v", memory, mid, err)
+		}
+	}
+	return lo
+}
+
+func auditAccountInputs() []auditAccountInput {
+	inputs := []auditAccountInput{
+		{name: "empty", text: ""},
+		{name: "short", text: " aB_ \t"},
+		{name: "unicode", text: "\x00 \tÉé Straße İI ǅ😀\u00a0終\r\n\x00"},
+		{name: "invalid", text: strings.Repeat("aB", 17) + "\xff\xfe\x80\x00 Z\t"},
+		{name: "nul", text: "\x00\t\r\n\f\v" + "aBc \x00 DeF" + "\x00\t\n "},
+		{name: "all_space_4096", text: strings.Repeat(" \t\n\r", 1024)},
+		{name: "padded_4096", text: strings.Repeat(" \t", 1020) + "aBcD0123aBcD0123" + strings.Repeat("\r\n", 1020)},
+	}
+	for _, size := range []int{16, 63, 64, 65, 4096} {
+		text := strings.Repeat("aB_CdE09 xYz\t ", size/14+1)[:size]
+		inputs = append(inputs, auditAccountInput{name: fmt.Sprintf("ascii_%d", size), text: text})
+	}
+	for i := range inputs {
+		other := []byte(inputs[i].text)
+		for j, b := range other {
+			if b >= 'a' && b <= 'z' {
+				other[j] = b - ('a' - 'A')
+			}
+		}
+		inputs[i].other = string(other)
+	}
+	return inputs
+}
+
+func auditAccountRegexpInputs() []auditAccountInput {
+	inputs := auditAccountInputs()
+	const meta = ".+*?()|[]{}^$\\ #\t\n"
+	for _, size := range []int{16, 63, 64, 65, 4096} {
+		sparse := []byte(strings.Repeat("a", size))
+		for i := size / 2; i < size; i += 64 {
+			sparse[i] = '.'
+		}
+		inputs = append(inputs,
+			auditAccountInput{name: fmt.Sprintf("plain_%d", size), text: strings.Repeat("abCdE09_", size/8+1)[:size]},
+			auditAccountInput{name: fmt.Sprintf("sparse_meta_%d", size), text: string(sparse)},
+			auditAccountInput{name: fmt.Sprintf("dense_meta_%d", size), text: strings.Repeat(meta, size/len(meta)+1)[:size]},
+			auditAccountInput{name: fmt.Sprintf("unicode_%d", size), text: strings.Repeat("é", size/2) + strings.Repeat("a", size%2)},
+			auditAccountInput{name: fmt.Sprintf("invalid_%d", size), text: strings.Repeat("a\xff", size/2) + strings.Repeat("a", size%2)},
+		)
+	}
+	return inputs
+}
+
+func TestAuditAccountingSnapshot(t *testing.T) {
+	const maxSteps, maxMemory = 1 << 20, 16 << 20
+	operations := []struct {
+		name    string
+		expr    string
+		compare bool
+		regexp  bool
+		union   bool
+	}{
+		{name: "split_minus_one", expr: "s.split(nil, -1)"},
+		{name: "split_zero", expr: "s.split(nil, 0)"},
+		{name: "split_one", expr: "s.split(nil, 1)"},
+		{name: "split_two", expr: "s.split(nil, 2)"},
+		{name: "lstrip", expr: "s.lstrip"},
+		{name: "rstrip", expr: "s.rstrip"},
+		{name: "strip", expr: "s.strip"},
+
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			params := "s"
+			inputs := auditAccountInputs()
+			if operation.regexp {
+				inputs = auditAccountRegexpInputs()
+			}
+			if operation.union {
+				params = "s, other"
+				filtered := make([]auditAccountInput, 0, 15)
+				for _, input := range inputs {
+					if strings.HasPrefix(input.name, "plain_") || strings.HasPrefix(input.name, "sparse_meta_") || strings.HasPrefix(input.name, "dense_meta_") {
+						input.other = "other."
+						filtered = append(filtered, input)
+					}
+				}
+				inputs = filtered
+			}
+			if operation.compare {
+				params = "s, other"
+				inputs = append(inputs,
+					auditAccountInput{name: "punctuation", text: "A", other: "["},
+					auditAccountInput{name: "early_difference", text: "a" + strings.Repeat("B", 4095), other: "z" + strings.Repeat("b", 4095)},
+					auditAccountInput{name: "late_difference", text: strings.Repeat("B", 4095) + "a", other: strings.Repeat("b", 4095) + "z"},
+					auditAccountInput{name: "prefix", text: strings.Repeat("B", 64), other: strings.Repeat("b", 65)},
+				)
+			}
+			script := compileScriptWithConfig(t, Config{StepQuota: maxSteps, MemoryQuotaBytes: maxMemory}, "def run("+params+")\n  "+operation.expr+"\nend")
+			for _, input := range inputs {
+				t.Run(input.name, func(t *testing.T) {
+					args := []Value{NewString(input.text)}
+					if operation.compare || operation.union {
+						args = append(args, NewString(input.other))
+					}
+					if operation.union {
+						// Quota probes exercise the same warm regexp-cache path on
+						// every call, including the initial successful baseline.
+						auditAccountCall(script, args, maxSteps, maxMemory, 0)
+					}
+					want, err, baseline := auditAccountCall(script, args, maxSteps, maxMemory, 0)
+					if err != nil {
+						t.Fatalf("baseline: %v", err)
+					}
+					snapshot := auditAccountSnapshot{
+						Operation: operation.name,
+						Input:     input.name,
+						MinSteps:  auditAccountMinimum(t, script, args, false),
+						MinMemory: auditAccountMinimum(t, script, args, true),
+						Probes:    []auditAccountProbe{baseline},
+					}
+					probe := func(steps, memory, cancelAfter int, wantError error) {
+						t.Helper()
+						got, err, result := auditAccountCall(script, args, steps, memory, cancelAfter)
+						if wantError != nil {
+							if !auditAccountErrorMatches(err, wantError, steps, memory) {
+								t.Errorf("steps=%d memory=%d cancel=%d: error = %v, want %v", steps, memory, cancelAfter, err, wantError)
+							}
+						} else if err != nil || !got.Eql(want) || got.Inspect() != want.Inspect() {
+							t.Errorf("steps=%d memory=%d cancel=%d: error = %v, result differs from successful baseline = %t", steps, memory, cancelAfter, err, !got.Eql(want))
+						}
+						snapshot.Probes = append(snapshot.Probes, result)
+					}
+					for _, delta := range []int{-1, 0, 1} {
+						var stepError, memoryError error
+						if delta < 0 {
+							stepError, memoryError = errStepQuotaExceeded, errMemoryQuotaExceeded
+						}
+						if snapshot.MinSteps+delta > 0 {
+							probe(snapshot.MinSteps+delta, maxMemory, 0, stepError)
+						}
+						if snapshot.MinMemory+delta > 0 {
+							probe(maxSteps, snapshot.MinMemory+delta, 0, memoryError)
+						}
+					}
+					for _, cancelAfter := range []int{1, 3, baseline.Polls} {
+						if cancelAfter > 0 && cancelAfter <= baseline.Polls {
+							probe(maxSteps, maxMemory, cancelAfter, context.Canceled)
+						}
+					}
+					probe(maxSteps, maxMemory, baseline.Polls+1, nil)
+					encoded, err := json.Marshal(snapshot)
+					if err != nil {
+						t.Fatal(err)
+					}
+					fmt.Printf("AUDIT_ACCOUNT %s\n", encoded)
+				})
+			}
+		})
+	}
+}
