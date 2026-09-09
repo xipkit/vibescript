@@ -143,9 +143,18 @@ func (r strftimeRenderer) renderInto(format string, inheritedUpper bool) error {
 	for i := 0; i < len(format); {
 		r.written = b.Len()
 		if format[i] != '%' {
+			// Avoid a separate search for short gaps between directives.
 			end := i + 1
-			for end < len(format) && format[end] != '%' && end-i < 4096 {
+			for end < len(format) && format[end] != '%' && end-i < 8 {
 				end++
+			}
+			if end < len(format) && format[end] != '%' {
+				limit := i + min(len(format)-i, 4096)
+				if offset := strings.IndexByte(format[end:limit], '%'); offset >= 0 {
+					end += offset
+				} else {
+					end = limit
+				}
 			}
 			if err := r.append(format[i:end], 0); err != nil {
 				return err

@@ -665,14 +665,36 @@ func prepareFormatString(exec *Execution, pattern string, values []Value) (prepa
 	usedCursor := 0
 	for i := 0; i < len(pattern); {
 		if pattern[i] != '%' {
-			var err error
-			total, err = addProjectedFormatBytes(total, 1)
-			if err != nil {
-				return preparedFormatString{}, err
+			// Copy short literal runs without starting a separate scan.
+			end := i + min(len(pattern)-i, 8)
+			for i < end && pattern[i] != '%' {
+				var err error
+				total, err = addProjectedFormatBytes(total, 1)
+				if err != nil {
+					return preparedFormatString{}, err
+				}
+				normalized.WriteByte(pattern[i])
+				i++
 			}
-			normalized.WriteByte(pattern[i])
-			i++
-			continue
+			if i == len(pattern) {
+				break
+			}
+			if pattern[i] != '%' {
+				// Keep the byte-wise growth schedule when a normalized pattern
+				// exceeds its initial capacity, and stop at the output limit.
+				end = i + min(len(pattern)-i, maxFormatOutputBytes-total+1, max(1, normalized.Cap()-normalized.Len()))
+				if offset := strings.IndexByte(pattern[i:end], '%'); offset >= 0 {
+					end = i + offset
+				}
+				var err error
+				total, err = addProjectedFormatBytes(total, end-i)
+				if err != nil {
+					return preparedFormatString{}, err
+				}
+				normalized.WriteString(pattern[i:end])
+				i = end
+				continue
+			}
 		}
 		directiveStart := i
 		i++
