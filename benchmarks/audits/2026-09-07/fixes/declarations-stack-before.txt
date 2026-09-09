@@ -1,0 +1,90 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallUnusedDeclarations/functions/0         	  223051	      1018 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/functions/1000      	    3535	     62966 ns/op	  133808 B/op	    1013 allocs/op
+BenchmarkCallUnusedDeclarations/methods/0           	  130912	      1790 ns/op	    4688 B/op	      20 allocs/op
+BenchmarkCallUnusedDeclarations/methods/1000        	    3159	     71807 ns/op	  203296 B/op	    1025 allocs/op
+BenchmarkCallUnusedDeclarations/classes/0           	  232335	      1033 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/classes/1000        	     364	    649695 ns/op	  929830 B/op	    6064 allocs/op
+BenchmarkCallUnusedDeclarations/enums/0             	  225609	      1032 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/enums/1000          	     597	    398143 ns/op	  876452 B/op	    8018 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/0      	   79528	      3031 ns/op	    5472 B/op	      35 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/1000   	    3242	     72926 ns/op	  204080 B/op	    1040 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallUnusedDeclarations/functions/0         	  225614	      1034 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/functions/1000      	    3496	     63946 ns/op	  133808 B/op	    1013 allocs/op
+BenchmarkCallUnusedDeclarations/methods/0           	  129880	      1856 ns/op	    4688 B/op	      20 allocs/op
+BenchmarkCallUnusedDeclarations/methods/1000        	    2923	     74832 ns/op	  203296 B/op	    1025 allocs/op
+BenchmarkCallUnusedDeclarations/classes/0           	  226276	      1069 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/classes/1000        	     338	    711067 ns/op	  929831 B/op	    6064 allocs/op
+BenchmarkCallUnusedDeclarations/enums/0             	  213094	      1108 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/enums/1000          	     519	    438993 ns/op	  876452 B/op	    8018 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/0      	   74881	      3174 ns/op	    5472 B/op	      35 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/1000   	    3030	     77452 ns/op	  204080 B/op	    1040 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallUnusedDeclarations/functions/0         	  211586	      1074 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/functions/1000      	    3577	     64391 ns/op	  133808 B/op	    1013 allocs/op
+BenchmarkCallUnusedDeclarations/methods/0           	  125634	      1871 ns/op	    4688 B/op	      20 allocs/op
+BenchmarkCallUnusedDeclarations/methods/1000        	    2974	     74982 ns/op	  203296 B/op	    1025 allocs/op
+BenchmarkCallUnusedDeclarations/classes/0           	  220064	      1064 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/classes/1000        	     345	    690487 ns/op	  929831 B/op	    6064 allocs/op
+BenchmarkCallUnusedDeclarations/enums/0             	  217382	      1082 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/enums/1000          	     538	    421063 ns/op	  876452 B/op	    8018 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/0      	   76519	      3152 ns/op	    5472 B/op	      35 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/1000   	    2991	     77095 ns/op	  204080 B/op	    1040 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallUnusedDeclarations/functions/0         	  229172	      1039 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/functions/1000      	    3654	     63090 ns/op	  133808 B/op	    1013 allocs/op
+BenchmarkCallUnusedDeclarations/methods/0           	  130429	      1836 ns/op	    4688 B/op	      20 allocs/op
+BenchmarkCallUnusedDeclarations/methods/1000        	    2964	     75866 ns/op	  203296 B/op	    1025 allocs/op
+BenchmarkCallUnusedDeclarations/classes/0           	  218096	      1081 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/classes/1000        	     343	    679937 ns/op	  929831 B/op	    6064 allocs/op
+BenchmarkCallUnusedDeclarations/enums/0             	  215370	      1081 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/enums/1000          	     543	    443371 ns/op	  876452 B/op	    8018 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/0      	   73022	      3252 ns/op	    5472 B/op	      35 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/1000   	    2852	     79187 ns/op	  204080 B/op	    1040 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallUnusedDeclarations/functions/0         	  215206	      1069 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/functions/1000      	    3544	     63619 ns/op	  133808 B/op	    1013 allocs/op
+BenchmarkCallUnusedDeclarations/methods/0           	  126733	      1857 ns/op	    4688 B/op	      20 allocs/op
+BenchmarkCallUnusedDeclarations/methods/1000        	    3097	     73318 ns/op	  203296 B/op	    1025 allocs/op
+BenchmarkCallUnusedDeclarations/classes/0           	  220005	      1062 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/classes/1000        	     352	    676303 ns/op	  929831 B/op	    6064 allocs/op
+BenchmarkCallUnusedDeclarations/enums/0             	  217754	      1074 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/enums/1000          	     562	    426930 ns/op	  876452 B/op	    8018 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/0      	   73250	      3257 ns/op	    5472 B/op	      35 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/1000   	    2960	     78143 ns/op	  204080 B/op	    1040 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCallUnusedDeclarations/functions/0         	  214526	      1063 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/functions/1000      	    3488	     66707 ns/op	  133808 B/op	    1013 allocs/op
+BenchmarkCallUnusedDeclarations/methods/0           	  119096	      1951 ns/op	    4688 B/op	      20 allocs/op
+BenchmarkCallUnusedDeclarations/methods/1000        	    2972	     77797 ns/op	  203296 B/op	    1025 allocs/op
+BenchmarkCallUnusedDeclarations/classes/0           	  210032	      1121 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/classes/1000        	     328	    723547 ns/op	  929831 B/op	    6064 allocs/op
+BenchmarkCallUnusedDeclarations/enums/0             	  211191	      1129 ns/op	    3440 B/op	       8 allocs/op
+BenchmarkCallUnusedDeclarations/enums/1000          	     516	    624199 ns/op	  876452 B/op	    8018 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/0      	   69117	      3369 ns/op	    5472 B/op	      35 allocs/op
+BenchmarkCallUnusedDeclarations/used_methods/1000   	    2763	     81475 ns/op	  204080 B/op	    1040 allocs/op
+PASS
