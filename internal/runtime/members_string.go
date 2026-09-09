@@ -4280,114 +4280,20 @@ func projectedScanResultSlots(allMatches [][]int) int {
 	return len(allMatches)
 }
 
-// stringScan implements String#scan with Ruby's capture-aware result shape while
-// keeping its memory bounded by the sandbox quotas. With no capture groups each
-// element is the full match string; with one or more groups each element is an
-// array of that match's captured substrings, with nil for groups that did not
-// participate in the match.
-//
-// Matching is delegated to the regexp engine, which performs the non-overlapping,
-// left-to-right advancement (including empty-match suppression) over the FULL
-// subject. That is the only advancement that is both anchor-correct -- ^, $, \A,
-// \z, \b, and \B see the real surrounding characters -- and multi-rune-correct,
-// because the engine never detaches a suffix the way slicing text[pos:] would.
-// Two earlier hand-rolled advancements failed exactly here: substring slicing
-// made anchors fire at every slice boundary ("abc".scan("^") returning four
-// matches), and a one-rune look-back window dropped adjacent multi-rune matches
-// ("abcd".scan("..") returning ["ab"] instead of ["ab","cd"]). Letting the engine
-// advance avoids both.
-//
-// FindAllStringSubmatchIndex(text, -1) is the natural call, but it materializes
-// 2 + 2*groups ints per match as one [][]int table before the runtime can charge
-// anything; a pattern of thousands of empty () groups (still under the
-// pattern-size cap) over a near-limit subject would request matches × groups index
-// integers -- tens of gigabytes -- and OOM the host inside that call. The number of
-// matches the engine can return is bounded by the subject's rune count and the
-// pattern's minimum match length (regexScanMaxMatches), so the worst-case index
-// footprint is known up front from the pattern and subject alone, WITHOUT running
-// any match. guardRegexScanIndexFootprint projects that worst case and rejects
-// before calling the engine when it would exceed the FIXED host cap
-// (maxRegexScanIndexBytes), closing the OOM-inside-FindAll hole without a counting
-// pre-scan. That host cap is independent of the configurable memory quota: it bounds
-// only the transient host-side table, so a sparse scan whose real result is empty is
-// never rejected up front on a pessimistic worst case.
-//
-// Once the worst case fits, one step is charged BEFORE the engine table is
-// materialized: FindAllStringSubmatchIndex is the scan's expensive phase (a
-// zero-width pattern allocates a match slot per position over the whole subject),
-// so an already-canceled context or an exhausted step quota must abort before that
-// cost is paid rather than after. The per-match step charges that follow run only
-// once the table exists, so without this pre-step a tiny step quota or a canceled
-// context would still pay the full materialization cost first.
-//
-// The table is then built into the per-match RESULT elements incrementally against
-// the array-build accumulator. The engine's whole [][]int table stays live the
-// entire time the result accumulates, so the accumulator is SEEDED with that table's
-// actual footprint via reserveScratch before the first element is charged: the index
-// table and the growing result are then charged TOGETHER against the quota, bounding
-// their coexisting peak rather than letting each fit separately while their sum
-// exceeds the quota. One step is charged per match, so a scan whose output would
-// exceed the memory or step quota trips the limit as the result accumulates rather
-// than after the whole array is materialized.
+// stringScan returns capture-aware matches: strings without capture groups and
+// arrays of captured strings (or nil for unmatched groups) otherwise. Block scans
+// stream their matches; array scans preflight the complete result and index table.
 func stringScan(exec *Execution, re *regexp.Regexp, pattern, text string, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
 	groups := re.NumSubexp()
-
-	if err := guardRegexScanIndexFootprint(exec, pattern, text, groups); err != nil {
-		return NewNil(), err
-	}
-
-	// Charge a step BEFORE materializing the match table. FindAllStringSubmatchIndex
-	// is the expensive part of a scan -- for a zero-width pattern over a near-limit
-	// subject it allocates a slot per position -- and the per-match charges below run
-	// only after it completes. Stepping here means an already-canceled context or an
-	// exhausted step quota aborts the scan before that work runs rather than paying
-	// its full CPU and allocation cost first; step() polls cancellation on its very
-	// first invocation, so even an empty subject observes a canceled context here.
-	if err := exec.step(); err != nil {
-		return NewNil(), err
-	}
-
-	// Ask for at most one match beyond what the quota can hold, so the table
-	// the engine allocates is bounded by the quota rather than by the subject.
-	limit := -1
-	roots := scanRoots{receiver: receiver, args: args, kwargs: kwargs, block: block}
-	budget, bounded := scanMatchBudget(exec, groups, roots)
-	if bounded {
-		limit = budget + 1
-	}
-	// Charge the table before the engine builds it, not after. The budget above
-	// is a snapshot, and the engine allocates against it: charging only once the
-	// table exists (below, via reserveScratch) left it built and live before
-	// anything could refuse it, so a table sized from the whole remaining
-	// headroom coexisted with whatever else had been allocated meanwhile. The
-	// reservation is released as soon as the actual footprint is charged, so the
-	// table is never counted twice.
-	projected := 0
-	if bounded {
-		// Priced for the matches this scan would admit, not for limit. limit is
-		// budget+1 -- one match beyond what the quota holds, asked for only so
-		// that overrunning is detectable -- and the budget was derived by
-		// dividing the remaining room by the same per-match price, so reserving
-		// limit here is guaranteed to exceed that room and reject every scan.
-		// The overshoot the probe can build is one match's worth, and bounded.
-		projected = exec.reserveLoopScratch(worstCaseRegexSubmatchIndexBytes(budget, groups))
-		// Through the roots, not checkMemory: the budget above subtracted the
-		// call roots, so a check without them measures the larger of two figures
-		// instead of their coexisting sum.
-		if err := roots.check(exec); err != nil {
-			exec.releaseLoopScratch(projected)
-			return NewNil(), err
-		}
-	}
-	allMatches := re.FindAllStringSubmatchIndex(text, limit)
-	exec.releaseLoopScratch(projected)
-	if bounded && len(allMatches) > budget {
-		return NewNil(), exec.memoryQuotaExceededError()
-	}
-
 	if valueBlock(block) != nil {
-		return stringScanBlock(exec, text, groups, allMatches, receiver, args, kwargs, block)
+		return stringScanBlock(exec, re, text, receiver, args, kwargs, block)
 	}
+	roots := scanRoots{receiver: receiver, args: args, kwargs: kwargs, block: block}
+	allMatches, err := stringScanMatches(exec, re, pattern, text, roots)
+	if err != nil {
+		return NewNil(), err
+	}
+
 	if err := exec.guardStringScanOutputFootprint(allMatches, groups); err != nil {
 		return NewNil(), err
 	}
@@ -4424,71 +4330,64 @@ func stringScan(exec *Execution, re *regexp.Regexp, pattern, text string, receiv
 	return NewArray(out), nil
 }
 
-// stringScanBlock implements the block form of String#scan: it yields each match
-// element to the block -- the full match string when the pattern has no capture
-// groups, otherwise an array of that match's captured substrings, exactly the
-// shape the non-block scan returns -- and returns the receiver string, matching
-// Ruby. The block's own result is discarded. A step is charged per match so a
-// flood of matches cannot starve the step quota or cancellation checks.
-//
-// The engine's [][]int index table stays live for the whole loop, so its actual
-// footprint is reserved against the memory quota for the loop's lifetime via
-// reserveLoopScratch before the first yield. Without it, a block that retains
-// yielded matches (out = out.push(m)) could hold the large match table plus the
-// retained values while each per-match memory check -- which sees only the
-// execution's reachable roots -- missed the table, letting the true peak exceed
-// the quota by the table's size. The non-block path folds the same footprint into
-// its accumulator baseline (reserveScratch); this mirrors that accounting for the
-// block form, where the result is the receiver and no accumulator exists.
-//
-// The builtin's call roots (receiver, args, block) are live on the Go call stack
-// for the whole loop yet are invisible to estimateMemoryUsageBase, exactly as in
-// the non-block path whose accumulator seeds them into its baseline. The preflight
-// check therefore charges them through checkMemoryWithCallRoots so a quota larger
-// than the match table alone but smaller than match table + receiver/pattern/block
-// is rejected before the loop runs, matching what checkCallMemoryRoots charged
-// before the call. The reserved table folds into the same call-root baseline via
-// reservedScratchBytes, so the two coexisting costs are charged together rather
-// than each fitting the quota separately while their sum exceeds it.
-func stringScanBlock(exec *Execution, text string, groups int, allMatches [][]int, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
-	// The table is reserved for the whole loop because it is live for the whole
-	// loop. Each match's copy is reserved separately, around the copy alone, by
-	// reserveYieldedCopy below: only one is live at a time, and folding the
-	// largest of them in here instead would keep those bytes charged while the
-	// block runs and count the copy twice.
-	delta := exec.reserveLoopScratch(actualRegexSubmatchIndexBytes(allMatches, groups))
-	defer exec.releaseLoopScratch(delta)
-	// reserveLoopScratch only folds the table into the baseline; the call-root-aware
-	// check here rejects a table that already overflows the quota -- together with
-	// the live receiver/pattern/block roots -- before the first yield runs, mirroring
-	// how the non-block path's reserveScratch fails fast instead of waiting for a
-	// slow-path step check several matches into the loop.
-	if err := (scanRoots{receiver: receiver, args: args, kwargs: kwargs, block: block}).check(exec); err != nil {
-		return NewNil(), err
+// stringScanMatches bounds and reserves an engine index table before building it.
+// The caller charges its actual footprint for as long as the table remains live.
+func stringScanMatches(exec *Execution, re *regexp.Regexp, pattern, text string, roots scanRoots) ([][]int, error) {
+	groups := re.NumSubexp()
+
+	if err := guardRegexScanIndexFootprint(exec, pattern, text, groups); err != nil {
+		return nil, err
 	}
 
-	runner, err := newBlockCallRunner(exec, block, "string.scan", receiver, args, kwargs)
-	if err != nil {
-		return NewNil(), err
+	// Charge a step BEFORE materializing the match table. FindAllStringSubmatchIndex
+	// is the expensive part of a scan -- for a zero-width pattern over a near-limit
+	// subject it allocates a slot per position -- and the per-match charges below run
+	// only after it completes. Stepping here means an already-canceled context or an
+	// exhausted step quota aborts the scan before that work runs rather than paying
+	// its full CPU and allocation cost first; step() polls cancellation on its very
+	// first invocation, so even an empty subject observes a canceled context here.
+	if err := exec.step(); err != nil {
+		return nil, err
 	}
-	var blockArg [1]Value
-	for _, loc := range allMatches {
-		if err := exec.step(); err != nil {
-			return NewNil(), err
-		}
-		copyDelta, err := exec.reserveYieldedCopy(
-			projectedRegexElementPayloadBytes(text, loc, groups), receiver, args, kwargs, block,
-		)
-		if err != nil {
-			return NewNil(), err
-		}
-		blockArg[0] = stringScanElement(text, loc, groups)
-		exec.releaseLoopScratch(copyDelta)
-		if _, err := runner.call(blockArg[:]); err != nil {
-			return NewNil(), err
+
+	// Ask for at most one match beyond what the quota can hold, so the table
+	// the engine allocates is bounded by the quota rather than by the subject.
+	limit := -1
+	budget, bounded := scanMatchBudget(exec, groups, roots)
+	if bounded {
+		limit = budget + 1
+	}
+	// Charge the table before the engine builds it, not after. The budget above
+	// is a snapshot, and the engine allocates against it: charging only once the
+	// table exists (below, via reserveScratch) left it built and live before
+	// anything could refuse it, so a table sized from the whole remaining
+	// headroom coexisted with whatever else had been allocated meanwhile. The
+	// reservation is released as soon as the actual footprint is charged, so the
+	// table is never counted twice.
+	projected := 0
+	if bounded {
+		// Priced for the matches this scan would admit, not for limit. limit is
+		// budget+1 -- one match beyond what the quota holds, asked for only so
+		// that overrunning is detectable -- and the budget was derived by
+		// dividing the remaining room by the same per-match price, so reserving
+		// limit here is guaranteed to exceed that room and reject every scan.
+		// The overshoot the probe can build is one match's worth, and bounded.
+		projected = exec.reserveLoopScratch(worstCaseRegexSubmatchIndexBytes(budget, groups))
+		// Through the roots, not checkMemory: the budget above subtracted the
+		// call roots, so a check without them measures the larger of two figures
+		// instead of their coexisting sum.
+		if err := roots.check(exec); err != nil {
+			exec.releaseLoopScratch(projected)
+			return nil, err
 		}
 	}
-	return receiver, nil
+	allMatches := re.FindAllStringSubmatchIndex(text, limit)
+	exec.releaseLoopScratch(projected)
+	if bounded && len(allMatches) > budget {
+		return nil, exec.memoryQuotaExceededError()
+	}
+
+	return allMatches, nil
 }
 
 // guardRegexScanIndexFootprint rejects a scan whose worst-case
