@@ -18,3 +18,10 @@ validation requires the expected unique cases in each profile, six samples per
 case, and identical case names across all build variants. Define new profiles
 here without changing the workflow; updates are checked on their own PR once
 the fixture is present.
+
+Compare `base-nosimd.txt` with `head-nosimd.txt`, and `base-simd.txt` with
+`head-simd.txt`, to measure the change under identical compiler settings.
+Linux also produces `base-simd-avx2-disabled.txt` and
+`head-simd-avx2-disabled.txt` for a direct fallback comparison with the same
+SIMD experiment and CPU settings. Comparing different experiment or CPU settings
+also includes their effects on Go's runtime and standard library.

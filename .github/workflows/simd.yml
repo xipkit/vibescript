@@ -172,12 +172,14 @@ jobs:
               done
             done
             if [[ "$RUNNER_OS" == Linux ]]; then
-              (
-                cd internal/runtime
-                GODEBUG=cpu.avx2=off "$RUNNER_TEMP/simd-binaries/head-simd.test" \
-                  -test.run '^$' -test.bench "$benchmarks" \
-                  -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms
-              ) | tee -a "$RUNNER_TEMP/simd-results/head-simd-avx2-disabled.txt"
+              for revision in "${revisions[@]}"; do
+                (
+                  cd "../$revision/internal/runtime"
+                  GODEBUG=cpu.avx2=off "$RUNNER_TEMP/simd-binaries/$revision-simd.test" \
+                    -test.run '^$' -test.bench "$benchmarks" \
+                    -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms
+                ) | tee -a "$RUNNER_TEMP/simd-results/$revision-simd-avx2-disabled.txt"
+              done
             fi
           done
           fallback=()
@@ -203,8 +205,10 @@ jobs:
           default implementation on the same compiler. Base files are present
           only on pull requests. Comparing `head-nosimd.txt` with `head-simd.txt`
           also includes any unrelated effects of enabling Go's SIMD experiment.
-          Linux additionally records the head with AVX2 disabled; that setting
-          can also affect Go's standard library. Timing is evidence for review,
+          Linux also compares `base-simd-avx2-disabled.txt` with
+          `head-simd-avx2-disabled.txt` under identical flags. Comparing the head
+          with AVX2 enabled versus disabled includes standard-library effects.
+          Timing is evidence for review,
           not a fixed percentage gate on shared CI hardware.
           EOF
 

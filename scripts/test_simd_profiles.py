@@ -99,12 +99,25 @@ class SIMDProfilesTest(unittest.TestCase):
         ] + ["BenchmarkSmall/first", "BenchmarkSmall/second"]
         lines = [f"{name} 100 12.3 ns/op 0 B/op 0 allocs/op\n" for name in names for _ in range(6)]
         results = self.root / "results"
-        for variant in ["head-nosimd", "head-simd", "base-nosimd", "base-simd", "head-simd-avx2-disabled"]:
+        for variant in ["head-nosimd", "head-simd", "base-nosimd", "base-simd", "head-simd-avx2-disabled", "base-simd-avx2-disabled"]:
             self.write(results, variant + ".txt", "".join(lines))
         return plan, results
 
     def test_result_validation_accepts_complete_variants(self):
         plan, results = self.results()
+        simd_profiles.validate(plan, results, avx2_disabled=True)
+
+    def test_disabled_comparison_requires_the_pr_base(self):
+        plan, results = self.results()
+        (results / "base-simd-avx2-disabled.txt").unlink()
+        with self.assertRaises(FileNotFoundError):
+            simd_profiles.validate(plan, results, avx2_disabled=True)
+
+    def test_disabled_run_without_base_requires_only_head(self):
+        plan, results = self.results()
+        plan["base"] = False
+        for path in results.glob("base-*.txt"):
+            path.unlink()
         simd_profiles.validate(plan, results, avx2_disabled=True)
 
     def test_duplicate_samples_cannot_hide_missing_case(self):

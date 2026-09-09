@@ -94,6 +94,8 @@ def validate(plan, results, avx2_disabled=False):
         variants += ["base-nosimd", "base-simd"]
     if avx2_disabled:
         variants.append("head-simd-avx2-disabled")
+        if plan["base"]:
+            variants.append("base-simd-avx2-disabled")
     expected_names = None
     for variant in variants:
         path = results / (variant + ".txt")
