@@ -293,6 +293,9 @@ func (exec *Execution) step() error {
 	if exec.exhausted != nil {
 		return exec.exhausted
 	}
+	if err := exec.chargeAssignmentWalk(); err != nil {
+		return err
+	}
 	exec.steps++
 	if exec.quota > 0 && exec.steps > exec.quota {
 		return exec.latchExhaustion(fmt.Errorf("%w (%d)", errStepQuotaExceeded, exec.quota))

@@ -155,6 +155,7 @@ func (exec *Execution) beginRegionBaseWalk(est *memoryEstimator, scalars int) ba
 		c.valid = false
 		exec.baseWalkCache = c
 	}
+	c.unmemoizedPrefix = false
 
 	boundary := exec.blockRegionBoundary
 	epoch := value.MutationEpoch()
@@ -184,6 +185,7 @@ func (exec *Execution) beginRegionBaseWalk(est *memoryEstimator, scalars int) ba
 	// walk does not use.
 	est.dormant = nil
 
+	prefixNodes := est.walked - walked0
 	suffix := 0
 	for _, env := range exec.envStack[boundary:] {
 		suffix += est.env(env)
@@ -229,7 +231,22 @@ func (exec *Execution) beginRegionBaseWalk(est *memoryEstimator, scalars int) ba
 
 	return baseWalkSession{
 		exec: exec, est: est, base: base, walked0: walked0, cached: true,
+		region: true, prefixNodes: prefixNodes,
 	}
+}
+
+// beginUncachedRegionBaseWalk separates prefix and suffix work inside a nested
+// undeclared builtin. Every check rebuilds the prefix because Go code can write
+// roots without an epoch bump; closing the journal preserves only its identities
+// so subsequent script writes can still be attributed to the proper region.
+func (exec *Execution) beginUncachedRegionBaseWalk(est *memoryEstimator, scalars int) baseWalkSession {
+	if c := exec.baseWalkCache; c != nil {
+		c.valid = false
+	}
+	session := exec.beginRegionBaseWalk(est, scalars)
+	exec.baseWalkCache.valid = false
+	exec.baseWalkCache.unmemoizedPrefix = true
+	return session
 }
 
 // estimateGraphBasePrefix walks the reachable graph of the region's stable

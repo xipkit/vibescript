@@ -239,6 +239,7 @@ func (exec *Execution) addRetainedOutput(val Value) {
 	if exec.baseWalkOpen || !c.mutationsCurrent(&exec.memoryEst, value.MutationEpoch()) || c.topo != exec.baseTopoVersion ||
 		c.regionBoundary != exec.currentWalkBoundary() {
 		c.valid = false
+		c.unmemoizedPrefix = false
 		return
 	}
 	est := &exec.memoryEst

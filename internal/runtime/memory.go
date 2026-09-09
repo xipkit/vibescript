@@ -348,6 +348,7 @@ func (j *estimatorJournal) clear() {
 func (exec *Execution) memoryEstimatorForCheck() *memoryEstimator {
 	if c := exec.baseWalkCache; c != nil {
 		c.valid = false
+		c.unmemoizedPrefix = false
 	}
 	est := &exec.memoryEst
 	est.journal = nil
@@ -404,6 +405,9 @@ type baseWalkCache struct {
 	journal    estimatorJournal
 	prevFrozen *Env
 	graphBytes int
+	// An uncached region check keeps only its prefix identities for assigning
+	// work to later writes. Its byte total must never serve a memo hit.
+	unmemoizedPrefix bool
 	// outputBytes is what the registered driver outputs contribute on top of
 	// graphBytes, deduplicated against it and committed into the same
 	// seen-state (see memory_output.go). It is memoized rather than re-walked
@@ -468,6 +472,7 @@ func (exec *Execution) releaseBaseWalkCache() {
 	}
 	exec.baseWalkCache = nil
 	c.valid = false
+	c.unmemoizedPrefix = false
 	c.prevFrozen = nil
 	c.journal = estimatorJournal{}
 	exec.engine.spareBaseWalkCache.Store(c)
@@ -486,18 +491,20 @@ type baseWalkSession struct {
 	// walked0 is est.walked as the session opened, so nodes can report the
 	// graph nodes this session visited no matter which estimator beginBaseWalk
 	// selected.
-	walked0 int
-	cached  bool
+	walked0     int
+	cached      bool
+	region      bool
+	prefixNodes int
+	walkBilled  bool
 }
 
 // nodes reports how many graph nodes this session has walked so far, base walk
 // included: a memo hit walks almost none, a miss walks the whole graph. Callers
 // that drive sessions from script code charge the step quota for it (#1).
 //
-// A session's walk is billed here and nowhere else. The output roots it walks are
-// deliberately not recorded for a second billing, because that walk cannot be
-// attributed to this execution (see memory_output.go), so there is nothing to
-// hand over and no overlap to settle.
+// Callers billing the whole walk close it with closeCharged. Other sessions
+// queue only the work attributable to this execution's committed assignments;
+// unrelated invalidations do not become script work merely by causing a miss.
 func (s *baseWalkSession) nodes() int {
 	return s.est.walked - s.walked0
 }
@@ -564,11 +571,15 @@ func (exec *Execution) beginBaseWalk() baseWalkSession {
 		return exec.beginRegionBaseWalk(est, scalars)
 	}
 	if exec.undeclaredBuiltinDepth > 0 || baseWalkCacheDisabled.Load() {
+		if exec.blockRegionActive && exec.blockRegionBoundary >= 0 && exec.blockRegionBoundary <= len(exec.envStack) {
+			return exec.beginUncachedRegionBaseWalk(est, scalars)
+		}
 		// The bypass walk clobbers whatever committed state the shared
 		// estimator held, so an existing memo is discarded; a cache that was
 		// never allocated stays unallocated and the bypass costs nothing.
 		if c := exec.baseWalkCache; c != nil {
 			c.valid = false
+			c.unmemoizedPrefix = false
 		}
 		exec.baseWalkOpen = true
 		est.journal = nil
@@ -601,6 +612,7 @@ func (exec *Execution) beginBaseWalk() baseWalkSession {
 		// meaningless against this execution's empty estimator, so it starts
 		// invalid and the first check commits fresh.
 		c.valid = false
+		c.unmemoizedPrefix = false
 		exec.baseWalkCache = c
 	}
 	// Snapshot before walking so the next check considers mutations that arrive
@@ -643,6 +655,7 @@ func (s *baseWalkSession) close() {
 	if s.est != &s.exec.memoryEst {
 		return
 	}
+	s.collectAssignmentWork()
 	s.exec.baseWalkOpen = false
 	if !s.cached {
 		return
@@ -655,11 +668,18 @@ func (s *baseWalkSession) close() {
 		// it no longer holds, so discard the memo and let the next check
 		// re-walk from scratch.
 		c.valid = false
+		c.unmemoizedPrefix = false
 		c.journal.clear()
 		return
 	}
 	c.journal.rollback(s.est, c.prevFrozen)
 	c.journal.clear()
+}
+
+// closeCharged ends a session whose caller already bills its complete walk.
+func (s *baseWalkSession) closeCharged() {
+	s.walkBilled = true
+	s.close()
 }
 
 // memoryQuotaExceededError builds the canonical memory-quota failure for this
@@ -727,7 +747,7 @@ func (exec *Execution) checkMemoryMetered() error {
 	if exec.memoryExceeded(used) {
 		return exec.memoryQuotaExceededError()
 	}
-	return nil
+	return exec.chargeAssignmentWalk()
 }
 
 // checkMemoryWith charges current usage plus extras, and is the hard check the
@@ -739,7 +759,7 @@ func (exec *Execution) checkMemoryWith(extras ...Value) error {
 	if exec.memoryExceeded(exec.estimateMemoryUsage(extras...)) {
 		return exec.memoryQuotaExceededError()
 	}
-	return nil
+	return exec.chargeAssignmentWalk()
 }
 
 // memoryFitsWith reports whether current usage plus extras stays within the
@@ -2093,7 +2113,7 @@ func (acc *hashLiteralBuildAccumulator) rebuildRetainedEntries(current map[strin
 func (acc *hashLiteralBuildAccumulator) entryPayloads(key string, val Value) (int, int, int) {
 	if acc.sessions {
 		s := acc.exec.beginBaseWalk()
-		defer s.close()
+		defer s.closeCharged()
 		valuePayload := s.est.valuePayload(val)
 		keyPayload := s.est.stringPayloadSize(key)
 		return keyPayload, valuePayload, s.nodes()
@@ -2124,7 +2144,7 @@ func (acc *hashLiteralBuildAccumulator) entryPayloads(key string, val Value) (in
 // through.
 func (acc *hashLiteralBuildAccumulator) sessionUsedBytes(current map[string]hashLiteralEntry, measure func(est *memoryEstimator) int) (int, int) {
 	s := acc.exec.beginBaseWalk()
-	defer s.close()
+	defer s.closeCharged()
 	retained := 0
 	for _, prior := range current {
 		retained = saturatingAdd(retained, s.est.stringPayloadSize(prior.key))
@@ -2149,7 +2169,7 @@ func (acc *hashLiteralBuildAccumulator) liveBase() (int, int) {
 		return acc.base, 0
 	}
 	s := acc.exec.beginBaseWalk()
-	defer s.close()
+	defer s.closeCharged()
 	return saturatingAdd(s.base, acc.base), s.nodes()
 }
 
@@ -2676,11 +2696,15 @@ func targetCollectsRest(target Expression) bool {
 // build no derived map (the pure iterators) are not charged a map they never
 // allocate; callers that do build one fold the empty-map overhead in themselves.
 func (exec *Execution) hashCallRootBytes(receiver Value, args []Value, kwargs map[string]Value, block Value) int {
-	used, _ := exec.hashCallRootUsage(receiver, args, kwargs, block)
+	used, _ := exec.hashCallRootUsageWithBilling(receiver, args, kwargs, block, false)
 	return used
 }
 
 func (exec *Execution) hashCallRootUsage(receiver Value, args []Value, kwargs map[string]Value, block Value) (int, int) {
+	return exec.hashCallRootUsageWithBilling(receiver, args, kwargs, block, true)
+}
+
+func (exec *Execution) hashCallRootUsageWithBilling(receiver Value, args []Value, kwargs map[string]Value, block Value, billed bool) (int, int) {
 	s := exec.beginBaseWalk()
 	used := s.base
 	if receiver.Kind() != KindNil {
@@ -2696,6 +2720,7 @@ func (exec *Execution) hashCallRootUsage(receiver Value, args []Value, kwargs ma
 		used = saturatingAdd(used, s.est.value(block))
 	}
 	walked := s.nodes()
+	s.walkBilled = billed
 	s.close()
 	return used, walked
 }
