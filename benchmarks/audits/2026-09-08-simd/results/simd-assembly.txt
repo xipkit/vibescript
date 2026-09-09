@@ -1,0 +1,45 @@
+TEXT github.com/mgomes/vibescript/internal/runtime.auditSIMDASCII(SB) /private/tmp/vibescript-simd-assessment-20260908/internal/runtime/simd_audit_test.go
+  simd_audit_test.go:30		0x100714300		f81e0ffe		MOVD.W R30, -32(RSP)
+  simd_audit_test.go:30		0x100714304		f81f83fd		MOVD R29, -8(RSP)
+  simd_audit_test.go:30		0x100714308		d10023fd		SUB $8, RSP, R29
+  simd_audit_test.go:30		0x10071430c		f90017e0		MOVD R0, 40(RSP)
+  simd_audit_test.go:31		0x100714310		14000006		JMP 6(PC)
+  simd_audit_test.go:37		0x100714314		d1004021		SUB $16, R1, R1
+  simd_audit_test.go:37		0x100714318		cb0103e2		NEG R1, R2
+  simd_audit_test.go:37		0x10071431c		937ffc42		ASR $63, R2, R2
+  simd_audit_test.go:37		0x100714320		927c0042		AND $16, R2, R2
+  simd_audit_test.go:37		0x100714324		8b020000		ADD R2, R0, R0
+  simd_audit_test.go:31		0x100714328		f100403f		CMP $16, R1
+  simd_audit_test.go:31		0x10071432c		5400022b		BLT 17(PC)
+  simd_audit_test.go:32		0x100714330		a900ffff		STP (ZR, ZR), 8(RSP)
+  simd_audit_test.go:33		0x100714334		910023e2		ADD $8, RSP, R2
+  simd_audit_test.go:33		0x100714338		eb02001f		CMP R2, R0
+  simd_audit_test.go:33		0x10071433c		54000060		BEQ 3(PC)
+  simd_audit_test.go:33		0x100714340		3dc00000		FMOVQ (R0), F0
+  simd_audit_test.go:33		0x100714344		3c8083e0		FMOVQ F0, 8(RSP)
+  simd_audit_test.go:34		0x100714348		3cc083e0		FMOVQ 8(RSP), F0
+  other_gen_arm64.go:469	0x10071434c		6e30a800		VUMAXV V0.B16, V0
+  other_gen_arm64.go:469	0x100714350		0e013c02		VMOV V0.B[0], R2
+  simd_audit_test.go:34		0x100714354		d3401c42		UBFX $0, R2, $8, R2
+  simd_audit_test.go:34		0x100714358		7102005f		CMPW $128, R2
+  simd_audit_test.go:34		0x10071435c		54fffdc3		BCC -18(PC)
+  simd_audit_test.go:35		0x100714360		aa1f03e0		MOVD ZR, R0
+  simd_audit_test.go:35		0x100714364		910063fd		ADD $24, RSP, R29
+  simd_audit_test.go:35		0x100714368		910083ff		ADD $32, RSP, RSP
+  simd_audit_test.go:35		0x10071436c		d65f03c0		RET
+  simd_audit_test.go:12		0x100714370		aa1f03e2		MOVD ZR, R2
+  simd_audit_test.go:12		0x100714374		14000002		JMP 2(PC)
+  simd_audit_test.go:12		0x100714378		91000442		ADD $1, R2, R2
+  simd_audit_test.go:12		0x10071437c		eb01005f		CMP R1, R2
+  simd_audit_test.go:12		0x100714380		540000aa		BGE 5(PC)
+  simd_audit_test.go:13		0x100714384		38626803		MOVBU (R0)(R2), R3
+  simd_audit_test.go:13		0x100714388		7102007f		CMPW $128, R3
+  simd_audit_test.go:13		0x10071438c		54ffff63		BCC -5(PC)
+  simd_audit_test.go:12		0x100714390		eb01005f		CMP R1, R2
+  simd_audit_test.go:39		0x100714394		9a9fb7e0		CSET GE, R0
+  simd_audit_test.go:39		0x100714398		910063fd		ADD $24, RSP, R29
+  simd_audit_test.go:39		0x10071439c		910083ff		ADD $32, RSP, RSP
+  simd_audit_test.go:39		0x1007143a0		d65f03c0		RET
+  simd_audit_test.go:39		0x1007143a4		00000000		?
+  simd_audit_test.go:39		0x1007143a8		00000000		?
+  simd_audit_test.go:39		0x1007143ac		00000000		?

@@ -1,0 +1,78 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringLengthLoopASCII-10      	    1743	    130406 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode-10    	     584	    412853 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII-10       	    1548	    156116 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode-10     	     260	    926129 ns/op	    4625 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII-10      	    1285	    187162 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode-10    	     100	   2175632 ns/op	    4640 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII-10       	    1256	    191866 ns/op	    8634 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode-10     	     378	    629201 ns/op	    9438 B/op	     419 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringLengthLoopASCII-10      	    1851	    131052 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode-10    	     571	    423991 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII-10       	    1545	    155787 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode-10     	     258	    926247 ns/op	    4625 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII-10      	    1276	    187280 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode-10    	     100	   2192311 ns/op	    4640 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII-10       	    1269	    191606 ns/op	    8634 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode-10     	     379	    637016 ns/op	    9438 B/op	     419 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringLengthLoopASCII-10      	    1806	    131313 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode-10    	     572	    420477 ns/op	    4597 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII-10       	    1561	    156712 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode-10     	     259	    925740 ns/op	    4625 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII-10      	    1268	    189027 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode-10    	     100	   2193042 ns/op	    4640 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII-10       	    1252	    192811 ns/op	    8634 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode-10     	     374	    637083 ns/op	    9438 B/op	     419 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringLengthLoopASCII-10      	    1828	    131288 ns/op	    4585 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode-10    	     549	    431135 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII-10       	    1551	    156976 ns/op	    4621 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode-10     	     258	    933683 ns/op	    4625 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII-10      	    1266	    188940 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode-10    	     100	   2190745 ns/op	    4640 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII-10       	    1249	    195987 ns/op	    8634 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode-10     	     379	    635405 ns/op	    9438 B/op	     419 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringLengthLoopASCII-10      	    1833	    131197 ns/op	    4585 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode-10    	     577	    420720 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII-10       	    1546	    158098 ns/op	    4621 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode-10     	     254	    933156 ns/op	    4625 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII-10      	    1270	    189745 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode-10    	     100	   2214239 ns/op	    4640 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII-10       	    1226	    192399 ns/op	    8634 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode-10     	     378	    634534 ns/op	    9438 B/op	     419 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkStringLengthLoopASCII-10      	    1856	    133545 ns/op	    4591 B/op	      18 allocs/op
+BenchmarkStringLengthLoopUnicode-10    	     577	    417673 ns/op	    4588 B/op	      18 allocs/op
+BenchmarkStringIndexLoopASCII-10       	    1533	    157799 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringIndexLoopUnicode-10     	     255	    934227 ns/op	    4625 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopASCII-10      	    1282	    189010 ns/op	    4617 B/op	      18 allocs/op
+BenchmarkStringRIndexLoopUnicode-10    	     100	   2217717 ns/op	    4640 B/op	      18 allocs/op
+BenchmarkStringSliceLoopASCII-10       	    1234	    193118 ns/op	    8634 B/op	     419 allocs/op
+BenchmarkStringSliceLoopUnicode-10     	     378	    637823 ns/op	    9438 B/op	     419 allocs/op
+PASS

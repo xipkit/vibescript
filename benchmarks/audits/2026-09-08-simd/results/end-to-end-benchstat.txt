@@ -1,0 +1,41 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                           │ /tmp/vibescript-simd-evidence/end-to-end-scalar.txt │ /tmp/vibescript-simd-evidence/end-to-end-word.txt │ /tmp/vibescript-simd-evidence/end-to-end-simd.txt │
+                           │                       sec/op                        │           sec/op            vs base               │           sec/op            vs base               │
+StringLengthLoopASCII-10                                             272.9µ ± 2%                  131.2µ ± 2%  -51.91% (p=0.002 n=6)                  109.1µ ± 1%  -60.01% (p=0.002 n=6)
+StringLengthLoopUnicode-10                                           614.7µ ± 4%                  420.6µ ± 3%  -31.58% (p=0.002 n=6)                  416.5µ ± 4%  -32.25% (p=0.002 n=6)
+StringIndexLoopASCII-10                                              301.4µ ± 5%                  156.8µ ± 1%  -47.95% (p=0.002 n=6)                  134.9µ ± 1%  -55.25% (p=0.002 n=6)
+StringIndexLoopUnicode-10                                            932.9µ ± 2%                  929.7µ ± 0%        ~ (p=0.310 n=6)                  932.0µ ± 2%        ~ (p=0.937 n=6)
+StringRIndexLoopASCII-10                                             483.8µ ± 1%                  189.0µ ± 1%  -60.94% (p=0.002 n=6)                  154.9µ ± 1%  -67.98% (p=0.002 n=6)
+StringRIndexLoopUnicode-10                                           2.206m ± 3%                  2.193m ± 1%        ~ (p=0.240 n=6)                  2.194m ± 1%        ~ (p=0.240 n=6)
+StringSliceLoopASCII-10                                              339.9µ ± 1%                  192.6µ ± 2%  -43.34% (p=0.002 n=6)                  170.5µ ± 1%  -49.85% (p=0.002 n=6)
+StringSliceLoopUnicode-10                                            639.6µ ± 1%                  636.2µ ± 1%   -0.54% (p=0.026 n=6)                  634.0µ ± 1%   -0.88% (p=0.004 n=6)
+geomean                                                              568.7µ                       377.1µ       -33.70%                                346.9µ       -39.00%
+
+                           │ /tmp/vibescript-simd-evidence/end-to-end-scalar.txt │ /tmp/vibescript-simd-evidence/end-to-end-word.txt │ /tmp/vibescript-simd-evidence/end-to-end-simd.txt │
+                           │                        B/op                         │           B/op             vs base                │           B/op             vs base                │
+StringLengthLoopASCII-10                                            4.484Ki ± 0%                4.480Ki ± 0%       ~ (p=0.121 n=6)                  4.479Ki ± 0%       ~ (p=0.121 n=6)
+StringLengthLoopUnicode-10                                          4.482Ki ± 0%                4.480Ki ± 0%  -0.04% (p=0.015 n=6)                  4.480Ki ± 0%  -0.04% (p=0.002 n=6)
+StringIndexLoopASCII-10                                             4.511Ki ± 0%                4.509Ki ± 0%       ~ (p=0.234 n=6)                  4.509Ki ± 0%  -0.04% (p=0.015 n=6)
+StringIndexLoopUnicode-10                                           4.517Ki ± 0%                4.517Ki ± 0%       ~ (p=0.455 n=6)                  4.517Ki ± 0%       ~ (p=1.000 n=6)
+StringRIndexLoopASCII-10                                            4.513Ki ± 0%                4.509Ki ± 0%  -0.09% (p=0.002 n=6)                  4.509Ki ± 0%  -0.09% (p=0.002 n=6)
+StringRIndexLoopUnicode-10                                          4.531Ki ± 0%                4.531Ki ± 0%       ~ (p=1.000 n=6) ¹                4.531Ki ± 0%       ~ (p=1.000 n=6) ¹
+StringSliceLoopASCII-10                                             8.433Ki ± 0%                8.432Ki ± 0%  -0.01% (p=0.002 n=6)                  8.431Ki ± 0%  -0.02% (p=0.002 n=6)
+StringSliceLoopUnicode-10                                           9.217Ki ± 0%                9.217Ki ± 0%       ~ (p=1.000 n=6) ¹                9.217Ki ± 0%       ~ (p=1.000 n=6)
+geomean                                                             5.329Ki                     5.328Ki       -0.03%                                5.327Ki       -0.04%
+¹ all samples are equal
+
+                           │ /tmp/vibescript-simd-evidence/end-to-end-scalar.txt │ /tmp/vibescript-simd-evidence/end-to-end-word.txt │ /tmp/vibescript-simd-evidence/end-to-end-simd.txt │
+                           │                      allocs/op                      │         allocs/op          vs base                │         allocs/op          vs base                │
+StringLengthLoopASCII-10                                              18.00 ± 0%                  18.00 ± 0%       ~ (p=1.000 n=6) ¹                  18.00 ± 0%       ~ (p=1.000 n=6) ¹
+StringLengthLoopUnicode-10                                            18.00 ± 0%                  18.00 ± 0%       ~ (p=1.000 n=6) ¹                  18.00 ± 0%       ~ (p=1.000 n=6) ¹
+StringIndexLoopASCII-10                                               18.00 ± 0%                  18.00 ± 0%       ~ (p=1.000 n=6) ¹                  18.00 ± 0%       ~ (p=1.000 n=6) ¹
+StringIndexLoopUnicode-10                                             18.00 ± 0%                  18.00 ± 0%       ~ (p=1.000 n=6) ¹                  18.00 ± 0%       ~ (p=1.000 n=6) ¹
+StringRIndexLoopASCII-10                                              18.00 ± 0%                  18.00 ± 0%       ~ (p=1.000 n=6) ¹                  18.00 ± 0%       ~ (p=1.000 n=6) ¹
+StringRIndexLoopUnicode-10                                            18.00 ± 0%                  18.00 ± 0%       ~ (p=1.000 n=6) ¹                  18.00 ± 0%       ~ (p=1.000 n=6) ¹
+StringSliceLoopASCII-10                                               419.0 ± 0%                  419.0 ± 0%       ~ (p=1.000 n=6) ¹                  419.0 ± 0%       ~ (p=1.000 n=6) ¹
+StringSliceLoopUnicode-10                                             419.0 ± 0%                  419.0 ± 0%       ~ (p=1.000 n=6) ¹                  419.0 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                               39.54                       39.54       +0.00%                                  39.54       +0.00%
+¹ all samples are equal

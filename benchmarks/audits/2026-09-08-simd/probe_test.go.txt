@@ -1,0 +1,108 @@
+package runtime
+
+import (
+	"encoding/binary"
+	"fmt"
+	"simd/archsimd"
+	"strings"
+	"testing"
+)
+
+func auditScalarASCII(text string) bool {
+	for i := range len(text) {
+		if text[i] >= 128 {
+			return false
+		}
+	}
+	return true
+}
+
+func auditWordASCII(text string) bool {
+	for len(text) >= 8 {
+		if binary.LittleEndian.Uint64([]byte(text))&0x8080808080808080 != 0 {
+			return false
+		}
+		text = text[8:]
+	}
+	return auditScalarASCII(text)
+}
+
+func auditSIMDASCII(text string) bool {
+	for len(text) >= 16 {
+		var block [16]byte
+		copy(block[:], text[:16])
+		if archsimd.LoadUint8x16Array(&block).ReduceMax() >= 128 {
+			return false
+		}
+		text = text[16:]
+	}
+	return auditScalarASCII(text)
+}
+
+var auditASCIIResult bool
+
+func TestAuditASCIIParity(t *testing.T) {
+	implementations := []struct {
+		name string
+		fn   func(string) bool
+	}{
+		{"word", auditWordASCII},
+		{"simd", auditSIMDASCII},
+		{"integrated", stringIsASCII},
+	}
+	for _, impl := range implementations {
+		t.Run(impl.name, func(t *testing.T) {
+			for n := range 130 {
+				buf := []byte(strings.Repeat("a", n))
+				if !impl.fn(string(buf)) {
+					t.Fatalf("ASCII rejected at length %d", n)
+				}
+				for i := range n {
+					for c := range 256 {
+						buf[i] = byte(c)
+						text := string(buf)
+						if got, want := impl.fn(text), auditScalarASCII(text); got != want {
+							t.Fatalf("length=%d position=%d byte=%d got=%v want=%v", n, i, c, got, want)
+						}
+					}
+					buf[i] = 'a'
+				}
+			}
+			for _, n := range []int{0, 7, 8, 15, 16, 17, 4096, 1 << 20} {
+				text := strings.Repeat("a", n)
+				if allocs := testing.AllocsPerRun(100, func() { auditASCIIResult = impl.fn(text) }); allocs != 0 {
+					t.Fatalf("length=%d allocations=%g", n, allocs)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkAuditASCII(b *testing.B) {
+	for _, n := range []int{8, 64, 4096, 1 << 20} {
+		for _, input := range []struct {
+			name string
+			text string
+		}{
+			{"ascii", strings.Repeat("a", n)},
+			{"high-first", "\xff" + strings.Repeat("a", n-1)},
+			{"high-last", strings.Repeat("a", n-1) + "\xff"},
+		} {
+			for _, impl := range []struct {
+				name string
+				fn   func(string) bool
+			}{
+				{"scalar", auditScalarASCII},
+				{"word", auditWordASCII},
+				{"simd", auditSIMDASCII},
+			} {
+				b.Run(fmt.Sprintf("%d/%s/%s", n, input.name, impl.name), func(b *testing.B) {
+					b.ReportAllocs()
+					for range b.N {
+						auditASCIIResult = impl.fn(input.text)
+					}
+				})
+			}
+		}
+	}
+}

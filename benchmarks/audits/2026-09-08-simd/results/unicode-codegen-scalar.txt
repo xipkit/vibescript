@@ -1,0 +1,409 @@
+TEXT github.com/mgomes/vibescript/internal/runtime.(*Execution).evalDirectStringMemberCallExpr(SB) /private/tmp/vibescript-simd-assessment-20260908/internal/runtime/call.go
+  call.go:3087			0x100349970		f9400b90		MOVD 16(R28), R16
+  call.go:3087			0x100349974		d10203f1		SUB $128, RSP, R17
+  call.go:3087			0x100349978		eb10023f		CMP R16, R17
+  call.go:3087			0x10034997c		540030a9		BLS 389(PC)
+  call.go:3087			0x100349980		d10403f4		SUB $256, RSP, R20
+  call.go:3087			0x100349984		a93ffa9d		STP (R29, R30), -8(R20)
+  call.go:3087			0x100349988		9100029f		MOVD R20, RSP
+  call.go:3087			0x10034998c		d10023fd		SUB $8, RSP, R29
+  call.go:3087			0x100349990		f90093e3		MOVD R3, 288(RSP)
+  call.go:3087			0x100349994		f90097e4		MOVD R4, 296(RSP)
+  call.go:3087			0x100349998		f9009fe6		MOVD R6, 312(RSP)
+  call.go:3088			0x10034999c		f100105f		CMP $4, R2
+  call.go:3088			0x1003499a0		54000101		BNE 8(PC)
+  call.go:3088			0x1003499a4		f9401829		MOVD 48(R1), R9
+  call.go:3088			0x1003499a8		b50000c9		CBNZ R9, 6(PC)
+  call.go:3088			0x1003499ac		f9402429		MOVD 72(R1), R9
+  call.go:3088			0x1003499b0		b5000089		CBNZ R9, 4(PC)
+  call.go:1896			0x1003499b4		a9412829		LDP 16(R1), (R9, R10)
+  call.go:1896			0x1003499b8		aa0a03eb		MOVD R10, R11
+  call.go:1896			0x1003499bc		1400000d		JMP 13(PC)
+  call.go:3089			0x1003499c0		aa1f03e0		MOVD ZR, R0
+  call.go:3089			0x1003499c4		aa1f03e1		MOVD ZR, R1
+  call.go:3089			0x1003499c8		aa1f03e2		MOVD ZR, R2
+  call.go:3089			0x1003499cc		aa1f03e3		MOVD ZR, R3
+  call.go:3089			0x1003499d0		aa1f03e4		MOVD ZR, R4
+  call.go:3089			0x1003499d4		aa1f03e5		MOVD ZR, R5
+  call.go:3089			0x1003499d8		aa1f03e6		MOVD ZR, R6
+  call.go:3089			0x1003499dc		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3089			0x1003499e0		910403ff		ADD $256, RSP, RSP
+  call.go:3089			0x1003499e4		d65f03c0		RET
+  call.go:1896			0x1003499e8		91004189		ADD $16, R12, R9
+  call.go:1896			0x1003499ec		d100054a		SUB $1, R10, R10
+  call.go:1896			0x1003499f0		f100015f		CMP $0, R10
+  call.go:1896			0x1003499f4		5400010d		BLE 8(PC)
+  call.go:1896			0x1003499f8		aa0903ec		MOVD R9, R12
+  call.go:1896			0x1003499fc		f9400129		MOVD (R9), R9
+  call.go:1897			0x100349a00		f0007aad		ADRP 16084992(PC), R13
+  call.go:1897			0x100349a04		911521ad		ADD $1352, R13, R13
+  call.go:1897			0x100349a08		eb0d013f		CMP R13, R9
+  call.go:1897			0x100349a0c		54fffda0		BEQ -19(PC)
+  call.go:1897			0x100349a10		17fffff6		JMP -10(PC)
+  call.go:3088			0x100349a14		f90087e0		MOVD R0, 264(RSP)
+  call.go:3088			0x100349a18		f90063e5		MOVD R5, 192(RSP)
+  call.go:3088			0x100349a1c		f9006be4		MOVD R4, 208(RSP)
+  call.go:3088			0x100349a20		f9005fe3		MOVD R3, 184(RSP)
+  call.go:3088			0x100349a24		f9005be2		MOVD R2, 176(RSP)
+  call.go:3092			0x100349a28		f10014ff		CMP $5, R7
+  call.go:3129			0x100349a2c		5400060c		BGT 48(PC)
+  call.go:3093			0x100349a30		f10010ff		CMP $4, R7
+  call.go:3093			0x100349a34		540000e1		BNE 7(PC)
+  call.go:3093			0x100349a38		b94000c7		MOVWU (R6), R7
+  call.go:3093			0x100349a3c		d28d2e68		MOVD $26995, R8
+  call.go:3093			0x100349a40		f2acaf48		MOVK $(25978<<16), R8
+  call.go:3093			0x100349a44		6b0800ff		CMPW R8, R7
+  call.go:3093			0x100349a48		54000680		BEQ 52(PC)
+  call.go:3093			0x100349a4c		14000101		JMP 257(PC)
+  call.go:3092			0x100349a50		f10014ff		CMP $5, R7
+  call.go:3129			0x100349a54		54001fe1		BNE 255(PC)
+  call.go:3129			0x100349a58		b94000c7		MOVWU (R6), R7
+  call.go:3129			0x100349a5c		d28dcd29		MOVD $28265, R9
+  call.go:3129			0x100349a60		f2acac89		MOVK $(25956<<16), R9
+  call.go:3129			0x100349a64		6b0900ff		CMPW R9, R7
+  call.go:3129			0x100349a68		54000121		BNE 9(PC)
+  call.go:3129			0x100349a6c		394010c9		MOVBU 4(R6), R9
+  call.go:3129			0x100349a70		7101e13f		CMPW $120, R9
+  call.go:3129			0x100349a74		540000c1		BNE 6(PC)
+  call.go:3130			0x100349a78		aa0803e6		MOVD R8, R6
+  call.go:3130			0x100349a7c		940003d1		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).evalDirectStringIndexCall(SB)
+  call.go:3130			0x100349a80		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3130			0x100349a84		910403ff		ADD $256, RSP, RSP
+  call.go:3130			0x100349a88		d65f03c0		RET
+  call.go:3133			0x100349a8c		d28d8e69		MOVD $27763, R9
+  call.go:3133			0x100349a90		f2ac6d29		MOVK $(25449<<16), R9
+  call.go:3133			0x100349a94		6b0900ff		CMPW R9, R7
+  call.go:3133			0x100349a98		54000121		BNE 9(PC)
+  call.go:3133			0x100349a9c		394010c9		MOVBU 4(R6), R9
+  call.go:3133			0x100349aa0		7101953f		CMPW $101, R9
+  call.go:3133			0x100349aa4		540000c1		BNE 6(PC)
+  call.go:3134			0x100349aa8		aa0803e6		MOVD R8, R6
+  call.go:3134			0x100349aac		940006a5		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).evalDirectStringSliceCall(SB)
+  call.go:3134			0x100349ab0		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3134			0x100349ab4		910403ff		ADD $256, RSP, RSP
+  call.go:3134			0x100349ab8		d65f03c0		RET
+  call.go:3135			0x100349abc		d28e0e69		MOVD $28787, R9
+  call.go:3135			0x100349ac0		f2ad2d89		MOVK $(26988<<16), R9
+  call.go:3135			0x100349ac4		6b0900ff		CMPW R9, R7
+  call.go:3135			0x100349ac8		54001c41		BNE 226(PC)
+  call.go:3135			0x100349acc		394010c7		MOVBU 4(R6), R7
+  call.go:3135			0x100349ad0		7101d0ff		CMPW $116, R7
+  call.go:3135			0x100349ad4		54001be1		BNE 223(PC)
+  call.go:3136			0x100349ad8		aa0803e6		MOVD R8, R6
+  call.go:3136			0x100349adc		9400013d		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).evalDirectStringSplitCall(SB)
+  call.go:3136			0x100349ae0		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3136			0x100349ae4		910403ff		ADD $256, RSP, RSP
+  call.go:3136			0x100349ae8		d65f03c0		RET
+  call.go:3093			0x100349aec		f10018ff		CMP $6, R7
+  call.go:3093			0x100349af0		54000e01		BNE 112(PC)
+  call.go:3093			0x100349af4		b94000c7		MOVWU (R6), R7
+  call.go:3093			0x100349af8		d28cad89		MOVD $25964, R9
+  call.go:3093			0x100349afc		f2acedc9		MOVK $(26478<<16), R9
+  call.go:3093			0x100349b00		6b0900ff		CMPW R9, R7
+  call.go:3093			0x100349b04		54000bc1		BNE 94(PC)
+  call.go:3093			0x100349b08		794008c9		MOVHU 4(R6), R9
+  call.go:3093			0x100349b0c		d28d0e8a		MOVD $26740, R10
+  call.go:3093			0x100349b10		6b0a013f		CMPW R10, R9
+  call.go:3093			0x100349b14		54000b41		BNE 90(PC)
+  call.go:3094			0x100349b18		b50009eb		CBNZ R11, 79(PC)
+  call.go:3100			0x100349b1c		aa0203e0		MOVD R2, R0
+  call.go:3100			0x100349b20		aa0303e1		MOVD R3, R1
+  call.go:3100			0x100349b24		aa0403e2		MOVD R4, R2
+  call.go:3100			0x100349b28		aa0503e3		MOVD R5, R3
+  call.go:3100			0x100349b2c		97fbe425		CALL github.com/mgomes/vibescript/vibes/value.Value.String(SB)
+  members_string.go:2867	0x100349b30		f94087e0		MOVD 264(RSP), R0
+  members_string.go:2867	0x100349b34		b4000180		CBZ R0, 12(PC)
+  members_string.go:2870	0x100349b38		d346fc21		LSR $6, R1, R1
+  members_string.go:2871	0x100349b3c		f100003f		CMP $0, R1
+  members_string.go:2871	0x100349b40		5400008c		BGT 4(PC)
+  call.go:3100			0x100349b44		aa1f03e1		MOVD ZR, R1
+  call.go:3100			0x100349b48		aa1f03e2		MOVD ZR, R2
+  call.go:3100			0x100349b4c		14000008		JMP 8(PC)
+  members_string.go:2874	0x100349b50		94045ca0		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).stepN(SB)
+  call.go:3100			0x100349b54		aa0103e2		MOVD R1, R2
+  call.go:3100			0x100349b58		aa0003e1		MOVD R0, R1
+  call.go:3103			0x100349b5c		f94087e0		MOVD 264(RSP), R0
+  call.go:3100			0x100349b60		14000003		JMP 3(PC)
+  call.go:3100			0x100349b64		aa1f03e1		MOVD ZR, R1
+  call.go:3100			0x100349b68		aa1f03e2		MOVD ZR, R2
+  call.go:3100			0x100349b6c		b5000601		CBNZ R1, 48(PC)
+  call.go:3103			0x100349b70		94045c70		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).checkContext(SB)
+  call.go:3103			0x100349b74		b5000480		CBNZ R0, 36(PC)
+  call.go:2729			0x100349b78		a900ffff		STP (ZR, ZR), 8(RSP)
+  call.go:2729			0x100349b7c		a901ffff		STP (ZR, ZR), 24(RSP)
+  call.go:2729			0x100349b80		f94087e0		MOVD 264(RSP), R0
+  call.go:2729			0x100349b84		aa1f03e1		MOVD ZR, R1
+  call.go:2729			0x100349b88		aa1f03e2		MOVD ZR, R2
+  call.go:2729			0x100349b8c		aa1f03e3		MOVD ZR, R3
+  call.go:2729			0x100349b90		aa1f03e4		MOVD ZR, R4
+  call.go:2729			0x100349b94		f9405be5		MOVD 176(RSP), R5
+  call.go:2729			0x100349b98		f9405fe6		MOVD 184(RSP), R6
+  call.go:2729			0x100349b9c		f9406be7		MOVD 208(RSP), R7
+  call.go:2729			0x100349ba0		f94063e8		MOVD 192(RSP), R8
+  call.go:2729			0x100349ba4		aa1f03e9		MOVD ZR, R9
+  call.go:2729			0x100349ba8		aa1f03ea		MOVD ZR, R10
+  call.go:2729			0x100349bac		aa1f03eb		MOVD ZR, R11
+  call.go:2729			0x100349bb0		aa1f03ec		MOVD ZR, R12
+  call.go:2729			0x100349bb4		97fff447		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).checkCallMemoryRootsWithCallee(SB)
+  call.go:3106			0x100349bb8		b5000120		CBNZ R0, 9(PC)
+  call.go:3109			0x100349bbc		f9405be0		MOVD 176(RSP), R0
+  call.go:3109			0x100349bc0		f9405fe1		MOVD 184(RSP), R1
+  call.go:3109			0x100349bc4		f9406be2		MOVD 208(RSP), R2
+  call.go:3109			0x100349bc8		f94063e3		MOVD 192(RSP), R3
+  call.go:3109			0x100349bcc		97fbe3fd		CALL github.com/mgomes/vibescript/vibes/value.Value.String(SB)
+  members_string.go:1178	0x100349bd0		d503201f		NOOP
+  members_string.go:1100	0x100349bd4		aa1f03e4		MOVD ZR, R4
+  members_string.go:1100	0x100349bd8		140000a9		JMP 169(PC)
+  call.go:3107			0x100349bdc		aa1f03e2		MOVD ZR, R2
+  call.go:3107			0x100349be0		aa1f03e3		MOVD ZR, R3
+  call.go:3107			0x100349be4		b24003e4		ORR $1, ZR, R4
+  call.go:3107			0x100349be8		aa0003e5		MOVD R0, R5
+  call.go:3107			0x100349bec		aa0103e6		MOVD R1, R6
+  call.go:3107			0x100349bf0		aa1f03e0		MOVD ZR, R0
+  call.go:3107			0x100349bf4		aa1f03e1		MOVD ZR, R1
+  call.go:3107			0x100349bf8		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3107			0x100349bfc		910403ff		ADD $256, RSP, RSP
+  call.go:3107			0x100349c00		d65f03c0		RET
+  call.go:3104			0x100349c04		aa1f03e2		MOVD ZR, R2
+  call.go:3104			0x100349c08		aa1f03e3		MOVD ZR, R3
+  call.go:3104			0x100349c0c		b24003e4		ORR $1, ZR, R4
+  call.go:3104			0x100349c10		aa0003e5		MOVD R0, R5
+  call.go:3104			0x100349c14		aa0103e6		MOVD R1, R6
+  call.go:3104			0x100349c18		aa1f03e0		MOVD ZR, R0
+  call.go:3104			0x100349c1c		aa1f03e1		MOVD ZR, R1
+  call.go:3104			0x100349c20		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3104			0x100349c24		910403ff		ADD $256, RSP, RSP
+  call.go:3104			0x100349c28		d65f03c0		RET
+  call.go:3101			0x100349c2c		aa1f03e0		MOVD ZR, R0
+  call.go:3101			0x100349c30		aa1f03e3		MOVD ZR, R3
+  call.go:3101			0x100349c34		b24003e4		ORR $1, ZR, R4
+  call.go:3101			0x100349c38		aa0103e5		MOVD R1, R5
+  call.go:3101			0x100349c3c		aa0203e6		MOVD R2, R6
+  call.go:3101			0x100349c40		aa1f03e1		MOVD ZR, R1
+  call.go:3101			0x100349c44		aa1f03e2		MOVD ZR, R2
+  call.go:3101			0x100349c48		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3101			0x100349c4c		910403ff		ADD $256, RSP, RSP
+  call.go:3101			0x100349c50		d65f03c0		RET
+  call.go:3095			0x100349c54		aa1f03e0		MOVD ZR, R0
+  call.go:3095			0x100349c58		aa1f03e1		MOVD ZR, R1
+  call.go:3095			0x100349c5c		aa1f03e2		MOVD ZR, R2
+  call.go:3095			0x100349c60		aa1f03e3		MOVD ZR, R3
+  call.go:3095			0x100349c64		aa1f03e4		MOVD ZR, R4
+  call.go:3095			0x100349c68		aa1f03e5		MOVD ZR, R5
+  call.go:3095			0x100349c6c		aa1f03e6		MOVD ZR, R6
+  call.go:3095			0x100349c70		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3095			0x100349c74		910403ff		ADD $256, RSP, RSP
+  call.go:3095			0x100349c78		d65f03c0		RET
+  call.go:3131			0x100349c7c		d28d2e49		MOVD $26994, R9
+  call.go:3131			0x100349c80		f2ac8dc9		MOVK $(25710<<16), R9
+  call.go:3131			0x100349c84		6b0900ff		CMPW R9, R7
+  call.go:3131			0x100349c88		54000e41		BNE 114(PC)
+  call.go:3131			0x100349c8c		794008c7		MOVHU 4(R6), R7
+  call.go:3131			0x100349c90		d28f0ca9		MOVD $30821, R9
+  call.go:3131			0x100349c94		6b0900ff		CMPW R9, R7
+  call.go:3131			0x100349c98		54000dc1		BNE 110(PC)
+  call.go:3132			0x100349c9c		aa0803e6		MOVD R8, R6
+  call.go:3132			0x100349ca0		94000474		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).evalDirectStringRIndexCall(SB)
+  call.go:3132			0x100349ca4		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3132			0x100349ca8		910403ff		ADD $256, RSP, RSP
+  call.go:3132			0x100349cac		d65f03c0		RET
+  call.go:3114			0x100349cb0		f10020ff		CMP $8, R7
+  call.go:3114			0x100349cb4		54000ce1		BNE 103(PC)
+  call.go:3114			0x100349cb8		f94000c7		MOVD (R6), R7
+  call.go:3114			0x100349cbc		d28f2c48		MOVD $31074, R8
+  call.go:3114			0x100349cc0		f2acae88		MOVK $(25972<<16), R8
+  call.go:3114			0x100349cc4		f2cd2e68		MOVK $(26995<<32), R8
+  call.go:3114			0x100349cc8		f2ecaf48		MOVK $(25978<<48), R8
+  call.go:3114			0x100349ccc		eb0800ff		CMP R8, R7
+  call.go:3114			0x100349cd0		54000c01		BNE 96(PC)
+  call.go:3115			0x100349cd4		b5000aab		CBNZ R11, 85(PC)
+  call.go:3118			0x100349cd8		94045c16		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).checkContext(SB)
+  call.go:3118			0x100349cdc		b5000920		CBNZ R0, 73(PC)
+  call.go:2729			0x100349ce0		a900ffff		STP (ZR, ZR), 8(RSP)
+  call.go:2729			0x100349ce4		a901ffff		STP (ZR, ZR), 24(RSP)
+  call.go:2729			0x100349ce8		f94087e0		MOVD 264(RSP), R0
+  call.go:2729			0x100349cec		aa1f03e1		MOVD ZR, R1
+  call.go:2729			0x100349cf0		aa1f03e2		MOVD ZR, R2
+  call.go:2729			0x100349cf4		aa1f03e3		MOVD ZR, R3
+  call.go:2729			0x100349cf8		aa1f03e4		MOVD ZR, R4
+  call.go:2729			0x100349cfc		f9405be5		MOVD 176(RSP), R5
+  call.go:2729			0x100349d00		f9405fe6		MOVD 184(RSP), R6
+  call.go:2729			0x100349d04		f9406be7		MOVD 208(RSP), R7
+  call.go:2729			0x100349d08		f94063e8		MOVD 192(RSP), R8
+  call.go:2729			0x100349d0c		aa1f03e9		MOVD ZR, R9
+  call.go:2729			0x100349d10		aa1f03ea		MOVD ZR, R10
+  call.go:2729			0x100349d14		aa1f03eb		MOVD ZR, R11
+  call.go:2729			0x100349d18		aa1f03ec		MOVD ZR, R12
+  call.go:2729			0x100349d1c		97fff3ed		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).checkCallMemoryRootsWithCallee(SB)
+  call.go:3121			0x100349d20		b50005c0		CBNZ R0, 46(PC)
+  call.go:3124			0x100349d24		f9405be0		MOVD 176(RSP), R0
+  call.go:3124			0x100349d28		f9405fe1		MOVD 184(RSP), R1
+  call.go:3124			0x100349d2c		f9406be2		MOVD 208(RSP), R2
+  call.go:3124			0x100349d30		f94063e3		MOVD 192(RSP), R3
+  call.go:3124			0x100349d34		97fbe3a3		CALL github.com/mgomes/vibescript/vibes/value.Value.String(SB)
+  memory.go:717			0x100349d38		f94087e0		MOVD 264(RSP), R0
+  memory.go:717			0x100349d3c		f9401404		MOVD 40(R0), R4
+  memory.go:717			0x100349d40		f100009f		CMP $0, R4
+  memory.go:717			0x100349d44		5400008c		BGT 4(PC)
+  call.go:3125			0x100349d48		aa1f03e0		MOVD ZR, R0
+  call.go:3125			0x100349d4c		aa1f03e2		MOVD ZR, R2
+  call.go:3125			0x100349d50		1400000d		JMP 13(PC)
+  call.go:3124			0x100349d54		f90057e1		MOVD R1, 168(RSP)
+  memory.go:720			0x100349d58		b27f03e4		ORR $2, ZR, R4
+  memory.go:720			0x100349d5c		f9006fe4		MOVD R4, 216(RSP)
+  memory.go:720			0x100349d60		f90073ff		MOVD ZR, 224(RSP)
+  memory.go:720			0x100349d64		f9007be1		MOVD R1, 240(RSP)
+  memory.go:720			0x100349d68		f90077ff		MOVD ZR, 232(RSP)
+  memory.go:720			0x100349d6c		910363e1		ADD $216, RSP, R1
+  memory.go:720			0x100349d70		b24003e2		ORR $1, ZR, R2
+  memory.go:720			0x100349d74		aa0203e3		MOVD R2, R3
+  memory.go:720			0x100349d78		9406395a		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryWith(SB)
+  call.go:3125			0x100349d7c		aa0103e2		MOVD R1, R2
+  call.go:3128			0x100349d80		f94057e1		MOVD 168(RSP), R1
+  call.go:3125			0x100349d84		b4000160		CBZ R0, 11(PC)
+  call.go:3126			0x100349d88		aa1f03e1		MOVD ZR, R1
+  call.go:3126			0x100349d8c		aa1f03e3		MOVD ZR, R3
+  call.go:3126			0x100349d90		b24003e4		ORR $1, ZR, R4
+  call.go:3126			0x100349d94		aa0003e5		MOVD R0, R5
+  call.go:3126			0x100349d98		aa0203e6		MOVD R2, R6
+  call.go:3126			0x100349d9c		aa1f03e0		MOVD ZR, R0
+  call.go:3126			0x100349da0		aa1f03e2		MOVD ZR, R2
+  call.go:3126			0x100349da4		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3126			0x100349da8		910403ff		ADD $256, RSP, RSP
+  call.go:3126			0x100349dac		d65f03c0		RET
+  call.go:3128			0x100349db0		b27f03e0		ORR $2, ZR, R0
+  call.go:3128			0x100349db4		aa1f03e2		MOVD ZR, R2
+  call.go:3128			0x100349db8		aa0103e3		MOVD R1, R3
+  call.go:3128			0x100349dbc		b24003e4		ORR $1, ZR, R4
+  call.go:3128			0x100349dc0		aa1f03e5		MOVD ZR, R5
+  call.go:3128			0x100349dc4		aa1f03e6		MOVD ZR, R6
+  call.go:3128			0x100349dc8		aa1f03e1		MOVD ZR, R1
+  call.go:3128			0x100349dcc		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3128			0x100349dd0		910403ff		ADD $256, RSP, RSP
+  call.go:3128			0x100349dd4		d65f03c0		RET
+  call.go:3122			0x100349dd8		aa1f03e2		MOVD ZR, R2
+  call.go:3122			0x100349ddc		aa1f03e3		MOVD ZR, R3
+  call.go:3122			0x100349de0		b24003e4		ORR $1, ZR, R4
+  call.go:3122			0x100349de4		aa0003e5		MOVD R0, R5
+  call.go:3122			0x100349de8		aa0103e6		MOVD R1, R6
+  call.go:3122			0x100349dec		aa1f03e0		MOVD ZR, R0
+  call.go:3122			0x100349df0		aa1f03e1		MOVD ZR, R1
+  call.go:3122			0x100349df4		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3122			0x100349df8		910403ff		ADD $256, RSP, RSP
+  call.go:3122			0x100349dfc		d65f03c0		RET
+  call.go:3119			0x100349e00		aa1f03e2		MOVD ZR, R2
+  call.go:3119			0x100349e04		aa1f03e3		MOVD ZR, R3
+  call.go:3119			0x100349e08		b24003e4		ORR $1, ZR, R4
+  call.go:3119			0x100349e0c		aa0003e5		MOVD R0, R5
+  call.go:3119			0x100349e10		aa0103e6		MOVD R1, R6
+  call.go:3119			0x100349e14		aa1f03e0		MOVD ZR, R0
+  call.go:3119			0x100349e18		aa1f03e1		MOVD ZR, R1
+  call.go:3119			0x100349e1c		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3119			0x100349e20		910403ff		ADD $256, RSP, RSP
+  call.go:3119			0x100349e24		d65f03c0		RET
+  call.go:3116			0x100349e28		aa1f03e0		MOVD ZR, R0
+  call.go:3116			0x100349e2c		aa1f03e1		MOVD ZR, R1
+  call.go:3116			0x100349e30		aa1f03e2		MOVD ZR, R2
+  call.go:3116			0x100349e34		aa1f03e3		MOVD ZR, R3
+  call.go:3116			0x100349e38		aa1f03e4		MOVD ZR, R4
+  call.go:3116			0x100349e3c		aa1f03e5		MOVD ZR, R5
+  call.go:3116			0x100349e40		aa1f03e6		MOVD ZR, R6
+  call.go:3116			0x100349e44		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3116			0x100349e48		910403ff		ADD $256, RSP, RSP
+  call.go:3116			0x100349e4c		d65f03c0		RET
+  call.go:3138			0x100349e50		aa1f03e0		MOVD ZR, R0
+  call.go:3138			0x100349e54		aa1f03e1		MOVD ZR, R1
+  call.go:3138			0x100349e58		aa1f03e2		MOVD ZR, R2
+  call.go:3138			0x100349e5c		aa1f03e3		MOVD ZR, R3
+  call.go:3138			0x100349e60		aa1f03e4		MOVD ZR, R4
+  call.go:3138			0x100349e64		aa1f03e5		MOVD ZR, R5
+  call.go:3138			0x100349e68		aa1f03e6		MOVD ZR, R6
+  call.go:3138			0x100349e6c		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3138			0x100349e70		910403ff		ADD $256, RSP, RSP
+  call.go:3138			0x100349e74		d65f03c0		RET
+  members_string.go:1100	0x100349e78		91000484		ADD $1, R4, R4
+  members_string.go:1100	0x100349e7c		eb04003f		CMP R4, R1
+  members_string.go:1100	0x100349e80		5400014d		BLE 10(PC)
+  members_string.go:1101	0x100349e84		38646807		MOVBU (R0)(R4), R7
+  members_string.go:1101	0x100349e88		710200ff		CMPW $128, R7
+  members_string.go:1101	0x100349e8c		54ffff63		BCC -5(PC)
+  call.go:3109			0x100349e90		f90053e1		MOVD R1, 160(RSP)
+  call.go:3109			0x100349e94		f90067e0		MOVD R0, 200(RSP)
+  members_string.go:1181	0x100349e98		d503201f		NOOP
+  utf8.go:448			0x100349e9c		aa1f03e2		MOVD ZR, R2
+  utf8.go:448			0x100349ea0		aa1f03e3		MOVD ZR, R3
+  utf8.go:448			0x100349ea4		1400002b		JMP 43(PC)
+  memory.go:717			0x100349ea8		f94087e0		MOVD 264(RSP), R0
+  memory.go:717			0x100349eac		f9401407		MOVD 40(R0), R7
+  memory.go:717			0x100349eb0		f10000ff		CMP $0, R7
+  memory.go:717			0x100349eb4		5400008c		BGT 4(PC)
+  call.go:3110			0x100349eb8		aa1f03e0		MOVD ZR, R0
+  call.go:3110			0x100349ebc		aa1f03e2		MOVD ZR, R2
+  call.go:3110			0x100349ec0		1400000d		JMP 13(PC)
+  call.go:3109			0x100349ec4		f9004fe1		MOVD R1, 152(RSP)
+  memory.go:720			0x100349ec8		b27f03e4		ORR $2, ZR, R4
+  memory.go:720			0x100349ecc		f9006fe4		MOVD R4, 216(RSP)
+  memory.go:720			0x100349ed0		f90073ff		MOVD ZR, 224(RSP)
+  memory.go:720			0x100349ed4		f9007be1		MOVD R1, 240(RSP)
+  memory.go:720			0x100349ed8		f90077ff		MOVD ZR, 232(RSP)
+  memory.go:720			0x100349edc		910363e1		ADD $216, RSP, R1
+  memory.go:720			0x100349ee0		b24003e2		ORR $1, ZR, R2
+  memory.go:720			0x100349ee4		aa0203e3		MOVD R2, R3
+  memory.go:720			0x100349ee8		940638fe		CALL github.com/mgomes/vibescript/internal/runtime.(*Execution).checkMemoryWith(SB)
+  call.go:3110			0x100349eec		aa0103e2		MOVD R1, R2
+  call.go:3113			0x100349ef0		f9404fe1		MOVD 152(RSP), R1
+  call.go:3110			0x100349ef4		b4000160		CBZ R0, 11(PC)
+  call.go:3111			0x100349ef8		aa1f03e1		MOVD ZR, R1
+  call.go:3111			0x100349efc		aa1f03e3		MOVD ZR, R3
+  call.go:3111			0x100349f00		b24003e4		ORR $1, ZR, R4
+  call.go:3111			0x100349f04		aa0003e5		MOVD R0, R5
+  call.go:3111			0x100349f08		aa0203e6		MOVD R2, R6
+  call.go:3111			0x100349f0c		aa1f03e0		MOVD ZR, R0
+  call.go:3111			0x100349f10		aa1f03e2		MOVD ZR, R2
+  call.go:3111			0x100349f14		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3111			0x100349f18		910403ff		ADD $256, RSP, RSP
+  call.go:3111			0x100349f1c		d65f03c0		RET
+  call.go:3113			0x100349f20		b27f03e0		ORR $2, ZR, R0
+  call.go:3113			0x100349f24		aa1f03e2		MOVD ZR, R2
+  call.go:3113			0x100349f28		aa0103e3		MOVD R1, R3
+  call.go:3113			0x100349f2c		b24003e4		ORR $1, ZR, R4
+  call.go:3113			0x100349f30		aa1f03e5		MOVD ZR, R5
+  call.go:3113			0x100349f34		aa1f03e6		MOVD ZR, R6
+  call.go:3113			0x100349f38		aa1f03e1		MOVD ZR, R1
+  call.go:3113			0x100349f3c		a97ffbfd		LDP -8(RSP), (R29, R30)
+  call.go:3113			0x100349f40		910403ff		ADD $256, RSP, RSP
+  call.go:3113			0x100349f44		d65f03c0		RET
+  utf8.go:449			0x100349f48		91000463		ADD $1, R3, R3
+  utf8.go:448			0x100349f4c		aa0703e2		MOVD R7, R2
+  utf8.go:448			0x100349f50		eb02003f		CMP R2, R1
+  utf8.go:448			0x100349f54		540001ad		BLE 13(PC)
+  utf8.go:448			0x100349f58		38626807		MOVBU (R0)(R2), R7
+  utf8.go:448			0x100349f5c		7101fcff		CMPW $127, R7
+  utf8.go:448			0x100349f60		5400006c		BGT 3(PC)
+  utf8.go:448			0x100349f64		91000447		ADD $1, R2, R7
+  utf8.go:448			0x100349f68		17fffff8		JMP -8(PC)
+  utf8.go:448			0x100349f6c		f9004fe3		MOVD R3, 152(RSP)
+  utf8.go:448			0x100349f70		97f4c3f4		CALL runtime.decoderune(SB)
+  utf8.go:448			0x100349f74		f94067e0		MOVD 200(RSP), R0
+  utf8.go:449			0x100349f78		f9404fe3		MOVD 152(RSP), R3
+  utf8.go:449			0x100349f7c		aa0103e7		MOVD R1, R7
+  utf8.go:448			0x100349f80		f94053e1		MOVD 160(RSP), R1
+  utf8.go:448			0x100349f84		17fffff1		JMP -15(PC)
+  call.go:3109			0x100349f88		aa0303e1		MOVD R3, R1
+  call.go:3109			0x100349f8c		17ffffc7		JMP -57(PC)
+  call.go:3087			0x100349f90		a90087e0		STP (R0, R1), 8(RSP)
+  call.go:3087			0x100349f94		a9018fe2		STP (R2, R3), 24(RSP)
+  call.go:3087			0x100349f98		a90297e4		STP (R4, R5), 40(RSP)
+  call.go:3087			0x100349f9c		a9039fe6		STP (R6, R7), 56(RSP)
+  call.go:3087			0x100349fa0		f90027e8		MOVD R8, 72(RSP)
+  call.go:3087			0x100349fa4		aa1e03e3		MOVD R30, R3
+  call.go:3087			0x100349fa8		97f50666		CALL runtime.morestack_noctxt.abi0(SB)
+  call.go:3087			0x100349fac		a94087e0		LDP 8(RSP), (R0, R1)
+  call.go:3087			0x100349fb0		a9418fe2		LDP 24(RSP), (R2, R3)
+  call.go:3087			0x100349fb4		a94297e4		LDP 40(RSP), (R4, R5)
+  call.go:3087			0x100349fb8		a9439fe6		LDP 56(RSP), (R6, R7)
+  call.go:3087			0x100349fbc		f94027e8		MOVD 72(RSP), R8
+  call.go:3087			0x100349fc0		17fffe6c		JMP github.com/mgomes/vibescript/internal/runtime.(*Execution).evalDirectStringMemberCallExpr(SB)
+  call.go:3087			0x100349fc4		00000000		?
+  call.go:3087			0x100349fc8		00000000		?
+  call.go:3087			0x100349fcc		00000000		?
