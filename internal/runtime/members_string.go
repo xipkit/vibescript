@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"golang.org/x/text/transform"
 
 	"github.com/mgomes/vibescript/vibes/value"
 )
@@ -1935,14 +1936,44 @@ func stringSwapCase(text string, mode caseMode) string {
 	}
 	var b strings.Builder
 	b.Grow(len(text))
+	var lower, upper *cases.Caser
+	var src, scratch []byte
 	for _, r := range text {
+		if r < utf8.RuneSelf {
+			b.WriteByte(asciiSwapCaseByte(byte(r)))
+			continue
+		}
+		var mapper *cases.Caser
 		switch {
 		case isUppercaseLike(r):
-			b.WriteString(unicodeDowncase(string(r)))
+			if lower == nil {
+				c := cases.Lower(language.Und, cases.HandleFinalSigma(false))
+				lower = &c
+			}
+			mapper = lower
 		case isLowercaseLike(r):
-			b.WriteString(unicodeUpcase(string(r)))
+			if upper == nil {
+				c := cases.Upper(language.Und)
+				upper = &c
+			}
+			mapper = upper
 		default:
 			b.WriteRune(r)
+			continue
+		}
+		if src == nil {
+			src = make([]byte, utf8.UTFMax)
+			scratch = make([]byte, 0, 32)
+		}
+		n := utf8.EncodeRune(src, r)
+		// Append resets the call-local mapper for each rune, preserving the
+		// existing independent mappings without allocating a String buffer.
+		var err error
+		scratch, _, err = transform.Append(mapper, scratch[:0], src[:n])
+		if err != nil {
+			b.WriteString(mapper.String(string(r)))
+		} else {
+			b.Write(scratch)
 		}
 	}
 	return b.String()
