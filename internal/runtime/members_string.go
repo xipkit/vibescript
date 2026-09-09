@@ -1096,15 +1096,6 @@ func chopDefault(text string) string {
 	return text[:len(text)-size]
 }
 
-func stringIsASCII(text string) bool {
-	for i := range len(text) {
-		if text[i] >= utf8.RuneSelf {
-			return false
-		}
-	}
-	return true
-}
-
 // asciiCaseCompare compares a and b byte-by-byte, folding only the ASCII
 // letters A-Z down to a-z before each byte comparison. This mirrors Ruby's
 // String#casecmp, whose comparison path applies an ASCII-only TOLOWER to each
@@ -4235,11 +4226,14 @@ func stringIndexResult(exec *Execution, receiver, needle Value, offset int) (Val
 	if needle.Kind() != KindString {
 		return NewNil(), fmt.Errorf("string.index substring must be string")
 	}
-	effective, ok := stringEffectiveOffset(receiver.String(), offset)
-	if !ok {
-		return NewNil(), nil
+	if offset < 0 {
+		effective, ok := stringEffectiveOffset(receiver.String(), offset)
+		if !ok {
+			return NewNil(), nil
+		}
+		offset = effective
 	}
-	index, err := stringRuneIndex(exec, receiver.String(), needle.String(), effective)
+	index, err := stringRuneIndex(exec, receiver.String(), needle.String(), offset)
 	if err != nil {
 		return NewNil(), err
 	}

@@ -1,0 +1,89 @@
+{
+  "base": "be97d5eb77205a0f9dc8013aedff9129f7c7cd8e",
+  "head": "3484a86428cd08e582b0c21572617907b842b975",
+  "fixture_sha256": "f95db63d543de6baee0dd6d42cef824440a971ae7be88b2d256d586d802c46c4",
+  "variants": [
+    {
+      "name": "go126-before",
+      "toolchain": "go1.26.3",
+      "experiment": "",
+      "sha256": "e1be2c4bfd8b6c7d5f05affdac6c1fe385f36e5e806a2b19a5d9a5b983dc287c",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "-c",
+        "-o",
+        "/tmp/vibescript-simd-delivery/ascii/final-isolated/go126-before.test",
+        "./internal/runtime"
+      ]
+    },
+    {
+      "name": "go126-word",
+      "toolchain": "go1.26.3",
+      "experiment": "",
+      "sha256": "0e087afe3075d71c6ddd20d69eef5ce084c96d84c0c996da2ed5edf3e22a5429",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "-c",
+        "-o",
+        "/tmp/vibescript-simd-delivery/ascii/final-isolated/go126-word.test",
+        "./internal/runtime"
+      ]
+    },
+    {
+      "name": "go127-before",
+      "toolchain": "go1.27.1",
+      "experiment": "simd",
+      "sha256": "b3600df39d9e4f3d7d8a092a63c5bc6b2a12ac0e7d3e97ded7ef8383ecd5bad2",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "-c",
+        "-o",
+        "/tmp/vibescript-simd-delivery/ascii/final-isolated/go127-before.test",
+        "./internal/runtime"
+      ]
+    },
+    {
+      "name": "go127-word",
+      "toolchain": "go1.27.1",
+      "experiment": "simd",
+      "sha256": "3cb97644147731f324287cb2313050bb3bea6820dbf4fb5b9e94669f380e6597",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "-c",
+        "-o",
+        "/tmp/vibescript-simd-delivery/ascii/final-isolated/go127-word.test",
+        "-overlay",
+        "/tmp/vibescript-simd-delivery/ascii/final-isolated/word.json",
+        "./internal/runtime"
+      ]
+    },
+    {
+      "name": "go127-simd",
+      "toolchain": "go1.27.1",
+      "experiment": "simd",
+      "sha256": "f566393d53e908a4567bb8b08b535a42bae3dfbe20eb20594a73bf95617084b0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "-c",
+        "-o",
+        "/tmp/vibescript-simd-delivery/ascii/final-isolated/go127-simd.test",
+        "./internal/runtime"
+      ]
+    }
+  ]
+}

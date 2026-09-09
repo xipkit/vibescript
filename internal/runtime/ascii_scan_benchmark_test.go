@@ -57,3 +57,19 @@ func BenchmarkStringASCIIClassification(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkStringASCIIMixedCalls(b *testing.B) {
+	for _, operation := range []struct{ name, expr string }{
+		{"Length", "text.length"},
+		{"Index", `text.index("終")`},
+		{"RIndex", `text.rindex("é")`},
+		{"Slice", "text.slice(4077, 4).bytesize"},
+	} {
+		for _, prefix := range []int{0, 1, 7, 15, 63} {
+			b.Run(fmt.Sprintf("%s/Prefix%d", operation.name, prefix), func(b *testing.B) {
+				source := "def run(text, n)\n  total = 0\n  for i in 1..n\n    total = total + " + operation.expr + "\n  end\n  total\nend"
+				simdBenchmarkStringHelperLoop(b, source, []Value{NewString(strings.Repeat("a", prefix) + simdBenchmarkUnicodeStringText()), NewInt(200)})
+			})
+		}
+	}
+}
