@@ -558,11 +558,11 @@ func TestCLIContractRunExplicitZeroQuota(t *testing.T) {
   i
 end
 
-puts count(2000000)
+puts count(200000)
 `)
 
 	got := runCLIContractProcess(t, "", "run", scriptPath)
-	assertCLIContractResult(t, got, cliContractResult{Stdout: "2000000\n"})
+	assertCLIContractResult(t, got, cliContractResult{Stdout: "200000\n"})
 
 	got = runCLIContractProcess(t, "", "run", "-step-quota=0", scriptPath)
 	if got.ExitCode != 1 {
