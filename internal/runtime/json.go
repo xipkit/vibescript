@@ -369,6 +369,10 @@ func (p *jsonValueParser) parseNumber() (Value, error) {
 func (p *jsonValueParser) parseString() (string, error) {
 	p.pos++
 	start := p.pos
+	if len(p.raw)-p.pos >= jsonASCIISpanMin && jsonParseASCIISpan(p.raw[p.pos:p.pos+jsonASCIISpanMin]) == jsonASCIISpanMin {
+		p.pos += jsonASCIISpanMin
+		p.pos += jsonParseASCIISpan(p.raw[p.pos:])
+	}
 	for p.pos < len(p.raw) {
 		b := p.raw[p.pos]
 		switch {
@@ -429,6 +433,31 @@ func (p *jsonValueParser) parseEscapedContents(start int, b *strings.Builder) (i
 	size := p.pos - start
 	if b != nil {
 		b.WriteString(p.raw[start:p.pos])
+	}
+
+	// A long initial ASCII run is a useful predictor for subsequent runs.
+	// Short runs and Unicode return to the scalar loop for the rest of the token.
+	if size >= jsonASCIISpanMin {
+		for p.pos < len(p.raw) && p.raw[p.pos] == '\\' {
+			p.pos++
+			r, err := p.parseStringEscape()
+			if err != nil {
+				return 0, err
+			}
+			size += utf8.RuneLen(r)
+			if b != nil {
+				b.WriteRune(r)
+			}
+			n := jsonParseASCIISpan(p.raw[p.pos:])
+			if b != nil {
+				b.WriteString(p.raw[p.pos : p.pos+n])
+			}
+			p.pos += n
+			size += n
+			if n < jsonASCIISpanMin {
+				break
+			}
+		}
 	}
 
 	for p.pos < len(p.raw) {
@@ -928,7 +957,12 @@ func appendJSONString(buf []byte, s string, state *jsonStringifyState) ([]byte, 
 	}
 	buf = append(buf, '"')
 	start := 0
-	for i := 0; i < len(s); {
+	i := 0
+	scanASCII := len(s) >= jsonASCIISpanMin && jsonStringifyASCIISpan(s[:jsonASCIISpanMin]) == jsonASCIISpanMin
+	if scanASCII {
+		i = jsonASCIISpanMin + jsonStringifyASCIISpan(s[jsonASCIISpanMin:])
+	}
+	for i < len(s) {
 		if b := s[i]; b < utf8.RuneSelf {
 			if b >= 0x20 && b != '\\' && b != '"' && b != '<' && b != '>' && b != '&' {
 				i++
@@ -957,9 +991,15 @@ func appendJSONString(buf []byte, s string, state *jsonStringifyState) ([]byte, 
 			}
 			i++
 			start = i
+			if scanASCII {
+				n := jsonStringifyASCIISpan(s[i:])
+				i += n
+				scanASCII = n >= jsonASCIISpanMin
+			}
 			continue
 		}
 
+		scanASCII = false
 		r, size := utf8.DecodeRuneInString(s[i:])
 		if r == utf8.RuneError && size == 1 {
 			if err := state.checkOutputBytes(len(buf) + i - start + len(`\ufffd`)); err != nil {
