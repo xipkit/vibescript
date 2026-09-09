@@ -28,7 +28,7 @@ func BenchmarkStringCaseComparison(b *testing.B) {
 			for _, method := range []string{"casecmp", "casecmp?"} {
 				name := fmt.Sprintf("%s/%d/%s", strings.ReplaceAll(method, "?", "-predicate"), size, kind)
 				b.Run(name, func(b *testing.B) {
-					script := compileScriptWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, "def run(a, b)\n  a."+method+"(b)\nend")
+					script := simdBenchmarkCompileWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, "def run(a, b)\n  a."+method+"(b)\nend")
 					args := []Value{NewString(a), NewString(other)}
 					b.ReportAllocs()
 					b.ResetTimer()
