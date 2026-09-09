@@ -1,4 +1,4 @@
-name: SIMD layout diagnostic
+name: SIMD embedding diagnostic
 
 on:
   workflow_dispatch:
@@ -7,26 +7,9 @@ permissions:
   contents: read
 
 jobs:
-  layouts:
-    name: Layouts (${{ matrix.name }})
+  embedding:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: ascii
-            base: 7a3ba6469b50c5fa7b43764a70f6fc32d7fb3efa
-            head: 892bc640542acba2d8db7ba93b4ec9b49cd29e76
-          - name: json
-            base: 892bc640542acba2d8db7ba93b4ec9b49cd29e76
-            head: ad6efcd9e2369b2527e1dbfe837c9560ff83e5ce
-          - name: regexp
-            base: 892bc640542acba2d8db7ba93b4ec9b49cd29e76
-            head: 4819359832b4a265adedf347362421b77d143ac7
-          - name: combined
-            base: 892bc640542acba2d8db7ba93b4ec9b49cd29e76
-            head: 3c1891543e6fc02cefb1548d0d04af3dde0d7d55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,25 +17,27 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.base }}
+          ref: 7a3ba6469b50c5fa7b43764a70f6fc32d7fb3efa
           path: base
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.head }}
+          ref: 892bc640542acba2d8db7ba93b4ec9b49cd29e76
+          path: ascii
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 3c1891543e6fc02cefb1548d0d04af3dde0d7d55
           path: head
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.1'
           cache-dependency-path: head/go.sum
-      - name: Compare independent linker layouts
-        env:
-          BASE_SHA: ${{ matrix.base }}
-          HEAD_SHA: ${{ matrix.head }}
-        run: python3 -u diagnostic/scripts/simd_layout_diagnostic.py
+      - name: Compare ordinary embedding executables
+        run: python3 -u diagnostic/scripts/simd_embedding_measure.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: layout-${{ matrix.name }}-${{ github.run_id }}
-          path: ${{ runner.temp }}/layout-results/
+          name: embedding-${{ github.run_id }}
+          path: ${{ runner.temp }}/embedding-results/
