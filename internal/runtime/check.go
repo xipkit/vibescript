@@ -191,7 +191,7 @@ type scriptChecker struct {
 	summaryYieldReentryWalks   int
 	walkedNodes                uint64
 	typeExprNodeCounts         map[*TypeExpr]int
-	containerTypeArms          map[containerTypeArmKey]containerTypeArmResult
+	typeArmSummaries           map[typeArmSummaryKey]typeArmSummary
 	shapeRefinements           map[*TypeExpr]shapeRefinementState
 	summaryYieldsActive        bool
 	summaryBlockAvailable      bool
@@ -12494,7 +12494,7 @@ func (c *scriptChecker) expressionMayHaveExpansionType(
 		return value.Kind() == kind
 	}
 	inferred := c.inferExpressionType(expr)
-	return inferred == nil || !typeExprsDisjoint(inferred, typeExpr, c.checkNamedTypeResolver())
+	return c.typeMayExpandAs(inferred, typeExpr)
 }
 
 func (c *scriptChecker) caseWhenSplatExpansionMaySucceed(expr Expression, splat bool) bool {

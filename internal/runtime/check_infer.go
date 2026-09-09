@@ -4168,7 +4168,7 @@ func (c *scriptChecker) inferAssignStatementTypes(
 			c.bindLocalClassValue(target.Name, "")
 			return
 		}
-		if reassignmentConflicts(current, next, c.checkNamedTypeResolver()) {
+		if c.reassignmentConflicts(current, next) {
 			c.add(function, stmt.Pos(), "reassignment of %s expected %s, got %s",
 				target.Name, formatTypeExpr(current), formatTypeExpr(next))
 		}
@@ -14530,57 +14530,8 @@ func (c *scriptChecker) escapePoisonTarget(expr Expression) (string, bool) {
 }
 
 func (c *scriptChecker) typeExprHasContainerArm(ty *TypeExpr) bool {
-	result := c.containerTypeArm(ty, 0)
-	return result.valid && result.hasContainer
-}
-
-type containerTypeArmKey struct {
-	typeExpr *TypeExpr
-	depth    int
-}
-
-type containerTypeArmResult struct {
-	hasContainer bool
-	valid        bool
-}
-
-// containerTypeArm preserves typeExprArms validity without materializing arms.
-// Facts are immutable once built, so union results can be reused within a check.
-// Depth belongs in the key: a shared union can be valid through one parent and
-// exceed maxTypeArmDepth through another.
-func (c *scriptChecker) containerTypeArm(ty *TypeExpr, depth int) containerTypeArmResult {
-	if ty == nil || depth > maxTypeArmDepth {
-		return containerTypeArmResult{}
-	}
-	switch ty.Kind {
-	case TypeArray, TypeHash, TypeShape:
-		return containerTypeArmResult{hasContainer: true, valid: true}
-	case TypeAny, TypeUnknown:
-		_, valid := shapeValuePayload(ty)
-		return containerTypeArmResult{valid: valid}
-	case TypeUnion:
-		key := containerTypeArmKey{typeExpr: ty, depth: depth}
-		if result, ok := c.containerTypeArms[key]; ok {
-			return result
-		}
-		result := containerTypeArmResult{valid: true}
-		noteCheckWork(len(ty.Union))
-		for _, option := range ty.Union {
-			arm := c.containerTypeArm(option, depth+1)
-			if !arm.valid {
-				result = containerTypeArmResult{}
-				break
-			}
-			result.hasContainer = result.hasContainer || arm.hasContainer
-		}
-		if c.containerTypeArms == nil {
-			c.containerTypeArms = make(map[containerTypeArmKey]containerTypeArmResult)
-		}
-		c.containerTypeArms[key] = result
-		return result
-	default:
-		return containerTypeArmResult{valid: true}
-	}
+	result := c.typeArmSummary(ty, 0)
+	return result.valid && result.kinds&containerArmKinds != 0
 }
 
 func rootIdentifierName(expr Expression) (string, bool) {

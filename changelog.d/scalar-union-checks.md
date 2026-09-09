@@ -1,0 +1,1 @@
+Static checking now reuses scalar-union classifications for assignments and argument expansion, avoiding repeated temporary allocations when many statements use the same annotation. Named types continue to resolve against the current environment.
