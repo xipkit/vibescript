@@ -27,11 +27,11 @@ type Env struct {
 	parent             *Env
 	mutationVersion    uint64
 	inline             [inlineEnvBindingCapacity]envBinding
-	inlineLen          uint8
 	values             map[string]Value
 	statics            map[string]Value
 	declarations       *callDeclarations
 	staticBytes        int32
+	inlineLen          uint8
 	arrayAppendBuffers map[string][]Value
 	assignBoundary     bool
 	rebindOuter        bool
