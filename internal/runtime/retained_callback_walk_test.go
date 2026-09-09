@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mgomes/vibescript/vibes/value"
@@ -92,6 +93,75 @@ func TestRetainedCallbackWalkChargeDoesNotReenterItself(t *testing.T) {
 		}
 		if exec.assignmentWalkNodes != 0 || exec.baseWalkOpen {
 			t.Fatal("check left pending work or an open session")
+		}
+	}
+}
+
+func TestRetainedCallbackWalkChargesPostCallRecovery(t *testing.T) {
+	cases := []struct {
+		name    string
+		fn      BuiltinFunc
+		args    []Value
+		wantErr string
+	}{
+		{name: "JSON.parse", fn: builtinJSONParse, args: []Value{NewString(`{"x":1}`)}},
+		{name: "JSON.parse error", fn: builtinJSONParse, args: []Value{NewString(`{"x":`)}, wantErr: "JSON.parse invalid JSON"},
+		{name: "multiple checks", fn: func(exec *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+			if err := exec.checkMemory(); err != nil {
+				return NewNil(), err
+			}
+			return NewNil(), exec.checkMemory()
+		}},
+		{name: "nested driver", fn: func(exec *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (result Value, err error) {
+			out := []Value{NewInt(1)}
+			exec.pushOutputWalkRoot(retainedValues(&out))
+			defer func() { err = exec.endOutputWalkRoot(err) }()
+			defer exec.beginBlockIterationRegion().end()
+			if err := exec.checkMemory(); err != nil {
+				return NewNil(), err
+			}
+			return NewNil(), exec.checkMemory()
+		}},
+	}
+	for _, region := range []bool{false, true} {
+		for _, tc := range cases {
+			t.Run(fmt.Sprintf("region=%t/%s", region, tc.name), func(t *testing.T) {
+				exec, _ := newEstimatorCacheExec()
+				out := []Value{estimatorCacheRows(1000)}
+				exec.pushOutputWalkRoot(retainedValues(&out))
+				defer func() { _ = exec.endOutputWalkRoot(nil) }()
+				if region {
+					exec.undeclaredBuiltinDepth = 1
+					defer exec.beginBlockIterationRegion().end()
+				}
+				if err := exec.checkMemory(); err != nil {
+					t.Fatal(err)
+				}
+				callee := NewBuiltin(tc.name, tc.fn)
+				_, err := exec.invokeCallable(callee, NewNil(), tc.args, nil, NewNil(), Position{})
+				if tc.wantErr == "" {
+					if err != nil {
+						t.Fatalf("callback call failed: %v", err)
+					}
+				} else if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("callback call returned %v, want %q", err, tc.wantErr)
+				}
+				before := exec.steps
+				if err := exec.checkMemory(); err != nil {
+					t.Fatal(err)
+				}
+				if exec.steps <= before {
+					t.Fatalf("post-call recovery charged %d steps, want a retained-output walk charge", exec.steps-before)
+				}
+				charged := exec.steps
+				value.BumpMutationEpoch()
+				if err := exec.checkMemory(); err != nil {
+					t.Fatal(err)
+				}
+				if exec.steps != charged || exec.assignmentWalkNodes != 0 || exec.baseWalkOpen {
+					t.Fatalf("foreign invalidation after recovery changed steps from %d to %d, pending=%d, open=%t", charged, exec.steps, exec.assignmentWalkNodes, exec.baseWalkOpen)
+				}
+			})
 		}
 	}
 }
