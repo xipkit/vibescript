@@ -121,7 +121,6 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 			return NewNil(), err
 		}
 		blockArg[0] = stringScanElement(text, loc, groups)
-		loc = nil
 		exec.releaseLoopScratch(copyDelta)
 		exec.releaseLoopScratch(delta)
 		delta = 0
