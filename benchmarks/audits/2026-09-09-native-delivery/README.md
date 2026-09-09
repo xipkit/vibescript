@@ -51,3 +51,22 @@ The practical conclusion is to report workload and build context alongside gains
 `evidence.tar.gz` contains complete ordinary-executable raw samples, manifests, benchmark comparisons, and the ASCII/combined layout samples. Reproduce the ordinary executable with `scripts/simd_embedding_probe.py` and `scripts/simd_embedding_measure.py` at the diagnostic commit above. The layout driver is at commit `27b6963cc525c7ca437f367dbb077d084e531b09` in `scripts/simd_layout_diagnostic.py`. The diagnostic workflow branch is experimental infrastructure and is not part of the implementation PRs.
 
 Archive SHA-256: `e5f66583dc9aa215339b171ab277a74ce4d99b03a4cb9b0d408800b97f02b4f8`.
+
+## Retained whitespace fallback
+
+[Run 34366852190](https://github.com/xipkit/vibescript/actions/runs/34366852190) adds a focused ordinary-executable check on AMD EPYC 7763. It uses the same generated driver, times 38 whitespace/string controls, and collects six alternating 100 ms samples under default, SIMD, and AVX2-disabled flags. Its `base` revision is the original `7a3ba646`; `ascii` is the retained combined snapshot `64bb2d46`, including scalar trim-mode specialization; `head` is a later dispatch experiment `e487e2d6` that was rejected. The manifest records these roles and full SHAs.
+
+The retained snapshot is byte-identical to PR #1283 head `2a798d45fe46cc5261c13bfb41b40a399278fec1`, tree `d62a8737ee28d585eec29f3ff90e26d6680d527f`. Its complete Go 1.26.3 and Go 1.27.1 SIMD suites passed with both `VIBES_ESTIMATOR_VERIFY=1` and `VIBES_ENV_RECYCLE_VERIFY=1`.
+
+| 64 KiB complete call | Original baseline | Retained snapshot |
+|---|---:|---:|
+| SIMD long-padding trim | 35.99 µs | 13.53 µs |
+| SIMD split long fields | 173.29 µs | 127.75 µs |
+| SIMD split all whitespace | 37.66 µs | 13.20 µs |
+| AVX2-disabled long-padding trim | 35.55 µs | 35.61 µs |
+
+Allocation counts match for these calls. Small AVX2-disabled trim cases cost 1–2.2% more; 64 KiB trim is statistically unchanged. The later dispatch experiment made that long trim 28.09% slower (35.61 → 45.61 µs), so its extra helper/dispatch code was removed. The retained implementation specializes the trim-mode predicate outside each scalar loop. This native check supplements the earlier M4 forced-scalar validation.
+
+Build/workload tradeoffs remain: the retained snapshot's SIMD Unicode index and rindex controls are 16.47% and 5.39% slower on this host, while Unicode length and slice improve. The default-build comparison has no significant regressions of 3% or more among these 38 controls. These are distinct builds and CPUs from the first report; do not attribute every delta to one algorithm. Remaining Unicode and dense-escape costs are tracked in [#1291](https://github.com/xipkit/vibescript/issues/1291).
+
+`whitespace-final-evidence.tar.gz` includes the complete focused native data, driver, comparisons, local scalar-specialization data, full accounting-oracle logs, and publication tree proof. Archive SHA-256: `95e56f6fc9a36a92f9023dc7d94782bd6a611aa89ea572e7f70cb094ae8fa070`.
