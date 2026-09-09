@@ -53,7 +53,7 @@ func BenchmarkJSONSpans(b *testing.B) {
 						source = "def run(input)\n  JSON.stringify(input)\nend"
 						input = payload
 					}
-					script := compileScriptWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, source)
+					script := simdBenchmarkCompileWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, source)
 					args := []Value{input}
 					b.ReportAllocs()
 					b.ResetTimer()
@@ -103,7 +103,7 @@ func BenchmarkJSONSpansMixedDocument(b *testing.B) {
 				source = "def run(input)\n  JSON.stringify(input)\nend"
 				input = payload
 			}
-			script := compileScriptWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, source)
+			script := simdBenchmarkCompileWithConfig(b, Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20}, source)
 			args := []Value{input}
 			b.ReportAllocs()
 			b.ResetTimer()
