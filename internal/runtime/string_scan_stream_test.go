@@ -32,6 +32,69 @@ end`)
 	}
 }
 
+func TestStringScanBlockNoMatchWithManyCaptures(t *testing.T) {
+	t.Parallel()
+	engine := MustNewEngine(Config{StepQuota: Unlimited, MemoryQuotaBytes: 64 << 10})
+	engine.RegisterBuiltin("scratch_bytes", func(exec *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+		return NewInt(int64(exec.reservedScratchBytes)), nil
+	})
+	script := compileScriptWithEngine(t, engine, `def block_scan(text, pattern)
+  result = text.scan(pattern) { |part| nil }
+  [result, scratch_bytes()]
+end
+
+def array_scan(text, pattern)
+  text.scan(pattern)
+end`)
+	for _, test := range []struct {
+		name    string
+		text    string
+		pattern string
+	}{
+		{name: "empty", pattern: strings.Repeat("(a)", 1000)},
+		{name: "too short", text: "a", pattern: strings.Repeat("(a)", 1000)},
+		{name: "sparse", text: strings.Repeat("b", 1000), pattern: strings.Repeat("(a)", 1000)},
+		{name: "erased captures", text: "b", pattern: strings.Repeat("(a){0}", 1000) + "z"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := []Value{NewString(test.text), NewString(test.pattern)}
+			compareArrays(t, callFunc(t, script, "array_scan", args), nil)
+			compareArrays(t, callFunc(t, script, "block_scan", args), []Value{NewString(test.text), NewInt(0)})
+		})
+	}
+}
+
+func TestStringScanBlockManyCapturesChecksScratchBeforeYield(t *testing.T) {
+	t.Parallel()
+	engine := MustNewEngine(Config{StepQuota: Unlimited, MemoryQuotaBytes: 64 << 10})
+	yielded := false
+	engine.RegisterBuiltin("note_yield", func(_ *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+		yielded = true
+		return NewNil(), nil
+	})
+	script := compileScriptWithEngine(t, engine, `def run(text, pattern)
+  text.scan(pattern) { |part| note_yield() }
+end`)
+	for _, test := range []struct {
+		name    string
+		text    string
+		pattern string
+	}{
+		{name: "nonempty", text: strings.Repeat("a", 1000), pattern: strings.Repeat("(a)", 1000)},
+		{name: "empty", pattern: strings.Repeat("()", 1000)},
+		{name: "erased captures", pattern: strings.Repeat("(a){0}", 1000)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			yielded = false
+			args := []Value{NewString(test.text), NewString(test.pattern)}
+			requireCallRuntimeErrorType(t, script, "run", args, CallOptions{}, runtimeErrorTypeLimit)
+			if yielded {
+				t.Error("scan yielded a match before rejecting its index scratch")
+			}
+		})
+	}
+}
+
 func TestStringScanBlockNestingLimit(t *testing.T) {
 	t.Parallel()
 	for _, core := range []string{`\b..`, `\B..`, `(?m)^.`, `a*`} {

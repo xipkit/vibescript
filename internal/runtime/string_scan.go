@@ -20,10 +20,24 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 	// Reserving four rows also covers old and
 	// new backing arrays coexisting during that padding, before the next check.
 	delta := exec.reserveLoopScratch(saturatingMul(4, regexSubmatchIndexRowBytes(groups)))
-	defer exec.releaseLoopScratch(delta)
-	if err := roots.check(exec); err != nil {
-		return NewNil(), err
+	noMatches := false
+	if exec.memoryQuota > 0 && exec.memoryExceeded(roots.liveBytes(exec)) {
+		exec.releaseLoopScratch(delta)
+		delta = 0
+		if err := roots.check(exec); err != nil {
+			return NewNil(), err
+		}
+		if err := exec.step(); err != nil {
+			return NewNil(), err
+		}
+		// A miss allocates no returned index row. Probe without requesting
+		// captures before latching exhaustion for this hypothetical scratch.
+		if re.MatchString(text) {
+			return NewNil(), exec.memoryQuotaExceededError()
+		}
+		noMatches = true
 	}
+	defer exec.releaseLoopScratch(delta)
 
 	work := regexWork{exec: exec}
 	cursor := stringScanCursor{
@@ -65,6 +79,9 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 	runner, err := newBlockCallRunner(exec, block, "string.scan", receiver, args, kwargs)
 	if err != nil {
 		return NewNil(), err
+	}
+	if noMatches {
+		return receiver, nil
 	}
 	var blockArg [1]Value
 	for {
