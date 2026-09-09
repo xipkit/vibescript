@@ -1935,7 +1935,7 @@ func (exec *Execution) storeMutableStep(container Value, step *mutablePathStep, 
 		if i < 0 || i >= len(elems) {
 			return nil
 		}
-		bumpMutationEpoch()
+		container.BumpMutationEpoch()
 		elems[i] = val
 		return nil
 	case KindHash, KindObject:

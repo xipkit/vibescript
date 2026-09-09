@@ -93,8 +93,9 @@ const estimatedMapEntryStructuralBytes = estimatedMapEntryBytes + estimatedStrin
 type memoryEstimator struct {
 	seenFrozen       *Env
 	seenEnvInline    [inlineSeenEnvs]*Env
+	seenEnvVersions  [inlineSeenEnvs]uint64
 	seenEnvInlineLen int
-	seenEnvs         map[*Env]struct{}
+	seenEnvs         map[*Env]uint64
 	seenMaps         map[uintptr]struct{}
 	seenHashData     map[uintptr]struct{}
 	seenObjectData   map[uintptr]struct{}
@@ -383,15 +384,15 @@ var (
 // baseWalkCache memoizes the reachable-graph portion of the estimator's base
 // walk between checks. The memo is the pair (exec.memoryEst's committed
 // seen-state, graphBytes): a later check whose graph provably cannot have
-// changed -- the process-wide mutation epoch and the execution's root-set
-// topology version both still match -- resumes from that state instead of
+// changed -- its reachable environment versions and wrapper mutation history
+// are still current, and its root-set topology matches -- resumes from that state instead of
 // re-walking the graph, then walks only its extra roots. Because the resumed
 // computation is literally the suffix of the walk the check would have
 // performed from scratch (the estimator's total is order-independent: it is a
 // deduplicated union over reachable identities), a memoized check returns
-// exactly the bytes an unmemoized one would; there is no partial or per-node
-// invalidation to reason about, a single epoch bump anywhere discards the
-// whole memo.
+// exactly the bytes an unmemoized one would. A relevant mutation discards the
+// whole memo; unrelated lexical writes and journaled wrapper writes preserve it.
+// Opaque writes and incomplete mutation history conservatively discard it too.
 //
 // Extra roots walked on top of the memo are recorded in journal and rolled
 // back when the session closes, restoring the committed base-only state (and
@@ -419,6 +420,8 @@ type baseWalkCache struct {
 	// whenever the graph walk is re-memoized.
 	journalBudget int
 	epoch         uint64
+	opaqueEpoch   uint64
+	wrapperEpoch  uint64
 	topo          uint64
 	// regionBoundary records which walk shape the memoized graphBytes holds: a
 	// block-iteration region's prefix boundary (see memory_blockregion.go), or
@@ -600,12 +603,12 @@ func (exec *Execution) beginBaseWalk() baseWalkSession {
 		c.valid = false
 		exec.baseWalkCache = c
 	}
-	// Snapshot the epoch before walking: a bump that lands mid-walk then fails
-	// the equality check on the next session, forcing a conservative re-walk.
+	// Snapshot before walking so the next check considers mutations that arrive
+	// during the walk instead of treating their sequence as already observed.
 	epoch := value.MutationEpoch()
-	if !c.valid || c.epoch != epoch || c.topo != exec.baseTopoVersion || c.regionBoundary != noBlockRegion {
+	if !c.valid || !c.mutationsCurrent(est, epoch) || c.topo != exec.baseTopoVersion || c.regionBoundary != noBlockRegion {
 		est.reset()
-		c.epoch = epoch
+		c.captureMutationEpochs(epoch)
 		c.topo = exec.baseTopoVersion
 		c.regionBoundary = noBlockRegion
 		c.graphBytes = exec.estimateGraphBaseFast(est)
@@ -3136,19 +3139,20 @@ func (est *memoryEstimator) rememberEnv(env *Env) bool {
 		if _, seen := est.seenEnvs[env]; seen {
 			return true
 		}
-		est.seenEnvs[env] = struct{}{}
+		est.seenEnvs[env] = env.mutationVersion
 		return false
 	}
 	if est.seenEnvInlineLen < len(est.seenEnvInline) {
 		est.seenEnvInline[est.seenEnvInlineLen] = env
+		est.seenEnvVersions[est.seenEnvInlineLen] = env.mutationVersion
 		est.seenEnvInlineLen++
 		return false
 	}
-	est.seenEnvs = make(map[*Env]struct{}, len(est.seenEnvInline)+1)
+	est.seenEnvs = make(map[*Env]uint64, len(est.seenEnvInline)+1)
 	for _, seenEnv := range est.seenEnvInline {
-		est.seenEnvs[seenEnv] = struct{}{}
+		est.seenEnvs[seenEnv] = seenEnv.mutationVersion
 	}
-	est.seenEnvs[env] = struct{}{}
+	est.seenEnvs[env] = env.mutationVersion
 	return false
 }
 
@@ -3159,6 +3163,7 @@ func (est *memoryEstimator) forgetEnv(env *Env) {
 		}
 		last := est.seenEnvInlineLen - 1
 		est.seenEnvInline[i] = est.seenEnvInline[last]
+		est.seenEnvVersions[i] = est.seenEnvVersions[last]
 		est.seenEnvInline[last] = nil
 		est.seenEnvInlineLen--
 		break

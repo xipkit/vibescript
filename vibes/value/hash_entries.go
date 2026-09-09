@@ -297,13 +297,13 @@ func (v Value) hashSetInternal(key, val Value, bump bool) error {
 		return err
 	}
 	if v.kind == KindObject {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		v.data.(*objectData).entries[name] = val
 		return nil
 	}
 	hd := v.data.(*hashData)
 	if bump {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 	}
 	if hd.entries == nil {
 		hd.entries = make(map[string]Value)
@@ -355,7 +355,7 @@ func (v Value) HashDeleteKey(key Value) (Value, bool, error) {
 	if !ok {
 		return NewNil(), false, nil
 	}
-	BumpMutationEpoch()
+	v.BumpMutationEpoch()
 	delete(m, name)
 	if v.kind == KindHash {
 		hd := v.data.(*hashData)
@@ -376,7 +376,7 @@ func (v Value) HashClearEntries() {
 	switch v.kind {
 	case KindHash:
 		hd := v.data.(*hashData)
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		if hd.entries != nil {
 			hd.entries = map[string]Value{}
 		}
@@ -384,7 +384,7 @@ func (v Value) HashClearEntries() {
 		hd.order = nil
 		hd.orderUntrusted.Store(false)
 	case KindObject:
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		clear(v.data.(*objectData).entries)
 	}
 }
@@ -491,7 +491,7 @@ func (v Value) reserveHashOrderInternal(n int, bump bool) {
 		return
 	}
 	if bump {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 	}
 	grown := make([]Value, len(hd.order), n)
 	copy(grown, hd.order)
@@ -512,14 +512,14 @@ func (v Value) ReserveHashCapacity(n int) {
 		return
 	}
 	if hd.entries == nil {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		hd.entries = make(map[string]Value, n)
 		hd.entryCapacity = int32(n)
 		v.ReserveHashOrder(n)
 		return
 	}
 	if n > int(hd.entryCapacity) {
-		BumpMutationEpoch()
+		v.BumpMutationEpoch()
 		grown := make(map[string]Value, n)
 		maps.Copy(grown, hd.entries)
 		hd.entries = grown
