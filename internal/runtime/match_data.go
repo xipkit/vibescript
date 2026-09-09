@@ -25,7 +25,21 @@ const matchDataNamedCapturesKey = "named_captures"
 // newMatchData builds the match result. names is the compiled pattern's
 // subexpression names, index-aligned with the capture groups, so a pattern
 // with no named groups passes a slice of empty strings (or nil).
-func newMatchData(text string, indices []int, names []string) Value {
+func newMatchData(exec *Execution, text string, indices []int, names []string, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
+	allocation, copied := matchDataAllocationBytes(text, indices, names)
+	// Nested captures can copy the same region repeatedly, exceeding the
+	// receiver-sized scan already billed by String#match.
+	if err := exec.chargeStringScan(copied); err != nil {
+		return NewNil(), err
+	}
+	if exec != nil {
+		delta := exec.reserveLoopScratch(allocation)
+		defer exec.releaseLoopScratch(delta)
+		if err := exec.checkReservedLoopScratch(receiver, args, kwargs, block); err != nil {
+			return NewNil(), err
+		}
+	}
+
 	values := make([]Value, len(indices)/2)
 	starts := make([]Value, len(values))
 	ends := make([]Value, len(values))
@@ -38,7 +52,7 @@ func newMatchData(text string, indices []int, names []string) Value {
 			ends[i] = NewNil()
 			continue
 		}
-		values[i] = NewString(text[start:end])
+		values[i] = NewString(clonedWindow(text, text[start:end]))
 		starts[i] = NewInt(int64(utf8.RuneCountInString(text[:start])))
 		ends[i] = NewInt(int64(utf8.RuneCountInString(text[:end])))
 	}
@@ -51,8 +65,8 @@ func newMatchData(text string, indices []int, names []string) Value {
 	preMatch := NewNil()
 	postMatch := NewNil()
 	if len(indices) >= 2 && indices[0] >= 0 && indices[1] >= 0 {
-		preMatch = NewString(text[:indices[0]])
-		postMatch = NewString(text[indices[1]:])
+		preMatch = NewString(clonedWindow(text, text[:indices[0]]))
+		postMatch = NewString(clonedWindow(text, text[indices[1]:]))
 	}
 
 	whole := NewNil()
@@ -74,7 +88,55 @@ func newMatchData(text string, indices []int, names []string) Value {
 		"end": NewCapturingBuiltin("match_data.end", func(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
 			return matchDataOffset("match_data.end", ends, args, kwargs, block)
 		}, endsVal),
-	}, ObjectTagMatchData, whole.String())
+	}, ObjectTagMatchData, whole.String()), nil
+}
+
+// matchDataAllocationBytes prices the complete construction peak before any
+// window is copied. Named and positional views share each capture's payload;
+// different capture groups own separate copies even when their windows overlap.
+func matchDataAllocationBytes(text string, indices []int, names []string) (int, int) {
+	count := len(indices) / 2
+	bytes := estimatedValueBytes + estimatedObjectDataBytes + estimatedMapBaseBytes + 7*estimatedMapEntryStructuralBytes
+	bytes += len(matchDataWholeKey+matchDataNamedCapturesKey+"capturespre_matchpost_matchbeginend") + estimatedStringHeaderBytes
+	bytes = saturatingAdd(bytes, valueSliceBackingBytes(count)) // Temporary positional values.
+	bytes = saturatingAdd(bytes, nestedArrayBackingBytes(max(0, count-1)))
+	bytes = saturatingAdd(bytes, saturatingMul(2, nestedArrayBackingBytes(count)))
+	// The estimator bills each array element's Value in addition to its slot.
+	elements := saturatingAdd(saturatingMul(2, count), max(0, count-1))
+	bytes = saturatingAdd(bytes, saturatingMul(elements, estimatedValueBytes))
+	// Each offset builtin owns its captured-value slice and a Go closure over
+	// the same offset backing that the captured array exposes to the estimator.
+	bytes = saturatingAdd(bytes, 2*(estimatedBuiltinBytes+valueSliceBackingBytes(1)+estimatedSliceBaseBytes+estimatedIntBytes))
+	bytes = saturatingAdd(bytes, saturatingMul(len(indices), estimatedIntBytes))
+
+	namedCount := 0
+	copied := 0
+	for i := range count {
+		start, end := indices[2*i], indices[2*i+1]
+		if start >= 0 && end >= 0 {
+			bytes = saturatingAdd(bytes, estimatedStringHeaderBytes)
+			if end-start != len(text) {
+				copied = saturatingAdd(copied, end-start)
+			}
+		}
+		if i > 0 && i < len(names) && names[i] != "" {
+			namedCount++
+			bytes = saturatingAdd(bytes, len(names[i])+estimatedStringHeaderBytes)
+		}
+	}
+	// Counting duplicate names separately bounds the map without allocating a
+	// second name set merely to decide whether construction fits the quota.
+	bytes = saturatingAdd(bytes, hashTransformBufferBytes(namedCount, 0)-estimatedValueBytes)
+	if len(indices) >= 2 && indices[0] >= 0 && indices[1] >= 0 {
+		bytes = saturatingAdd(bytes, 2*estimatedStringHeaderBytes)
+		if indices[0] != len(text) {
+			copied = saturatingAdd(copied, indices[0])
+		}
+		if indices[1] != 0 {
+			copied = saturatingAdd(copied, len(text)-indices[1])
+		}
+	}
+	return saturatingAdd(bytes, copied), copied
 }
 
 // newNamedCaptures pairs each named group with the text it matched. Ruby's
