@@ -1,5 +1,7 @@
 # Performance audit, September 7, 2026
 
+All eight findings have since been fixed and merged. See the [fix results and delivery evidence](fixes/RESULTS.md).
+
 Target: upstream `6e9710c427cf434d4e178b7be7562d296026bb3c` (v0.60.0 plus current fixes).
 Host: Apple M4, 16 GiB RAM, macOS arm64, Go 1.26.3. The original working branch was stale; all measurements use current upstream.
 
@@ -24,7 +26,7 @@ All timing table values above use medians of three focused runs. Retained-heap e
 
 The broad baseline used the repository runner with `--count 1 --benchtime 100ms --cpu 1`, covering 106 runtime benchmark cases and 13 tooling/value/capability cases. Candidate findings were repeated three times and profiled individually. Benchmark subprocesses were serialized; source review happened in parallel. Setup is excluded from focused benchmark timers. Validation of returned values prevents meaningless timing of failed work.
 
-`baseline.txt` and `tools-values-baseline.txt` are screening data. `focused-repeated.txt`, `uniq-repeated.txt` and `memory-invalidation.txt` contain publishable repeated measurements. Retention logs compare live heap after GC. Profile summaries are in `profiles/`; raw CPU/heap profiles remain in `/tmp/vibescript-perf-evidence-20260907` on the audit machine.
+`baseline.txt` and `tools-values-baseline.txt` are screening data. `focused-repeated.txt`, `uniq-repeated.txt` and `memory-invalidation.txt` contain publishable repeated measurements. Retention logs compare live heap after GC. Profile summaries are in `profiles/`; raw CPU/heap profiles were temporary local artifacts. The published profile summaries are retained here.
 
 macOS profiles contain substantial scheduler/VM samples (`kevent`, `madvise`), so whole-profile CPU percentages should not be treated as portable application CPU attribution. Allocation stacks, deterministic node counts, scaling curves and controlled interventions provide the stronger attribution here. The accumulator-section `uniq` benchmark is a diagnostic intervention, not a validated optimization patch.
 

@@ -1,0 +1,126 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop               	    2305	     97519 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop               	    2568	     98693 ns/op	    3832 B/op	      14 allocs/op
+BenchmarkExecutionArithmeticLoop               	    2568	     97315 ns/op	    3832 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline                	     381	    643060 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionArrayPipeline                	     368	    677981 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionArrayPipeline                	     334	    702626 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionEachRowsScalarAccumulator    	     244	    977929 ns/op	  558890 B/op	    2482 allocs/op
+BenchmarkExecutionEachRowsScalarAccumulator    	     246	    981592 ns/op	  558890 B/op	    2482 allocs/op
+BenchmarkExecutionEachRowsScalarAccumulator    	     242	    982973 ns/op	  558891 B/op	    2482 allocs/op
+BenchmarkExecutionHashTransformValuesLoop      	     556	    429174 ns/op	  203260 B/op	      51 allocs/op
+BenchmarkExecutionHashTransformValuesLoop      	     538	    433406 ns/op	  203260 B/op	      51 allocs/op
+BenchmarkExecutionHashTransformValuesLoop      	     534	    425441 ns/op	  203260 B/op	      51 allocs/op
+BenchmarkExecutionArrayPushAccumulation        	     378	    643287 ns/op	   67214 B/op	     828 allocs/op
+BenchmarkExecutionArrayPushAccumulation        	     376	    643106 ns/op	   67214 B/op	     828 allocs/op
+BenchmarkExecutionArrayPushAccumulation        	     363	    696010 ns/op	   67214 B/op	     828 allocs/op
+BenchmarkExecutionArrayConcatAccumulation      	     259	    928367 ns/op	   80425 B/op	    1231 allocs/op
+BenchmarkExecutionArrayConcatAccumulation      	     273	    877052 ns/op	   80425 B/op	    1231 allocs/op
+BenchmarkExecutionArrayConcatAccumulation      	     267	    982022 ns/op	   80425 B/op	    1231 allocs/op
+BenchmarkExecutionMethodDispatchLoop           	     522	    484155 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionMethodDispatchLoop           	     529	    506954 ns/op	    6940 B/op	      53 allocs/op
+BenchmarkExecutionMethodDispatchLoop           	     525	    491960 ns/op	    6940 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop           	     175	   1688560 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionCapabilityFindLoop           	      97	   2361775 ns/op	  492889 B/op	    6709 allocs/op
+BenchmarkExecutionCapabilityFindLoop           	     141	   2385012 ns/op	  492882 B/op	    6709 allocs/op
+BenchmarkExecutionJSONParseLoop                	     747	    467814 ns/op	   90971 B/op	    1797 allocs/op
+BenchmarkExecutionJSONParseLoop                	     763	    313969 ns/op	   90971 B/op	    1797 allocs/op
+BenchmarkExecutionJSONParseLoop                	     782	    320508 ns/op	   90971 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop            	     344	    746137 ns/op	   53567 B/op	     520 allocs/op
+BenchmarkExecutionJSONStringifyLoop            	     306	    690365 ns/op	   53568 B/op	     520 allocs/op
+BenchmarkExecutionJSONStringifyLoop            	     357	    686977 ns/op	   53566 B/op	     520 allocs/op
+BenchmarkExecutionRegexReplaceAllLoop          	     916	    289940 ns/op	   29852 B/op	     989 allocs/op
+BenchmarkExecutionRegexReplaceAllLoop          	     810	    302055 ns/op	   29852 B/op	     989 allocs/op
+BenchmarkExecutionRegexReplaceAllLoop          	     825	    308079 ns/op	   29852 B/op	     989 allocs/op
+BenchmarkExecutionTallyLoop                    	     100	   2054492 ns/op	  203552 B/op	     675 allocs/op
+BenchmarkExecutionTallyLoop                    	     100	   2044865 ns/op	  203552 B/op	     675 allocs/op
+BenchmarkExecutionTallyLoop                    	     100	   2046184 ns/op	  203552 B/op	     675 allocs/op
+BenchmarkExecutionRecursiveFib                 	      33	   6893346 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFib                 	      34	   6852332 ns/op	   21342 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFib                 	      33	   6882256 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionEachRowsPureBody             	     170	   1390483 ns/op	 1251070 B/op	    5538 allocs/op
+BenchmarkExecutionEachRowsPureBody             	     171	   1411698 ns/op	 1251070 B/op	    5538 allocs/op
+BenchmarkExecutionEachRowsPureBody             	     170	   1380734 ns/op	 1251070 B/op	    5538 allocs/op
+BenchmarkExecutionMapRowsPureBody              	     198	   1201069 ns/op	  655965 B/op	    2532 allocs/op
+BenchmarkExecutionMapRowsPureBody              	     200	   1200314 ns/op	  655964 B/op	    2532 allocs/op
+BenchmarkExecutionMapRowsPureBody              	     196	   1198211 ns/op	  655965 B/op	    2532 allocs/op
+BenchmarkExecutionMapRowsScalarAccumulator     	     163	   1460226 ns/op	  655751 B/op	    2529 allocs/op
+BenchmarkExecutionMapRowsScalarAccumulator     	     164	   1455295 ns/op	  655751 B/op	    2529 allocs/op
+BenchmarkExecutionMapRowsScalarAccumulator     	     164	   1444442 ns/op	  655751 B/op	    2529 allocs/op
+BenchmarkExecutionHashEachHostBuilt            	     332	    745060 ns/op	  218592 B/op	      41 allocs/op
+BenchmarkExecutionHashEachHostBuilt            	     324	    745851 ns/op	  218592 B/op	      41 allocs/op
+BenchmarkExecutionHashEachHostBuilt            	     330	    735909 ns/op	  218591 B/op	      41 allocs/op
+BenchmarkExecutionHashEachHostBuiltAccumulator 	      93	   2513976 ns/op	 1123115 B/op	    4107 allocs/op
+BenchmarkExecutionHashEachHostBuiltAccumulator 	      93	   2532031 ns/op	 1123115 B/op	    4107 allocs/op
+BenchmarkExecutionHashEachHostBuiltAccumulator 	      93	   2531146 ns/op	 1123115 B/op	    4107 allocs/op
+BenchmarkExecutionHashSelectHostBuilt          	     276	    860432 ns/op	  366225 B/op	      49 allocs/op
+BenchmarkExecutionHashSelectHostBuilt          	     278	    855542 ns/op	  366225 B/op	      49 allocs/op
+BenchmarkExecutionHashSelectHostBuilt          	     285	    847882 ns/op	  366225 B/op	      49 allocs/op
+BenchmarkExecutionHashTransformValuesTyped     	     320	    732775 ns/op	  367184 B/op	      55 allocs/op
+BenchmarkExecutionHashTransformValuesTyped     	     318	    722091 ns/op	  367184 B/op	      55 allocs/op
+BenchmarkExecutionHashTransformValuesTyped     	     316	    735261 ns/op	  367184 B/op	      55 allocs/op
+BenchmarkExecutionHashSelectTyped              	     279	    848863 ns/op	  366225 B/op	      49 allocs/op
+BenchmarkExecutionHashSelectTyped              	     280	    826503 ns/op	  366225 B/op	      49 allocs/op
+BenchmarkExecutionHashSelectTyped              	     277	    831599 ns/op	  366225 B/op	      49 allocs/op
+BenchmarkExecutionHashTransformKeysHostBuilt   	     224	   1046973 ns/op	  513587 B/op	    3081 allocs/op
+BenchmarkExecutionHashTransformKeysHostBuilt   	     230	   1035625 ns/op	  513587 B/op	    3081 allocs/op
+BenchmarkExecutionHashTransformKeysHostBuilt   	     232	   1028223 ns/op	  513587 B/op	    3081 allocs/op
+BenchmarkExecutionHashTransformKeysTyped       	     232	   1030853 ns/op	  513587 B/op	    3081 allocs/op
+BenchmarkExecutionHashTransformKeysTyped       	     229	   1045130 ns/op	  513587 B/op	    3081 allocs/op
+BenchmarkExecutionHashTransformKeysTyped       	     228	   1043615 ns/op	  513587 B/op	    3081 allocs/op
+BenchmarkCallShortScript                       	  238522	      1007 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallShortScript                       	  237655	      1004 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallShortScript                       	  232896	      1005 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionStepLoop                     	     151	   1580158 ns/op	    3792 B/op	      12 allocs/op
+BenchmarkExecutionStepLoop                     	     151	   1582813 ns/op	    3792 B/op	      12 allocs/op
+BenchmarkExecutionStepLoop                     	     151	   1575700 ns/op	    3792 B/op	      12 allocs/op
+BenchmarkBuiltinMemberDispatchLoop             	     638	    388422 ns/op	    4923 B/op	      23 allocs/op
+BenchmarkBuiltinMemberDispatchLoop             	     642	    388524 ns/op	    4923 B/op	      23 allocs/op
+BenchmarkBuiltinMemberDispatchLoop             	     638	    378572 ns/op	    4923 B/op	      23 allocs/op
+BenchmarkCallTypedCompositeValidation          	     501	    466892 ns/op	   85901 B/op	     548 allocs/op
+BenchmarkCallTypedCompositeValidation          	     500	    471922 ns/op	   85901 B/op	     548 allocs/op
+BenchmarkCallTypedCompositeValidation          	     493	    474989 ns/op	   85901 B/op	     548 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop       	     100	   2754786 ns/op	  920992 B/op	   11364 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop       	     100	   2740748 ns/op	  920993 B/op	   11364 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop       	     100	   2721628 ns/op	  920995 B/op	   11364 allocs/op
+BenchmarkModuleRequireCacheHit                 	   44162	      5366 ns/op	    6688 B/op	      37 allocs/op
+BenchmarkModuleRequireCacheHit                 	   44366	      5684 ns/op	    6688 B/op	      37 allocs/op
+BenchmarkModuleRequireCacheHit                 	   41712	      5781 ns/op	    6688 B/op	      37 allocs/op
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	28.536s
+
+Benchmark                                       ns/op    max_ns/op     delta_ns         B/op     max_B/op      delta_B    allocs/op   max_allocs   delta_allocs
+BenchmarkExecutionArithmeticLoop                97315      5000000 -4902685.0000         3833         6000   -2167.0000           14           30       -16.0000
+BenchmarkExecutionStepLoop                    1575700     16000000 -14424300.0000         3792         6000   -2208.0000           12           25       -13.0000
+BenchmarkExecutionArrayPipeline                643060     64000000 -63356940.0000        78495       150000  -71505.0000           52          100       -48.0000
+BenchmarkExecutionEachRowsScalarAccumulator       977929     20000000 -19022071.0000       558891       800000 -241109.0000         2482         2800      -318.0000
+BenchmarkExecutionArrayPushAccumulation        643106      3600000 -2956894.0000        67214       120000  -52786.0000          828          900       -72.0000
+BenchmarkExecutionArrayConcatAccumulation       877052      4200000 -3322948.0000        80425       150000  -69575.0000         1231         2400     -1169.0000
+BenchmarkExecutionMethodDispatchLoop           484155      8000000 -7515845.0000         6941       130000 -123059.0000           53         1000      -947.0000
+BenchmarkBuiltinMemberDispatchLoop             378572      5000000 -4621428.0000         4923         8000   -3077.0000           23           50       -27.0000
+BenchmarkCallTypedCompositeValidation          466892     14000000 -13533108.0000        85901       160000  -74099.0000          548         1100      -552.0000
+BenchmarkExecutionCapabilityFindLoop          1688560     12000000 -10311440.0000       492889       700000 -207111.0000         6709         7800     -1091.0000
+BenchmarkExecutionCapabilityWorkflowLoop      2721628     16000000 -13278372.0000       920995      2000000 -1079005.0000        11364        13000     -1636.0000
+BenchmarkExecutionJSONParseLoop                313969      3000000 -2686031.0000        90971       210000 -119029.0000         1797         2500      -703.0000
+BenchmarkExecutionJSONStringifyLoop            686977      3000000 -2313023.0000        53568        60000   -6432.0000          520          800      -280.0000
+BenchmarkExecutionRegexReplaceAllLoop          289940      4000000 -3710060.0000        29852        30000    -148.0000          989         1200      -211.0000
+BenchmarkExecutionTallyLoop                   2044865     12000000 -9955135.0000       203552       550000 -346448.0000          675         1200      -525.0000
+BenchmarkExecutionHashTransformValuesLoop       425441      8000000 -7574559.0000       203260       260000  -56740.0000           51          120       -69.0000
+BenchmarkExecutionEachRowsPureBody            1380734     25000000 -23619266.0000      1251070      1500000 -248930.0000         5538         6000      -462.0000
+BenchmarkExecutionMapRowsPureBody             1198211     25000000 -23801789.0000       655965       950000 -294035.0000         2532         3800     -1268.0000
+BenchmarkExecutionMapRowsScalarAccumulator      1444442     25000000 -23555558.0000       655751       950000 -294249.0000         2529         3800     -1271.0000
+BenchmarkExecutionHashEachHostBuilt            735909     25000000 -24264091.0000       218592       230000  -11408.0000           41         1600     -1559.0000
+BenchmarkExecutionHashEachHostBuiltAccumulator      2513976     25000000 -22486024.0000      1123115      1600000 -476885.0000         4107         7700     -3593.0000
+BenchmarkExecutionHashSelectHostBuilt          847882     25000000 -24152118.0000       366225       400000  -33775.0000           49         1600     -1551.0000
+BenchmarkExecutionHashTransformValuesTyped       722091     25000000 -24277909.0000       367184      2500000 -2132816.0000           55          240      -185.0000
+BenchmarkExecutionHashSelectTyped              826503     25000000 -24173497.0000       366225      2350000 -1983775.0000           49          190      -141.0000
+BenchmarkExecutionHashTransformKeysTyped      1030853     25000000 -23969147.0000       513587      2950000 -2436413.0000         3081         4800     -1719.0000
+BenchmarkExecutionHashTransformKeysHostBuilt      1028223     25000000 -23971777.0000       513587      1800000 -1286413.0000         3081         6200     -3119.0000
+BenchmarkCallShortScript                         1004         5000   -3996.0000         3472         3500     -28.0000            8           12        -4.0000
+BenchmarkModuleRequireCacheHit                   5366       120000 -114634.0000         6688        10000   -3312.0000           37           60       -23.0000
+BenchmarkExecutionRecursiveFib                6852332     30000000 -23147668.0000        21344        40000  -18656.0000           82          200      -118.0000
+
+benchmark smoke check passed

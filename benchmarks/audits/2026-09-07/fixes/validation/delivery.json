@@ -1,7 +1,7 @@
 {
   "repository": "xipkit/vibescript",
-  "observed_at": "2026-09-09T00:37:53Z",
-  "scope": "Seven merged performance fixes; remaining scan PR1260 excluded.",
+  "observed_at": "2026-09-09T00:50:14Z",
+  "scope": "All eight merged performance fixes from issues 1247 through 1254.",
   "required_gates": [
     "Merged PR",
     "Corresponding issue closed",
@@ -11,6 +11,12 @@
   ],
   "discrepancies": [],
   "observations": [
+    {
+      "pr": 1260,
+      "note": "Security review summary remains on an older head; the required code review covers the final head.",
+      "security_review_head": "f158a568a0ee02d714377bc5caf279899cd635ca",
+      "summary_url": "https://github.com/xipkit/vibescript/pull/1260#issuecomment-5593467456"
+    },
     {
       "pr": 1261,
       "note": "Security review summary remains on an older head; the required code review covers the final head.",
@@ -51,8 +57,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1256#issuecomment-5577418956",
         "posted_at": "2026-09-08T00:54:25Z",
-      "reviewed_commit_prefix": "9f527a2be2",
-      "reviewed_commit_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+        "reviewed_commit_prefix": "9f527a2be2",
+        "reviewed_commit_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. Keep them coming!"
       },
@@ -164,8 +170,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1257#issuecomment-5577503050",
         "posted_at": "2026-09-08T01:04:53Z",
-      "reviewed_commit_prefix": "96542f2939",
-      "reviewed_commit_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+        "reviewed_commit_prefix": "96542f2939",
+        "reviewed_commit_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. Swish!"
       },
@@ -277,8 +283,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1258#issuecomment-5593429870",
         "posted_at": "2026-09-08T23:39:31Z",
-      "reviewed_commit_prefix": "2b9dca5693",
-      "reviewed_commit_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+        "reviewed_commit_prefix": "2b9dca5693",
+        "reviewed_commit_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. Can't wait for the next one!"
       },
@@ -390,8 +396,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1259#issuecomment-5593472569",
         "posted_at": "2026-09-08T23:43:18Z",
-      "reviewed_commit_prefix": "d229b891c0",
-      "reviewed_commit_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+        "reviewed_commit_prefix": "d229b891c0",
+        "reviewed_commit_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. Breezy!"
       },
@@ -484,6 +490,126 @@
       "verified": true
     },
     {
+      "pr": 1260,
+      "title": "Yield block scan matches as they are found",
+      "url": "https://github.com/xipkit/vibescript/pull/1260",
+      "state": "MERGED",
+      "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+      "merge_sha": "d61e439ff89792a0210d0a56cd8af6668b337b92",
+      "merged_at": "2026-09-09T00:48:25Z",
+      "issue": {
+        "number": 1252,
+        "title": "Stream block String scan matches instead of buffering the complete input",
+        "url": "https://github.com/xipkit/vibescript/issues/1252",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-09T00:48:26Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1260#issuecomment-5593999528",
+        "posted_at": "2026-09-09T00:43:18Z",
+        "reviewed_commit_prefix": "b5c7024880",
+        "reviewed_commit_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. Keep them coming!"
+      },
+      "review_threads": {
+        "total": 1,
+        "unresolved": 0,
+        "threads": [
+          {
+            "resolved": true,
+            "outdated": true,
+            "url": "https://github.com/xipkit/vibescript/pull/1260#discussion_r3963308913"
+          }
+        ]
+      },
+      "checks": [
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:41:20Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614755"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:39:45Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614749"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:47:32Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614739"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:41:00Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659352/job/102291614734"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:38:05Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614705"
+        },
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:37:29Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614686"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:47:00Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614654"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:38:36Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614651"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:39:15Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614597"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "b5c7024880d7a5965d5786eb1338569a836d40cf",
+          "completed_at": "2026-09-09T00:38:36Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34295659327/job/102291614498"
+        }
+      ],
+      "verified": true
+    },
+    {
       "pr": 1261,
       "title": "Keep unrelated writes from invalidating quota caches",
       "url": "https://github.com/xipkit/vibescript/pull/1261",
@@ -503,8 +629,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1261#issuecomment-5593641357",
         "posted_at": "2026-09-09T00:02:41Z",
-      "reviewed_commit_prefix": "349d70675d",
-      "reviewed_commit_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+        "reviewed_commit_prefix": "349d70675d",
+        "reviewed_commit_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. :rocket:"
       },
@@ -616,8 +742,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1263#issuecomment-5593822634",
         "posted_at": "2026-09-09T00:22:50Z",
-      "reviewed_commit_prefix": "ab4a601114",
-      "reviewed_commit_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+        "reviewed_commit_prefix": "ab4a601114",
+        "reviewed_commit_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. :rocket:"
       },
@@ -729,8 +855,8 @@
         "author": "chatgpt-codex-connector",
         "url": "https://github.com/xipkit/vibescript/pull/1264#issuecomment-5593801310",
         "posted_at": "2026-09-09T00:20:28Z",
-      "reviewed_commit_prefix": "900a1a3b54",
-      "reviewed_commit_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+        "reviewed_commit_prefix": "900a1a3b54",
+        "reviewed_commit_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
         "verified_final_head": true,
         "statement": "Codex Review: Didn't find any major issues. More of your lovely PRs please."
       },

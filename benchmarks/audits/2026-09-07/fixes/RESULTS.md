@@ -1,6 +1,6 @@
 # Performance fix results
 
-Delivery status: seven fixes are merged. Streaming scan awaits its final GitHub review and CI.
+All eight fixes are merged into master. Issues #1247–#1254 are closed.
 
 The September 7 audit produced eight actionable issues. Each fix has before/after measurements and regression coverage. Measurements below use Apple M4, Go 1.26.3; MB/KB are decimal and MiB/KiB are binary. Timings are medians of repeated runs, with baselines identified in the linked PRs and [measurement notes](README.md).
 
@@ -21,4 +21,6 @@ Detaching JSON tokens increases the measured parse loop from 285 to 310 µs (abo
 
 The original [audit report](../README.md) records screening data, excluded duplicates and the original findings. Raw final measurements are in this directory.
 
-The combined implementation passed full tests, the estimator/recycle oracle, focused race tests, vet, lint, formatting and the unchanged benchmark gate. Short calls use 3,472 B against the 3,500 B limit. [Validation evidence](validation/README.md) records the tested commits and source tree; [delivery evidence](validation/delivery.json) records the seven completed PR gates.
+The combined implementation passed full tests, the estimator/recycle oracle, focused race tests, vet, lint, formatting and the unchanged benchmark gate. Short calls use 3,472 B against the 3,500 B limit. [Validation evidence](validation/README.md) records the tested commits and source tree; [delivery evidence](validation/delivery.json) records all eight completed PR gates.
+
+Merged master [`d61e439f`](https://github.com/xipkit/vibescript/commit/d61e439ff89792a0210d0a56cd8af6668b337b92) exactly matches the final tested source tree, including upstream checker changes that landed during delivery.

@@ -2,31 +2,32 @@
 
 Worktree: `/tmp/vibescript-perf-integration`
 Branch: `mgomes/perf-integration-check`
-Final aggregate: `6d3a2f7de0392349e84661bf6cd0475626d30908`
-Source tree: `c31b2be0911dc4a19b69bbdb5c7f487b52abb160`
+Final aggregate: `e8452179fb1005a7bdb5721b4a07eb1ae6bc802c`
+Verified source tree: `b0fa83617c44258fbfea192bddc873306998dff4`
 
-The aggregate includes origin/master `bec63760` (seven delivered performance fixes and unrelated PR1262), plus final scan `b5c70248`. Declaration layout `ab4a6011`, checker `900a1a3b`, and epoch `349d7067` are included.
+The aggregate includes current origin/master `18095060` (seven delivered performance fixes and unrelated PRs1262/1265), plus final scan `b5c70248`. No files from either unrelated PR were modified.
 
-All requested checks passed:
+All final checks passed on this exact aggregate:
 
-- Full `go test ./... -count=1` on aggregate `d4f33cd6`.
-- Full runtime suite with `VIBES_ESTIMATOR_VERIFY=1 VIBES_ENV_RECYCLE_VERIFY=1` on `d4f33cd6`; runtime 55.984s.
-- Expanded focused race suite count3 on final `6d3a2f7de0392349e84661bf6cd0475626d30908` covering memo mutation, journal, overlapping calls, lazy declarations, snapshots and scan; runtime 17.555s, value 1.598s.
-- `go vet ./...` on final tree.
-- Focused scan suite on final tree; runtime 0.781s.
+- `go test ./... -count=1`; runtime 54.766s.
+- Full runtime suite with `VIBES_ESTIMATOR_VERIFY=1 VIBES_ENV_RECYCLE_VERIFY=1`; runtime 49.255s.
+- Focused checker tests count3 covering type-arm summaries, container classification, scalar locals/unions, declaration roots/context keys, and independent declaration scaling.
+- The same focused checker tests under the race detector; runtime 1.806s.
+- `go vet ./...`.
 - `golangci-lint run --timeout=10m`: 0 issues.
 - Formatting and `git diff --check`: clean.
-- Unchanged `./scripts/bench_smoke_check.sh` on final tree: passed every original threshold. `BenchmarkCallShortScript` measured 998.6 ns/op, 3472 B/op and 8 allocs/op against limits of 5000 ns, 3500 B and 12 allocs. This gate ran after other CPU-heavy jobs finished.
+- Unchanged `./scripts/bench_smoke_check.sh`: every original threshold passed. `BenchmarkCallShortScript` measured 1004 ns/op, 3472 B/op and 8 allocs/op against limits of 5000 ns, 3500 B and 12 allocs. This gate ran with no other local CPU-heavy jobs.
 
-The final tree differs from `d4f33cd6` only by removing the ineffectual `loc = nil` assignment in scan; the full suites were already running when that lint cleanup arrived. Final scan/race/vet/lint/smoke checks cover the exact resulting tree.
+`master1265-checks.json` records the exact commands, exit codes, head and timings.
 
-The public-API 64KiB capture admission probe preserves all eight baseline-admitted live, erased and mixed-capture cases, and admits three additional larger cases. `aggregate-parity-comparison.json` records the compared sets; no cases were dropped.
+Earlier expanded race coverage for memo mutation, wrapper journals, overlapping calls, lazy declarations, snapshots and scan passed on `6d3a2f7`; the only subsequent production changes were PR1265's checker cache, covered by the final checker race suite above. Scan fuzzing was not repeated.
 
-Integration review:
+The public-API 64 KiB capture admission probe preserved all eight baseline-admitted live, erased and mixed-capture cases and admitted three additional larger cases. `aggregate-parity-comparison.json` records those sets. Runtime scan code has not changed since that validation except removal of an ineffectual assignment, which received focused scan/race coverage.
 
-- Upstream PR1262 merged without conflicts and passed focused checker tests count3. Independent review found no cache-lifetime, type-mutability, depth-validity, scalar alias, or accessor-cache interaction issue.
-- Declaration/epoch conflict in `Env.getSkipping` was resolved using helper delegation with versioned lazy materialization.
-- Rebased declaration ancestry attempted to restore `cloneFunctionsForCall`; the aggregate preserved the checker removal. Subsequent origin/master merge was source-identical.
-- Independent cross-feature review found no issues with lazy declaration roots, weak caches, epoch invalidation, or frame cleanup.
+Independent reviews found no cross-feature issues. PR1265's checker-local type summary cleanly replaces PR1262's container cache, preserves nullable/invalid/depth-limited union rules, and keeps named resolution tied to the current root. Scalar alias filtering and accessor caching retain their existing semantics.
 
-`aggregate-checks.json` records exact commands, exit codes, and tested revisions. No external writes or pushes were performed. The worktree is clean.
+Earlier integration conflicts were limited to preserving versioned lazy materialization through Env.getSkipping and retaining removal of the unused cloneFunctionsForCall helper across rebased ancestry. Subsequent master merges introduced no conflicts.
+
+
+
+Master `d61e439ff89792a0210d0a56cd8af6668b337b92` was fetched after PR1260 merged. Its source tree is exactly `b0fa83617c44258fbfea192bddc873306998dff4`, matching the tested aggregate; `git diff --exit-code e8452179 origin/master` passed.

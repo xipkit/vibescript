@@ -1,0 +1,111 @@
+{
+  "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+  "checks": [
+    {
+      "name": "master1265-focused",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "go",
+        "test",
+        "./internal/runtime",
+        "-run",
+        "Test(TypeArmSummary|ContainerTypeArms|CheckScalar|CheckIndependentDeclaration|CheckDeclarationContextKeys|CheckTypeRoot|CheckRepeatedUnionAssignment)",
+        "-count=3"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 9.189
+    },
+    {
+      "name": "master1265-full",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 61.57
+    },
+    {
+      "name": "master1265-oracle",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "go",
+        "test",
+        "-timeout",
+        "20m",
+        "./internal/runtime",
+        "-count=1"
+      ],
+      "env": {
+        "VIBES_ESTIMATOR_VERIFY": "1",
+        "VIBES_ENV_RECYCLE_VERIFY": "1"
+      },
+      "exit_code": 0,
+      "seconds": 49.59
+    },
+    {
+      "name": "master1265-checker-race",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/runtime",
+        "-run",
+        "Test(TypeArmSummary|ContainerTypeArms|CheckScalar|CheckIndependentDeclaration|CheckDeclarationContextKeys|CheckTypeRoot|CheckRepeatedUnionAssignment)",
+        "-count=1"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 13.942
+    },
+    {
+      "name": "master1265-vet",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 1.479
+    },
+    {
+      "name": "master1265-lint",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=10m"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 7.11
+    },
+    {
+      "name": "master1265-smoke",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "./scripts/bench_smoke_check.sh"
+      ],
+      "exit_code": 0
+    },
+    {
+      "name": "master1265-gofmt",
+      "head": "e8452179fb1005a7bdb5721b4a07eb1ae6bc802c",
+      "command": [
+        "gofmt",
+        "-l",
+        "internal/runtime",
+        "vibes/value"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "tree": "b0fa83617c44258fbfea192bddc873306998dff4"
+}
