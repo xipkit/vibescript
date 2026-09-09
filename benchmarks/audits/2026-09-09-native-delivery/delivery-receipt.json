@@ -1,0 +1,297 @@
+{
+  "branch": "master",
+  "head": "c31ea6888de0502612b07bcb759fa88b83f5e77d",
+  "tree": "d62a8737ee28d585eec29f3ff90e26d6680d527f",
+  "validated_preview": "64bb2d461c8626db82e5128c65c77a310ff40379",
+  "validated_tree": "d62a8737ee28d585eec29f3ff90e26d6680d527f",
+  "identical_to_validated_tree": true,
+  "pull_requests": [
+    {
+      "number": 1268,
+      "title": "Meter retained-result walks caused by callback calls",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1268",
+      "headRefOid": "c06ac7052e7accc9a089275355ece8e9dc07aa2c",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T03:49:31Z",
+      "mergeCommit": {
+        "oid": "97015f4a9a3e49e8d4a0e2ac6d257638bd844638"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1279,
+      "title": "Validate optional SIMD builds on ARM64 and AMD64",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1279",
+      "headRefOid": "6f6e31bd27b972e986f1b5d1501ff20cc9c29f4a",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T04:33:07Z",
+      "mergeCommit": {
+        "oid": "30c52f46adf56607702e8f68fa812915be36dc33"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1284,
+      "title": "Compile ASCII string literals faster",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1284",
+      "headRefOid": "0dc012072fac07d3a4b70a85f366354bd9d68339",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T04:55:42Z",
+      "mergeCommit": {
+        "oid": "5ba6e4c1fae59b97581b03d36e4a0b9f8b8f1195"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1288,
+      "title": "Speed up formatting of long literal spans",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1288",
+      "headRefOid": "ea4e7ffd406bd93a7d47b8b5045ccca3d2420735",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T05:17:13Z",
+      "mergeCommit": {
+        "oid": "be97d5eb77205a0f9dc8013aedff9129f7c7cd8e"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1289,
+      "title": "Select SIMD benchmarks without rewriting the workflow",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1289",
+      "headRefOid": "0389c841f8c639cb1b9adb78b98b1130dbb54eef",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T11:54:48Z",
+      "mergeCommit": {
+        "oid": "7a3ba6469b50c5fa7b43764a70f6fc32d7fb3efa"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1290,
+      "title": "Speed up shared ASCII scans",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1290",
+      "headRefOid": "892bc640542acba2d8db7ba93b4ec9b49cd29e76",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T14:14:55Z",
+      "mergeCommit": {
+        "oid": "c31347e14abd1198a4e08f99105f751900acdd98"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1281,
+      "title": "Batch ASCII case comparisons",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1281",
+      "headRefOid": "56477ab3994e73ed7a9223d73d2eb2344d3adee3",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T14:18:51Z",
+      "mergeCommit": {
+        "oid": "b99d9c0d13eca937f1dd7654a4bbb5abe38bdbbe"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1282,
+      "title": "Batch safe ASCII spans in JSON strings",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1282",
+      "headRefOid": "ad6efcd9e2369b2527e1dbfe837c9560ff83e5ce",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T14:19:48Z",
+      "mergeCommit": {
+        "oid": "2638ae5e200127a3cae6accb021ed46dd3fbdb69"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1285,
+      "title": "Speed up regexp quoting",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1285",
+      "headRefOid": "4819359832b4a265adedf347362421b77d143ac7",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T14:24:04Z",
+      "mergeCommit": {
+        "oid": "15b2b0e350619732a9eed26d4923d741b87b20bc"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1286,
+      "title": "Speed up ASCII case conversion",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1286",
+      "headRefOid": "dd134e363d7bd2eec01a855bee7f681767e15762",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T14:24:28Z",
+      "mergeCommit": {
+        "oid": "be8c5a7c555553a7d461384885035e2aa51a3697"
+      },
+      "head_check_state": "SUCCESS"
+    },
+    {
+      "number": 1283,
+      "title": "Speed up long whitespace split and trim scans",
+      "state": "MERGED",
+      "url": "https://github.com/xipkit/vibescript/pull/1283",
+      "headRefOid": "2a798d45fe46cc5261c13bfb41b40a399278fec1",
+      "baseRefName": "master",
+      "mergedAt": "2026-09-09T16:16:03Z",
+      "mergeCommit": {
+        "oid": "c31ea6888de0502612b07bcb759fa88b83f5e77d"
+      },
+      "head_check_state": "SUCCESS"
+    }
+  ],
+  "issues": [
+    {
+      "number": 1270,
+      "title": "Accelerate shared ASCII classification with word scans and optional SIMD",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1270",
+      "closedAt": "2026-09-09T14:14:56Z"
+    },
+    {
+      "number": 1271,
+      "title": "Batch safe ASCII spans in JSON parsing and generation",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1271",
+      "closedAt": "2026-09-09T14:19:50Z"
+    },
+    {
+      "number": 1272,
+      "title": "Investigate span scanning for compiler string literals",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1272",
+      "closedAt": "2026-09-09T04:55:43Z"
+    },
+    {
+      "number": 1273,
+      "title": "Investigate SIMD-backed literal scanning in format and strftime",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1273",
+      "closedAt": "2026-09-09T05:17:14Z"
+    },
+    {
+      "number": 1274,
+      "title": "Batch ASCII case conversion with word operations and optional SIMD",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1274",
+      "closedAt": "2026-09-09T14:24:30Z"
+    },
+    {
+      "number": 1275,
+      "title": "Accelerate ASCII case comparison for long common prefixes",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1275",
+      "closedAt": "2026-09-09T14:18:53Z"
+    },
+    {
+      "number": 1276,
+      "title": "Accelerate long whitespace split spans without slowing short fields",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1276",
+      "closedAt": "2026-09-09T16:16:04Z"
+    },
+    {
+      "number": 1277,
+      "title": "Accelerate long whitespace trimming with optional SIMD",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1277",
+      "closedAt": "2026-09-09T16:16:04Z"
+    },
+    {
+      "number": 1278,
+      "title": "Batch regexp metacharacter scans and investigate SIMD variance",
+      "state": "CLOSED",
+      "url": "https://github.com/xipkit/vibescript/issues/1278",
+      "closedAt": "2026-09-09T14:24:05Z"
+    }
+  ],
+  "post_merge_checks": [
+    {
+      "name": "build-and-test (ubuntu-latest)",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607782"
+    },
+    {
+      "name": "Native SIMD (amd64)",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639350/job/102547608709"
+    },
+    {
+      "name": "benchmark",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639185/job/102547606993"
+    },
+    {
+      "name": "build-and-test (macos-latest)",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607645"
+    },
+    {
+      "name": "Native SIMD (arm64)",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639350/job/102547608989"
+    },
+    {
+      "name": "build-and-test (windows-latest)",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607875"
+    },
+    {
+      "name": "coverage",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607860"
+    },
+    {
+      "name": "race-detector",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607422"
+    },
+    {
+      "name": "goroutine-leak-profile",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607214"
+    },
+    {
+      "name": "estimator-oracle",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607489"
+    },
+    {
+      "name": "collection-copy-oracle",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607523"
+    },
+    {
+      "name": "quality-gates",
+      "status": "IN_PROGRESS",
+      "conclusion": null,
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607530"
+    }
+  ],
+  "post_merge_checks_complete": false,
+  "complete": true,
+  "completion_basis": "All requested PRs merged after green head checks and required reviews; master is byte-identical to the tested preview. Automatic post-merge reruns are recorded separately.",
+  "final_pr_review": "https://github.com/xipkit/vibescript/pull/1283#issuecomment-5604238143",
+  "final_pr_native_run": "https://github.com/xipkit/vibescript/actions/runs/34368472397"
+}

@@ -70,3 +70,21 @@ Allocation counts match for these calls. Small AVX2-disabled trim cases cost 1�
 Build/workload tradeoffs remain: the retained snapshot's SIMD Unicode index and rindex controls are 16.47% and 5.39% slower on this host, while Unicode length and slice improve. The default-build comparison has no significant regressions of 3% or more among these 38 controls. These are distinct builds and CPUs from the first report; do not attribute every delta to one algorithm. Remaining Unicode and dense-escape costs are tracked in [#1291](https://github.com/xipkit/vibescript/issues/1291).
 
 `whitespace-final-evidence.tar.gz` includes the complete focused native data, driver, comparisons, local scalar-specialization data, full accounting-oracle logs, and publication tree proof. Archive SHA-256: `95e56f6fc9a36a92f9023dc7d94782bd6a611aa89ea572e7f70cb094ae8fa070`.
+
+## Final PR acceptance and delivery
+
+[PR run 34368472397](https://github.com/xipkit/vibescript/actions/runs/34368472397) compares final head `2a798d45` with merged base `be8c5a7c`. It validates 155 cases per flag set: the whitespace changes also select the ASCII, case-conversion, and comparison profiles because they share `members_string.go`. Both native full suites, accounting oracles, feature-dispatch checks, and all six benchmark samples passed. The AMD64 runner is an Intel Xeon 6973P-C; the ARM64 runner is an Apple M1 virtual machine.
+
+| 64 KiB whitespace call | Intel SIMD before | Intel SIMD after | ARM SIMD before | ARM SIMD after |
+|---|---:|---:|---:|---:|
+| Long-padding trim | 26.71 µs | 10.84 µs | 42.23 µs | 9.94 µs |
+| Split long fields | 132.77 µs | 95.03 µs | 193.0 µs | 113.5 µs |
+| Split all whitespace | 30.55 µs | 9.01 µs | 45.92 µs | 9.77 µs |
+
+Intel AVX2-disabled long trim is statistically unchanged at 26.68 → 26.89 µs. No whitespace workload shows a significant slowdown in this final native run. Large split allocation counts have the previously observed fractional/one-object variation; scanner helpers remain allocation-free and exact accounting snapshots pass.
+
+The complete artifacts retain the slower controls too. Intel mixed-string length controls show 5–13% differences in the SIMD build. The noisy ARM VM shows 19.39% for 4 KiB ASCII swapcase and 20.65% for a 64 KiB invalid-tail comparison control. These operations retain their existing algorithms in this PR; the observed build/runner sensitivity is a reason to keep the full samples, not claim a universal speedup.
+
+`pr-1283-native-evidence.tar.gz` preserves the complete final native profiles, environment, raw samples, and comparisons. Archive SHA-256: `380589f13025509f7848f3d173da97525237baa44b93b2e35bacaedf217b5e23`.
+
+PR #1283 merged as `c31ea6888de0502612b07bcb759fa88b83f5e77d` after a clean review of the exact head, all 12 checks passing, and no unresolved review threads. Issues #1270–#1278 are closed, and the prior accounting PR #1268 is merged. The final master tree is exactly `d62a8737ee28d585eec29f3ff90e26d6680d527f`, matching the fully tested `64bb2d46` snapshot. `delivery-receipt.json` records all eleven implementation/prerequisite PRs and the nine issue closures. Automatic post-merge CI reruns were still running when that receipt was captured; their state is separate from the completed pre-merge gates.
