@@ -121,9 +121,41 @@ func regexpUnionPattern(exec *Execution, receiver Value, args []Value) (string, 
 	return out.String(), nil
 }
 
-// regexpQuotedSize projects QuoteMeta's output without allocating it. The
+// regexpQuotedSizePortable projects QuoteMeta's output without allocating it. The
 // subtraction and pre-increment checks reject overflow as well as the cap.
-func regexpQuotedSize(text string, limit int) (int, bool) {
+func regexpQuotedSizePortable(text string, limit int) (int, bool) {
+	if len(text) > limit {
+		return 0, false
+	}
+	if len(text) < 32 {
+		return regexpQuotedSizeScalar(text, limit)
+	}
+	size := len(text)
+	start := 0
+	for {
+		n := strings.IndexAny(text[start:], `\.+*?()|[]{}^$`)
+		if n < 0 {
+			return size, true
+		}
+		if n < 16 {
+			// Dense escaping keeps the scalar loop, without rebuilding
+			// IndexAny's character set for each metacharacter.
+			prefix := start + (size - len(text))
+			tail, ok := regexpQuotedSizeScalar(text[start:], limit-prefix)
+			if !ok {
+				return 0, false
+			}
+			return prefix + tail, true
+		}
+		if size == limit {
+			return 0, false
+		}
+		size++
+		start += n + 1
+	}
+}
+
+func regexpQuotedSizeScalar(text string, limit int) (int, bool) {
 	if len(text) > limit {
 		return 0, false
 	}
@@ -140,6 +172,31 @@ func regexpQuotedSize(text string, limit int) (int, bool) {
 }
 
 func writeRegexpQuoted(out *strings.Builder, text string) {
+	if len(text) < 32 {
+		writeRegexpQuotedScalar(out, text)
+		return
+	}
+	start := 0
+	for i := 0; i < len(text); {
+		n := strings.IndexAny(text[i:], `\.+*?()|[]{}^$`)
+		if n < 0 {
+			break
+		}
+		if n < 16 {
+			out.WriteString(text[start:i])
+			writeRegexpQuotedScalar(out, text[i:])
+			return
+		}
+		i += n
+		out.WriteString(text[start:i])
+		out.WriteByte('\\')
+		start = i
+		i++
+	}
+	out.WriteString(text[start:])
+}
+
+func writeRegexpQuotedScalar(out *strings.Builder, text string) {
 	start := 0
 	for i := range len(text) {
 		if regexpMetaByte(text[i]) {
