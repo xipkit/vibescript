@@ -193,6 +193,11 @@ func compileParsed(e *Engine, source string, program *ast.Program) (*Script, err
 	}
 
 	script := &Script{engine: e, functions: functions, classes: classes, classOrder: classOrder, enums: enums, source: source}
+	for _, name := range classOrder {
+		if len(classes[name].Body) > 0 {
+			script.classInitializers = append(script.classInitializers, name)
+		}
+	}
 	script.bindFunctionOwnership()
 	script.symbolLiterals = collectSymbolLiterals(script)
 	return script, nil

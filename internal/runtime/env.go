@@ -27,10 +27,11 @@ type Env struct {
 	parent             *Env
 	mutationVersion    uint64
 	inline             [inlineEnvBindingCapacity]envBinding
-	inlineLen          uint8
 	values             map[string]Value
 	statics            map[string]Value
+	declarations       *callDeclarations
 	staticBytes        int32
+	inlineLen          uint8
 	arrayAppendBuffers map[string][]Value
 	assignBoundary     bool
 	rebindOuter        bool
@@ -208,6 +209,7 @@ func (e *Env) resetForReuse(parent *Env) {
 	e.inlineLen = 0
 	clear(e.values)
 	e.statics = nil
+	e.declarations = nil
 	e.staticBytes = 0
 	e.arrayAppendBuffers = nil
 	e.assignBoundary = false
@@ -322,7 +324,7 @@ func (e *Env) getBoundValue(name string, lastMutable *Env) (Value, bool) {
 		}
 		return val, true
 	}
-	return Value{}, false
+	return e.materializeDeclaration(name)
 }
 
 func (e *Env) getSkipping(name string, skip map[*Env]struct{}) (Value, bool) {
@@ -334,36 +336,7 @@ func (e *Env) getSkipping(name string, skip map[*Env]struct{}) (Value, bool) {
 		if !scope.frozen {
 			lastMutable = scope
 		}
-		if idx, ok := scope.inlineIndex(name); ok {
-			val := scope.inline[idx].value
-			if lazy, ok := lazyValue(val); ok {
-				scope.bumpMutationVersion()
-				previous := val
-				val = lazy.materialize()
-				publishBindingReplacement(previous, val)
-				scope.inline[idx].value = val
-				scope.dropArrayAppendBuffer(name)
-			}
-			return val, true
-		}
-		if val, ok := scope.values[name]; ok {
-			if lazy, ok := lazyValue(val); ok {
-				scope.bumpMutationVersion()
-				previous := val
-				val = lazy.materialize()
-				publishBindingReplacement(previous, val)
-				scope.values[name] = val
-				scope.dropArrayAppendBuffer(name)
-			}
-			return val, true
-		}
-		if val, ok := scope.statics[name]; ok {
-			val = scope.materializeStatic(name, val)
-			if scope.frozen && lastMutable != nil && builtinNeedsCallClone(val) {
-				cloned := cloneBuiltinValueForCall(val)
-				lastMutable.DefineStatic(name, cloned)
-				return cloned, true
-			}
+		if val, ok := scope.getBoundValue(name, lastMutable); ok {
 			return val, true
 		}
 	}
@@ -491,7 +464,7 @@ func (e *Env) assignValueWithAppendBufferHandling(name string, val Value, dropAp
 			}
 			return scope
 		}
-		if _, ok := scope.statics[name]; ok {
+		if _, ok := scope.statics[name]; ok || scope.hasDeclaration(name) {
 			// The binding is no longer immutable-by-binding; demote it
 			// so estimation starts walking its (now mutable) value.
 			scope.dropStatic(name)
@@ -542,7 +515,7 @@ func (e *Env) assignExistingValue(name string, val Value) (*Env, bool) {
 			scope.dropArrayAppendBuffer(name)
 			return scope, true
 		}
-		if _, ok := scope.statics[name]; ok {
+		if _, ok := scope.statics[name]; ok || scope.hasDeclaration(name) {
 			scope.dropStatic(name)
 			scope.setDynamic(name, val)
 			scope.dropArrayAppendBuffer(name)
@@ -583,7 +556,7 @@ func (e *Env) lookupBindingScope(name string) (*Env, bool) {
 		if scope.hasDynamic(name) {
 			return scope, true
 		}
-		if _, ok := scope.statics[name]; ok {
+		if _, ok := scope.statics[name]; ok || scope.hasDeclaration(name) {
 			return scope, true
 		}
 	}
@@ -649,6 +622,17 @@ func (e *Env) visibleNames() []string {
 		for name := range scope.statics {
 			add(name)
 		}
+		if scope.declarations != nil {
+			for name := range scope.declarations.script.functions {
+				add(name)
+			}
+			for name := range scope.declarations.script.classes {
+				add(name)
+			}
+			for name := range scope.declarations.script.enums {
+				add(name)
+			}
+		}
 	}
 	return names
 }
@@ -664,6 +648,7 @@ func (e *Env) CloneShallow() *Env {
 		maps.Copy(clone.statics, e.statics)
 		clone.staticBytes = e.staticBytes
 	}
+	clone.declarations = e.declarations.cloneShallow()
 	clone.callBlock = e.callBlock
 	clone.hasCallBlock = e.hasCallBlock
 	clone.assignBoundary = e.assignBoundary
@@ -709,7 +694,7 @@ func (e *Env) hasOwnBinding(name string) bool {
 		return true
 	}
 	_, ok := e.statics[name]
-	return ok
+	return ok || e.hasDeclaration(name)
 }
 
 func (e *Env) hasEnclosingLocalBinding(name string) bool {
@@ -741,6 +726,14 @@ func (e *Env) hasAmbientAssignmentBinding(name string) bool {
 			}
 			return val.Kind() != KindFunction
 		}
+		if scope.declarations != nil {
+			if _, ok := scope.declarations.script.classes[name]; ok {
+				return true
+			}
+			if _, ok := scope.declarations.script.enums[name]; ok {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -755,7 +748,7 @@ func (e *Env) getOwn(name string) (Value, bool) {
 	if val, ok := e.statics[name]; ok {
 		return e.materializeStatic(name, val), true
 	}
-	return Value{}, false
+	return e.materializeDeclaration(name)
 }
 
 func (e *Env) setExistingDynamic(name string, val Value) bool {

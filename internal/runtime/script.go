@@ -30,43 +30,26 @@ func (s *Script) Call(ctx context.Context, name string, args []Value, opts CallO
 		return NewNil(), fmt.Errorf("function %s not found%s", name, didYouMean(name, candidates))
 	}
 
-	rootCapacity := len(s.classes) + len(opts.Globals) + len(opts.Capabilities)*2
-	root := newEnvWithCapacity(nil, rootCapacity)
-	s.engine.attachBuiltins(root, len(s.functions)+len(s.enums))
+	rootCapacity := len(opts.Globals) + len(opts.Capabilities)*2
+	root := newCallRoot(s, rootCapacity)
+	s.engine.attachBuiltins(root, 1)
 
-	bindFunctionsForCall(s.functions, root)
 	fn, ok := materializeCallFunction(root, name)
 	if !ok {
 		return NewNil(), fmt.Errorf("function %s not found", name)
 	}
 
-	callClasses := cloneClassesForCall(s.classes, root)
-	for n, classDef := range callClasses {
-		root.Define(n, NewClass(classDef))
-	}
-	callEnums := cloneEnumsForCall(s.enums)
-	for n, enumDef := range callEnums {
-		root.DefineStatic(n, NewEnum(enumDef))
-	}
-	rebinder := newCallFunctionRebinder(s, root, callClasses, callEnums)
+	// Bodies still initialize in declaration order, and their per-call state
+	// exists before adapters bind so setup quota refusals precede host code.
+	classes := materializeClassInitializers(s, root)
+	rebinder := newCallFunctionRebinder(s, root, classes, nil)
 	rebinder.inboundDataFast = scanInboundCallValues(args, opts.Keywords)
 
 	exec := newExecutionForCall(s, ctx, root, opts)
 	rebinder.exec = exec
 	defer exec.releaseBaseWalkCache()
 
-	// Refuse before any host code runs. A call builds its root env and clones
-	// the script's classes and enums before its Execution exists, so a
-	// definition-heavy script can exhaust a small quota on setup alone; the
-	// refusal is certain at that point, because nothing later shrinks a
-	// reachable graph. Binding first would run an adapter's Bind -- arbitrary
-	// host code, free to open connections, take locks, or block -- on a call
-	// already decided against.
-	//
-	// The check arrived with the memory chain, justified as publishing this
-	// level to its ancestors before blocking. That justification went with the
-	// chain; this one does not depend on it, so the check stays.
-	// TestOverQuotaCallRefusesBeforeBindingCapabilities pins it.
+	// Refuse over-quota setup before any adapter runs host code.
 	if err := exec.checkMemory(); err != nil {
 		return NewNil(), exec.wrapError(err, fn.Pos)
 	}
@@ -86,7 +69,7 @@ func (s *Script) Call(ctx context.Context, name string, args []Value, opts CallO
 		return NewNil(), exec.wrapError(err, fn.Pos)
 	}
 
-	if err := initializeClassBodiesForCall(exec, root, callClasses, s.classOrder, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
+	if err := initializeClassBodiesForCall(exec, root, classes, s.classInitializers, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
 		return NewNil(), err
 	}
 	if err := exec.checkContext(); err != nil {
@@ -145,25 +128,20 @@ func (s *Script) callWithLazyGlobals(ctx context.Context, name string, args []Va
 		return NewNil(), fmt.Errorf("function %s not found%s", name, didYouMean(name, candidates))
 	}
 
-	rootCapacity := len(s.classes) + len(opts.Globals) + len(opts.Capabilities)*2
-	root := newEnvWithCapacity(nil, rootCapacity)
-	s.engine.attachBuiltins(root, len(s.functions)+len(s.enums))
+	rootCapacity := len(opts.Globals) + len(opts.Capabilities)*2
+	root := newCallRoot(s, rootCapacity)
+	s.engine.attachBuiltins(root, 1)
 
-	bindFunctionsForCall(s.functions, root)
 	fn, ok := materializeCallFunction(root, name)
 	if !ok {
 		return NewNil(), fmt.Errorf("function %s not found", name)
 	}
 
-	callClasses := cloneClassesForCall(s.classes, root)
-	for n, classDef := range callClasses {
-		root.Define(n, NewClass(classDef))
-	}
-	callEnums := cloneEnumsForCall(s.enums)
-	for n, enumDef := range callEnums {
-		root.DefineStatic(n, NewEnum(enumDef))
-	}
-	rebinder := newCallFunctionRebinder(s, root, callClasses, callEnums)
+	// Bodies still initialize in declaration order, and their per-call state
+	// exists before adapters bind so setup quota refusals precede host code.
+	classes := materializeClassInitializers(s, root)
+	rebinder := newCallFunctionRebinder(s, root, classes, nil)
+	root.declarations.retainForDeferredGlobals(rebinder)
 	rebinder.inboundDataFast = scanInboundCallValues(args, opts.Keywords)
 
 	exec := newExecutionForCall(s, ctx, root, opts)
@@ -190,7 +168,7 @@ func (s *Script) callWithLazyGlobals(ctx context.Context, name string, args []Va
 		return NewNil(), exec.wrapError(err, fn.Pos)
 	}
 
-	if err := initializeClassBodiesForCall(exec, root, callClasses, s.classOrder, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
+	if err := initializeClassBodiesForCall(exec, root, classes, s.classInitializers, deferredClassBodiesForFunction(fn, s.deferredClassBodies)); err != nil {
 		return NewNil(), err
 	}
 	if err := exec.checkContext(); err != nil {
@@ -332,30 +310,6 @@ func cloneFunctionsForCall(functions map[string]*ScriptFunction, env *Env) map[s
 	return cloned
 }
 
-type callFunctionBinding struct {
-	fn  *ScriptFunction
-	env *Env
-}
-
-func (binding callFunctionBinding) materialize() Value {
-	return NewFunction(cloneFunctionForEnv(binding.fn, binding.env))
-}
-
-func bindFunctionsForCall(functions map[string]*ScriptFunction, root *Env) {
-	if len(functions) == 1 {
-		for name, fn := range functions {
-			root.DefineStatic(name, NewFunction(cloneFunctionForEnv(fn, root)))
-		}
-		return
-	}
-	for name, fn := range functions {
-		// Static: function clones are immutable per call, so they are accounted
-		// once instead of on every quota check. Reassigning the name from script
-		// code demotes the binding to dynamic.
-		root.DefineStatic(name, newLazyValue(callFunctionBinding{fn: fn, env: root}))
-	}
-}
-
 func materializeCallFunction(root *Env, name string) (*ScriptFunction, bool) {
 	val, ok := root.Get(name)
 	if !ok {
@@ -444,7 +398,7 @@ func cloneClassForSnapshot(classDef *ClassDef, propertyTypes ast.TypeExprMemo) *
 		Methods:       make(map[string]*ScriptFunction, len(classDef.Methods)),
 		ClassMethods:  make(map[string]*ScriptFunction, len(classDef.ClassMethods)),
 		ClassVars:     cloneBuiltinMap(classDef.ClassVars),
-		NestedModules: classDef.NestedModules,
+		NestedModules: cloneStringSlice(classDef.NestedModules),
 		Body:          cloneStatements(classDef.Body),
 	}
 	for methodName, method := range classDef.Methods {

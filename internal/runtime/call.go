@@ -623,6 +623,7 @@ func (exec *Execution) callFunctionIgnoringReturn(fn *ScriptFunction, receiver V
 }
 
 func (exec *Execution) callFunctionWithReturnValidation(fn *ScriptFunction, receiver Value, args []Value, kwargs map[string]Value, block Value, pos Position, validateReturn bool) (Value, error) {
+	fn = bindMethodForCall(fn, receiver)
 	callEnv := exec.acquireCallEnv(fn, len(fn.Params)+1)
 	if receiver.Kind() != KindNil {
 		callEnv.Define("self", receiver)
@@ -650,6 +651,7 @@ func (exec *Execution) callFunctionWithReturnValidation(fn *ScriptFunction, rece
 }
 
 func (exec *Execution) callFunctionWithSingleNormalArg(fn *ScriptFunction, receiver, arg Value, pos Position, validateReturn bool) (Value, error) {
+	fn = bindMethodForCall(fn, receiver)
 	param := fn.Params[0]
 	callEnv := exec.acquireCallEnv(fn, len(fn.Params)+1)
 	if receiver.Kind() != KindNil {
@@ -886,6 +888,22 @@ func newCallFunctionRebinder(script *Script, root *Env, callClasses map[string]*
 	}
 }
 
+func (r *callFunctionRebinder) class(name string) (*ClassDef, bool) {
+	if r.root.declarations != nil {
+		return r.root.declarations.class(r.root, name)
+	}
+	classDef, ok := r.callClasses[name]
+	return classDef, ok
+}
+
+func (r *callFunctionRebinder) enum(name string) (*EnumDef, bool) {
+	if r.root.declarations != nil {
+		return r.root.declarations.enum(r.root, name)
+	}
+	enumDef, ok := r.callEnums[name]
+	return enumDef, ok
+}
+
 func (r *callFunctionRebinder) rebindValue(val Value) Value {
 	switch val.Kind() {
 	case KindBuiltin:
@@ -938,7 +956,7 @@ func (r *callFunctionRebinder) rebindValue(val Value) Value {
 		if clone, ok := r.seenInstances[inst]; ok {
 			return clone
 		}
-		reboundClass, ok := r.callClasses[inst.Class.Name]
+		reboundClass, ok := r.class(inst.Class.Name)
 		if !ok {
 			return val
 		}
@@ -959,7 +977,7 @@ func (r *callFunctionRebinder) rebindValue(val Value) Value {
 		if classDef == nil || classDef.owner != r.script {
 			return val
 		}
-		if rebound, ok := r.callClasses[classDef.Name]; ok {
+		if rebound, ok := r.class(classDef.Name); ok {
 			return NewClass(rebound)
 		}
 		return val
@@ -968,7 +986,7 @@ func (r *callFunctionRebinder) rebindValue(val Value) Value {
 		if enumDef == nil || enumDef.owner != r.script {
 			return val
 		}
-		if rebound, ok := r.callEnums[enumDef.Name]; ok {
+		if rebound, ok := r.enum(enumDef.Name); ok {
 			return NewEnum(rebound)
 		}
 		return val
@@ -977,7 +995,7 @@ func (r *callFunctionRebinder) rebindValue(val Value) Value {
 		if member == nil || member.Enum == nil || member.Enum.owner != r.script {
 			return val
 		}
-		if reboundEnum, ok := r.callEnums[member.Enum.Name]; ok {
+		if reboundEnum, ok := r.enum(member.Enum.Name); ok {
 			if reboundMember, ok := reboundEnum.Members[member.Name]; ok {
 				return NewEnumValue(reboundMember)
 			}

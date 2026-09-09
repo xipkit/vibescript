@@ -854,6 +854,7 @@ func lookupEnumInScope(scope *Env, name string) (*EnumDef, bool, error) {
 	for key, val := range scope.statics {
 		scan(key, val)
 	}
+	scope.rangeUnboundTypesFold(name, scan)
 	if scanErr != nil {
 		return nil, false, scanErr
 	}
@@ -899,6 +900,7 @@ func lookupNamedTypeInScopeFold(scope *Env, name string) (namedTypeMatch, bool, 
 	for key, val := range scope.statics {
 		scan(key, val)
 	}
+	scope.rangeUnboundTypesFold(name, scan)
 	return resolveNamedTypeFoldMatch(name, match, enumMatches, classMatches, scanErr)
 }
 

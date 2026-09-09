@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+	"weak"
 
 	"github.com/mgomes/vibescript/internal/ast"
 	"github.com/mgomes/vibescript/vibes/source"
@@ -804,7 +805,7 @@ func cloneClassForHostWithState(classDef *ClassDef, state hostValueCloneState) *
 		Methods:       make(map[string]*ScriptFunction, len(classDef.Methods)),
 		ClassMethods:  make(map[string]*ScriptFunction, len(classDef.ClassMethods)),
 		ClassVars:     make(map[string]Value, len(classDef.ClassVars)),
-		NestedModules: classDef.NestedModules,
+		NestedModules: cloneStringSlice(classDef.NestedModules),
 		Body:          cloneStatements(classDef.Body),
 		owner:         classDef.owner,
 	}
@@ -815,10 +816,10 @@ func cloneClassForHostWithState(classDef *ClassDef, state hostValueCloneState) *
 		classClone.ClassVars[name] = cloned
 	}
 	for methodName, method := range classDef.Methods {
-		classClone.Methods[methodName] = cloneFunctionForHostWithState(method, state)
+		classClone.Methods[methodName] = cloneFunctionForHostWithState(classDef.bindMethod(method), state)
 	}
 	for methodName, method := range classDef.ClassMethods {
-		classClone.ClassMethods[methodName] = cloneFunctionForHostWithState(method, state)
+		classClone.ClassMethods[methodName] = cloneFunctionForHostWithState(classDef.bindMethod(method), state)
 	}
 	return classClone
 }
@@ -842,11 +843,36 @@ func cloneEnvForHost(env *Env, state hostValueCloneState) *Env {
 	clone.classBody = env.classBody
 	state.envs[env] = clone
 	clone.parent = cloneEnvForHost(env.parent, state)
+	if env.declarations != nil {
+		clone.declarations = &callDeclarations{script: env.declarations.script, snapshot: true}
+	}
 	env.rangeDynamicBindings(func(name string, val Value) {
 		clone.Define(name, cloneValueForHostWithState(val, state))
 	})
 	for name, val := range env.statics {
 		clone.DefineStatic(name, cloneValueForHostWithState(val, state))
+	}
+	if env.declarations != nil {
+		for name, ref := range env.declarations.classes {
+			classClone, reachable := state.classes[ref.Value()]
+			if !reachable {
+				continue
+			}
+			if clone.declarations.classes == nil {
+				clone.declarations.classes = make(map[string]weak.Pointer[ClassDef])
+			}
+			clone.declarations.classes[name] = weak.Make(classClone)
+		}
+		for name, ref := range env.declarations.enums {
+			enumClone, reachable := state.enums[ref.Value()]
+			if !reachable {
+				continue
+			}
+			if clone.declarations.enums == nil {
+				clone.declarations.enums = make(map[string]weak.Pointer[EnumDef])
+			}
+			clone.declarations.enums[name] = weak.Make(enumClone)
+		}
 	}
 	// A call frame captured by an escaped closure carries the block its method
 	// received in a hidden slot; clone it so a closure or default proc that
