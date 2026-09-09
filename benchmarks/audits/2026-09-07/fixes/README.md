@@ -31,3 +31,11 @@ CI caught a 3,504 B short-call allocation against its 3,500 B budget. Moving one
 - `checker-final`: three paired 100ms samples, counts 100, 200 and 400; before `ab4a60111476bd126fac92d5689ce688e2278518`, after `900a1a3b549f80cff40ed0544db221f4c39222de`.
 
 Both use the benchmark functions named above, with identical source in each pair. Before/after order alternates between repetitions. Other task-owned tests and builds were paused; ordinary macOS background activity continued.
+
+## Final streaming scan
+
+`scan-final` supersedes the earlier scan measurements. It uses three paired 100ms runs of the same early-return, block-drain and sparse-drain benchmarks, with alternating before/after order. Before is `a1fb44d4ec8685665ffebfc7d6f56aa7261e8911`; after uses the production code committed in `a9f8795093b7664bc20e171c27dce891254e6d70` (the last test-only addition occurred after the binary build).
+
+The follow-up preserves tight-quota admission for no-match and large-capture inputs. It reserves transient index growth only while matching, counts the actual row during capture copying, and releases it before invoking the block. An intermediate version added a repeated graph walk and slowed full drains by7–25%; the existing block-iteration accounting region removes that cost while keeping per-allocation preflights. Final16KiB literal drain:11.71→8.72ms and2.285→0.546MB allocated. Final256KiB first-match return:28.26ms/37.02MB→3.035µs/4,936B.
+
+Regression tests cover retained callback output, tight matching/no-match quotas, scratch cleanup, rest destructuring, anchors, empty matches, cancellation and the nesting-limit continuation fallback. Timing claims use the final paired logs, not the intermediate version.
