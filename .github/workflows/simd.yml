@@ -15,6 +15,10 @@ on:
         description: Skip completed benchmark trials and capture CPU profiles
         type: boolean
         default: false
+      full_matrix:
+        description: Measure all public workloads including format and mixed strings
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,6 +31,7 @@ jobs:
       SIMD_BASE: ${{ inputs.base_ref }}
       SIMD_HEAD: ${{ inputs.head_ref }}
       SIMD_PROFILE_ONLY: ${{ inputs.profile_only }}
+      SIMD_FULL_MATRIX: ${{ inputs.full_matrix }}
     steps:
       - uses: actions/checkout@v4
         with:

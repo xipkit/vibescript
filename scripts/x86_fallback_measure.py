@@ -17,15 +17,17 @@ revisions = {"base": os.environ["SIMD_BASE"], "head": os.environ["SIMD_HEAD"]}
 env = dict(os.environ, GOTOOLCHAIN="go1.27.1", GOAMD64="v1", GOMAXPROCS="1")
 env.pop("GODEBUG", None)
 cpu = min(os.sched_getaffinity(0))
-pattern = "^Benchmark(SIMDString.*|StringASCIICase|StringCaseComparison|JSONSpans.*)$"
+full_matrix = os.environ.get("SIMD_FULL_MATRIX") == "true"
+pattern = "^Benchmark.*$" if full_matrix else "^Benchmark(SIMDString.*|StringASCIICase|StringCaseComparison|JSONSpans.*)$"
 manifest = {
     "revisions": revisions,
     "trees": {},
-    "rounds": 0 if os.environ.get("SIMD_PROFILE_ONLY") == "true" else 10,
+    "rounds": 0 if os.environ.get("SIMD_PROFILE_ONLY") == "true" else (6 if full_matrix else 10),
     "benchtime": "100ms",
     "affinity_cpu": cpu,
     "benchmark_pattern": pattern,
-    "expected_cases": 116,
+    "expected_cases": 231 if full_matrix else 116,
+    "full_matrix": full_matrix,
     "binaries": [],
     "samples": [],
 }
@@ -36,7 +38,7 @@ for revision, sha in revisions.items():
         ["git", "rev-parse", "HEAD^{tree}"], cwd=root / revision, text=True
     ).strip()
 
-prepare(root / "head", root / "head/cmd/simd-embedding-probe")
+prepare(root / "head", root / "head/cmd/simd-embedding-probe", full_matrix=full_matrix)
 shutil.copytree(root / "head/cmd/simd-embedding-probe", root / "base/cmd/simd-embedding-probe")
 shutil.copytree(root / "head/cmd/simd-embedding-probe", out / "driver")
 with (out / "environment.txt").open("w") as log:

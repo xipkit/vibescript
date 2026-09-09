@@ -7,8 +7,10 @@ import re
 import sys
 
 
-def prepare(source, destination):
+def prepare(source, destination, *, full_matrix=False):
     fixtures = ["simd_controls", "ascii_case", "ascii_case_compare", "json_spans", "regexp_scan", "whitespace"]
+    if full_matrix:
+        fixtures.extend(["ascii_scan", "format_literal"])
     destination.mkdir(parents=True)
     hashes = {}
     benchmarks = []
@@ -17,6 +19,11 @@ def prepare(source, destination):
         text = original.read_text().replace("package runtime\n", "package main\n", 1)
         if fixture == "ascii_case":
             text = text.split("var asciiCaseBenchmarkSink string")[0]
+        if fixture == "ascii_scan":
+            start = text.index("func BenchmarkStringASCIIClassification(")
+            end = text.index("func BenchmarkStringASCIIMixedCalls(", start)
+            text = text[:start] + text[end:]
+            text = text.replace("var asciiScanBenchmarkResult bool\n", "")
         if fixture == "json_spans":
             old = "builtinJSONParse(nil, NewNil(), []Value{NewString(raw.String())}, nil, NewNil())"
             assert old in text
@@ -65,6 +72,9 @@ func main() {
 '''
     main += "".join(f'        {{Name: "{name}", F: {name}}},\n' for name in benchmarks)
     main += "    }, nil)\n}\n"
+    if full_matrix:
+        main = main.replace('    "testing"\n', '    "testing"\n    "time"\n', 1)
+        main += "\nfunc NewTime(t time.Time) Value { return value.NewTime(t) }\n"
     (destination / "main.go").write_text(main)
     (destination / "profile.go").write_text('''package main
 
