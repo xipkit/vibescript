@@ -1149,24 +1149,7 @@ func chopDefault(text string) string {
 // is -1. Folding upward would invert that ordering. The result is normalized to
 // -1, 0, or 1.
 func asciiCaseCompare(a, b string) int {
-	limit := min(len(a), len(b))
-	for i := range limit {
-		ca, cb := asciiLower(a[i]), asciiLower(b[i])
-		if ca != cb {
-			if ca < cb {
-				return -1
-			}
-			return 1
-		}
-	}
-	switch {
-	case len(a) < len(b):
-		return -1
-	case len(a) > len(b):
-		return 1
-	default:
-		return 0
-	}
+	return asciiCaseCompareImpl(a, b)
 }
 
 func asciiLower(b byte) byte {
@@ -1196,15 +1179,7 @@ func caseInsensitiveEqual(a, b string) bool {
 // equality counterpart of asciiCaseCompare and is used for operands that are
 // not valid UTF-8.
 func asciiCaseEqual(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range len(a) {
-		if asciiLower(a[i]) != asciiLower(b[i]) {
-			return false
-		}
-	}
-	return true
+	return asciiCaseEqualImpl(a, b)
 }
 
 func stringRuneLen(text string) int {
@@ -1936,22 +1911,6 @@ func unicodeTitleFirst(text string) string {
 	return cases.Title(language.Und, cases.NoLower).String(text)
 }
 
-func asciiUpcase(text string) string {
-	out := make([]byte, len(text))
-	for i := range len(text) {
-		out[i] = asciiUpper(text[i])
-	}
-	return string(out)
-}
-
-func asciiDowncase(text string) string {
-	out := make([]byte, len(text))
-	for i := range len(text) {
-		out[i] = asciiLower(text[i])
-	}
-	return string(out)
-}
-
 func asciiUpper(b byte) byte {
 	if b >= 'a' && b <= 'z' {
 		return b - ('a' - 'A')
@@ -1968,18 +1927,6 @@ func stringCapitalize(text string, mode caseMode) string {
 	}
 	r, size := utf8.DecodeRuneInString(text)
 	return unicodeTitleFirst(string(r)) + unicodeDowncase(text[size:])
-}
-
-// asciiCapitalize uppercases the first byte and lowercases the rest, touching
-// only ASCII letters. Non-ASCII bytes (including the leading rune of a UTF-8
-// sequence) are left unchanged, matching Ruby's capitalize(:ascii).
-func asciiCapitalize(text string) string {
-	out := make([]byte, len(text))
-	out[0] = asciiUpper(text[0])
-	for i := 1; i < len(text); i++ {
-		out[i] = asciiLower(text[i])
-	}
-	return string(out)
 }
 
 func stringSwapCase(text string, mode caseMode) string {
@@ -2026,22 +1973,6 @@ func isUppercaseLike(r rune) bool {
 // isUppercaseLike first.
 func isLowercaseLike(r rune) bool {
 	return unicode.IsLower(r) || unicode.ToUpper(r) != r
-}
-
-// asciiSwapCase toggles the case of ASCII letters only, leaving every other byte
-// (including multibyte UTF-8 sequences) unchanged. It backs Ruby's
-// swapcase(:ascii) and the invalid-UTF-8 fallback for swapcase.
-func asciiSwapCase(text string) string {
-	out := []byte(text)
-	for i, c := range out {
-		switch {
-		case c >= 'A' && c <= 'Z':
-			out[i] = c + ('a' - 'A')
-		case c >= 'a' && c <= 'z':
-			out[i] = c - ('a' - 'A')
-		}
-	}
-	return string(out)
 }
 
 func stringReverse(text string) string {
