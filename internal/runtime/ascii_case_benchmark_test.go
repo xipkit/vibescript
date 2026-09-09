@@ -34,7 +34,7 @@ func BenchmarkStringASCIICase(b *testing.B) {
 
 func benchmarkStringCaseCall(b *testing.B, call, text string) {
 	b.Helper()
-	script := compileScriptWithEngine(b, MustNewEngine(Config{
+	script := simdBenchmarkCompileWithEngine(b, MustNewEngine(Config{
 		StepQuota:        5_000_000,
 		MemoryQuotaBytes: 64 << 20,
 	}), "def run(text) text."+call+" end")
