@@ -4,10 +4,6 @@ package runtime
 
 const whitespaceSIMD = false
 
-func whitespaceSIMDSupported() bool {
-	return false
-}
-
 func whitespacePrefixSIMD(text string, strip bool) int {
 	return whitespacePrefixScalar(text, strip)
 }
