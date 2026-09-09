@@ -7,6 +7,6 @@
     "internal/runtime/members_string.go"
   ],
   "inputs": [
-    "internal/runtime/testhelpers_compile_test.go"
+    "internal/runtime/simd_controls_benchmark_test.go"
   ]
 }

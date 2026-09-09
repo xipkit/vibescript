@@ -1,7 +1,8 @@
 # Native SIMD benchmark profiles
 
-The SIMD workflow always measures the eight existing ASCII and Unicode string
-loop controls. On pull requests it also selects a profile when its fixture is
+The SIMD workflow always measures eight ASCII and Unicode string loop controls
+named `BenchmarkSIMDString*`. They preserve the workloads of the existing string
+loop benchmarks in an isolated fixture. On pull requests it also selects a profile when its fixture is
 present in the head and its JSON definition, fixture or input bytes, or watched
 production files differ from the base. File additions and deletions count; `_test.go` files
 are excluded from production globs. Removed profiles use their base definition
@@ -20,9 +21,11 @@ these fixtures.
 
 A fixture lists its reviewed shared Go test helpers and workload files in
 `inputs`. Those inputs also participate in selection and are copied with the
-fixture, so base and head benchmark identical programs. The lexer profile adds
-three source files from `tests/complex`. The controls always share their three
-Go test files, even when no profile is selected. Selection compares all original
+fixture, so base and head benchmark identical programs. All profiles use the
+isolated `simd_controls_benchmark_test.go` helpers; the lexer profile also lists
+three source files from `tests/complex`. The controls always share their isolated
+fixture, even when no profile is selected. Legacy benchmark files remain untouched,
+so unrelated benchmark additions can use new APIs. Selection compares all original
 bytes before copying. Inputs cannot replace production Go files.
 
 The artifact's `profiles.json` records selection, fixture hashes, and input hashes. Result

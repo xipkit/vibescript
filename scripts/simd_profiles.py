@@ -11,12 +11,10 @@ import re
 
 CONTROLS = {
     "name": "controls",
-    "benchmark": "BenchmarkString(Length|Index|RIndex|Slice)Loop(ASCII|Unicode)",
+    "benchmark": "BenchmarkSIMDString(Length|Index|RIndex|Slice)Loop(ASCII|Unicode)",
     "cases": 8,
     "inputs": [
-        "internal/runtime/performance_benchmark_test.go",
-        "internal/runtime/execution_benchmark_test.go",
-        "internal/runtime/testhelpers_compile_test.go",
+        "internal/runtime/simd_controls_benchmark_test.go",
     ],
 }
 PROFILE_DIRECTORY = "benchmarks/simd"

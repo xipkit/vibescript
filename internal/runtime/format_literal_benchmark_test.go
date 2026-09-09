@@ -86,7 +86,7 @@ func benchmarkFormatLiteralCall(b *testing.B, call string, args []Value, wantErr
 	if len(args) == 2 {
 		params += ", t"
 	}
-	script := compileScriptWithEngine(b, MustNewEngine(Config{
+	script := simdBenchmarkCompileWithEngine(b, MustNewEngine(Config{
 		StepQuota:        5_000_000,
 		MemoryQuotaBytes: 64 << 20,
 	}), "def run("+params+") "+call+" end")

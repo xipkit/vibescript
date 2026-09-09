@@ -203,6 +203,15 @@ class SIMDProfilesTest(unittest.TestCase):
         self.assertEqual(plan["groups"][0]["inputs_sha256"][relative],
                          hashlib.sha256(b"changed control benchmarks\n").hexdigest())
 
+    def test_unselected_legacy_benchmarks_do_not_replace_the_base(self):
+        legacy = "internal/runtime/performance_benchmark_test.go"
+        self.write(self.base, legacy, "existing legacy benchmarks\n")
+        self.write(self.head, legacy, "func BenchmarkUnrelated() { headOnlyAPI() }\n")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 8)
+        self.assertEqual((self.base / legacy).read_text(), "existing legacy benchmarks\n")
+        self.assertNotIn(legacy, plan["groups"][0]["inputs"])
+
     def test_shared_helper_changes_are_detected_before_copying(self):
         relative = simd_profiles.CONTROLS["inputs"][0]
         for root in [self.head, self.base]:
@@ -226,7 +235,7 @@ class SIMDProfilesTest(unittest.TestCase):
         self.write(self.head, self.source, "changed source\n")
         plan = simd_profiles.prepare(self.head, self.base)
         names = [
-            f"BenchmarkString{operation}Loop{kind}"
+            f"BenchmarkSIMDString{operation}Loop{kind}"
             for operation in ["Length", "Index", "RIndex", "Slice"]
             for kind in ["ASCII", "Unicode"]
         ] + ["BenchmarkSmall/first", "BenchmarkSmall/second"]
@@ -277,7 +286,7 @@ class SIMDProfilesTest(unittest.TestCase):
     def test_each_profile_has_its_own_case_count(self):
         plan, results = self.results()
         for path in results.glob("*.txt"):
-            path.write_text(path.read_text().replace("BenchmarkSmall/second", "BenchmarkStringLengthLoopASCII/extra"))
+            path.write_text(path.read_text().replace("BenchmarkSmall/second", "BenchmarkSIMDStringLengthLoopASCII/extra"))
         with self.assertRaisesRegex(ValueError, "incorrect case count"):
             simd_profiles.validate(plan, results)
 
