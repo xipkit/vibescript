@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"regexp/syntax"
 	goruntime "runtime"
 	"strings"
 	"testing"
@@ -64,7 +65,7 @@ end`)
 	}
 }
 
-func TestStringScanBlockManyCapturesChecksScratchBeforeYield(t *testing.T) {
+func TestStringScanBlockManyCapturesRejectsBeforeYield(t *testing.T) {
 	t.Parallel()
 	engine := MustNewEngine(Config{StepQuota: Unlimited, MemoryQuotaBytes: 64 << 10})
 	yielded := false
@@ -89,9 +90,95 @@ end`)
 			args := []Value{NewString(test.text), NewString(test.pattern)}
 			requireCallRuntimeErrorType(t, script, "run", args, CallOptions{}, runtimeErrorTypeLimit)
 			if yielded {
-				t.Error("scan yielded a match before rejecting its index scratch")
+				t.Error("scan yielded a match before rejecting its quota footprint")
 			}
 		})
+	}
+}
+
+func TestStringScanBlockLargeCaptureAdmission(t *testing.T) {
+	t.Parallel()
+	script := compileScriptWithConfig(t, Config{StepQuota: Unlimited, MemoryQuotaBytes: 64 << 10}, `def run(text, pattern)
+  text.scan(pattern) { |part| nil }
+end`)
+	for _, groups := range []int{500, 600} {
+		for _, erased := range []bool{false, true} {
+			t.Run(fmt.Sprintf("groups=%d/erased=%t", groups, erased), func(t *testing.T) {
+				text, pattern := strings.Repeat("a", groups), strings.Repeat("(a)", groups)
+				if erased {
+					text, pattern = "", strings.Repeat("(a){0}", groups)
+				}
+				got := callFunc(t, script, "run", []Value{NewString(text), NewString(pattern)})
+				if got.String() != text {
+					t.Errorf("large-capture block scan = %q, want receiver %q", got.String(), text)
+				}
+			})
+		}
+	}
+}
+
+func TestStringScanBlockRestCaptureAdmission(t *testing.T) {
+	t.Parallel()
+	script := compileScriptWithConfig(t, Config{StepQuota: Unlimited, MemoryQuotaBytes: 64 << 10}, `def run(text, pattern)
+  text.scan(pattern) { |(head, *tail)| nil }
+end`)
+	text := strings.Repeat("a", 500)
+	got := callFunc(t, script, "run", []Value{NewString(text), NewString(strings.Repeat("(a)", 500))})
+	if got.String() != text {
+		t.Errorf("destructuring block scan = %q, want receiver %q", got.String(), text)
+	}
+}
+
+func TestStringScanBlockReleasesIndicesBeforeYield(t *testing.T) {
+	t.Parallel()
+	engine := MustNewEngine(Config{StepQuota: Unlimited, MemoryQuotaBytes: 64 << 10})
+	var reservations []int
+	engine.RegisterBuiltin("note_scratch", func(exec *Execution, _ Value, _ []Value, _ map[string]Value, _ Value) (Value, error) {
+		reservations = append(reservations, exec.reservedScratchBytes)
+		return NewNil(), nil
+	})
+	script := compileScriptWithEngine(t, engine, `def run(text)
+  text.scan("(a)") { |part| note_scratch() }
+end`)
+	callFunc(t, script, "run", []Value{NewString("aa")})
+	if diff := cmp.Diff([]int{0, 0}, reservations); diff != "" {
+		t.Errorf("index scratch during callbacks mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestStringScanLastCaptureMatchesCompiledProgram(t *testing.T) {
+	t.Parallel()
+	for _, pattern := range []string{"", "(a)", "(a){0}", "(a){0}(b)", "(a)(b){0}", "((a){0})", "((a)(b)){0}", "(a){0,0}|(b){0,2}", "(?P<x>a){1000}", "((a)?)*"} {
+		parsed, err := syntax.Parse(pattern, syntax.Perl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		program, err := syntax.Compile(parsed.Simplify())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := 2 * (stringScanLastCapture(parsed) + 1); got != program.NumCap {
+			t.Errorf("surviving capture slots in %q = %d, want compiled program's %d", pattern, got, program.NumCap)
+		}
+	}
+}
+
+func TestStringScanIndexScratchCoversReturnedCapacity(t *testing.T) {
+	t.Parallel()
+	for _, groups := range []int{1, 15, 63, 255, 511, 1000} {
+		re := regexp.MustCompile(strings.Repeat("(a)", groups))
+		loc := re.FindStringSubmatchIndex(strings.Repeat("a", groups))
+		want := cap(loc) * estimatedIntBytes
+		if got := stringScanIndexScratchBytes(re, groups); got != want {
+			t.Errorf("index scratch for %d surviving captures = %d, want actual capacity %d", groups, got, want)
+		}
+	}
+	for _, pattern := range []string{"(a){0}", "(a)(b){0}", strings.Repeat("(a){0}", 1000)} {
+		re := regexp.MustCompile(pattern)
+		loc := re.FindStringSubmatchIndex("a")
+		if got, want := stringScanIndexScratchBytes(re, re.NumSubexp()), cap(loc)*estimatedIntBytes; got < want {
+			t.Errorf("index scratch for erased captures %q = %d, want at least actual capacity %d", pattern, got, want)
+		}
 	}
 }
 
@@ -189,26 +276,73 @@ func FuzzStringScanCursor(f *testing.F) {
 		if err != nil {
 			t.Skip()
 		}
-		cursor := stringScanCursor{re: re, previousEnd: -1}
-		var got [][]int
-		for {
-			loc, err := cursor.next(text)
-			if err != nil {
-				t.Fatal(err)
+		for _, indicesOnly := range []bool{false, true} {
+			cursor := stringScanCursor{re: re, previousEnd: -1, indicesOnly: indicesOnly}
+			var got [][]int
+			for {
+				loc, err := cursor.next(text)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if loc == nil {
+					break
+				}
+				got = append(got, loc)
+				if len(got) > len(text)+1 {
+					t.Fatalf("scan(%q, %q) did not advance", pattern, text)
+				}
 			}
-			if loc == nil {
-				break
+			want := re.FindAllStringSubmatchIndex(text, -1)
+			if indicesOnly {
+				want = re.FindAllStringIndex(text, -1)
 			}
-			got = append(got, loc)
-			if len(got) > len(text)+1 {
-				t.Fatalf("scan(%q, %q) did not advance", pattern, text)
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("scan(%q, %q, indicesOnly=%t) mismatch (-want +got):\n%s", pattern, text, indicesOnly, diff)
 			}
-		}
-		want := re.FindAllStringSubmatchIndex(text, -1)
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("scan(%q, %q) mismatch (-want +got):\n%s", pattern, text, diff)
 		}
 	})
+}
+
+func TestStringScanIndexProbeNestingFallback(t *testing.T) {
+	t.Parallel()
+	pattern := strings.Repeat("(", 998) + `\b.` + strings.Repeat(")", 998)
+	re := regexp.MustCompile(pattern)
+	text := "a b"
+	matches := re.FindAllStringSubmatchIndex(text, -1)
+	cursor := stringScanCursor{re: re, previousEnd: -1}
+	cursor.atNestingLimit = func(_ string, start int) ([]int, error) {
+		for _, loc := range matches {
+			if loc[0] >= start {
+				return loc, nil
+			}
+		}
+		return nil, nil
+	}
+	if _, err := cursor.next(text); err != nil {
+		t.Fatal(err)
+	}
+	probe := cursor
+	probe.indicesOnly = true
+	got, err := probe.next(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(matches[1], got); diff != "" {
+		t.Fatalf("fallback probe mismatch (-want +got):\n%s", diff)
+	}
+	if cursor.position != 1 || cursor.previousEnd != 1 || !probe.fallback {
+		t.Fatalf("probe changed source cursor or missed fallback: cursor=%+v probe=%+v", cursor, probe)
+	}
+	got, err = cursor.next(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(matches[1], got); diff != "" {
+		t.Errorf("scan after probe mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(re.FindAllStringSubmatchIndex(text, -1), matches); diff != "" {
+		t.Errorf("probe mutated fallback table (-want +got):\n%s", diff)
+	}
 }
 
 func BenchmarkStringScanEarlyReturn(b *testing.B) {

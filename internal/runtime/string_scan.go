@@ -16,28 +16,10 @@ import (
 func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {
 	groups := re.NumSubexp()
 	roots := scanRoots{receiver: receiver, args: args, kwargs: kwargs, block: block}
-	// Include spare index capacity when regexp pads erased capture groups.
-	// Reserving four rows also covers old and
-	// new backing arrays coexisting during that padding, before the next check.
-	delta := exec.reserveLoopScratch(saturatingMul(4, regexSubmatchIndexRowBytes(groups)))
-	noMatches := false
-	if exec.memoryQuota > 0 && exec.memoryExceeded(roots.liveBytes(exec)) {
-		exec.releaseLoopScratch(delta)
-		delta = 0
-		if err := roots.check(exec); err != nil {
-			return NewNil(), err
-		}
-		if err := exec.step(); err != nil {
-			return NewNil(), err
-		}
-		// A miss allocates no returned index row. Probe without requesting
-		// captures before latching exhaustion for this hypothetical scratch.
-		if re.MatchString(text) {
-			return NewNil(), exec.memoryQuotaExceededError()
-		}
-		noMatches = true
-	}
-	defer exec.releaseLoopScratch(delta)
+	// Padding erased captures can briefly hold old and new index backings.
+	scratchBytes := saturatingMul(4, regexSubmatchIndexRowBytes(groups))
+	var delta int
+	defer func() { exec.releaseLoopScratch(delta) }()
 
 	work := regexWork{exec: exec}
 	cursor := stringScanCursor{
@@ -56,6 +38,8 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 	defer func() { exec.releaseLoopScratch(fallbackDelta) }()
 	cursor.atNestingLimit = func(text string, start int) ([]int, error) {
 		if !fallbackReady {
+			exec.releaseLoopScratch(delta)
+			delta = 0
 			var err error
 			fallbackMatches, err = stringScanMatches(exec, re, re.String(), text, roots)
 			if err != nil {
@@ -76,17 +60,47 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 		return fallbackMatches[fallbackIndex], nil
 	}
 
+	defer exec.beginBlockIterationRegion().end()
 	runner, err := newBlockCallRunner(exec, block, "string.scan", receiver, args, kwargs)
 	if err != nil {
 		return NewNil(), err
 	}
-	if noMatches {
-		return receiver, nil
-	}
 	var blockArg [1]Value
+	refinedScratch := false
 	for {
 		if err := exec.step(); err != nil {
 			return NewNil(), err
+		}
+		if !fallbackReady {
+			delta = exec.reserveLoopScratch(scratchBytes)
+			if exec.memoryQuota > 0 && exec.memoryExceeded(roots.liveBytes(exec)) {
+				exec.releaseLoopScratch(delta)
+				delta = 0
+				if !refinedScratch {
+					scratchBytes = stringScanIndexScratchBytes(re, groups)
+					refinedScratch = true
+				}
+				delta = exec.reserveLoopScratch(scratchBytes)
+				if exec.memoryExceeded(roots.liveBytes(exec)) {
+					exec.releaseLoopScratch(delta)
+					delta = 0
+					if err := roots.check(exec); err != nil {
+						return NewNil(), err
+					}
+					// Ordinary probes request only two indices. The nesting
+					// fallback retains its separately bounded capture table.
+					probe := cursor
+					probe.indicesOnly = true
+					loc, err := probe.next(text)
+					if err != nil {
+						return NewNil(), err
+					}
+					if loc == nil {
+						return receiver, nil
+					}
+					return NewNil(), exec.memoryQuotaExceededError()
+				}
+			}
 		}
 		loc, err := cursor.next(text)
 		if err != nil {
@@ -95,6 +109,11 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 		if loc == nil {
 			return receiver, nil
 		}
+		exec.releaseLoopScratch(delta)
+		delta = 0
+		if !fallbackReady {
+			delta = exec.reserveLoopScratch(saturatingMul(cap(loc), estimatedIntBytes))
+		}
 		copyDelta, err := exec.reserveYieldedCopy(
 			projectedRegexElementPayloadBytes(text, loc, groups), receiver, args, kwargs, block,
 		)
@@ -102,11 +121,41 @@ func stringScanBlock(exec *Execution, re *regexp.Regexp, text string, receiver V
 			return NewNil(), err
 		}
 		blockArg[0] = stringScanElement(text, loc, groups)
+		loc = nil
 		exec.releaseLoopScratch(copyDelta)
+		exec.releaseLoopScratch(delta)
+		delta = 0
 		if _, err := runner.call(blockArg[:]); err != nil {
 			return NewNil(), err
 		}
+		blockArg[0] = NewNil()
 	}
+}
+
+// stringScanIndexScratchBytes refines a tight preflight without expanding counted
+// repetitions. Only zero-count repetitions erase capture instructions; if the last
+// capture survives, regexp returns one allocator-rounded row without padding it.
+func stringScanIndexScratchBytes(re *regexp.Regexp, groups int) int {
+	rowBytes := regexSubmatchIndexRowBytes(groups)
+	parsed, err := syntax.Parse(re.String(), syntax.Perl)
+	if err == nil && stringScanLastCapture(parsed) == groups {
+		return roundedAllocSize(rowBytes)
+	}
+	return saturatingMul(4, rowBytes)
+}
+
+func stringScanLastCapture(re *syntax.Regexp) int {
+	if re.Op == syntax.OpRepeat && re.Min == 0 && re.Max == 0 {
+		return 0
+	}
+	last := 0
+	if re.Op == syntax.OpCapture {
+		last = re.Cap
+	}
+	for _, sub := range re.Sub {
+		last = max(last, stringScanLastCapture(sub))
+	}
+	return last
 }
 
 type stringScanCursor struct {
@@ -117,6 +166,7 @@ type stringScanCursor struct {
 	previousEnd    int
 	fallback       bool
 	suffixSafe     bool
+	indicesOnly    bool
 	atNestingLimit func(string, int) ([]int, error)
 }
 
@@ -125,7 +175,7 @@ func (c *stringScanCursor) find(text string) ([]int, error) {
 		// Keep literal-prefix acceleration for dense matches and sparse tails.
 		// A complete empty literal can still contain start assertions, so it
 		// must take the context-aware path after its first empty match.
-		loc := c.re.FindStringSubmatchIndex(text[c.position:])
+		loc := c.findIndices(c.re, text[c.position:])
 		return offsetRegexSubmatchIndexInPlace(loc, c.position), nil
 	}
 	if c.fallback {
@@ -152,14 +202,14 @@ func (c *stringScanCursor) find(text string) ([]int, error) {
 		}
 	}
 	if c.suffixSafe {
-		loc := c.re.FindStringSubmatchIndex(text[c.position:])
+		loc := c.findIndices(c.re, text[c.position:])
 		return offsetRegexSubmatchIndexInPlace(loc, c.position), nil
 	}
 	_, size := utf8.DecodeLastRuneInString(text[:c.position])
 	contextStart := c.position - size
 	// Keep the string API: the RuneReader API disables Go's bounded
 	// backtracking engine and multiplies memory for nullable capture patterns.
-	loc := c.from.FindStringSubmatchIndex(text[contextStart:])
+	loc := c.findIndices(c.from, text[contextStart:])
 	if loc == nil {
 		return nil, nil
 	}
@@ -171,6 +221,13 @@ func (c *stringScanCursor) find(text string) ([]int, error) {
 	_, size = utf8.DecodeRuneInString(text[loc[0]:])
 	loc[0] += size
 	return loc, nil
+}
+
+func (c *stringScanCursor) findIndices(re *regexp.Regexp, text string) []int {
+	if c.indicesOnly {
+		return re.FindStringIndex(text)
+	}
+	return re.FindStringSubmatchIndex(text)
 }
 
 func (c *stringScanCursor) compileFrom() error {
