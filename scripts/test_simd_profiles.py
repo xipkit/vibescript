@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -17,6 +18,8 @@ class SIMDProfilesTest(unittest.TestCase):
         self.source = "internal/runtime/small.go"
         self.profile = "benchmarks/simd/small.json"
         for root in [self.head, self.base]:
+            for relative in simd_profiles.CONTROLS["inputs"]:
+                self.write(root, relative, "shared benchmark helper\n")
             self.write(root, self.profile, json.dumps({
                 "fixture": self.fixture,
                 "benchmark": "BenchmarkSmall",
@@ -33,7 +36,8 @@ class SIMDProfilesTest(unittest.TestCase):
 
     def test_no_base_runs_only_controls(self):
         plan = simd_profiles.prepare(self.head, None)
-        self.assertEqual(plan["groups"], [simd_profiles.CONTROLS])
+        self.assertEqual(len(plan["groups"]), 1)
+        self.assertEqual(plan["groups"][0]["name"], "controls")
         self.assertEqual(plan["cases"], 8)
 
     def test_unchanged_profile_is_inactive(self):
@@ -83,6 +87,60 @@ class SIMDProfilesTest(unittest.TestCase):
         self.assertEqual(plan["cases"], 10)
         self.assertEqual(plan["groups"][1]["name"], "renamed")
 
+    def test_renamed_fixture_replaces_old_base_copy(self):
+        renamed = "internal/runtime/renamed_benchmark_test.go"
+        (self.head / self.fixture).rename(self.head / renamed)
+        profile = json.loads((self.head / self.profile).read_text())
+        profile["fixture"] = renamed
+        self.write(self.head, self.profile, json.dumps(profile))
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertFalse((self.base / self.fixture).exists())
+        self.assertEqual((self.base / renamed).read_bytes(), (self.head / renamed).read_bytes())
+
+    def test_old_fixture_still_in_head_is_preserved(self):
+        renamed = "internal/runtime/renamed_benchmark_test.go"
+        self.write(self.head, renamed, "new benchmark fixture\n")
+        profile = json.loads((self.head / self.profile).read_text())
+        profile["fixture"] = renamed
+        self.write(self.head, self.profile, json.dumps(profile))
+        simd_profiles.prepare(self.head, self.base)
+        self.assertTrue((self.base / self.fixture).is_file())
+
+    def test_profile_and_fixture_can_be_renamed_together(self):
+        renamed = "internal/runtime/renamed_benchmark_test.go"
+        (self.head / self.fixture).rename(self.head / renamed)
+        profile = json.loads((self.head / self.profile).read_text())
+        profile["fixture"] = renamed
+        self.write(self.head, "benchmarks/simd/renamed.json", json.dumps(profile))
+        (self.head / self.profile).unlink()
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertFalse((self.base / self.fixture).exists())
+        self.assertEqual((self.base / renamed).read_bytes(), (self.head / renamed).read_bytes())
+
+    def test_renamed_declared_helper_replaces_old_base_copy(self):
+        old = "internal/runtime/old_helper_test.go"
+        renamed = "internal/runtime/new_helper_test.go"
+        for root, relative in [(self.head, renamed), (self.base, old)]:
+            profile = json.loads((root / self.profile).read_text())
+            profile["inputs"] = [relative]
+            self.write(root, self.profile, json.dumps(profile))
+            self.write(root, relative, "shared helper declaration\n")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertFalse((self.base / old).exists())
+        self.assertEqual((self.base / renamed).read_bytes(), (self.head / renamed).read_bytes())
+
+    def test_fixture_has_unique_owner_in_each_revision(self):
+        for root in [self.head, self.base]:
+            with self.subTest(root=root):
+                duplicate = "benchmarks/simd/duplicate.json"
+                self.write(root, duplicate, (root / self.profile).read_text())
+                with self.assertRaisesRegex(ValueError, "belongs to multiple profiles"):
+                    simd_profiles.prepare(self.head, self.base)
+                (root / duplicate).unlink()
+
     def test_copy_is_limited_to_selected_fixtures(self):
         self.write(self.head, self.fixture, "updated standalone fixture\n")
         self.write(self.head, self.source, "updated production code\n")
@@ -99,6 +157,62 @@ class SIMDProfilesTest(unittest.TestCase):
         self.write(self.head, self.profile, json.dumps(profile))
         with self.assertRaisesRegex(ValueError, "invalid repository path"):
             simd_profiles.prepare(self.head, self.base)
+
+    def workload(self, head_content, base_content):
+        relative = "tests/complex/workload.vibe"
+        for root, content in [(self.head, head_content), (self.base, base_content)]:
+            profile = json.loads((root / self.profile).read_text())
+            profile["inputs"] = [relative]
+            self.write(root, self.profile, json.dumps(profile))
+            self.write(root, relative, content)
+        return relative
+
+    def test_changed_workload_is_selected_copied_and_hashed(self):
+        relative = self.workload("new workload\n", "old workload\n")
+        self.write(self.head, "tests/complex/unselected.vibe", "do not copy\n")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertEqual((self.base / relative).read_bytes(), (self.head / relative).read_bytes())
+        self.assertEqual(plan["groups"][1]["inputs_sha256"][relative], hashlib.sha256(b"new workload\n").hexdigest())
+        self.assertFalse((self.base / "tests/complex/unselected.vibe").exists())
+
+    def test_unchanged_workload_does_not_activate_profile(self):
+        self.workload("same workload\n", "same workload\n")
+        self.assertEqual(simd_profiles.prepare(self.head, self.base)["cases"], 8)
+
+    def test_workload_cannot_escape_checkout(self):
+        profile = json.loads((self.head / self.profile).read_text())
+        profile["inputs"] = ["../outside.vibe"]
+        self.write(self.head, self.profile, json.dumps(profile))
+        with self.assertRaisesRegex(ValueError, "invalid repository path"):
+            simd_profiles.prepare(self.head, self.base)
+
+    def test_input_cannot_replace_production_go(self):
+        profile = json.loads((self.head / self.profile).read_text())
+        profile["inputs"] = [self.source]
+        self.write(self.head, self.profile, json.dumps(profile))
+        with self.assertRaisesRegex(ValueError, "cannot replace production Go"):
+            simd_profiles.prepare(self.head, self.base)
+
+    def test_controls_share_inputs_without_selected_profiles(self):
+        relative = simd_profiles.CONTROLS["inputs"][0]
+        self.write(self.head, relative, "changed control benchmarks\n")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 8)
+        self.assertEqual((self.base / relative).read_bytes(), (self.head / relative).read_bytes())
+        self.assertEqual(plan["groups"][0]["inputs_sha256"][relative],
+                         hashlib.sha256(b"changed control benchmarks\n").hexdigest())
+
+    def test_shared_helper_changes_are_detected_before_copying(self):
+        relative = simd_profiles.CONTROLS["inputs"][0]
+        for root in [self.head, self.base]:
+            profile = json.loads((root / self.profile).read_text())
+            profile["inputs"] = [relative]
+            self.write(root, self.profile, json.dumps(profile))
+        self.write(self.head, relative, "changed shared helper\n")
+        plan = simd_profiles.prepare(self.head, self.base)
+        self.assertEqual(plan["cases"], 10)
+        self.assertEqual((self.base / relative).read_bytes(), (self.head / relative).read_bytes())
 
     def test_profile_metadata_is_checked_before_fixture_arrives(self):
         (self.head / self.fixture).unlink()

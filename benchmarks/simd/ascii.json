@@ -2,5 +2,13 @@
   "fixture": "internal/runtime/ascii_scan_benchmark_test.go",
   "benchmark": "BenchmarkStringASCII(ShortCalls|Classification)",
   "cases": 33,
-  "sources": ["internal/runtime/ascii_scan*.go", "internal/runtime/members_string.go"]
+  "sources": [
+    "internal/runtime/ascii_scan*.go",
+    "internal/runtime/members_string.go"
+  ],
+  "inputs": [
+    "internal/runtime/performance_benchmark_test.go",
+    "internal/runtime/execution_benchmark_test.go",
+    "internal/runtime/testhelpers_compile_test.go"
+  ]
 }

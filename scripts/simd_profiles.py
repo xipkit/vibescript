@@ -13,6 +13,11 @@ CONTROLS = {
     "name": "controls",
     "benchmark": "BenchmarkString(Length|Index|RIndex|Slice)Loop(ASCII|Unicode)",
     "cases": 8,
+    "inputs": [
+        "internal/runtime/performance_benchmark_test.go",
+        "internal/runtime/execution_benchmark_test.go",
+        "internal/runtime/testhelpers_compile_test.go",
+    ],
 }
 PROFILE_DIRECTORY = "benchmarks/simd"
 
@@ -53,34 +58,71 @@ def profile_files(root):
     }
 
 
+def check_inputs(root, inputs):
+    for relative in inputs:
+        repo_path(root, relative)
+        if relative.endswith(".go") and not relative.endswith("_test.go"):
+            raise ValueError(f"benchmark input cannot replace production Go: {relative}")
+
+
+def check_profiles(root, profiles):
+    fixtures = set()
+    for relative, data in profiles.items():
+        profile = json.loads(data)
+        fixture = profile["fixture"]
+        if not fixture.startswith("internal/runtime/") or not fixture.endswith("_benchmark_test.go"):
+            raise ValueError(f"invalid benchmark fixture: {fixture}")
+        repo_path(root, fixture)
+        if fixture in fixtures:
+            raise ValueError(f"benchmark fixture belongs to multiple profiles: {fixture}")
+        fixtures.add(fixture)
+        if type(profile["cases"]) is not int or profile["cases"] <= 0:
+            raise ValueError(f"invalid case count: {relative}")
+        re.compile(profile["benchmark"])
+        for pattern in profile["sources"]:
+            repo_path(root, pattern)
+        check_inputs(root, profile.get("inputs", []))
+    return fixtures
+
+
+def input_snapshot(root, inputs):
+    return {relative: repo_path(root, relative).read_bytes() for relative in inputs}
+
+
+def hashes(files):
+    return {relative: hashlib.sha256(data).hexdigest() for relative, data in files.items()}
+
+
 def prepare(head, base):
-    """Select changed profiles and copy only their fixtures to the PR base."""
-    groups = [dict(CONTROLS)]
+    """Select changed profiles before sharing their reviewed benchmark inputs."""
+    controls = dict(CONTROLS)
+    controls["inputs_sha256"] = hashes(input_snapshot(head, controls["inputs"]))
+    groups = [controls]
     head_profiles = profile_files(head)
     base_profiles = profile_files(base)
-    head_fixtures = {json.loads(data)["fixture"] for data in head_profiles.values()}
+    head_fixtures = check_profiles(head, head_profiles)
+    head_inputs = set(CONTROLS["inputs"])
+    for data in head_profiles.values():
+        head_inputs.update(json.loads(data).get("inputs", []))
+    if base is not None:
+        check_profiles(base, base_profiles)
     for relative_profile in sorted(head_profiles.keys() | base_profiles.keys()):
         head_bytes = head_profiles.get(relative_profile)
         base_bytes = base_profiles.get(relative_profile)
         profile = json.loads(head_bytes if head_bytes is not None else base_bytes)
         fixture = profile["fixture"]
-        if not fixture.startswith("internal/runtime/") or not fixture.endswith("_benchmark_test.go"):
-            raise ValueError(f"invalid benchmark fixture: {fixture}")
         fixture_path = repo_path(head, fixture)
-        if type(profile["cases"]) is not int or profile["cases"] <= 0:
-            raise ValueError(f"invalid case count: {relative_profile}")
-        re.compile(profile["benchmark"])
-        for pattern in profile["sources"]:
-            repo_path(head, pattern)
         if base is None or not fixture_path.is_file():
             continue
         # A renamed profile uses its head definition instead of running twice.
         if head_bytes is None and fixture in head_fixtures:
             continue
         fixture_bytes = fixture_path.read_bytes()
+        inputs = input_snapshot(head, profile.get("inputs", []))
         changed = (
             head_bytes != base_bytes
             or fixture_bytes != optional_bytes(repo_path(base, fixture))
+            or any(data != optional_bytes(repo_path(base, relative)) for relative, data in inputs.items())
             or source_snapshot(head, profile["sources"]) != source_snapshot(base, profile["sources"])
         )
         if changed:
@@ -88,12 +130,23 @@ def prepare(head, base):
                 "name": PurePosixPath(relative_profile).stem,
                 **profile,
                 "fixture_sha256": hashlib.sha256(fixture_bytes).hexdigest(),
+                "inputs_sha256": hashes(inputs),
             })
     if base is not None:
-        for group in groups[1:]:
-            destination = repo_path(base, group["fixture"])
+        for data in base_profiles.values():
+            old_profile = json.loads(data)
+            for relative in [old_profile["fixture"], *old_profile.get("inputs", [])]:
+                if relative not in head_fixtures | head_inputs and not repo_path(head, relative).exists():
+                    repo_path(base, relative).unlink(missing_ok=True)
+        shared = set()
+        for group in groups:
+            shared.update(group.get("inputs", []))
+            if "fixture" in group:
+                shared.add(group["fixture"])
+        for relative in sorted(shared):
+            destination = repo_path(base, relative)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_bytes(repo_path(head, group["fixture"]).read_bytes())
+            destination.write_bytes(repo_path(head, relative).read_bytes())
     return {
         "base": base is not None,
         "benchmark": "^(" + "|".join(group["benchmark"] for group in groups) + ")$",

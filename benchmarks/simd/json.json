@@ -2,5 +2,11 @@
   "fixture": "internal/runtime/json_spans_benchmark_test.go",
   "benchmark": "BenchmarkJSONSpans(MixedDocument)?",
   "cases": 44,
-  "sources": ["internal/runtime/json_scan*.go", "internal/runtime/json.go"]
+  "sources": [
+    "internal/runtime/json_scan*.go",
+    "internal/runtime/json.go"
+  ],
+  "inputs": [
+    "internal/runtime/testhelpers_compile_test.go"
+  ]
 }

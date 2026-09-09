@@ -2,5 +2,11 @@
   "fixture": "internal/runtime/format_literal_benchmark_test.go",
   "benchmark": "Benchmark(Format|Strftime)LiteralSpans",
   "cases": 31,
-  "sources": ["internal/runtime/builtins.go", "internal/runtime/strftime*.go"]
+  "sources": [
+    "internal/runtime/builtins.go",
+    "internal/runtime/strftime*.go"
+  ],
+  "inputs": [
+    "internal/runtime/testhelpers_compile_test.go"
+  ]
 }

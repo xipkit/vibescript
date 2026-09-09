@@ -2,5 +2,15 @@
   "fixture": "internal/runtime/compile_literal_spans_benchmark_test.go",
   "benchmark": "BenchmarkCompile(LiteralSpans|RepeatedSmallLiterals|SnippetRepresentativeWorkloads|(ControlFlow|Typed|Massive)Workload)",
   "cases": 70,
-  "sources": ["internal/parser/lexer*.go"]
+  "inputs": [
+    "internal/runtime/performance_benchmark_test.go",
+    "internal/runtime/execution_benchmark_test.go",
+    "internal/runtime/testhelpers_compile_test.go",
+    "tests/complex/loops.vibe",
+    "tests/complex/typed.vibe",
+    "tests/complex/massive.vibe"
+  ],
+  "sources": [
+    "internal/parser/lexer*.go"
+  ]
 }
