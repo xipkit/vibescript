@@ -12,8 +12,8 @@ out = Path(os.environ['RUNNER_TEMP']) / 'embedding-results'
 out.mkdir()
 revisions = {
     'base': '7a3ba6469b50c5fa7b43764a70f6fc32d7fb3efa',
-    'ascii': '892bc640542acba2d8db7ba93b4ec9b49cd29e76',
-    'head': '3c1891543e6fc02cefb1548d0d04af3dde0d7d55',
+    'ascii': '64bb2d461c8626db82e5128c65c77a310ff40379',
+    'head': 'e487e2d6841a90c59ebe8aae1d5458164bc71661',
 }
 env = dict(os.environ, GOTOOLCHAIN='go1.27.1', GOAMD64='v1', GOMAXPROCS='1')
 for revision, sha in revisions.items():
@@ -24,6 +24,7 @@ for revision in ['base', 'ascii']:
     shutil.copytree(root / 'head/cmd/simd-embedding-probe', root / revision / 'cmd/simd-embedding-probe')
 shutil.copytree(root / 'head/cmd/simd-embedding-probe', out / 'driver')
 manifest = {'revisions': revisions, 'rounds': 6, 'benchtime': '100ms', 'affinity_cpu': min(os.sched_getaffinity(0)), 'binaries': []}
+manifest['revision_roles'] = {'base': 'Original baseline', 'ascii': 'Combined before dedicated scalar dispatch', 'head': 'Combined after dedicated scalar dispatch'}
 with (out / 'environment.txt').open('w') as log:
     for command in [['uname', '-a'], ['lscpu'], ['go', 'version']]:
         subprocess.run(command, env=env, stdout=log, check=True)
@@ -44,13 +45,13 @@ for trial in range(6):
         experiment = 'nosimd' if mode == 'nosimd' else 'simd'
         for revision in order:
             print('trial', trial, revision, mode, flush=True)
-            command = ['taskset', '-c', str(manifest['affinity_cpu']), str(binaries / f'{revision}-{experiment}'), '-test.run=^$', '-test.bench=.', '-test.cpu=1', '-test.count=1', '-test.benchtime=100ms', '-test.benchmem']
+            command = ['taskset', '-c', str(manifest['affinity_cpu']), str(binaries / f'{revision}-{experiment}'), '-test.run=^$', '-test.bench=^Benchmark(Whitespace.*|SIMDString.*)$', '-test.cpu=1', '-test.count=1', '-test.benchtime=100ms', '-test.benchmem']
             sample_env = dict(env, GOEXPERIMENT=experiment)
             if mode.endswith('avx2-disabled'):
                 sample_env['GODEBUG'] = 'cpu.avx2=off'
             sample = subprocess.check_output(command, cwd=root / revision / 'internal/runtime', env=sample_env, text=True)
             names = [line.split()[0] for line in sample.splitlines() if line.startswith('Benchmark') and 'ns/op' in line]
-            assert len(names) == 168 and len(set(names)) == 168, (revision, mode, len(names))
+            assert len(names) == 38 and len(set(names)) == 38, (revision, mode, len(names))
             if expected is None:
                 expected = set(names)
             assert set(names) == expected
@@ -58,4 +59,4 @@ for trial in range(6):
                 log.write(sample)
             manifest.setdefault('samples', []).append({'trial': trial, 'revision': revision, 'mode': mode, 'cases': len(names)})
             (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-print('All 54 embedding samples passed with 168 matching public-call workloads.', flush=True)
+print('All 54 embedding samples passed with 38 matching public-call workloads.', flush=True)

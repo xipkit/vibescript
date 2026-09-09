@@ -22,12 +22,12 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: 892bc640542acba2d8db7ba93b4ec9b49cd29e76
+          ref: 64bb2d461c8626db82e5128c65c77a310ff40379
           path: ascii
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: 3c1891543e6fc02cefb1548d0d04af3dde0d7d55
+          ref: e487e2d6841a90c59ebe8aae1d5458164bc71661
           path: head
           persist-credentials: false
       - uses: actions/setup-go@v5
