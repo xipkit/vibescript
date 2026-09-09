@@ -1,221 +1,50 @@
-name: SIMD
+name: X86 fallback diagnostic
 
 on:
-  push:
-    branches: [master]
-  pull_request:
   workflow_dispatch:
+    inputs:
+      base_ref:
+        description: Full baseline commit SHA
+        required: true
+        default: 7a3ba6469b50c5fa7b43764a70f6fc32d7fb3efa
+      head_ref:
+        description: Full candidate commit SHA
+        required: true
+        default: c31ea6888de0502612b07bcb759fa88b83f5e77d
 
 permissions:
   contents: read
 
-concurrency:
-  group: simd-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  native:
-    name: Native SIMD (${{ matrix.arch }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: amd64
-          - os: macos-latest
-            arch: arm64
+  embedding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
-      GOTOOLCHAIN: go1.27.1
-      GOEXPERIMENT: simd
-      EXPECTED_ARCH: ${{ matrix.arch }}
-    defaults:
-      run:
-        shell: bash
-        working-directory: head
+      SIMD_BASE: ${{ inputs.base_ref }}
+      SIMD_HEAD: ${{ inputs.head_ref }}
     steps:
-      - name: Checkout head
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: head
+          path: diagnostic
           persist-credentials: false
-
-      - name: Checkout PR base for benchmarks
-        if: github.event_name == 'pull_request'
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ inputs.base_ref }}
           path: base
           persist-credentials: false
-
-      - name: Set up Go 1.27.1
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.head_ref }}
+          path: head
+          persist-credentials: false
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.27.1'
           cache-dependency-path: head/go.sum
-
-      - name: Check benchmark profile selection and result validation
-        run: python3 -B -m unittest discover -s scripts -p 'test_simd_profiles.py'
-
-      - name: Record native CPU and build settings
-        run: |
-          test "$(go env GOARCH)" = "$EXPECTED_ARCH"
-          mkdir -p "$RUNNER_TEMP/simd-results"
-          {
-            uname -a
-            go version
-            go env GOOS GOARCH GOAMD64 GOARM64 GOTOOLCHAIN GOEXPERIMENT
-            go list -f '{{.GoFiles}}' ./internal/runtime
-            git log -1 --format='head: %H'
-            if [[ -d ../base ]]; then
-              git -C ../base log -1 --format='base: %H'
-            fi
-            if [[ "$RUNNER_OS" == Linux ]]; then
-              lscpu
-            else
-              sysctl machdep.cpu.brand_string hw.ncpu hw.memsize
-            fi
-          } | tee "$RUNNER_TEMP/simd-results/environment.txt"
-
-      - name: Verify AMD64 feature dispatch
-        if: runner.os == 'Linux'
-        run: |
-          cat > "$RUNNER_TEMP/simd-results/features.go" <<'EOF'
-          package main
-
-          import (
-              "fmt"
-              "simd/archsimd"
-          )
-
-          func main() {
-              fmt.Println(archsimd.X86.AVX2())
-          }
-          EOF
-          go run "$RUNNER_TEMP/simd-results/features.go" | tee "$RUNNER_TEMP/simd-results/avx2.txt"
-          test "$(cat "$RUNNER_TEMP/simd-results/avx2.txt")" = true
-          GODEBUG=cpu.avx2=off go run "$RUNNER_TEMP/simd-results/features.go" | tee "$RUNNER_TEMP/simd-results/avx2-disabled.txt"
-          test "$(cat "$RUNNER_TEMP/simd-results/avx2-disabled.txt")" = false
-
-      - name: Test full suite with SIMD
-        run: go test -timeout 30m -count=1 ./...
-
-      - name: Vet full suite with SIMD
-        run: go vet ./...
-
-      - name: Test estimator oracle and frame recycling with SIMD
-        env:
-          VIBES_ESTIMATOR_VERIFY: '1'
-          VIBES_ENV_RECYCLE_VERIFY: '1'
-        run: go test -timeout 20m -count=1 ./internal/runtime
-
-      - name: Test AMD64 fallback without AVX2
-        if: runner.os == 'Linux'
-        env:
-          GODEBUG: cpu.avx2=off
-          VIBES_ESTIMATOR_VERIFY: '1'
-          VIBES_ENV_RECYCLE_VERIFY: '1'
-        run: go test -timeout 30m -count=1 ./...
-
-      - name: Select profiles and share their reviewed fixtures with the base
-        run: |
-          base=()
-          if [[ -d ../base ]]; then
-            base=(--base ../base)
-          fi
-          python3 scripts/simd_profiles.py prepare --head . "${base[@]}" \
-            --output "$RUNNER_TEMP/simd-results/profiles.json"
-
-      - name: Build benchmark binaries with the same toolchain
-        env:
-          GOMAXPROCS: '1'
-        run: |
-          mkdir -p "$RUNNER_TEMP/simd-binaries"
-          revisions=(head)
-          if [[ -d ../base ]]; then
-            revisions=(base head)
-          fi
-          for revision in "${revisions[@]}"; do
-            for experiment in nosimd simd; do
-              (
-                cd "../$revision"
-                GOEXPERIMENT="$experiment" go test -c ./internal/runtime \
-                  -o "$RUNNER_TEMP/simd-binaries/$revision-$experiment.test"
-              )
-            done
-          done
-
-      - name: Interleave native benchmark samples
-        env:
-          GOMAXPROCS: '1'
-        run: |
-          benchmarks="$(python3 scripts/simd_profiles.py pattern "$RUNNER_TEMP/simd-results/profiles.json")"
-          for round in 1 2 3 4 5 6; do
-            revisions=(head)
-            if [[ -d ../base ]]; then
-              if (( round % 2 )); then
-                revisions=(base head)
-              else
-                revisions=(head base)
-              fi
-            fi
-            for experiment in nosimd simd; do
-              for revision in "${revisions[@]}"; do
-                (
-                  cd "../$revision/internal/runtime"
-                  "$RUNNER_TEMP/simd-binaries/$revision-$experiment.test" \
-                    -test.run '^$' -test.bench "$benchmarks" \
-                    -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms
-                ) | tee -a "$RUNNER_TEMP/simd-results/$revision-$experiment.txt"
-              done
-            done
-            if [[ "$RUNNER_OS" == Linux ]]; then
-              for revision in "${revisions[@]}"; do
-                (
-                  cd "../$revision/internal/runtime"
-                  GODEBUG=cpu.avx2=off "$RUNNER_TEMP/simd-binaries/$revision-simd.test" \
-                    -test.run '^$' -test.bench "$benchmarks" \
-                    -test.benchmem -test.cpu=1 -test.count=1 -test.benchtime=300ms
-                ) | tee -a "$RUNNER_TEMP/simd-results/$revision-simd-avx2-disabled.txt"
-              done
-            fi
-          done
-          fallback=()
-          if [[ "$RUNNER_OS" == Linux ]]; then
-            fallback=(--avx2-disabled)
-          fi
-          python3 scripts/simd_profiles.py validate \
-            "$RUNNER_TEMP/simd-results/profiles.json" "$RUNNER_TEMP/simd-results" "${fallback[@]}"
-
-      - name: Explain benchmark artifacts
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          Native benchmarks use Go 1.27.1, one CPU, and six samples per case.
-          Prebuilt base and head binaries alternate their order across rounds.
-          Artifacts include CPU details, revision SHAs, time, bytes, and allocations
-          for eight ASCII and Unicode string-loop controls plus selected profiles.
-          `profiles.json` records which profiles changed, their case counts, and
-          fixture hashes. Only selected reviewed fixtures are copied to the PR
-          base, so newly added benchmarks exercise both production versions.
-
-          Compare `base-simd.txt` with `head-simd.txt` for the PR change under the
-          same experiment, and `base-nosimd.txt` with `head-nosimd.txt` for the
-          default implementation on the same compiler. Base files are present
-          only on pull requests. Comparing `head-nosimd.txt` with `head-simd.txt`
-          also includes any unrelated effects of enabling Go's SIMD experiment.
-          Linux also compares `base-simd-avx2-disabled.txt` with
-          `head-simd-avx2-disabled.txt` under identical flags. Comparing the head
-          with AVX2 enabled versus disabled includes standard-library effects.
-          Timing is evidence for review,
-          not a fixed percentage gate on shared CI hardware.
-          EOF
-
-      - name: Upload native benchmark evidence
+      - name: Compare and profile ordinary embedding executables
+        run: python3 -u diagnostic/scripts/x86_fallback_measure.py
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: simd-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/simd-results/
-          if-no-files-found: warn
+          name: x86-fallback-${{ github.run_id }}
+          path: ${{ runner.temp }}/x86-fallback-results/
