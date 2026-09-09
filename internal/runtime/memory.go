@@ -529,6 +529,9 @@ func (exec *Execution) chargeEstimatorWalk(n int) error {
 	if steps <= 0 {
 		return nil
 	}
+	wasCharging := exec.estimatorWalkCharging
+	exec.estimatorWalkCharging = true
+	defer func() { exec.estimatorWalkCharging = wasCharging }()
 	return exec.stepN(steps)
 }
 

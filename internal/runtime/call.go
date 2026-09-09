@@ -321,6 +321,9 @@ func (exec *Execution) invokeCallable(callee, receiver Value, args []Value, kwar
 		declaredPure := builtin.declaredNonMutating()
 		if !declaredPure {
 			bumpMutationEpoch()
+			if len(exec.outputWalkRoots) > 0 {
+				exec.outputCallInvalidated = true
+			}
 		}
 		// An accumulator-metered section only vouches for the loop that opened
 		// it, never for a nested builtin's allocations, so dispatch suspends
@@ -373,6 +376,9 @@ func (exec *Execution) invokeCallable(callee, receiver Value, args []Value, kwar
 				exec.builtinDepth--
 				if !declaredPure {
 					exec.undeclaredBuiltinDepth--
+					if len(exec.outputWalkRoots) > 0 {
+						exec.outputCallInvalidated = true
+					}
 				}
 				exec.accumMeteredSections = savedSections
 				if savedReturnProof.recorded {
@@ -428,6 +434,12 @@ func (exec *Execution) invokeCallable(callee, receiver Value, args []Value, kwar
 		exec.builtinDepth--
 		if !declaredPure {
 			exec.undeclaredBuiltinDepth--
+			// A nested check can consume the entry invalidation while leaving
+			// the memo unusable. The enclosing driver owns the recovery walk
+			// after this call's regions and temporary output roots unwind.
+			if len(exec.outputWalkRoots) > 0 {
+				exec.outputCallInvalidated = true
+			}
 		}
 		exec.popCapabilityYieldFrame(yieldFrame)
 		// A capability adapter that ignored a quota error from the exported

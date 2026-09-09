@@ -81,7 +81,7 @@ func (s *baseWalkSession) collectAssignmentWork() {
 	exec := s.exec
 	nodes := 0
 	if !s.walkBilled {
-		if exec.assignmentBaseDirty {
+		if exec.assignmentBaseDirty || exec.ownsRetainedOutputWalk() {
 			nodes = s.nodes()
 		} else if exec.assignmentSuffixDirty && s.region {
 			// A suffix write cannot own a prefix rebuild caused by unrelated
@@ -91,6 +91,7 @@ func (s *baseWalkSession) collectAssignmentWork() {
 	}
 	exec.assignmentBaseDirty = false
 	exec.assignmentSuffixDirty = false
+	exec.outputCallInvalidated = false
 	exec.assignmentWalkNodes = saturatingAdd(exec.assignmentWalkNodes, nodes)
 }
 
