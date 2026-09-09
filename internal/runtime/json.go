@@ -1032,10 +1032,10 @@ func appendJSONString(buf []byte, s string, state *jsonStringifyState) ([]byte, 
 
 // settleOutput charges the step quota for output produced so far and enforces
 // the payload cap. It deliberately does not project against the memory quota:
-// that opens a base walk, whose memo is bypassed while a builtin is on the
-// stack, so calling it per value made serializing a wide container quadratic in
-// its element count. checkOutputBytes keeps the projection for the places that
-// had it before -- the string path and the finished payload.
+// that opens a base walk, whose memo is bypassed while an undeclared builtin is
+// on the stack, so calling it per value made serializing a wide container
+// quadratic in its element count. checkOutputBytes keeps the projection for the
+// places that had it before -- the string path and the finished payload.
 func (state *jsonStringifyState) settleOutput(size int) error {
 	if state.exec != nil {
 		if steps := size / stringScanBytesPerStep; steps > state.chargedSteps {
