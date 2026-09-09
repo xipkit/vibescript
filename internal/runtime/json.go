@@ -412,27 +412,28 @@ func (p *jsonValueParser) parseEscapedString(start int) (string, error) {
 			return "", err
 		}
 	}
-	var b strings.Builder
-	capacity := projectedBuilderCap(&b, size)
+	capacity := roundedAllocSize(size)
 	if err := p.checkExtra(estimatedStringHeaderBytes + capacity + size); err != nil {
 		return "", err
 	}
-	b.Grow(size)
+	buf := make([]byte, size)
 	p.pos = position
-	if _, err := p.parseEscapedContents(start, &b); err != nil {
+	if _, err := p.parseEscapedContents(start, buf); err != nil {
 		return "", err
 	}
 	// Keep only this token's bytes, so discarded-subtree accounting can use
 	// its string length and no result retains spare decoding capacity.
-	out := strings.Clone(b.String())
+	out := string(buf)
 	p.used += estimatedStringHeaderBytes + len(out)
 	return out, nil
 }
 
-func (p *jsonValueParser) parseEscapedContents(start int, b *strings.Builder) (int, error) {
+// parseEscapedContents measures the token when out is nil; otherwise out must
+// fit that measurement. The fill pass writes bytes without growing a buffer.
+func (p *jsonValueParser) parseEscapedContents(start int, out []byte) (int, error) {
 	size := p.pos - start
-	if b != nil {
-		b.WriteString(p.raw[start:p.pos])
+	if out != nil {
+		copy(out, p.raw[start:p.pos])
 	}
 
 	// A long initial ASCII run is a useful predictor for subsequent runs.
@@ -444,13 +445,14 @@ func (p *jsonValueParser) parseEscapedContents(start int, b *strings.Builder) (i
 			if err != nil {
 				return 0, err
 			}
-			size += utf8.RuneLen(r)
-			if b != nil {
-				b.WriteRune(r)
+			if out != nil {
+				size += utf8.EncodeRune(out[size:], r)
+			} else {
+				size += utf8.RuneLen(r)
 			}
 			n := jsonParseASCIISpan(p.raw[p.pos:])
-			if b != nil {
-				b.WriteString(p.raw[p.pos : p.pos+n])
+			if out != nil {
+				copy(out[size:], p.raw[p.pos:p.pos+n])
 			}
 			p.pos += n
 			size += n
@@ -460,6 +462,10 @@ func (p *jsonValueParser) parseEscapedContents(start int, b *strings.Builder) (i
 		}
 	}
 
+	return p.parseEscapedContentsFallback(size, out)
+}
+
+func (p *jsonValueParser) parseEscapedContentsFallback(size int, out []byte) (int, error) {
 	for p.pos < len(p.raw) {
 		c := p.raw[p.pos]
 		var r rune
@@ -484,9 +490,10 @@ func (p *jsonValueParser) parseEscapedContents(start int, b *strings.Builder) (i
 			r = decoded
 			p.pos += width
 		}
-		size += utf8.RuneLen(r)
-		if b != nil {
-			b.WriteRune(r)
+		if out != nil {
+			size += utf8.EncodeRune(out[size:], r)
+		} else {
+			size += utf8.RuneLen(r)
 		}
 	}
 	return 0, fmt.Errorf("unexpected end of JSON input")
