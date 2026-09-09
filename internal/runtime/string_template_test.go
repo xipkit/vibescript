@@ -144,22 +144,59 @@ func TestFixedStringTransformsHonorMemoryQuotaBeforeMaterializing(t *testing.T) 
 func TestASCIICaseTransformsHonorScratchQuota(t *testing.T) {
 	t.Parallel()
 
-	receiver := NewString(strings.Repeat("a", 16*1024))
-	args := []Value{NewSymbol("ascii")}
-	outputBytes, scratchBytes := projectedCaseTransformBytesAndScratch(receiver.String(), caseModeASCII)
-	var b strings.Builder
-	probe := &Execution{ctx: context.Background(), quota: 1 << 30, memoryQuota: 1 << 60}
-	quota := probe.estimateMemoryUsageForCallRoots(NewNil(), receiver, args, nil, NewNil())
-	quota = saturatingAdd(quota, estimatedValueBytes+estimatedStringHeaderBytes)
-	quota = saturatingAdd(quota, projectedBuilderCap(&b, outputBytes))
-	quota = saturatingAdd(quota, scratchBytes) - 1
-
-	for _, method := range []string{"upcase", "downcase", "capitalize", "swapcase"} {
-		t.Run(method, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		text string
+		mode caseMode
+		args []Value
+	}{
+		{name: "ascii changed", text: strings.Repeat("aZ!9", 4096), mode: caseModeASCII, args: []Value{NewSymbol("ascii")}},
+		{name: "ascii unchanged", text: strings.Repeat("1234", 4096), mode: caseModeASCII, args: []Value{NewSymbol("ascii")}},
+		{name: "invalid vector changed", text: strings.Repeat("aZ!9", 1024) + "\xff"},
+		{name: "invalid vector unchanged", text: strings.Repeat("1234", 1024) + "\xff"},
+		{name: "invalid changed", text: strings.Repeat("aZ!9", 4096) + "\xff"},
+		{name: "invalid unchanged", text: strings.Repeat("1234", 4096) + "\xff"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			exec := &Execution{ctx: context.Background(), quota: 1 << 30, memoryQuota: quota}
-			_, err := callStringMemberForTest(t, exec, receiver, method, args)
-			requireErrorIs(t, err, errMemoryQuotaExceeded)
+			receiver := NewString(tc.text)
+			outputBytes, scratchBytes := projectedCaseTransformBytesAndScratch(tc.text, tc.mode)
+			var b strings.Builder
+			probe := &Execution{ctx: context.Background(), quota: 1 << 30, memoryQuota: 1 << 60}
+			quota := probe.estimateMemoryUsageForCallRoots(NewNil(), receiver, tc.args, nil, NewNil())
+			quota = saturatingAdd(quota, estimatedValueBytes+estimatedStringHeaderBytes)
+			quota = saturatingAdd(quota, projectedBuilderCap(&b, outputBytes))
+			quota = saturatingAdd(quota, scratchBytes)
+
+			for _, method := range []string{"upcase", "downcase", "capitalize", "swapcase"} {
+				for _, suffix := range []string{"", "!"} {
+					t.Run(method+suffix, func(t *testing.T) {
+						t.Parallel()
+						want := scalarASCIICase(tc.text, method)
+						for _, limit := range []int{quota - 1, quota, quota + 1} {
+							exec := &Execution{ctx: context.Background(), quota: 1 << 30, memoryQuota: limit}
+							got, err := callStringMemberForTest(t, exec, receiver, method+suffix, tc.args)
+							if limit < quota {
+								requireErrorIs(t, err, errMemoryQuotaExceeded)
+								continue
+							}
+							if err != nil {
+								t.Fatalf("%s%s at memory quota %d: %v", method, suffix, limit, err)
+							}
+							if suffix == "!" && want == tc.text {
+								if got.Kind() != KindNil {
+									t.Errorf("unchanged %s! at memory quota %d = %v, want nil", method, limit, got)
+								}
+							} else if got.Kind() != KindString || got.String() != want {
+								t.Errorf("%s%s at memory quota %d = %v, want %q", method, suffix, limit, got, want)
+							}
+							if receiver.String() != tc.text {
+								t.Errorf("%s%s changed its receiver", method, suffix)
+							}
+						}
+					})
+				}
+			}
 		})
 	}
 }
