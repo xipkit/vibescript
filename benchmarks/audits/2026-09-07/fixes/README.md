@@ -22,3 +22,12 @@ These pairs alternate before/after order between repetitions. Local test and bui
 - `checker-stack`: three paired 100ms samples for `BenchmarkCheckIndependentDeclarations`; before `ffbdc588b9474d03ccc1064a1ee3119b0091b5fc`, after `6939d258a5f135b0e1ce9fe0706e0b9030557e3d`.
 
 Each pair uses identical benchmark functions. These baselines include the preceding fixes in the PR stack, so each comparison isolates its own change.
+
+## Final allocation layout
+
+CI caught a 3,504 B short-call allocation against its 3,500 B budget. Moving one `Env` field removes padding and reduces the call to 3,472 B without changing the budget. The following paired reruns supersede the declaration/checker stack measurements above for the delivered heads:
+
+- `declarations-final`: six paired 200ms samples, counts 0 and 1,000; before `349d70675d5692bda3496ee9cbe6cfcdea9e4b63`, after `ab4a60111476bd126fac92d5689ce688e2278518`.
+- `checker-final`: three paired 100ms samples, counts 100, 200 and 400; before `ab4a60111476bd126fac92d5689ce688e2278518`, after `900a1a3b549f80cff40ed0544db221f4c39222de`.
+
+Both use the benchmark functions named above, with identical source in each pair. Before/after order alternates between repetitions. Other task-owned tests and builds were paused; ordinary macOS background activity continued.

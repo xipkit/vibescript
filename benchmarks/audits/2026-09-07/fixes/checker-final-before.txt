@@ -1,0 +1,51 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCheckIndependentDeclarations/functions/100         	     104	   1252681 ns/op	 2620828 B/op	   12161 allocs/op
+BenchmarkCheckIndependentDeclarations/functions/200         	      25	   4657560 ns/op	10140829 B/op	   44265 allocs/op
+BenchmarkCheckIndependentDeclarations/functions/400         	       6	  17734736 ns/op	40094316 B/op	  168469 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/100           	     136	    874869 ns/op	 2012567 B/op	   12693 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/200           	      38	   3287657 ns/op	 7514016 B/op	   45301 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/400           	       9	  12591708 ns/op	29360533 B/op	  170509 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/100           	      36	   3432968 ns/op	 7589555 B/op	   64387 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/200           	       8	  13871443 ns/op	29678691 B/op	  248695 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/400           	       2	  54977542 ns/op	117570116 B/op	  977305 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/100             	      26	   4428867 ns/op	10303042 B/op	   84673 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/200             	       6	  17907042 ns/op	40248436 B/op	  329277 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/400             	       2	  72867708 ns/op	160888636 B/op	 1298483 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCheckIndependentDeclarations/functions/100         	      98	   1160325 ns/op	 2620829 B/op	   12161 allocs/op
+BenchmarkCheckIndependentDeclarations/functions/200         	      26	   4583577 ns/op	10140826 B/op	   44265 allocs/op
+BenchmarkCheckIndependentDeclarations/functions/400         	       6	  17915486 ns/op	40094316 B/op	  168469 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/100           	     136	    877772 ns/op	 2012567 B/op	   12693 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/200           	      37	   3249224 ns/op	 7514017 B/op	   45301 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/400           	       9	  12572792 ns/op	29360533 B/op	  170509 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/100           	      36	   3443425 ns/op	 7589555 B/op	   64387 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/200           	       8	  13800443 ns/op	29678691 B/op	  248695 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/400           	       2	  55566271 ns/op	117570116 B/op	  977305 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/100             	      26	   4419269 ns/op	10303042 B/op	   84673 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/200             	       6	  18288840 ns/op	40248436 B/op	  329277 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/400             	       2	  73939021 ns/op	160888636 B/op	 1298483 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCheckIndependentDeclarations/functions/100         	      96	   1157607 ns/op	 2620830 B/op	   12161 allocs/op
+BenchmarkCheckIndependentDeclarations/functions/200         	      26	   4648641 ns/op	10140826 B/op	   44265 allocs/op
+BenchmarkCheckIndependentDeclarations/functions/400         	       6	  17953250 ns/op	40094316 B/op	  168469 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/100           	     135	    890954 ns/op	 2012567 B/op	   12693 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/200           	      38	   3318238 ns/op	 7514016 B/op	   45301 allocs/op
+BenchmarkCheckIndependentDeclarations/methods/400           	       8	  12680958 ns/op	29360563 B/op	  170509 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/100           	      34	   3479147 ns/op	 7589558 B/op	   64387 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/200           	       8	  13925365 ns/op	29678691 B/op	  248695 allocs/op
+BenchmarkCheckIndependentDeclarations/classes/400           	       2	  56495417 ns/op	117570116 B/op	  977305 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/100             	      26	   4454309 ns/op	10303042 B/op	   84673 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/200             	       6	  18234090 ns/op	40248436 B/op	  329277 allocs/op
+BenchmarkCheckIndependentDeclarations/enums/400             	       2	  73550979 ns/op	160888636 B/op	 1298483 allocs/op
+PASS
