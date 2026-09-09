@@ -688,7 +688,7 @@ func registerDataBuiltins(engine *Engine) {
 	engine.builtins["JSON"] = NewObject(map[string]Value{
 		"parse":     newCheckedBuiltin("JSON.parse", builtinJSONParse, staticCallSpec{minArgs: 1, maxArgs: 1, rejectKeywords: true, rejectBlock: true, paramTypes: []*TypeExpr{checkTypeString}}),
 		"parse_as":  newCheckedBuiltin("JSON.parse_as", builtinJSONParseAs, staticCallSpec{minArgs: 2, maxArgs: 2, rejectKeywords: true, rejectBlock: true}),
-		"stringify": newCheckedBuiltin("JSON.stringify", builtinJSONStringify, staticCallSpec{minArgs: 1, maxArgs: 1, rejectKeywords: true, rejectBlock: true, resultType: checkTypeString}),
+		"stringify": DeclareNonMutating(newCheckedBuiltin("JSON.stringify", builtinJSONStringify, staticCallSpec{minArgs: 1, maxArgs: 1, rejectKeywords: true, rejectBlock: true, resultType: checkTypeString})),
 	})
 	engine.builtins["Regex"] = NewObject(map[string]Value{
 		"match":       newCheckedBuiltin("Regex.match", builtinRegexMatch, staticCallSpec{minArgs: 2, maxArgs: 2, rejectKeywords: true, rejectBlock: true, paramTypes: []*TypeExpr{checkTypeString, checkTypeString}, resultType: builtinTypeNullableString}),
