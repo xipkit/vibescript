@@ -1107,24 +1107,7 @@ func chopDefault(text string) string {
 // is -1. Folding upward would invert that ordering. The result is normalized to
 // -1, 0, or 1.
 func asciiCaseCompare(a, b string) int {
-	limit := min(len(a), len(b))
-	for i := range limit {
-		ca, cb := asciiLower(a[i]), asciiLower(b[i])
-		if ca != cb {
-			if ca < cb {
-				return -1
-			}
-			return 1
-		}
-	}
-	switch {
-	case len(a) < len(b):
-		return -1
-	case len(a) > len(b):
-		return 1
-	default:
-		return 0
-	}
+	return asciiCaseCompareImpl(a, b)
 }
 
 func asciiLower(b byte) byte {
@@ -1154,15 +1137,7 @@ func caseInsensitiveEqual(a, b string) bool {
 // equality counterpart of asciiCaseCompare and is used for operands that are
 // not valid UTF-8.
 func asciiCaseEqual(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range len(a) {
-		if asciiLower(a[i]) != asciiLower(b[i]) {
-			return false
-		}
-	}
-	return true
+	return asciiCaseEqualImpl(a, b)
 }
 
 func stringRuneLen(text string) int {
