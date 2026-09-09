@@ -218,80 +218,77 @@
   "post_merge_checks": [
     {
       "name": "build-and-test (ubuntu-latest)",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607782"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570582155"
     },
     {
       "name": "Native SIMD (amd64)",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
       "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639350/job/102547608709"
     },
     {
       "name": "benchmark",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
       "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639185/job/102547606993"
     },
     {
       "name": "build-and-test (macos-latest)",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607645"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570595934"
     },
     {
       "name": "Native SIMD (arm64)",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
       "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639350/job/102547608989"
     },
     {
       "name": "build-and-test (windows-latest)",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607875"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570551949"
     },
     {
       "name": "coverage",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607860"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570550106"
     },
     {
       "name": "race-detector",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607422"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570591082"
     },
     {
       "name": "goroutine-leak-profile",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607214"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570551713"
     },
     {
       "name": "estimator-oracle",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607489"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570596423"
     },
     {
       "name": "collection-copy-oracle",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607523"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570600174"
     },
     {
       "name": "quality-gates",
-      "status": "IN_PROGRESS",
-      "conclusion": null,
-      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102547607530"
+      "status": "COMPLETED",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/xipkit/vibescript/actions/runs/34375639325/job/102570551143"
     }
   ],
-  "post_merge_checks_complete": false,
-  "complete": true,
-  "completion_basis": "All requested PRs merged after green head checks and required reviews; master is byte-identical to the tested preview. Automatic post-merge reruns are recorded separately.",
-  "final_pr_review": "https://github.com/xipkit/vibescript/pull/1283#issuecomment-5604238143",
-  "final_pr_native_run": "https://github.com/xipkit/vibescript/actions/runs/34368472397"
+  "post_merge_checks_complete": true,
+  "complete": true
 }

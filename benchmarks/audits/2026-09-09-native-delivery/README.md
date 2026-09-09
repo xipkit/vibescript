@@ -87,4 +87,14 @@ The complete artifacts retain the slower controls too. Intel mixed-string length
 
 `pr-1283-native-evidence.tar.gz` preserves the complete final native profiles, environment, raw samples, and comparisons. Archive SHA-256: `380589f13025509f7848f3d173da97525237baa44b93b2e35bacaedf217b5e23`.
 
-PR #1283 merged as `c31ea6888de0502612b07bcb759fa88b83f5e77d` after a clean review of the exact head, all 12 checks passing, and no unresolved review threads. Issues #1270–#1278 are closed, and the prior accounting PR #1268 is merged. The final master tree is exactly `d62a8737ee28d585eec29f3ff90e26d6680d527f`, matching the fully tested `64bb2d46` snapshot. `delivery-receipt.json` records all eleven implementation/prerequisite PRs and the nine issue closures. Automatic post-merge CI reruns were still running when that receipt was captured; their state is separate from the completed pre-merge gates.
+PR #1283 merged as `c31ea6888de0502612b07bcb759fa88b83f5e77d` after a clean review of the exact head, all 12 checks passing, and no unresolved review threads. Issues #1270–#1278 are closed, and the prior accounting PR #1268 is merged. The final master tree is exactly `d62a8737ee28d585eec29f3ff90e26d6680d527f`, matching the fully tested `64bb2d46` snapshot. `delivery-receipt.json` records all eleven implementation/prerequisite PRs and the nine issue closures. The initial receipt captured automatic post-merge CI reruns in progress; the post-merge verification below records their final results.
+
+## Post-merge verification
+
+All 12 post-merge checks on `c31ea6888de0502612b07bcb759fa88b83f5e77d` are successful, including [CI](https://github.com/xipkit/vibescript/actions/runs/34375639325/attempts/2), [native SIMD](https://github.com/xipkit/vibescript/actions/runs/34375639350), and [benchmarks](https://github.com/xipkit/vibescript/actions/runs/34375639185). The source tree still matches the fully validated snapshot. A fresh GitHub audit also confirmed that all eleven delivery PRs had a clean review of their exact final commit before merging, passing head checks, and no unresolved threads; all nine batch issues remain closed.
+
+The first coverage attempt timed out in the unchanged `TestCLIContractRunExplicitZeroQuota` subprocess. Three local atomic-coverage repetitions passed, and the hosted rerun passed without source changes, reaching 83.9% coverage against a 75.0% minimum. The entire CLI package completed in 19.174 seconds on that rerun. The intermittent timeout and a proposal to reduce unnecessary fixture work are tracked separately in [#1292](https://github.com/xipkit/vibescript/issues/1292).
+
+The refreshed `delivery-receipt.json` records the successful final checks. [Post-merge evidence](postmerge-evidence.tar.gz) includes both coverage attempts, the final CI job results, the independent review audit, the local test observations, and the receipt.
+
+Archive SHA-256: `24a8af15d863d40714f0681446e120ba6166529b4c5340f87ff16e33211fecc5`.
