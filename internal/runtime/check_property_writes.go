@@ -33,7 +33,7 @@ func (c *scriptChecker) instanceIvarContract(name string) *TypeExpr {
 // unknown: interior mutations of an ivar-rooted container are invisible to
 // the local poisoning machinery, so only the write check uses them.
 func (c *scriptChecker) ivarContractFact(ty *TypeExpr) *TypeExpr {
-	if ty == nil || typeExprHasContainerArm(ty) {
+	if ty == nil || c.typeExprHasContainerArm(ty) {
 		return nil
 	}
 	return ty

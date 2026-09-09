@@ -922,7 +922,7 @@ func (c *scriptChecker) preserveContainerBindingBeforeDegrade(name string) {
 	if name == "" {
 		return
 	}
-	if !typeExprHasContainerArm(c.localTypeFor(name)) &&
+	if !c.typeExprHasContainerArm(c.localTypeFor(name)) &&
 		!c.hasDegradedContainerBinding(name) &&
 		!c.hasCurrentContainerAlias(name) {
 		return
@@ -3740,7 +3740,7 @@ func (c *scriptChecker) degradeLocalTypesForRegion(
 	collectMutatedContainerRoots(statements, mutatedContainers)
 	for name := range mutatedContainers {
 		ty := c.localTypeFor(name)
-		if ty == nil || typeExprHasContainerArm(ty) {
+		if ty == nil || c.typeExprHasContainerArm(ty) {
 			names[name] = struct{}{}
 		}
 	}
@@ -3991,7 +3991,7 @@ func (c *scriptChecker) applyLoopEntryTypeRefinements(base, refined []checkTypeF
 		for name, refinedType := range refinedFrame {
 			baseType, ok := base[i][name]
 			if !ok || refinedType == nil || refinedType == baseType ||
-				typeExprHasContainerArm(refinedType) {
+				c.typeExprHasContainerArm(refinedType) {
 				continue
 			}
 			if c.localTypes[i] == nil {
@@ -4129,7 +4129,7 @@ func (c *scriptChecker) inferAssignStatementTypes(
 				c.applyPossibleContainerAliasTransfer(target.Name, priorLogicalAliasTransfer)
 				if rhsReachable {
 					c.linkContainerAssignmentAlias(target.Name, stmt.Value, next)
-					if next == nil || typeExprHasContainerArm(next) {
+					if next == nil || c.typeExprHasContainerArm(next) {
 						for _, root := range c.containerAliasRoots(stmt.Value) {
 							c.linkContainerAlias(target.Name, root)
 						}
@@ -4163,7 +4163,7 @@ func (c *scriptChecker) inferAssignStatementTypes(
 				if known {
 					c.linkContainerAssignmentAlias(target.Name, stmt.Value, next)
 				}
-				if next == nil || typeExprHasContainerArm(next) {
+				if next == nil || c.typeExprHasContainerArm(next) {
 					for _, root := range c.containerAliasRoots(stmt.Value) {
 						c.linkContainerAlias(target.Name, root)
 					}
@@ -4191,7 +4191,7 @@ func (c *scriptChecker) inferAssignStatementTypes(
 		c.applyContainerAliasTransfer(target.Name, aliasTransfer)
 		c.linkContainerAssignmentAlias(target.Name, stmt.Value, next)
 		c.bindContainerSelectionIdentity(target.Name, stmt.Value)
-		if next == nil || typeExprHasContainerArm(next) {
+		if next == nil || c.typeExprHasContainerArm(next) {
 			for _, root := range c.containerAliasRoots(stmt.Value) {
 				c.linkContainerAlias(target.Name, root)
 			}
@@ -4713,7 +4713,7 @@ func (c *scriptChecker) retainedContainerRoot(expr Expression) (string, bool) {
 		if !c.hasPossibleContainerBinding(root) {
 			return "", false
 		}
-	} else if !typeExprHasContainerArm(rootType) || typeExprMayIncludeCallable(rootType) {
+	} else if !c.typeExprHasContainerArm(rootType) || typeExprMayIncludeCallable(rootType) {
 		return "", false
 	}
 	if _, autoInvoked := c.evaluatedIdentityExpression(expr, true); autoInvoked {
@@ -5349,7 +5349,7 @@ func (c *scriptChecker) captureEvaluatedDestructureFactWithAuto(
 			}
 		}
 	}
-	if _, direct := expr.(*Identifier); !direct && typeExprHasContainerArm(assigned) {
+	if _, direct := expr.(*Identifier); !direct && c.typeExprHasContainerArm(assigned) {
 		for _, name := range c.containerAliasRoots(expr) {
 			fact.retainedRoots = append(
 				fact.retainedRoots,
@@ -5420,7 +5420,7 @@ func (c *scriptChecker) captureDestructureValueFacts(target *DestructureTarget, 
 				typeExprDefinitelyDestructuresAsScalar(captured.assigned))
 		if _, static := staticLiteralValue(value); !static && !capturedScalar {
 			if evaluated {
-				if facts, projected := captureTypedDestructureValueFacts(
+				if facts, projected := c.captureTypedDestructureValueFacts(
 					target,
 					captured,
 				); projected {
@@ -5636,7 +5636,7 @@ func (c *scriptChecker) refreshCapturedDestructureContainerFact(
 	if capturedDestructureStaticChoiceExact(fact) {
 		return fact
 	}
-	if fact.value == nil || !typeExprHasContainerArm(fact.assigned) {
+	if fact.value == nil || !c.typeExprHasContainerArm(fact.assigned) {
 		return fact
 	}
 	// Earlier LHS leaves may mutate a container captured by a later leaf.
@@ -5763,7 +5763,7 @@ func typeExprDefinitelyDestructuresAsScalar(ty *TypeExpr) bool {
 	return true
 }
 
-func captureTypedDestructureValueFacts(
+func (c *scriptChecker) captureTypedDestructureValueFacts(
 	target *DestructureTarget,
 	valueFact capturedDestructureValueFact,
 ) ([]capturedDestructureValueFact, bool) {
@@ -5772,14 +5772,14 @@ func captureTypedDestructureValueFacts(
 		valueFact.identityRoots,
 		valueFact.retainedRoots,
 	)
-	return captureTypedDestructureValueFactsWithRoots(
+	return c.captureTypedDestructureValueFactsWithRoots(
 		target,
 		valueFact.assigned,
 		retainedRoots,
 	)
 }
 
-func captureTypedDestructureValueFactsWithRoots(
+func (c *scriptChecker) captureTypedDestructureValueFactsWithRoots(
 	target *DestructureTarget,
 	valueType *TypeExpr,
 	retainedRoots []capturedContainerRoot,
@@ -5791,7 +5791,7 @@ func captureTypedDestructureValueFactsWithRoots(
 	var facts []capturedDestructureValueFact
 	for i, element := range target.Elements {
 		assigned := types[i]
-		retainsRoots := projectedDestructureElementRetainsRoots(element, assigned)
+		retainsRoots := c.projectedDestructureElementRetainsRoots(element, assigned)
 		elementRoots := retainedRoots
 		if !retainsRoots {
 			elementRoots = nil
@@ -5805,7 +5805,7 @@ func captureTypedDestructureValueFactsWithRoots(
 				known:     assigned != nil,
 				evaluated: assigned != nil,
 			}
-			if typeExprHasContainerArm(assigned) && len(elementRoots) > 0 {
+			if c.typeExprHasContainerArm(assigned) && len(elementRoots) > 0 {
 				fact.retainedRoots = append(
 					[]capturedContainerRoot(nil),
 					elementRoots...,
@@ -5830,7 +5830,7 @@ func captureTypedDestructureValueFactsWithRoots(
 				known:     assigned != nil,
 				evaluated: assigned != nil,
 			}
-			if typeExprHasContainerArm(assigned) && len(elementRoots) > 0 {
+			if c.typeExprHasContainerArm(assigned) && len(elementRoots) > 0 {
 				fact.retainedRoots = append(
 					[]capturedContainerRoot(nil),
 					elementRoots...,
@@ -5975,11 +5975,11 @@ func destructureSingleValueElementTypes(
 // projectedDestructureElementRetainsRoots reports whether the projected
 // value may share a mutable container with its source. A rest target always
 // receives a fresh outer array, so scalar elements retain no source roots.
-func projectedDestructureElementRetainsRoots(
+func (c *scriptChecker) projectedDestructureElementRetainsRoots(
 	element DestructureElement,
 	assigned *TypeExpr,
 ) bool {
-	if !typeExprHasContainerArm(assigned) {
+	if !c.typeExprHasContainerArm(assigned) {
 		return false
 	}
 	if !element.Rest {
@@ -6055,7 +6055,7 @@ func (c *scriptChecker) expandCapturedNestedDestructureFact(
 		return c.captureDestructureValueFacts(target, fact.value)
 	}
 	if fact.known {
-		if facts, projected := captureTypedDestructureValueFacts(target, fact); projected {
+		if facts, projected := c.captureTypedDestructureValueFacts(target, fact); projected {
 			return facts
 		}
 	}
@@ -6101,7 +6101,7 @@ func (c *scriptChecker) bindCapturedDestructureValueFact(fact capturedDestructur
 	if sourceCurrent {
 		fact.assigned = c.localTypeFor(fact.sourceName)
 		if fact.sourceName != target.Name &&
-			(fact.assigned == nil || typeExprHasContainerArm(fact.assigned)) {
+			(fact.assigned == nil || c.typeExprHasContainerArm(fact.assigned)) {
 			c.linkContainerIdentityAlias(target.Name, fact.sourceName)
 			c.linkStaticValueAlias(target.Name, fact.sourceName)
 		}
@@ -6125,7 +6125,7 @@ func (c *scriptChecker) bindCapturedDestructureValueFact(fact capturedDestructur
 
 	if fact.known && c.capturedDestructureAliasStillCurrent(fact) {
 		c.linkContainerAssignmentAlias(target.Name, fact.value, fact.assigned)
-		if fact.assigned == nil || typeExprHasContainerArm(fact.assigned) {
+		if fact.assigned == nil || c.typeExprHasContainerArm(fact.assigned) {
 			for _, root := range c.containerAliasRoots(fact.value) {
 				c.linkContainerAlias(target.Name, root)
 			}
@@ -9174,7 +9174,7 @@ func (c *scriptChecker) applyShovelMutationToLocal(name string, value Expression
 			preserved = true
 		}
 	}
-	if !preserved && typeExprHasContainerArm(current) {
+	if !preserved && c.typeExprHasContainerArm(current) {
 		c.poisonElementWriteFacts(name)
 	}
 
@@ -12536,7 +12536,7 @@ func (c *scriptChecker) applyArrayMutatorCallFacts(
 		if captured, ok := argumentRetainedAliases[arg]; ok {
 			fillValueIntact = c.capturedContainerWriteFactIntact(captured, written)
 		}
-		if member.Property == "fill" && typeExprHasContainerArm(written) && !fillValueIntact {
+		if member.Property == "fill" && c.typeExprHasContainerArm(written) && !fillValueIntact {
 			// The explicit fill value evaluates before its selectors. A later
 			// selector can mutate that retained container before dispatch, so
 			// only its still-intact fact can preserve the receiver bound.
@@ -13185,7 +13185,7 @@ func (c *scriptChecker) linkContainerAssignmentAlias(target string, value Expres
 		default:
 			return
 		}
-	} else if !typeExprHasContainerArm(assigned) {
+	} else if !c.typeExprHasContainerArm(assigned) {
 		return
 	}
 	c.linkRetainedContainerAliases(target, value, assigned, false, true)
@@ -13216,7 +13216,7 @@ func (c *scriptChecker) captureRetainedContainerAliases(
 	seenIdentity := make(map[capturedContainerRoot]struct{})
 	var collect func(Expression, *TypeExpr)
 	collect = func(value Expression, written *TypeExpr) {
-		if written != nil && !typeExprHasContainerArm(written) {
+		if written != nil && !c.typeExprHasContainerArm(written) {
 			return
 		}
 		switch typed := value.(type) {
@@ -13367,7 +13367,7 @@ func (c *scriptChecker) capturedContainerWriteFactIntact(
 // and entries recursively, while value-producing branches expose whichever
 // result is selected.
 func (c *scriptChecker) linkRetainedContainerAliases(receiver string, value Expression, written *TypeExpr, poisonUntracked, directAlias bool) {
-	if written != nil && !typeExprHasContainerArm(written) {
+	if written != nil && !c.typeExprHasContainerArm(written) {
 		return
 	}
 	switch typed := value.(type) {
@@ -14467,7 +14467,7 @@ func (c *scriptChecker) shovelEscapeStaticValueTarget(expr Expression) (string, 
 		return "", false
 	}
 	rootType := c.localTypeFor(ident.Name)
-	if !typeExprHasContainerArm(rootType) {
+	if !c.typeExprHasContainerArm(rootType) {
 		if rootType == nil && c.hasPossibleContainerBinding(ident.Name) {
 			return ident.Name, true
 		}
@@ -14530,30 +14530,70 @@ func (c *scriptChecker) escapePoisonTarget(expr Expression) (string, bool) {
 		}
 		return "", false
 	}
-	if !typeExprHasContainerArm(rootType) {
+	if !c.typeExprHasContainerArm(rootType) {
 		return "", false
 	}
 	if _, isIdent := expr.(*Identifier); !isIdent {
 		projected := c.inferExpressionType(expr)
-		if projected != nil && !typeExprHasContainerArm(projected) {
+		if projected != nil && !c.typeExprHasContainerArm(projected) {
 			return "", false
 		}
 	}
 	return name, true
 }
 
-func typeExprHasContainerArm(ty *TypeExpr) bool {
-	arms, ok := typeExprArms(ty, 0)
-	if !ok {
-		return false
+func (c *scriptChecker) typeExprHasContainerArm(ty *TypeExpr) bool {
+	result := c.containerTypeArm(ty, 0)
+	return result.valid && result.hasContainer
+}
+
+type containerTypeArmKey struct {
+	typeExpr *TypeExpr
+	depth    int
+}
+
+type containerTypeArmResult struct {
+	hasContainer bool
+	valid        bool
+}
+
+// containerTypeArm preserves typeExprArms validity without materializing arms.
+// Facts are immutable once built, so union results can be reused within a check.
+// Depth belongs in the key: a shared union can be valid through one parent and
+// exceed maxTypeArmDepth through another.
+func (c *scriptChecker) containerTypeArm(ty *TypeExpr, depth int) containerTypeArmResult {
+	if ty == nil || depth > maxTypeArmDepth {
+		return containerTypeArmResult{}
 	}
-	for _, arm := range arms {
-		switch arm.Kind {
-		case TypeArray, TypeHash, TypeShape:
-			return true
+	switch ty.Kind {
+	case TypeArray, TypeHash, TypeShape:
+		return containerTypeArmResult{hasContainer: true, valid: true}
+	case TypeAny, TypeUnknown:
+		_, valid := shapeValuePayload(ty)
+		return containerTypeArmResult{valid: valid}
+	case TypeUnion:
+		key := containerTypeArmKey{typeExpr: ty, depth: depth}
+		if result, ok := c.containerTypeArms[key]; ok {
+			return result
 		}
+		result := containerTypeArmResult{valid: true}
+		noteCheckWork(len(ty.Union))
+		for _, option := range ty.Union {
+			arm := c.containerTypeArm(option, depth+1)
+			if !arm.valid {
+				result = containerTypeArmResult{}
+				break
+			}
+			result.hasContainer = result.hasContainer || arm.hasContainer
+		}
+		if c.containerTypeArms == nil {
+			c.containerTypeArms = make(map[containerTypeArmKey]containerTypeArmResult)
+		}
+		c.containerTypeArms[key] = result
+		return result
+	default:
+		return containerTypeArmResult{valid: true}
 	}
-	return false
 }
 
 func rootIdentifierName(expr Expression) (string, bool) {
