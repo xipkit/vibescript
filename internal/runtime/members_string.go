@@ -1096,15 +1096,6 @@ func chopDefault(text string) string {
 	return text[:len(text)-size]
 }
 
-func stringIsASCII(text string) bool {
-	for i := range len(text) {
-		if text[i] >= utf8.RuneSelf {
-			return false
-		}
-	}
-	return true
-}
-
 // asciiCaseCompare compares a and b byte-by-byte, folding only the ASCII
 // letters A-Z down to a-z before each byte comparison. This mirrors Ruby's
 // String#casecmp, whose comparison path applies an ASCII-only TOLOWER to each

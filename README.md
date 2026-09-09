@@ -219,6 +219,8 @@ Long-form guides live in `docs/`:
 - `docs/examples/` – runnable scenario guides (campaign reporting, rewards, notifications, module usage, and more).
 - `docs/releasing.md` – GoReleaser workflow for changelog and GitHub release automation.
 - `docs/compatibility.md` – supported Go versions and CI coverage notes.
+- [Building Vibescript](docs/building.md) – default and optional SIMD builds,
+  native validation, and benchmark artifacts.
 - `docs/versioning.md` – semantic versioning policy and compatibility contract.
 - `docs/deprecation_policy.md` – deprecation lifecycle for public Go embedding APIs.
 - `docs/known_issues.md` – tracked P0/P1 correctness bug bar.

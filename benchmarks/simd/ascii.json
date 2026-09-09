@@ -1,7 +1,7 @@
 {
   "fixture": "internal/runtime/ascii_scan_benchmark_test.go",
-  "benchmark": "BenchmarkStringASCII(ShortCalls|Classification)",
-  "cases": 33,
+  "benchmark": "BenchmarkStringASCII(ShortCalls|MixedCalls|Classification)",
+  "cases": 53,
   "sources": [
     "internal/runtime/ascii_scan*.go",
     "internal/runtime/members_string.go"

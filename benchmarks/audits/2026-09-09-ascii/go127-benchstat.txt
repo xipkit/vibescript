@@ -1,0 +1,202 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                                                  │ go127-before.txt │            go127-word.txt             │            go127-simd.txt             │
+                                                  │      sec/op      │    sec/op     vs base                 │    sec/op     vs base                 │
+StringASCIIShortCalls/Length/ASCII-10                    79.56µ ± 4%    80.22µ ± 2%         ~ (p=0.089 n=10)    80.10µ ± 1%         ~ (p=0.123 n=10)
+StringASCIIShortCalls/Length/Unicode-10                  79.81µ ± 4%    80.49µ ± 2%         ~ (p=0.165 n=10)    79.96µ ± 1%         ~ (p=0.631 n=10)
+StringASCIIShortCalls/Length/Invalid-10                  79.66µ ± 3%    80.25µ ± 3%         ~ (p=0.218 n=10)    79.92µ ± 1%         ~ (p=0.529 n=10)
+StringASCIIShortCalls/Index/ASCII-10                     104.5µ ± 4%    105.3µ ± 3%         ~ (p=0.105 n=10)    105.3µ ± 0%         ~ (p=0.123 n=10)
+StringASCIIShortCalls/Index/Unicode-10                   106.0µ ± 4%    106.3µ ± 3%         ~ (p=0.436 n=10)    106.4µ ± 1%         ~ (p=0.247 n=10)
+StringASCIIShortCalls/Index/Invalid-10                   117.0µ ± 4%    117.8µ ± 3%    +0.67% (p=0.043 n=10)    117.4µ ± 0%         ~ (p=0.075 n=10)
+StringASCIIShortCalls/RIndex/ASCII-10                    104.5µ ± 4%    104.9µ ± 3%         ~ (p=0.280 n=10)    105.2µ ± 1%         ~ (p=0.105 n=10)
+StringASCIIShortCalls/RIndex/Unicode-10                  108.6µ ± 3%    108.8µ ± 2%         ~ (p=0.796 n=10)    108.9µ ± 1%         ~ (p=0.853 n=10)
+StringASCIIShortCalls/RIndex/Invalid-10                  117.9µ ± 3%    118.1µ ± 2%         ~ (p=0.684 n=10)    117.6µ ± 0%         ~ (p=0.393 n=10)
+StringASCIIShortCalls/Slice/ASCII-10                     140.0µ ± 3%    140.6µ ± 3%         ~ (p=0.247 n=10)    140.9µ ± 1%         ~ (p=0.247 n=10)
+StringASCIIShortCalls/Slice/Unicode-10                   124.7µ ± 3%    125.4µ ± 3%    +0.52% (p=0.029 n=10)    125.3µ ± 1%         ~ (p=0.143 n=10)
+StringASCIIShortCalls/Slice/Invalid-10                   135.4µ ± 3%    136.0µ ± 2%         ~ (p=0.143 n=10)    136.0µ ± 2%         ~ (p=0.218 n=10)
+StringASCIIClassification/ASCII/0-10                    0.2453n ± 5%   1.6790n ± 5%  +584.33% (p=0.000 n=10)   2.4065n ± 2%  +880.84% (p=0.000 n=10)
+StringASCIIClassification/ASCII/8-10                     2.312n ± 6%    2.201n ± 4%    -4.84% (p=0.029 n=10)    2.916n ± 2%   +26.10% (p=0.000 n=10)
+StringASCIIClassification/HighByte/8/0-10               0.4926n ± 4%   0.3974n ± 2%   -19.32% (p=0.000 n=10)   0.3959n ± 1%   -19.61% (p=0.000 n=10)
+StringASCIIClassification/HighByte/8/4-10                1.352n ± 4%    1.495n ± 2%   +10.58% (p=0.000 n=10)    2.230n ± 2%   +65.00% (p=0.000 n=10)
+StringASCIIClassification/HighByte/8/7-10                2.319n ± 4%    1.496n ± 2%   -35.50% (p=0.000 n=10)    2.228n ± 0%         ~ (p=0.138 n=10)
+StringASCIIClassification/ASCII/16-10                    4.822n ± 6%    3.131n ± 8%   -35.06% (p=0.000 n=10)    3.840n ± 3%   -20.38% (p=0.000 n=10)
+StringASCIIClassification/HighByte/16/0-10              0.4897n ± 4%   0.3973n ± 2%   -18.87% (p=0.000 n=10)   0.3965n ± 1%   -19.03% (p=0.000 n=10)
+StringASCIIClassification/HighByte/16/8-10               2.627n ± 6%    2.102n ± 3%   -19.97% (p=0.000 n=10)    2.761n ± 4%    +5.12% (p=0.009 n=10)
+StringASCIIClassification/HighByte/16/15-10              4.622n ± 6%    2.109n ± 2%   -54.39% (p=0.000 n=10)    2.808n ± 3%   -39.25% (p=0.000 n=10)
+StringASCIIClassification/ASCII/32-10                    8.585n ± 7%    3.733n ± 1%   -56.52% (p=0.000 n=10)    4.405n ± 2%   -48.69% (p=0.000 n=10)
+StringASCIIClassification/HighByte/32/0-10              0.4918n ± 4%   0.3969n ± 1%   -19.30% (p=0.000 n=10)   0.3960n ± 1%   -19.47% (p=0.000 n=10)
+StringASCIIClassification/HighByte/32/16-10              4.913n ± 5%    2.708n ± 1%   -44.88% (p=0.000 n=10)    3.208n ± 2%   -34.70% (p=0.000 n=10)
+StringASCIIClassification/HighByte/32/31-10              8.551n ± 7%    3.358n ± 1%   -60.73% (p=0.000 n=10)    3.701n ± 2%   -56.71% (p=0.000 n=10)
+StringASCIIClassification/ASCII/4096-10                  980.5n ± 6%    316.6n ± 2%   -67.71% (p=0.000 n=10)    166.3n ± 1%   -83.04% (p=0.000 n=10)
+StringASCIIClassification/HighByte/4096/0-10            0.4921n ± 3%   0.3973n ± 1%   -19.26% (p=0.000 n=10)   0.3957n ± 1%   -19.59% (p=0.000 n=10)
+StringASCIIClassification/HighByte/4096/2048-10         496.15n ± 6%   161.70n ± 2%   -67.41% (p=0.000 n=10)    89.57n ± 1%   -81.95% (p=0.000 n=10)
+StringASCIIClassification/HighByte/4096/4095-10          981.6n ± 6%    317.4n ± 2%   -67.66% (p=0.000 n=10)    167.2n ± 1%   -82.97% (p=0.000 n=10)
+StringASCIIClassification/ASCII/65536-10                15.583µ ± 6%    4.986µ ± 1%   -68.00% (p=0.000 n=10)    2.544µ ± 1%   -83.67% (p=0.000 n=10)
+StringASCIIClassification/HighByte/65536/0-10           0.4911n ± 2%   0.3972n ± 0%   -19.14% (p=0.000 n=10)   0.3966n ± 2%   -19.26% (p=0.000 n=10)
+StringASCIIClassification/HighByte/65536/32768-10        7.841µ ± 5%    2.486µ ± 2%   -68.30% (p=0.000 n=10)    1.276µ ± 1%   -83.72% (p=0.000 n=10)
+StringASCIIClassification/HighByte/65536/65535-10       15.672µ ± 5%    4.975µ ± 2%   -68.26% (p=0.000 n=10)    2.548µ ± 1%   -83.74% (p=0.000 n=10)
+StringASCIIMixedCalls/Length/Prefix0-10                  426.0µ ± 4%    421.2µ ± 1%         ~ (p=0.075 n=10)    430.0µ ± 2%         ~ (p=0.247 n=10)
+StringASCIIMixedCalls/Length/Prefix1-10                  435.0µ ± 2%    423.0µ ± 3%    -2.75% (p=0.029 n=10)    431.2µ ± 3%         ~ (p=0.436 n=10)
+StringASCIIMixedCalls/Length/Prefix7-10                  433.8µ ± 6%    426.5µ ± 4%         ~ (p=0.105 n=10)    418.5µ ± 4%    -3.53% (p=0.011 n=10)
+StringASCIIMixedCalls/Length/Prefix15-10                 419.1µ ± 3%    418.5µ ± 2%         ~ (p=0.684 n=10)    416.5µ ± 5%         ~ (p=0.579 n=10)
+StringASCIIMixedCalls/Length/Prefix63-10                 425.1µ ± 4%    423.1µ ± 1%         ~ (p=0.393 n=10)    422.8µ ± 4%         ~ (p=0.436 n=10)
+StringASCIIMixedCalls/Index/Prefix0-10                   945.8µ ± 2%    945.8µ ± 0%         ~ (p=0.971 n=10)    956.0µ ± 3%         ~ (p=0.075 n=10)
+StringASCIIMixedCalls/Index/Prefix1-10                   942.8µ ± 2%    943.0µ ± 0%         ~ (p=0.853 n=10)    946.8µ ± 3%         ~ (p=0.190 n=10)
+StringASCIIMixedCalls/Index/Prefix7-10                   943.4µ ± 2%    943.6µ ± 2%         ~ (p=0.912 n=10)    946.3µ ± 4%         ~ (p=0.123 n=10)
+StringASCIIMixedCalls/Index/Prefix15-10                  944.0µ ± 2%    944.9µ ± 2%         ~ (p=0.481 n=10)    945.4µ ± 3%         ~ (p=0.315 n=10)
+StringASCIIMixedCalls/Index/Prefix63-10                  953.0µ ± 2%    949.4µ ± 2%         ~ (p=0.481 n=10)    947.6µ ± 3%         ~ (p=0.481 n=10)
+StringASCIIMixedCalls/RIndex/Prefix0-10                  2.222m ± 1%    2.137m ± 2%    -3.85% (p=0.000 n=10)    2.158m ± 3%    -2.90% (p=0.001 n=10)
+StringASCIIMixedCalls/RIndex/Prefix1-10                  2.188m ± 3%    2.130m ± 1%    -2.65% (p=0.000 n=10)    2.136m ± 3%    -2.37% (p=0.003 n=10)
+StringASCIIMixedCalls/RIndex/Prefix7-10                  2.224m ± 2%    2.131m ± 1%    -4.16% (p=0.000 n=10)    2.130m ± 3%    -4.21% (p=0.000 n=10)
+StringASCIIMixedCalls/RIndex/Prefix15-10                 2.182m ± 2%    2.129m ± 3%    -2.41% (p=0.019 n=10)    2.126m ± 3%    -2.57% (p=0.005 n=10)
+StringASCIIMixedCalls/RIndex/Prefix63-10                 2.191m ± 1%    2.146m ± 2%    -2.04% (p=0.003 n=10)    2.137m ± 3%    -2.44% (p=0.015 n=10)
+StringASCIIMixedCalls/Slice/Prefix0-10                   644.9µ ± 3%    640.8µ ± 1%         ~ (p=0.481 n=10)    638.5µ ± 6%         ~ (p=0.436 n=10)
+StringASCIIMixedCalls/Slice/Prefix1-10                   641.1µ ± 4%    642.9µ ± 1%         ~ (p=0.853 n=10)    639.5µ ± 5%         ~ (p=0.631 n=10)
+StringASCIIMixedCalls/Slice/Prefix7-10                   640.8µ ± 4%    642.3µ ± 1%         ~ (p=0.796 n=10)    636.8µ ± 6%         ~ (p=0.481 n=10)
+StringASCIIMixedCalls/Slice/Prefix15-10                  640.6µ ± 4%    642.5µ ± 1%         ~ (p=0.912 n=10)    641.4µ ± 5%         ~ (p=0.739 n=10)
+StringASCIIMixedCalls/Slice/Prefix63-10                  640.6µ ± 4%    641.5µ ± 4%         ~ (p=0.971 n=10)    642.2µ ± 4%         ~ (p=0.631 n=10)
+SIMDStringLengthLoopASCII-10                             279.6µ ± 5%    147.8µ ± 1%   -47.12% (p=0.000 n=10)    117.4µ ± 3%   -57.99% (p=0.000 n=10)
+SIMDStringLengthLoopUnicode-10                           429.1µ ± 2%    420.4µ ± 1%    -2.03% (p=0.023 n=10)    444.4µ ± 3%    +3.56% (p=0.005 n=10)
+SIMDStringIndexLoopASCII-10                              309.9µ ± 4%    176.1µ ± 1%   -43.17% (p=0.000 n=10)    147.2µ ± 1%   -52.48% (p=0.000 n=10)
+SIMDStringIndexLoopUnicode-10                            936.1µ ± 2%    937.8µ ± 3%         ~ (p=0.579 n=10)    941.7µ ± 3%    +0.60% (p=0.029 n=10)
+SIMDStringRIndexLoopASCII-10                             673.7µ ± 7%    228.2µ ± 2%   -66.13% (p=0.000 n=10)    170.2µ ± 2%   -74.75% (p=0.000 n=10)
+SIMDStringRIndexLoopUnicode-10                           2.210m ± 1%    2.120m ± 1%    -4.06% (p=0.000 n=10)    2.144m ± 2%    -2.97% (p=0.003 n=10)
+SIMDStringSliceLoopASCII-10                              347.1µ ± 4%    212.2µ ± 1%   -38.86% (p=0.000 n=10)    182.6µ ± 2%   -47.38% (p=0.000 n=10)
+SIMDStringSliceLoopUnicode-10                            644.7µ ± 4%    643.7µ ± 1%         ~ (p=0.853 n=10)    641.1µ ± 4%         ~ (p=0.353 n=10)
+geomean                                                  12.15µ         9.795µ        -19.38%                   9.473µ        -22.03%
+
+                                                  │ go127-before.txt │            go127-word.txt             │            go127-simd.txt             │
+                                                  │       B/op       │     B/op      vs base                 │     B/op      vs base                 │
+StringASCIIShortCalls/Length/ASCII-10                 4.481Ki ± 0%     4.481Ki ± 0%       ~ (p=1.000 n=10)     4.478Ki ± 0%       ~ (p=0.370 n=10)
+StringASCIIShortCalls/Length/Unicode-10               4.478Ki ± 0%     4.478Ki ± 0%       ~ (p=0.582 n=10)     4.478Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/Length/Invalid-10               4.478Ki ± 0%     4.478Ki ± 0%       ~ (p=1.000 n=10)     4.478Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/Index/ASCII-10                  7.619Ki ± 0%     7.619Ki ± 0%       ~ (p=1.000 n=10)     7.619Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/Index/Unicode-10                7.619Ki ± 0%     7.619Ki ± 0%       ~ (p=1.000 n=10)     7.619Ki ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Index/Invalid-10                7.619Ki ± 0%     7.619Ki ± 0%       ~ (p=1.000 n=10) ¹   7.619Ki ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/RIndex/ASCII-10                 7.619Ki ± 0%     7.619Ki ± 0%       ~ (p=1.000 n=10)     7.619Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/RIndex/Unicode-10               7.619Ki ± 0%     7.619Ki ± 0%       ~ (p=1.000 n=10)     7.619Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/RIndex/Invalid-10               7.619Ki ± 0%     7.619Ki ± 0%       ~ (p=1.000 n=10)     7.619Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/Slice/ASCII-10                  8.400Ki ± 0%     8.401Ki ± 0%       ~ (p=0.261 n=10)     8.400Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/Slice/Unicode-10                7.604Ki ± 0%     7.604Ki ± 0%       ~ (p=1.000 n=10) ¹   7.604Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIShortCalls/Slice/Invalid-10                10.74Ki ± 0%     10.74Ki ± 0%       ~ (p=1.000 n=10)     10.74Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIClassification/ASCII/0-10                    0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/8-10                    0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/8/0-10               0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/8/4-10               0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/8/7-10               0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/16-10                   0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/16/0-10              0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/16/8-10              0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/16/15-10             0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/32-10                   0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/32/0-10              0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/32/16-10             0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/32/31-10             0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/4096-10                 0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/4096/0-10            0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/4096/2048-10         0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/4096/4095-10         0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/65536-10                0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/65536/0-10           0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/65536/32768-10       0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/65536/65535-10       0.000 ± 0%       0.000 ± 0%       ~ (p=1.000 n=10) ¹     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Length/Prefix0-10               4.484Ki ± 0%     4.484Ki ± 0%       ~ (p=1.000 n=10)     4.484Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Length/Prefix1-10               4.484Ki ± 0%     4.484Ki ± 0%       ~ (p=1.000 n=10)     4.484Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Length/Prefix7-10               4.485Ki ± 0%     4.484Ki ± 0%       ~ (p=0.545 n=10)     4.484Ki ± 0%       ~ (p=0.197 n=10)
+StringASCIIMixedCalls/Length/Prefix15-10              4.484Ki ± 0%     4.484Ki ± 0%       ~ (p=1.000 n=10)     4.484Ki ± 0%       ~ (p=0.474 n=10)
+StringASCIIMixedCalls/Length/Prefix63-10              4.484Ki ± 0%     4.484Ki ± 0%       ~ (p=1.000 n=10)     4.484Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Index/Prefix0-10                7.636Ki ± 0%     7.636Ki ± 0%       ~ (p=1.000 n=10)     7.637Ki ± 0%       ~ (p=0.132 n=10)
+StringASCIIMixedCalls/Index/Prefix1-10                7.636Ki ± 0%     7.636Ki ± 0%       ~ (p=1.000 n=10)     7.636Ki ± 0%       ~ (p=0.628 n=10)
+StringASCIIMixedCalls/Index/Prefix7-10                7.636Ki ± 0%     7.636Ki ± 0%       ~ (p=0.582 n=10)     7.636Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Index/Prefix15-10               7.636Ki ± 0%     7.636Ki ± 0%       ~ (p=1.000 n=10)     7.636Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Index/Prefix63-10               7.636Ki ± 0%     7.636Ki ± 0%       ~ (p=0.350 n=10)     7.636Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/RIndex/Prefix0-10               7.660Ki ± 0%     7.660Ki ± 0%       ~ (p=0.268 n=10)     7.659Ki ± 0%       ~ (p=0.771 n=10)
+StringASCIIMixedCalls/RIndex/Prefix1-10               7.661Ki ± 0%     7.660Ki ± 0%       ~ (p=0.159 n=10)     7.660Ki ± 0%       ~ (p=0.182 n=10)
+StringASCIIMixedCalls/RIndex/Prefix7-10               7.661Ki ± 0%     7.660Ki ± 0%       ~ (p=0.387 n=10)     7.659Ki ± 0%       ~ (p=0.148 n=10)
+StringASCIIMixedCalls/RIndex/Prefix15-10              7.660Ki ± 0%     7.660Ki ± 0%       ~ (p=0.703 n=10)     7.660Ki ± 0%       ~ (p=0.541 n=10)
+StringASCIIMixedCalls/RIndex/Prefix63-10              7.662Ki ± 0%     7.660Ki ± 0%       ~ (p=0.153 n=10)     7.659Ki ± 0%       ~ (p=0.155 n=10)
+StringASCIIMixedCalls/Slice/Prefix0-10                9.192Ki ± 0%     9.192Ki ± 0%       ~ (p=1.000 n=10)     9.192Ki ± 0%       ~ (p=0.474 n=10)
+StringASCIIMixedCalls/Slice/Prefix1-10                8.411Ki ± 0%     8.411Ki ± 0%       ~ (p=1.000 n=10)     8.411Ki ± 0%       ~ (p=0.474 n=10)
+StringASCIIMixedCalls/Slice/Prefix7-10                8.411Ki ± 0%     8.411Ki ± 0%       ~ (p=1.000 n=10)     8.411Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Slice/Prefix15-10               8.677Ki ± 0%     8.677Ki ± 0%       ~ (p=1.000 n=10)     8.677Ki ± 0%       ~ (p=1.000 n=10)
+StringASCIIMixedCalls/Slice/Prefix63-10               8.677Ki ± 0%     8.677Ki ± 0%       ~ (p=0.474 n=10)     8.677Ki ± 0%       ~ (p=1.000 n=10)
+SIMDStringLengthLoopASCII-10                          4.481Ki ± 0%     4.479Ki ± 0%  -0.04% (p=0.000 n=10)     4.479Ki ± 0%  -0.07% (p=0.000 n=10)
+SIMDStringLengthLoopUnicode-10                        4.484Ki ± 0%     4.484Ki ± 0%       ~ (p=1.000 n=10)     4.485Ki ± 0%  +0.02% (p=0.005 n=10)
+SIMDStringIndexLoopASCII-10                           4.514Ki ± 0%     4.511Ki ± 0%  -0.06% (p=0.000 n=10)     4.511Ki ± 0%  -0.06% (p=0.000 n=10)
+SIMDStringIndexLoopUnicode-10                         4.526Ki ± 0%     4.526Ki ± 0%       ~ (p=0.474 n=10)     4.526Ki ± 0%       ~ (p=0.087 n=10)
+SIMDStringRIndexLoopASCII-10                          4.521Ki ± 0%     4.512Ki ± 0%  -0.22% (p=0.000 n=10)     4.511Ki ± 0%  -0.24% (p=0.000 n=10)
+SIMDStringRIndexLoopUnicode-10                        4.550Ki ± 0%     4.549Ki ± 0%       ~ (p=0.186 n=10)     4.549Ki ± 0%       ~ (p=0.501 n=10)
+SIMDStringSliceLoopASCII-10                           8.437Ki ± 0%     8.434Ki ± 0%  -0.03% (p=0.000 n=10)     8.433Ki ± 0%  -0.05% (p=0.000 n=10)
+SIMDStringSliceLoopUnicode-10                         9.224Ki ± 0%     9.224Ki ± 0%       ~ (p=1.000 n=10)     9.224Ki ± 0%       ~ (p=1.000 n=10)
+geomean                                                            ²                 -0.01%                ²                 -0.01%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                                                  │ go127-before.txt │           go127-word.txt            │           go127-simd.txt            │
+                                                  │    allocs/op     │ allocs/op   vs base                 │ allocs/op   vs base                 │
+StringASCIIShortCalls/Length/ASCII-10                   18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Length/Unicode-10                 18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Length/Invalid-10                 18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Index/ASCII-10                    219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Index/Unicode-10                  219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Index/Invalid-10                  219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/RIndex/ASCII-10                   219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/RIndex/Unicode-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/RIndex/Invalid-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Slice/ASCII-10                    419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Slice/Unicode-10                  218.0 ± 0%     218.0 ± 0%       ~ (p=1.000 n=10) ¹   218.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIShortCalls/Slice/Invalid-10                  419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/0-10                    0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/8-10                    0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/8/0-10               0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/8/4-10               0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/8/7-10               0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/16-10                   0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/16/0-10              0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/16/8-10              0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/16/15-10             0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/32-10                   0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/32/0-10              0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/32/16-10             0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/32/31-10             0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/4096-10                 0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/4096/0-10            0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/4096/2048-10         0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/4096/4095-10         0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/ASCII/65536-10                0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/65536/0-10           0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/65536/32768-10       0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIClassification/HighByte/65536/65535-10       0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹   0.000 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Length/Prefix0-10                 18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Length/Prefix1-10                 18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Length/Prefix7-10                 18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Length/Prefix15-10                18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Length/Prefix63-10                18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Index/Prefix0-10                  219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Index/Prefix1-10                  219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Index/Prefix7-10                  219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Index/Prefix15-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Index/Prefix63-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/RIndex/Prefix0-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/RIndex/Prefix1-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/RIndex/Prefix7-10                 219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/RIndex/Prefix15-10                219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/RIndex/Prefix63-10                219.0 ± 0%     219.0 ± 0%       ~ (p=1.000 n=10) ¹   219.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Slice/Prefix0-10                  419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Slice/Prefix1-10                  419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Slice/Prefix7-10                  419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Slice/Prefix15-10                 419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+StringASCIIMixedCalls/Slice/Prefix63-10                 419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringLengthLoopASCII-10                            18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringLengthLoopUnicode-10                          18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringIndexLoopASCII-10                             18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringIndexLoopUnicode-10                           18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringRIndexLoopASCII-10                            18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringRIndexLoopUnicode-10                          18.00 ± 0%     18.00 ± 0%       ~ (p=1.000 n=10) ¹   18.00 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringSliceLoopASCII-10                             419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+SIMDStringSliceLoopUnicode-10                           419.0 ± 0%     419.0 ± 0%       ~ (p=1.000 n=10) ¹   419.0 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                            ²               +0.00%                ²               +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

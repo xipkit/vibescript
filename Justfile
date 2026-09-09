@@ -75,6 +75,7 @@ fuzz fuzztime='25000x' scope='all':
 		FuzzCompileScriptDoesNotPanic \
 		FuzzGeneratedScriptSemantics \
 		FuzzRuntimeEdgeCasesDoNotPanic \
+		FuzzStringIsASCII \
 		FuzzJSONValueRoundTripPreservesStructure \
 		FuzzValueOperationsPreserveInvariants \
 		FuzzModuleRequestNormalization \
