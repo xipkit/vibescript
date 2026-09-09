@@ -1,0 +1,124 @@
+{
+  "checks": [
+    {
+      "name": "aggregate-parity",
+      "command": [
+        "go",
+        "run",
+        "/tmp/vibescript-scan-capture-parity.go"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 5.32,
+      "head": "d4f33cd6a2d59744b8202a9e8296bb6d12fa3b44"
+    },
+    {
+      "name": "aggregate-full-tests",
+      "command": [
+        "go",
+        "test",
+        "./...",
+        "-count=1"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 70.619,
+      "head": "d4f33cd6a2d59744b8202a9e8296bb6d12fa3b44"
+    },
+    {
+      "name": "aggregate-oracle-tests",
+      "command": [
+        "go",
+        "test",
+        "-timeout",
+        "20m",
+        "./internal/runtime",
+        "-count=1"
+      ],
+      "env": {
+        "VIBES_ESTIMATOR_VERIFY": "1",
+        "VIBES_ENV_RECYCLE_VERIFY": "1"
+      },
+      "exit_code": 0,
+      "seconds": 56.657,
+      "head": "d4f33cd6a2d59744b8202a9e8296bb6d12fa3b44"
+    },
+    {
+      "name": "aggregate-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/runtime",
+        "./vibes/value",
+        "-run",
+        "Test(MemoryMemo|WrapperMutationJournal|EmptyArrayMutation|ScriptCallOverlapping|ScriptCallRebind|CallLazyDeclarations|ReturnedEnvironment|DeferredGlobal|OverwrittenClassState|StringScan)",
+        "-count=3"
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 29.632,
+      "head": "6d3a2f7de0392349e84661bf6cd0475626d30908"
+    },
+    {
+      "name": "aggregate-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "env": {},
+      "exit_code": 0,
+      "seconds": 10.236,
+      "head": "6d3a2f7de0392349e84661bf6cd0475626d30908"
+    },
+    {
+      "name": "aggregate-cleanup-scan",
+      "command": [
+        "go",
+        "test",
+        "./internal/runtime",
+        "-run",
+        "^TestStringScan",
+        "-count=1"
+      ],
+      "head": "6d3a2f7de0392349e84661bf6cd0475626d30908",
+      "exit_code": 0
+    },
+    {
+      "name": "aggregate-lint",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=10m"
+      ],
+      "head": "6d3a2f7de0392349e84661bf6cd0475626d30908",
+      "exit_code": 0
+    },
+    {
+      "name": "aggregate-gofmt",
+      "command": [
+        "gofmt",
+        "-l",
+        "internal/runtime",
+        "vibes/value"
+      ],
+      "head": "6d3a2f7de0392349e84661bf6cd0475626d30908",
+      "exit_code": 0
+    },
+    {
+      "name": "aggregate-smoke",
+      "command": [
+        "./scripts/bench_smoke_check.sh"
+      ],
+      "env": {
+        "GOMAXPROCS": "2"
+      },
+      "head": "6d3a2f7de0392349e84661bf6cd0475626d30908",
+      "exit_code": 0
+    }
+  ],
+  "initial_head": "d4f33cd6a2d59744b8202a9e8296bb6d12fa3b44",
+  "final_head": "6d3a2f7de0392349e84661bf6cd0475626d30908",
+  "tree": "c31b2be0911dc4a19b69bbdb5c7f487b52abb160"
+}

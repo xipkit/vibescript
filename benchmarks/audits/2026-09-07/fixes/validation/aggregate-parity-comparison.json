@@ -1,0 +1,26 @@
+{
+  "baseline_admitted": [
+    "erased/500",
+    "erased/600",
+    "erased/700",
+    "live/500",
+    "live/600",
+    "mixed/500",
+    "mixed/600",
+    "mixed/700"
+  ],
+  "final_admitted": [
+    "erased/500",
+    "erased/600",
+    "erased/700",
+    "erased/800",
+    "live/500",
+    "live/600",
+    "live/700",
+    "mixed/500",
+    "mixed/600",
+    "mixed/700",
+    "mixed/800"
+  ],
+  "dropped": []
+}

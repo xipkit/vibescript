@@ -1,0 +1,826 @@
+{
+  "repository": "xipkit/vibescript",
+  "observed_at": "2026-09-09T00:37:53Z",
+  "scope": "Seven merged performance fixes; remaining scan PR1260 excluded.",
+  "required_gates": [
+    "Merged PR",
+    "Corresponding issue closed",
+    "Clean Codex code review of final head",
+    "All ten CI checks successful on final head before merge",
+    "No unresolved review threads"
+  ],
+  "discrepancies": [],
+  "observations": [
+    {
+      "pr": 1261,
+      "note": "Security review summary remains on an older head; the required code review covers the final head.",
+      "security_review_head": "dc16758c8bc6930ccd9f88d2c953b5d00fde79e4",
+      "summary_url": "https://github.com/xipkit/vibescript/pull/1261#issuecomment-5593496594"
+    },
+    {
+      "pr": 1263,
+      "note": "Security review summary remains on an older head; the required code review covers the final head.",
+      "security_review_head": "ffbdc588b9474d03ccc1064a1ee3119b0091b5fc",
+      "summary_url": "https://github.com/xipkit/vibescript/pull/1263#issuecomment-5593644784"
+    },
+    {
+      "pr": 1264,
+      "note": "Security review summary remains on an older head; the required code review covers the final head.",
+      "security_review_head": "6939d258a5f135b0e1ce9fe0706e0b9030557e3d",
+      "summary_url": "https://github.com/xipkit/vibescript/pull/1264#issuecomment-5593652462"
+    }
+  ],
+  "pull_requests": [
+    {
+      "pr": 1256,
+      "title": "Release JSON source documents after parsing strings",
+      "url": "https://github.com/xipkit/vibescript/pull/1256",
+      "state": "MERGED",
+      "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+      "merge_sha": "a0e7017bd061c56c23a0f9d169de928b93425668",
+      "merged_at": "2026-09-08T23:30:22Z",
+      "issue": {
+        "number": 1248,
+        "title": "Detach parsed JSON strings from discarded source documents",
+        "url": "https://github.com/xipkit/vibescript/issues/1248",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-08T23:30:23Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1256#issuecomment-5577418956",
+        "posted_at": "2026-09-08T00:54:25Z",
+      "reviewed_commit_prefix": "9f527a2be2",
+      "reviewed_commit_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. Keep them coming!"
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:56:16Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901701007"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:54:55Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700945"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:54:09Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700944"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:56:18Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700934"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:54:39Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700905"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:55:39Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700895"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T01:01:05Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700869"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T01:03:12Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700867"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:55:26Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701969/job/101901700803"
+        },
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "9f527a2be229664296f87abc71bdab7e695f2dd2",
+          "completed_at": "2026-09-08T00:54:31Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34174701988/job/101901700699"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "pr": 1257,
+      "title": "Avoid quadratic alias checks for scalar locals",
+      "url": "https://github.com/xipkit/vibescript/pull/1257",
+      "state": "MERGED",
+      "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+      "merge_sha": "4ec02f4b41f665e4c11951a429a7836c121e58b0",
+      "merged_at": "2026-09-08T23:32:39Z",
+      "issue": {
+        "number": 1251,
+        "title": "Skip pairwise mutable-alias scans for scalar local assignments",
+        "url": "https://github.com/xipkit/vibescript/issues/1251",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-08T23:32:40Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1257#issuecomment-5577503050",
+        "posted_at": "2026-09-08T01:04:53Z",
+      "reviewed_commit_prefix": "96542f2939",
+      "reviewed_commit_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. Swish!"
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:04:58Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285801"
+        },
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:04:04Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285783"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:06:01Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285775"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:03:36Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285765"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:21:43Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285760"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:04:28Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285743"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:04:46Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285740"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:05:17Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262385/job/101903285725"
+        },
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:07:05Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285724"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "96542f29393d2c6712e7d2ba3f7890145ff6c8d2",
+          "completed_at": "2026-09-08T01:13:28Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34175262376/job/101903285637"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "pr": 1258,
+      "title": "Reuse stable memory accounting during uniq",
+      "url": "https://github.com/xipkit/vibescript/pull/1258",
+      "state": "MERGED",
+      "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+      "merge_sha": "2255b98ea38657139bc39d01cf6c879a2c72c83e",
+      "merged_at": "2026-09-08T23:47:07Z",
+      "issue": {
+        "number": 1249,
+        "title": "Avoid repeated receiver graph walks in Array uniq quota accounting",
+        "url": "https://github.com/xipkit/vibescript/issues/1249",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-08T23:47:08Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1258#issuecomment-5593429870",
+        "posted_at": "2026-09-08T23:39:31Z",
+      "reviewed_commit_prefix": "2b9dca5693",
+      "reviewed_commit_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. Can't wait for the next one!"
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:46:19Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048905"
+        },
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:37:07Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048903"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:37:45Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048879"
+        },
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:39:32Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048871"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:44:10Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048866"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:37:22Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048808"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:36:51Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048797"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:38:18Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048777"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:38:35Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247309/job/102278048741"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "2b9dca56931c0ffcfb574705f649ac1fdce32abe",
+          "completed_at": "2026-09-08T23:36:47Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291247269/job/102278048601"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "pr": 1259,
+      "title": "Release local values when function frames return",
+      "url": "https://github.com/xipkit/vibescript/pull/1259",
+      "state": "MERGED",
+      "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+      "merge_sha": "14f34647e7d0a7ab4fb9e6710a7640d4e892f3b5",
+      "merged_at": "2026-09-08T23:54:39Z",
+      "issue": {
+        "number": 1247,
+        "title": "Clear popped environment slots so returned functions release dead locals",
+        "url": "https://github.com/xipkit/vibescript/issues/1247",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-08T23:54:40Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1259#issuecomment-5593472569",
+        "posted_at": "2026-09-08T23:43:18Z",
+      "reviewed_commit_prefix": "d229b891c0",
+      "reviewed_commit_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. Breezy!"
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:42:06Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317495"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:44:18Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317436"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:50:47Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317407"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:51:21Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317398"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:42:26Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317375"
+        },
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:45:37Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317368"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:42:52Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317360"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:43:11Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317355"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:42:50Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660341/job/102279317193"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "d229b891c0f9d2c86505ef8200f3d256a26a07a7",
+          "completed_at": "2026-09-08T23:43:43Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34291660194/job/102279316846"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "pr": 1261,
+      "title": "Keep unrelated writes from invalidating quota caches",
+      "url": "https://github.com/xipkit/vibescript/pull/1261",
+      "state": "MERGED",
+      "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+      "merge_sha": "a44c6088945f8d37156ffa92479544f84665de7f",
+      "merged_at": "2026-09-09T00:12:19Z",
+      "issue": {
+        "number": 1254,
+        "title": "Scope memory estimator invalidation to related execution state",
+        "url": "https://github.com/xipkit/vibescript/issues/1254",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-09T00:12:20Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1261#issuecomment-5593641357",
+        "posted_at": "2026-09-09T00:02:41Z",
+      "reviewed_commit_prefix": "349d70675d",
+      "reviewed_commit_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. :rocket:"
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:57:28Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539606"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-09T00:04:07Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539586"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:57:39Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539579"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:57:44Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539563"
+        },
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:59:51Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539539"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-09T00:06:18Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539521"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:57:07Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539488"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:57:52Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539467"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:58:42Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714053/job/102282539232"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "349d70675d5692bda3496ee9cbe6cfcdea9e4b63",
+          "completed_at": "2026-09-08T23:58:51Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34292714049/job/102282539039"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "pr": 1263,
+      "title": "Avoid cloning unused declarations on every call",
+      "url": "https://github.com/xipkit/vibescript/pull/1263",
+      "state": "MERGED",
+      "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+      "merge_sha": "e5766c4396349200bdcacf46da2b4b1bad5a33de",
+      "merged_at": "2026-09-09T00:27:31Z",
+      "issue": {
+        "number": 1253,
+        "title": "Reduce Script Call setup allocations from unused declarations",
+        "url": "https://github.com/xipkit/vibescript/issues/1253",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-09T00:27:33Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1263#issuecomment-5593822634",
+        "posted_at": "2026-09-09T00:22:50Z",
+      "reviewed_commit_prefix": "ab4a601114",
+      "reviewed_commit_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. :rocket:"
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:19:49Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203373/job/102287136155"
+        },
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:17:06Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287136122"
+        },
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:18:53Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287136092"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:17:37Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287136065"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:17:53Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287136036"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:17:59Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287135995"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:17:05Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287135978"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:26:53Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287135966"
+        },
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:20:19Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287135883"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "ab4a60111476bd126fac92d5689ce688e2278518",
+          "completed_at": "2026-09-09T00:24:51Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294203235/job/102287135830"
+        }
+      ],
+      "verified": true
+    },
+    {
+      "pr": 1264,
+      "title": "Keep independent declaration checks linear",
+      "url": "https://github.com/xipkit/vibescript/pull/1264",
+      "state": "MERGED",
+      "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+      "merge_sha": "bec637602178fd88b003fc894c1c30443c8c39fa",
+      "merged_at": "2026-09-09T00:28:26Z",
+      "issue": {
+        "number": 1250,
+        "title": "Share immutable declarations instead of cloning the whole script per checked function",
+        "url": "https://github.com/xipkit/vibescript/issues/1250",
+        "state": "CLOSED",
+        "state_reason": "COMPLETED",
+        "closed_at": "2026-09-09T00:28:28Z"
+      },
+      "code_review": {
+        "author": "chatgpt-codex-connector",
+        "url": "https://github.com/xipkit/vibescript/pull/1264#issuecomment-5593801310",
+        "posted_at": "2026-09-09T00:20:28Z",
+      "reviewed_commit_prefix": "900a1a3b54",
+      "reviewed_commit_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+        "verified_final_head": true,
+        "statement": "Codex Review: Didn't find any major issues. More of your lovely PRs please."
+      },
+      "review_threads": {
+        "total": 0,
+        "unresolved": 0
+      },
+      "checks": [
+        {
+          "name": "build-and-test (ubuntu-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:19:58Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410364"
+        },
+        {
+          "name": "quality-gates",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:19:19Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410327"
+        },
+        {
+          "name": "build-and-test (windows-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:21:45Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410293"
+        },
+        {
+          "name": "collection-copy-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:19:30Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410181"
+        },
+        {
+          "name": "goroutine-leak-profile",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:18:50Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410154"
+        },
+        {
+          "name": "coverage",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:26:20Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410153"
+        },
+        {
+          "name": "build-and-test (macos-latest)",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:20:12Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410145"
+        },
+        {
+          "name": "estimator-oracle",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:19:18Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410138"
+        },
+        {
+          "name": "race-detector",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:27:20Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292625/job/102287410041"
+        },
+        {
+          "name": "benchmark",
+          "status": "completed",
+          "conclusion": "success",
+          "head_sha": "900a1a3b549f80cff40ed0544db221f4c39222de",
+          "completed_at": "2026-09-09T00:20:35Z",
+          "url": "https://github.com/xipkit/vibescript/actions/runs/34294292592/job/102287409729"
+        }
+      ],
+      "verified": true
+    }
+  ]
+}
