@@ -302,14 +302,6 @@ func (s *Script) bindFunctionOwnership() {
 	}
 }
 
-func cloneFunctionsForCall(functions map[string]*ScriptFunction, env *Env) map[string]*ScriptFunction {
-	cloned := make(map[string]*ScriptFunction, len(functions))
-	for name, fn := range functions {
-		cloned[name] = cloneFunctionForEnv(fn, env)
-	}
-	return cloned
-}
-
 func materializeCallFunction(root *Env, name string) (*ScriptFunction, bool) {
 	val, ok := root.Get(name)
 	if !ok {
