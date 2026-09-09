@@ -1,0 +1,6 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/stringify/65536/dense-escape-10         	     270	   8826104 ns/op	  643426 B/op	      52 allocs/op
+PASS

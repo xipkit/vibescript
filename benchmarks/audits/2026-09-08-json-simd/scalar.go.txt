@@ -1,0 +1,21 @@
+package runtime
+
+func auditJSONParseSpanScalar(text string) int {
+	for i := range len(text) {
+		c := text[i]
+		if c < 0x20 || c >= 0x80 || c == '"' || c == '\\' {
+			return i
+		}
+	}
+	return len(text)
+}
+
+func auditJSONStringifySpanScalar(text string) int {
+	for i := range len(text) {
+		c := text[i]
+		if c < 0x20 || c >= 0x80 || c == '"' || c == '\\' || c == '<' || c == '>' || c == '&' {
+			return i
+		}
+	}
+	return len(text)
+}

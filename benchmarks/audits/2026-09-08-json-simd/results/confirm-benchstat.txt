@@ -1,0 +1,23 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                               │ /tmp/vibescript-json-simd-final/confirm-original.txt │ /tmp/vibescript-json-simd-final/confirm-scalar.txt │ /tmp/vibescript-json-simd-final/confirm-simd.txt │
+                               │                        sec/op                        │           sec/op            vs base                │          sec/op           vs base                │
+AuditJSON/parse/4096/ascii-10                                            8.312µ ± 14%                  5.250µ ± 0%  -36.83% (p=0.000 n=10)                3.585µ ± 1%  -56.87% (p=0.000 n=10)
+AuditJSON/parse/65536/ascii-10                                           82.66µ ± 16%                  37.65µ ± 0%  -54.45% (p=0.000 n=10)                10.39µ ± 1%  -87.43% (p=0.000 n=10)
+geomean                                                                  26.21µ                        14.06µ       -46.36%                               6.104µ       -76.71%
+
+                               │ /tmp/vibescript-json-simd-final/confirm-original.txt │ /tmp/vibescript-json-simd-final/confirm-scalar.txt │ /tmp/vibescript-json-simd-final/confirm-simd.txt │
+                               │                         B/op                         │           B/op             vs base                 │          B/op            vs base                 │
+AuditJSON/parse/4096/ascii-10                                            9.664Ki ± 0%                9.664Ki ± 0%       ~ (p=1.000 n=10) ¹              9.664Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/ascii-10                                           69.67Ki ± 0%                69.66Ki ± 0%  -0.00% (p=0.005 n=10)                69.66Ki ± 0%  -0.00% (p=0.000 n=10)
+geomean                                                                  25.95Ki                     25.95Ki       -0.00%                               25.95Ki       -0.00%
+¹ all samples are equal
+
+                               │ /tmp/vibescript-json-simd-final/confirm-original.txt │ /tmp/vibescript-json-simd-final/confirm-scalar.txt │ /tmp/vibescript-json-simd-final/confirm-simd.txt │
+                               │                      allocs/op                       │         allocs/op          vs base                 │        allocs/op         vs base                 │
+AuditJSON/parse/4096/ascii-10                                              37.00 ± 0%                  37.00 ± 0%       ~ (p=1.000 n=10) ¹                37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/ascii-10                                             37.00 ± 0%                  37.00 ± 0%       ~ (p=1.000 n=10) ¹                37.00 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                    37.00                       37.00       +0.00%                                 37.00       +0.00%
+¹ all samples are equal

@@ -1,0 +1,24 @@
+File: runtime-original.test
+Type: cpu
+Time: 2026-09-08 22:08:39 EDT
+Duration: 3.46s, Total samples = 2810ms (81.13%)
+Showing nodes accounting for 1840ms, 65.48% of 2810ms total
+Dropped 38 nodes (cum <= 14.05ms)
+Showing top 16 nodes out of 96
+      flat  flat%   sum%        cum   cum%
+     430ms 15.30% 15.30%      450ms 16.01%  internal/runtime/maps.(*Iter).Next
+     160ms  5.69% 21.00%      250ms  8.90%  internal/runtime/maps.(*Iter).Init
+     130ms  4.63% 25.62%     1630ms 58.01%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).env
+     130ms  4.63% 30.25%      130ms  4.63%  internal/chacha8rand.block
+     120ms  4.27% 34.52%      190ms  6.76%  runtime.mapassign_fast64
+     120ms  4.27% 38.79%      120ms  4.27%  runtime.memclrNoHeapPointers
+     110ms  3.91% 42.70%      460ms 16.37%  runtime.mapclear
+     100ms  3.56% 46.26%      350ms 12.46%  internal/runtime/maps.(*Map).Clear
+     100ms  3.56% 49.82%      100ms  3.56%  runtime.madvise
+      90ms  3.20% 53.02%       90ms  3.20%  runtime.pthread_cond_signal
+      70ms  2.49% 55.52%     1270ms 45.20%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).value
+      60ms  2.14% 57.65%      200ms  7.12%  internal/runtime/maps.(*Map).clearSmall
+      60ms  2.14% 59.79%       60ms  2.14%  runtime.kevent
+      60ms  2.14% 61.92%      170ms  6.05%  runtime.mapIterNext
+      50ms  1.78% 63.70%       50ms  1.78%  github.com/mgomes/vibescript/vibes/value.Value.String
+      50ms  1.78% 65.48%      640ms 22.78%  runtime.mapIterStart

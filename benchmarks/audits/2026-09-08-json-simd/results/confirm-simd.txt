@@ -1,0 +1,70 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65190	      3614 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23445	     10367 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65251	      3584 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23337	     10394 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65654	      3600 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23266	     10302 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   66498	      3561 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23598	     10199 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65252	      3671 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23125	     10382 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65647	      3581 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   22843	     10419 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65374	      3579 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23227	     10455 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   65751	      3604 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23133	     10433 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   66400	      3576 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   23307	     10393 ns/op	   71336 B/op	      37 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkAuditJSON/parse/4096/ascii-10         	   66564	      3586 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10        	   22935	     10420 ns/op	   71336 B/op	      37 allocs/op
+PASS

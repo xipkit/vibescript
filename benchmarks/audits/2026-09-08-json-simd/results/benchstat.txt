@@ -1,0 +1,131 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                                           │ /tmp/vibescript-json-simd-final/bench-original.txt │ /tmp/vibescript-json-simd-final/bench-scalar.txt │ /tmp/vibescript-json-simd-final/bench-simd.txt │
+                                           │                       sec/op                       │          sec/op           vs base                │         sec/op          vs base                │
+ExecutionJSONParseLoop-10                                                          241.6µ ±  2%               242.2µ ±  2%        ~ (p=0.684 n=10)              242.5µ ± 2%        ~ (p=0.971 n=10)
+ExecutionJSONStringifyLoop-10                                                      581.2µ ±  2%               586.3µ ±  2%        ~ (p=0.247 n=10)              585.2µ ± 1%        ~ (p=0.481 n=10)
+AuditJSON/parse/16/ascii-10                                                        2.945µ ±  2%               2.950µ ±  5%        ~ (p=0.424 n=10)              2.929µ ± 1%        ~ (p=0.565 n=10)
+AuditJSON/stringify/16/ascii-10                                                    4.092µ ±  2%               4.098µ ±  1%        ~ (p=0.342 n=10)              4.073µ ± 1%        ~ (p=0.383 n=10)
+AuditJSON/parse/16/sparse-escape-10                                                2.939µ ±  6%               2.936µ ±  3%        ~ (p=0.726 n=10)              2.937µ ± 1%        ~ (p=0.516 n=10)
+AuditJSON/stringify/16/sparse-escape-10                                            4.104µ ±  2%               4.098µ ±  4%        ~ (p=0.870 n=10)              4.077µ ± 1%        ~ (p=0.210 n=10)
+AuditJSON/parse/16/dense-escape-10                                                 3.042µ ±  1%               3.050µ ±  5%        ~ (p=0.493 n=10)              3.048µ ± 1%        ~ (p=0.810 n=10)
+AuditJSON/stringify/16/dense-escape-10                                             6.172µ ±  2%               6.168µ ±  4%        ~ (p=0.739 n=10)              6.145µ ± 1%        ~ (p=0.424 n=10)
+AuditJSON/parse/16/unicode-10                                                      2.944µ ±  1%               2.954µ ±  5%        ~ (p=0.148 n=10)              2.942µ ± 1%        ~ (p=0.956 n=10)
+AuditJSON/stringify/16/unicode-10                                                  4.109µ ±  2%               4.123µ ±  4%        ~ (p=0.172 n=10)              4.095µ ± 1%        ~ (p=0.579 n=10)
+AuditJSON/parse/16/html-10                                                         2.942µ ±  1%               2.941µ ±  4%        ~ (p=0.839 n=10)              2.932µ ± 1%        ~ (p=0.224 n=10)
+AuditJSON/stringify/16/html-10                                                     4.788µ ±  1%               4.794µ ±  5%        ~ (p=0.306 n=10)              4.786µ ± 1%        ~ (p=0.971 n=10)
+AuditJSON/parse/16/invalid-utf8-10                                                 3.044µ ±  0%               3.058µ ±  3%        ~ (p=0.436 n=10)              3.054µ ± 1%        ~ (p=0.782 n=10)
+AuditJSON/stringify/16/invalid-utf8-10                                             5.151µ ±  2%               5.171µ ±  3%        ~ (p=0.436 n=10)              5.149µ ± 1%        ~ (p=0.927 n=10)
+AuditJSON/parse/4096/ascii-10                                                      8.367µ ± 14%               5.324µ ±  6%  -36.37% (p=0.000 n=10)              3.603µ ± 1%  -56.94% (p=0.000 n=10)
+AuditJSON/stringify/4096/ascii-10                                                  9.122µ ±  1%               8.035µ ±  5%  -11.92% (p=0.000 n=10)              5.460µ ± 1%  -40.15% (p=0.000 n=10)
+AuditJSON/parse/4096/sparse-escape-10                                             18.410µ ±  5%               8.140µ ±  4%  -55.79% (p=0.000 n=10)              5.915µ ± 0%  -67.87% (p=0.000 n=10)
+AuditJSON/stringify/4096/sparse-escape-10                                          21.67µ ±  1%               20.59µ ±  2%   -5.00% (p=0.000 n=10)              18.86µ ± 1%  -12.95% (p=0.000 n=10)
+AuditJSON/parse/4096/dense-escape-10                                               25.10µ ±  4%               26.67µ ±  8%        ~ (p=0.075 n=10)              25.39µ ± 7%        ~ (p=0.393 n=10)
+AuditJSON/stringify/4096/dense-escape-10                                           565.9µ ±  1%               565.3µ ±  1%        ~ (p=0.971 n=10)              567.5µ ± 1%        ~ (p=0.579 n=10)
+AuditJSON/parse/4096/unicode-10                                                    6.564µ ±  2%               6.529µ ±  2%        ~ (p=0.448 n=10)              6.566µ ± 2%        ~ (p=0.516 n=10)
+AuditJSON/stringify/4096/unicode-10                                                8.177µ ±  3%               8.272µ ±  5%        ~ (p=0.342 n=10)              8.235µ ± 5%        ~ (p=0.481 n=10)
+AuditJSON/parse/4096/html-10                                                       8.263µ ± 13%               5.312µ ±  0%  -35.71% (p=0.000 n=10)              3.614µ ± 1%  -56.27% (p=0.000 n=10)
+AuditJSON/stringify/4096/html-10                                                   220.0µ ±  2%               220.3µ ±  1%        ~ (p=0.436 n=10)              220.2µ ± 1%        ~ (p=0.436 n=10)
+AuditJSON/parse/4096/invalid-utf8-10                                               26.03µ ±  2%               27.17µ ±  8%        ~ (p=0.165 n=10)              25.98µ ± 8%        ~ (p=0.853 n=10)
+AuditJSON/stringify/4096/invalid-utf8-10                                           291.2µ ±  1%               291.6µ ±  1%        ~ (p=0.393 n=10)              291.4µ ± 1%        ~ (p=0.436 n=10)
+AuditJSON/parse/65536/ascii-10                                                     83.11µ ± 21%               38.04µ ±  1%  -54.23% (p=0.000 n=10)              10.50µ ± 1%  -87.36% (p=0.000 n=10)
+AuditJSON/stringify/65536/ascii-10                                                 77.88µ ±  1%               60.57µ ±  1%  -22.23% (p=0.000 n=10)              18.06µ ± 1%  -76.81% (p=0.000 n=10)
+AuditJSON/parse/65536/sparse-escape-10                                            250.53µ ±  3%               81.40µ ±  1%  -67.51% (p=0.000 n=10)              46.42µ ± 0%  -81.47% (p=0.000 n=10)
+AuditJSON/stringify/65536/sparse-escape-10                                         273.6µ ±  1%               257.0µ ±  1%   -6.05% (p=0.000 n=10)              230.4µ ± 1%  -15.79% (p=0.000 n=10)
+AuditJSON/parse/65536/dense-escape-10                                              360.9µ ±  4%               388.4µ ± 10%        ~ (p=0.052 n=10)              354.8µ ± 8%        ~ (p=0.739 n=10)
+AuditJSON/stringify/65536/dense-escape-10                                          8.999m ±  2%               8.989m ±  1%        ~ (p=0.971 n=10)              8.977m ± 1%        ~ (p=0.971 n=10)
+AuditJSON/parse/65536/unicode-10                                                   57.99µ ±  2%               57.74µ ±  1%        ~ (p=0.363 n=10)              57.77µ ± 2%        ~ (p=0.280 n=10)
+AuditJSON/stringify/65536/unicode-10                                               63.12µ ±  3%               63.73µ ±  6%        ~ (p=0.529 n=10)              63.45µ ± 3%        ~ (p=0.971 n=10)
+AuditJSON/parse/65536/html-10                                                      77.82µ ± 18%               38.06µ ±  2%  -51.08% (p=0.000 n=10)              10.47µ ± 2%  -86.54% (p=0.000 n=10)
+AuditJSON/stringify/65536/html-10                                                  3.453m ±  2%               3.437m ±  3%        ~ (p=0.684 n=10)              3.450m ± 1%        ~ (p=0.912 n=10)
+AuditJSON/parse/65536/invalid-utf8-10                                              359.1µ ±  3%               376.5µ ±  7%        ~ (p=0.280 n=10)              359.9µ ± 7%        ~ (p=0.796 n=10)
+AuditJSON/stringify/65536/invalid-utf8-10                                          4.592m ±  1%               4.577m ±  2%        ~ (p=0.853 n=10)              4.558m ± 2%        ~ (p=0.684 n=10)
+geomean                                                                            37.66µ                     33.40µ        -11.32%                             28.29µ       -24.87%
+
+                                           │ /tmp/vibescript-json-simd-final/bench-original.txt │ /tmp/vibescript-json-simd-final/bench-scalar.txt │ /tmp/vibescript-json-simd-final/bench-simd.txt │
+                                           │                        B/op                        │          B/op            vs base                 │         B/op           vs base                 │
+ExecutionJSONParseLoop-10                                                          88.85Ki ± 0%              88.85Ki ± 0%       ~ (p=0.346 n=10)              88.85Ki ± 0%       ~ (p=0.902 n=10)
+ExecutionJSONStringifyLoop-10                                                      52.32Ki ± 0%              52.32Ki ± 0%       ~ (p=0.528 n=10)              52.32Ki ± 0%       ~ (p=0.303 n=10)
+AuditJSON/parse/16/ascii-10                                                        5.680Ki ± 0%              5.680Ki ± 0%       ~ (p=1.000 n=10) ¹            5.680Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/ascii-10                                                    5.938Ki ± 0%              5.938Ki ± 0%       ~ (p=1.000 n=10) ¹            5.938Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/sparse-escape-10                                                5.680Ki ± 0%              5.680Ki ± 0%       ~ (p=1.000 n=10) ¹            5.680Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/sparse-escape-10                                            5.938Ki ± 0%              5.938Ki ± 0%       ~ (p=1.000 n=10) ¹            5.938Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/dense-escape-10                                                 5.695Ki ± 0%              5.695Ki ± 0%       ~ (p=1.000 n=10) ¹            5.695Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/dense-escape-10                                             5.953Ki ± 0%              5.953Ki ± 0%       ~ (p=1.000 n=10) ¹            5.953Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/unicode-10                                                      5.680Ki ± 0%              5.680Ki ± 0%       ~ (p=1.000 n=10) ¹            5.680Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/unicode-10                                                  5.938Ki ± 0%              5.938Ki ± 0%       ~ (p=1.000 n=10) ¹            5.938Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/html-10                                                         5.680Ki ± 0%              5.680Ki ± 0%       ~ (p=1.000 n=10) ¹            5.680Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/html-10                                                     5.953Ki ± 0%              5.953Ki ± 0%       ~ (p=1.000 n=10) ¹            5.953Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/invalid-utf8-10                                                 5.727Ki ± 0%              5.727Ki ± 0%       ~ (p=1.000 n=10) ¹            5.727Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/invalid-utf8-10                                             5.969Ki ± 0%              5.969Ki ± 0%       ~ (p=1.000 n=10) ¹            5.969Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/ascii-10                                                      9.664Ki ± 0%              9.664Ki ± 0%       ~ (p=1.000 n=10) ¹            9.664Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/ascii-10                                                  15.39Ki ± 0%              15.39Ki ± 0%       ~ (p=1.000 n=10) ¹            15.39Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/sparse-escape-10                                              13.66Ki ± 0%              13.66Ki ± 0%       ~ (p=1.000 n=10) ¹            13.66Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/sparse-escape-10                                          27.64Ki ± 0%              27.64Ki ± 0%       ~ (p=1.000 n=10) ¹            27.64Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/dense-escape-10                                               13.66Ki ± 0%              13.66Ki ± 0%       ~ (p=1.000 n=10) ¹            13.66Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/dense-escape-10                                           46.90Ki ± 0%              46.90Ki ± 0%       ~ (p=1.000 n=10)              46.90Ki ± 0%       ~ (p=0.474 n=10)
+AuditJSON/parse/4096/unicode-10                                                    9.664Ki ± 0%              9.664Ki ± 0%       ~ (p=1.000 n=10) ¹            9.664Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/unicode-10                                                15.39Ki ± 0%              15.39Ki ± 0%       ~ (p=1.000 n=10) ¹            15.39Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/html-10                                                       9.664Ki ± 0%              9.664Ki ± 0%       ~ (p=1.000 n=10) ¹            9.664Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/html-10                                                   60.89Ki ± 0%              60.89Ki ± 0%       ~ (p=1.000 n=10)              60.89Ki ± 0%       ~ (p=1.000 n=10)
+AuditJSON/parse/4096/invalid-utf8-10                                               21.66Ki ± 0%              21.66Ki ± 0%       ~ (p=1.000 n=10) ¹            21.66Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/invalid-utf8-10                                           80.15Ki ± 0%              80.15Ki ± 0%       ~ (p=1.000 n=10)              80.15Ki ± 0%       ~ (p=1.000 n=10)
+AuditJSON/parse/65536/ascii-10                                                     69.67Ki ± 0%              69.67Ki ± 0%  -0.00% (p=0.033 n=10)              69.66Ki ± 0%  -0.00% (p=0.000 n=10)
+AuditJSON/stringify/65536/ascii-10                                                 149.9Ki ± 0%              149.9Ki ± 0%       ~ (p=0.348 n=10)              149.9Ki ± 0%  -0.00% (p=0.000 n=10)
+AuditJSON/parse/65536/sparse-escape-10                                             133.7Ki ± 0%              133.7Ki ± 0%  -0.00% (p=0.000 n=10)              133.7Ki ± 0%  -0.00% (p=0.000 n=10)
+AuditJSON/stringify/65536/sparse-escape-10                                         356.1Ki ± 0%              356.1Ki ± 0%       ~ (p=0.193 n=10)              356.1Ki ± 0%  -0.00% (p=0.048 n=10)
+AuditJSON/parse/65536/dense-escape-10                                              133.7Ki ± 0%              133.7Ki ± 0%       ~ (p=0.067 n=10)              133.7Ki ± 0%       ~ (p=1.000 n=10)
+AuditJSON/stringify/65536/dense-escape-10                                          628.3Ki ± 0%              628.3Ki ± 0%       ~ (p=1.000 n=10)              628.3Ki ± 0%       ~ (p=0.512 n=10)
+AuditJSON/parse/65536/unicode-10                                                   69.67Ki ± 0%              69.67Ki ± 0%       ~ (p=1.000 n=10) ¹            69.67Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/unicode-10                                               149.9Ki ± 0%              149.9Ki ± 0%       ~ (p=0.720 n=10)              149.9Ki ± 0%       ~ (p=1.000 n=10)
+AuditJSON/parse/65536/html-10                                                      69.67Ki ± 0%              69.67Ki ± 0%       ~ (p=0.211 n=10)              69.66Ki ± 0%  -0.00% (p=0.000 n=10)
+AuditJSON/stringify/65536/html-10                                                  836.2Ki ± 0%              836.2Ki ± 0%       ~ (p=0.810 n=10)              836.2Ki ± 0%       ~ (p=0.838 n=10)
+AuditJSON/parse/65536/invalid-utf8-10                                              245.7Ki ± 0%              245.7Ki ± 0%       ~ (p=0.086 n=10)              245.7Ki ± 0%       ~ (p=0.164 n=10)
+AuditJSON/stringify/65536/invalid-utf8-10                                          1.067Mi ± 0%              1.067Mi ± 0%       ~ (p=0.391 n=10)              1.067Mi ± 0%       ~ (p=0.188 n=10)
+geomean                                                                            30.52Ki                   30.52Ki       -0.00%                             30.52Ki       -0.00%
+¹ all samples are equal
+
+                                           │ /tmp/vibescript-json-simd-final/bench-original.txt │ /tmp/vibescript-json-simd-final/bench-scalar.txt │ /tmp/vibescript-json-simd-final/bench-simd.txt │
+                                           │                     allocs/op                      │        allocs/op         vs base                 │       allocs/op        vs base                 │
+ExecutionJSONParseLoop-10                                                           1.797k ± 0%               1.797k ± 0%       ~ (p=1.000 n=10) ¹             1.797k ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionJSONStringifyLoop-10                                                        520.0 ± 0%                520.0 ± 0%       ~ (p=1.000 n=10) ¹              520.0 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/ascii-10                                                          37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/ascii-10                                                      34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/sparse-escape-10                                                  37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/sparse-escape-10                                              34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/dense-escape-10                                                   38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/dense-escape-10                                               34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/unicode-10                                                        37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/unicode-10                                                    34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/html-10                                                           37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/html-10                                                       34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/invalid-utf8-10                                                   38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/invalid-utf8-10                                               34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/ascii-10                                                        37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/ascii-10                                                    35.00 ± 0%                35.00 ± 0%       ~ (p=1.000 n=10) ¹              35.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/sparse-escape-10                                                38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/sparse-escape-10                                            41.00 ± 0%                41.00 ± 0%       ~ (p=1.000 n=10) ¹              41.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/dense-escape-10                                                 38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/dense-escape-10                                             43.00 ± 0%                43.00 ± 0%       ~ (p=1.000 n=10) ¹              43.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/unicode-10                                                      37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/unicode-10                                                  35.00 ± 0%                35.00 ± 0%       ~ (p=1.000 n=10) ¹              35.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/html-10                                                         37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/html-10                                                     44.00 ± 0%                44.00 ± 0%       ~ (p=1.000 n=10) ¹              44.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/4096/invalid-utf8-10                                                 38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/invalid-utf8-10                                             45.00 ± 0%                45.00 ± 0%       ~ (p=1.000 n=10) ¹              45.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/ascii-10                                                       37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/ascii-10                                                   35.00 ± 0%                35.00 ± 0%       ~ (p=1.000 n=10) ¹              35.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/sparse-escape-10                                               38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/sparse-escape-10                                           50.00 ± 0%                50.00 ± 0%       ~ (p=1.000 n=10) ¹              50.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/dense-escape-10                                                38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/dense-escape-10                                            52.00 ± 0%                52.00 ± 0%       ~ (p=1.000 n=10) ¹              52.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/unicode-10                                                     37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/unicode-10                                                 35.00 ± 0%                35.00 ± 0%       ~ (p=1.000 n=10) ¹              35.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/html-10                                                        37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/html-10                                                    53.00 ± 0%                53.00 ± 0%       ~ (p=1.000 n=10) ¹              53.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/invalid-utf8-10                                                38.00 ± 0%                38.00 ± 0%       ~ (p=1.000 n=10) ¹              38.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/invalid-utf8-10                                            54.00 ± 0%                54.00 ± 0%       ~ (p=1.000 n=10) ¹              54.00 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                              45.68                     45.68       +0.00%                               45.68       +0.00%
+¹ all samples are equal

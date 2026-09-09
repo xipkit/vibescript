@@ -1,0 +1,88 @@
+//go:build go1.27 && goexperiment.simd && arm64
+
+package runtime
+
+import (
+	"math/rand/v2"
+	"strings"
+	"testing"
+)
+
+func auditJSONSpanReference(text string, html bool) int {
+	for i := range len(text) {
+		b := text[i]
+		if b < 0x20 || b >= 0x80 || b == '"' || b == '\\' || html && (b == '<' || b == '>' || b == '&') {
+			return i
+		}
+	}
+	return len(text)
+}
+
+func TestAuditJSONSpanSIMDParity(t *testing.T) {
+	cases := []struct {
+		name string
+		scan func(string) int
+		html bool
+	}{
+		{name: "parse", scan: auditJSONParseSpanSIMD},
+		{name: "stringify", scan: auditJSONStringifySpanSIMD, html: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			check := func(text string) {
+				t.Helper()
+				if got, want := tc.scan(text), auditJSONSpanReference(text, tc.html); got != want {
+					t.Errorf("%s span(%q) = %d, want %d", tc.name, text, got, want)
+				}
+			}
+			for n := range 258 {
+				check(strings.Repeat("a", n))
+			}
+			for _, n := range []int{1, 15, 16, 17, 31, 32, 33, 47, 48, 49, 63, 64, 65, 127, 128, 129} {
+				for pos := range n {
+					for value := range 256 {
+						text := []byte(strings.Repeat("a", n))
+						text[pos] = byte(value)
+						check(string(text))
+					}
+				}
+			}
+			for _, text := range []string{
+				"\"", "\\", "\x00", "\x7f", "\x80", "\xff", "<>&", "é日本語😀", "a\xc0\x80z", "a\xe2\x80\xa8z", "a\xe2\x80\xa9z",
+				strings.Repeat("a", 16) + "\\\\\"\"", strings.Repeat("a", 31) + "<>&\x00\xff",
+			} {
+				check(text)
+			}
+			rng := rand.New(rand.NewPCG(42, 17))
+			for range 1000 {
+				text := make([]byte, rng.IntN(1025))
+				for i := range text {
+					text[i] = byte(rng.Uint32())
+				}
+				check(string(text))
+			}
+		})
+	}
+}
+
+func TestAuditJSONSpanSIMDAllocations(t *testing.T) {
+	text := strings.Repeat("a", 16*1024)
+	for _, tc := range []struct {
+		name string
+		scan func(string) int
+	}{
+		{name: "parse", scan: auditJSONParseSpanSIMD},
+		{name: "stringify", scan: auditJSONStringifySpanSIMD},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result := 0
+			allocs := testing.AllocsPerRun(100, func() { result = tc.scan(text) })
+			if result != len(text) {
+				t.Errorf("%s span(16 KiB ASCII) = %d, want %d", tc.name, result, len(text))
+			}
+			if allocs != 0 {
+				t.Errorf("%s span allocations = %v, want 0", tc.name, allocs)
+			}
+		})
+	}
+}

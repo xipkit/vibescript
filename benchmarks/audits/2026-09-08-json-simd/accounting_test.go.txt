@@ -1,0 +1,317 @@
+package runtime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
+
+type auditJSONBudget struct {
+	quota       int
+	memory      int
+	steps       int
+	cancelAfter int
+}
+
+type auditJSONContext struct {
+	context.Context
+	done        chan struct{}
+	polls       int
+	cancelAfter int
+}
+
+func (c *auditJSONContext) Done() <-chan struct{} {
+	c.polls++
+	if c.cancelAfter > 0 && c.polls == c.cancelAfter {
+		close(c.done)
+	}
+	return c.done
+}
+
+func (c *auditJSONContext) Err() error {
+	select {
+	case <-c.done:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+
+func auditJSONExecution(budget auditJSONBudget) (*Execution, *auditJSONContext) {
+	ctx := &auditJSONContext{
+		Context:     context.Background(),
+		done:        make(chan struct{}),
+		cancelAfter: budget.cancelAfter,
+	}
+	return &Execution{ctx: ctx, quota: budget.quota, memoryQuota: budget.memory, steps: budget.steps}, ctx
+}
+
+type auditJSONError struct {
+	Type   string
+	Text   string
+	Step   bool
+	Memory bool
+	Cancel bool
+}
+
+func auditJSONErrorResult(err error) auditJSONError {
+	if err == nil {
+		return auditJSONError{}
+	}
+	return auditJSONError{
+		Type:   fmt.Sprintf("%T", err),
+		Text:   err.Error(),
+		Step:   errors.Is(err, errStepQuotaExceeded),
+		Memory: errors.Is(err, errMemoryQuotaExceeded),
+		Cancel: errors.Is(err, context.Canceled),
+	}
+}
+
+type auditJSONAccounting struct {
+	Error        auditJSONError
+	Exhausted    auditJSONError
+	Position     int
+	Depth        int
+	Base         int
+	Used         int
+	Steps        int
+	ChargedSteps int
+	Scratch      int
+	Sections     int
+	ContextPolls int
+}
+
+func auditJSONParseResult(raw string, budget auditJSONBudget, reference bool) (Value, auditJSONAccounting) {
+	exec, ctx := auditJSONExecution(budget)
+	var result Value
+	var err error
+	var account auditJSONAccounting
+	if reference {
+		parser := auditJSONReferenceParser{raw: raw, exec: exec}
+		result, err = parser.parse()
+		account.Position, account.Depth, account.Base, account.Used = parser.pos, parser.depth, parser.base, parser.used
+	} else {
+		parser := jsonValueParser{raw: raw, exec: exec}
+		result, err = parser.parse()
+		account.Position, account.Depth, account.Base, account.Used = parser.pos, parser.depth, parser.base, parser.used
+	}
+	account.Error = auditJSONErrorResult(err)
+	account.Exhausted = auditJSONErrorResult(exec.exhausted)
+	account.Steps = exec.steps
+	account.Scratch = exec.reservedScratchBytes
+	account.Sections = exec.accumMeteredSections
+	account.ContextPolls = ctx.polls
+	return result, account
+}
+
+func auditJSONStringifyResult(s string, prefix string, budget auditJSONBudget, reference bool) (string, auditJSONAccounting) {
+	exec, ctx := auditJSONExecution(budget)
+	state := &jsonStringifyState{exec: exec}
+	var out []byte
+	var err error
+	if reference {
+		out, err = auditAppendJSONStringReference([]byte(prefix), s, state)
+	} else {
+		out, err = appendJSONString([]byte(prefix), s, state)
+	}
+	return string(out), auditJSONAccounting{
+		Error:        auditJSONErrorResult(err),
+		Exhausted:    auditJSONErrorResult(exec.exhausted),
+		Steps:        exec.steps,
+		ChargedSteps: state.chargedSteps,
+		Scratch:      exec.reservedScratchBytes,
+		Sections:     exec.accumMeteredSections,
+		ContextPolls: ctx.polls,
+	}
+}
+
+func auditJSONCheckParse(t *testing.T, raw string, budget auditJSONBudget) auditJSONAccounting {
+	t.Helper()
+	want, wantAccount := auditJSONParseResult(raw, budget, true)
+	got, gotAccount := auditJSONParseResult(raw, budget, false)
+	if !got.Eql(want) || got.Inspect() != want.Inspect() {
+		t.Errorf("JSON parse(%q, %+v) = %s, want %s", raw, budget, got.Inspect(), want.Inspect())
+	}
+	if diff := cmp.Diff(wantAccount, gotAccount); diff != "" {
+		t.Errorf("JSON parse(%q, %+v) accounting mismatch (-want +got):\n%s", raw, budget, diff)
+	}
+	if gotAccount.Sections != 0 || gotAccount.Scratch != 0 {
+		t.Errorf("JSON parse(%q, %+v) retained section/scratch = %d/%d, want 0/0", raw, budget, gotAccount.Sections, gotAccount.Scratch)
+	}
+	return gotAccount
+}
+
+func auditJSONCheckStringify(t *testing.T, s string, prefix string, budget auditJSONBudget) auditJSONAccounting {
+	t.Helper()
+	want, wantAccount := auditJSONStringifyResult(s, prefix, budget, true)
+	got, gotAccount := auditJSONStringifyResult(s, prefix, budget, false)
+	if got != want {
+		t.Errorf("JSON stringify(%q, prefix=%q, %+v) = %q, want %q", s, prefix, budget, got, want)
+	}
+	if diff := cmp.Diff(wantAccount, gotAccount); diff != "" {
+		t.Errorf("JSON stringify(%q, prefix=%q, %+v) accounting mismatch (-want +got):\n%s", s, prefix, budget, diff)
+	}
+	if gotAccount.Sections != 0 || gotAccount.Scratch != 0 {
+		t.Errorf("JSON stringify(%q, %+v) retained section/scratch = %d/%d, want 0/0", s, budget, gotAccount.Sections, gotAccount.Scratch)
+	}
+	return gotAccount
+}
+
+func TestAuditJSONDifferentialBoundaryBytes(t *testing.T) {
+	budget := auditJSONBudget{quota: 1 << 20, memory: 16 << 20}
+	for _, offset := range []int{0, 15, 16, 31, 32, 63, 64} {
+		for b := range 256 {
+			s := strings.Repeat("a", offset) + string([]byte{byte(b)}) + strings.Repeat("z", 33)
+			t.Run(fmt.Sprintf("offset=%d/byte=%02x", offset, b), func(t *testing.T) {
+				auditJSONCheckParse(t, `"`+s+`"`, budget)
+				auditJSONCheckStringify(t, s, "", budget)
+			})
+		}
+	}
+}
+
+func TestAuditJSONDifferentialEscapesAndTails(t *testing.T) {
+	budget := auditJSONBudget{quota: 1 << 20, memory: 16 << 20}
+	for _, n := range []int{0, 1, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 4095} {
+		prefix := strings.Repeat("a", n)
+		for _, tail := range []string{
+			`"`, `\"z"`, `\\z"`, `\n\t\r\b\f\/"`, `\u0000\uD83D\uDE00"`,
+			`\uD800"`, `\uDC00"`, `\uD800\u0041"`, `\uZZZZ"`, `\x"`,
+			"é終😀\u2028\u2029\"", "\xff\xfe\"", "\xc2\"", "\x00\"", "", `\`,
+		} {
+			t.Run(fmt.Sprintf("parse/length=%d/tail=%q", n, tail), func(t *testing.T) {
+				auditJSONCheckParse(t, `"`+prefix+tail, budget)
+			})
+		}
+		for _, tail := range []string{"", "\"\\\n\r\b\f\t", "<>&", "é終😀\u2028\u2029", "\xff\xfe\xc2", "\x00\x1f"} {
+			t.Run(fmt.Sprintf("stringify/length=%d/tail=%q", n, tail), func(t *testing.T) {
+				auditJSONCheckStringify(t, prefix+tail, strings.Repeat(" ", n%65), budget)
+			})
+		}
+	}
+}
+
+func TestAuditJSONDifferentialQuotaBoundaries(t *testing.T) {
+	parseInputs := []string{
+		`"` + strings.Repeat("a", 4095) + `"`,
+		`"` + strings.Repeat("a", 63) + `\n` + strings.Repeat("z", 257) + `"`,
+		`"` + strings.Repeat(`\u0000`, 80) + `"`,
+		`[` + strings.Repeat(`"`+strings.Repeat("b", 33)+`",`, 31) + `"last"]`,
+		`{"a":"` + strings.Repeat("c", 129) + `","a":"\n","b":[1,true,null]}`,
+	}
+	for i, raw := range parseInputs {
+		t.Run(fmt.Sprintf("parse/input=%d", i), func(t *testing.T) {
+			for _, startingSteps := range []int{0, 15} {
+				budget := auditJSONBudget{quota: 1 << 20, memory: 1 << 20, steps: startingSteps}
+				_, full := auditJSONParseResult(raw, budget, true)
+				if full.Error.Type != "" {
+					t.Fatalf("reference JSON parse(%q) = %+v, want success", raw, full.Error)
+				}
+				for _, quota := range []int{1, 15, 16, 17, full.Steps - 1, full.Steps, full.Steps + 1} {
+					if quota > 0 {
+						budget.quota = quota
+						auditJSONCheckParse(t, raw, budget)
+					}
+				}
+				budget.quota = 1 << 20
+				lo, hi := 1, 1<<20
+				for lo < hi {
+					mid := lo + (hi-lo)/2
+					budget.memory = mid
+					_, result := auditJSONParseResult(raw, budget, true)
+					if result.Error.Type == "" {
+						hi = mid
+					} else {
+						lo = mid + 1
+					}
+				}
+				for _, memory := range []int{1, lo - 1, lo, lo + 1} {
+					budget.memory = memory
+					auditJSONCheckParse(t, raw, budget)
+				}
+			}
+		})
+	}
+	for i, s := range []string{
+		strings.Repeat("a", 4095),
+		strings.Repeat("a", 63) + "\n" + strings.Repeat("z", 257),
+		strings.Repeat("\x00", 80),
+		strings.Repeat("a", 129) + "<>&é終😀\u2028\u2029\xff",
+	} {
+		t.Run(fmt.Sprintf("stringify/input=%d", i), func(t *testing.T) {
+			for _, startingSteps := range []int{0, 15} {
+				budget := auditJSONBudget{quota: 1 << 20, memory: 1 << 20, steps: startingSteps}
+				prefix := strings.Repeat(" ", 63)
+				_, full := auditJSONStringifyResult(s, prefix, budget, true)
+				if full.Error.Type != "" {
+					t.Fatalf("reference JSON stringify(%q) = %+v, want success", s, full.Error)
+				}
+				for _, quota := range []int{1, 15, 16, 17, full.Steps - 1, full.Steps, full.Steps + 1} {
+					if quota > 0 {
+						budget.quota = quota
+						auditJSONCheckStringify(t, s, prefix, budget)
+					}
+				}
+				budget.quota = 1 << 20
+				lo, hi := 1, 1<<20
+				for lo < hi {
+					mid := lo + (hi-lo)/2
+					budget.memory = mid
+					_, result := auditJSONStringifyResult(s, prefix, budget, true)
+					if result.Error.Type == "" {
+						hi = mid
+					} else {
+						lo = mid + 1
+					}
+				}
+				for _, memory := range []int{1, lo - 1, lo, lo + 1} {
+					budget.memory = memory
+					auditJSONCheckStringify(t, s, prefix, budget)
+				}
+			}
+		})
+	}
+}
+
+func TestAuditJSONDifferentialCancellation(t *testing.T) {
+	raw := `[` + strings.Repeat(`"`+strings.Repeat("a", 129)+`\n",`, 95) + `"last"]`
+	s := strings.Repeat(strings.Repeat("a", 127)+"\n", 95)
+	for _, cancelAfter := range []int{1, 2, 3} {
+		for _, startingSteps := range []int{0, 15} {
+			t.Run(fmt.Sprintf("poll=%d/start=%d", cancelAfter, startingSteps), func(t *testing.T) {
+				budget := auditJSONBudget{quota: 1 << 20, memory: 16 << 20, steps: startingSteps, cancelAfter: cancelAfter}
+				parsed := auditJSONCheckParse(t, raw, budget)
+				if !parsed.Error.Cancel || parsed.Position >= len(raw) {
+					t.Errorf("JSON parse cancellation(%+v) = %+v, want cancellation before position %d", budget, parsed, len(raw))
+				}
+				encoded := auditJSONCheckStringify(t, s, "", budget)
+				if !encoded.Error.Cancel {
+					t.Errorf("JSON stringify cancellation(%+v) = %+v, want cancellation", budget, encoded)
+				}
+			})
+		}
+	}
+}
+
+func FuzzAuditJSONDifferential(f *testing.F) {
+	for _, raw := range []string{
+		`null`, `"plain"`, `"` + strings.Repeat("a", 63) + `\n"`,
+		`{"a":["plain","\uD83D\uDE00"],"a":"\n"}`, `"\uD800\u0041"`,
+		"\"\xff\xc2\"", `"<>&"`, `"unterminated`, `"\uZZZZ"`,
+		`"` + strings.Repeat("a", 63) + `\n` + strings.Repeat("b", 65) + "\xff" + `\t"`,
+	} {
+		f.Add(raw, uint16(4096), uint16(32768), uint8(0))
+	}
+	f.Fuzz(func(t *testing.T, raw string, quota uint16, memory uint16, phase uint8) {
+		if len(raw) > 4096 {
+			return
+		}
+		budget := auditJSONBudget{quota: int(quota), memory: int(memory), steps: int(phase) & 15}
+		auditJSONCheckParse(t, raw, budget)
+		auditJSONCheckStringify(t, raw, strings.Repeat(" ", int(phase)&63), budget)
+	})
+}

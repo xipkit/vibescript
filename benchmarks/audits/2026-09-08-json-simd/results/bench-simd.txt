@@ -1,0 +1,430 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     495	    238117 ns/op	   90985 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     207	    575913 ns/op	   53597 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   41204	      2901 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29716	      4022 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   41749	      2902 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29760	      4007 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   40015	      3005 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19597	      6074 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   41364	      2944 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29671	      4031 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   40850	      2917 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   25585	      4700 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   40101	      3002 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23613	      5051 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33561	      3581 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21962	      5424 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20437	      5902 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6403	     18564 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    5416	     23628 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     214	    557398 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18080	      6673 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14725	      8085 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33651	      3587 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     547	    215684 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4612	     24920 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     423	    290438 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10598 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6532	     18011 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2470	     46451 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     519	    228034 ns/op	  364693 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     348	    343326 ns/op	  136879 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   8836311 ns/op	  643416 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2158	     58968 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1993	     61754 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10689 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      36	   3395060 ns/op	  856277 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     344	    357790 ns/op	  251569 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      26	   4529479 ns/op	 1118452 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     494	    239158 ns/op	   90985 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     207	    577894 ns/op	   53573 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40836	      2930 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29479	      4059 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   40826	      2957 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29521	      4052 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   40260	      2991 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19830	      6068 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   40952	      2944 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29643	      4063 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   41265	      2901 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   25291	      4718 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39726	      3026 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23097	      5072 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   32942	      3555 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21812	      5456 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20084	      5900 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6591	     18788 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4720	     23503 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     211	    569903 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18019	      6620 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14325	      8308 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33464	      3607 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     537	    218277 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4406	     25502 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     409	    290677 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10507 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    7117	     18046 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2420	     45928 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     522	    227978 ns/op	  364694 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     350	    339390 ns/op	  136879 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   8945846 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2023	     58681 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1905	     64366 ns/op	  153490 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10349 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      33	   3408152 ns/op	  856283 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     344	    349820 ns/op	  251569 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      26	   4549300 ns/op	 1118456 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     493	    238391 ns/op	   90974 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     206	    578816 ns/op	   53572 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40832	      2928 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29738	      4033 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   41522	      2893 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29461	      4040 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39992	      3018 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19622	      6091 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   41292	      2913 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29569	      4047 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   41624	      2914 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   25405	      4777 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39846	      3024 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23503	      5159 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33723	      3598 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21835	      5424 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20378	      5856 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6529	     18673 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    5148	     25514 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     211	    561370 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18333	      6536 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14294	      8353 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33127	      3595 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     543	    218324 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4196	     25871 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     416	    286823 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10423 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6871	     17675 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2449	     46193 ns/op	  136874 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     518	    228933 ns/op	  364694 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     328	    352749 ns/op	  136880 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   8968391 ns/op	  643424 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2174	     56964 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1797	     66194 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10455 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      34	   3478761 ns/op	  856281 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     306	    367559 ns/op	  251569 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      27	   4554202 ns/op	 1118448 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     490	    240760 ns/op	   90974 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     207	    584901 ns/op	   53572 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40566	      2911 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29640	      4062 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   41226	      2916 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29635	      4047 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39704	      3026 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19788	      6135 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   41418	      2926 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29530	      4144 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   41114	      2940 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   25045	      4788 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39400	      3065 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23209	      5119 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   32932	      3620 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21956	      5458 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20191	      5908 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6420	     18859 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4216	     25533 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     212	    571661 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   17335	      6929 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   13602	      8736 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   31084	      3783 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     512	    229442 ns/op	   62357 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4221	     28086 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     391	    304118 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10846 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6808	     18606 ns/op	  153490 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2406	     49014 ns/op	  136874 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     489	    241484 ns/op	  364696 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     320	    372005 ns/op	  136880 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      12	   9330569 ns/op	  643432 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2056	     60550 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1808	     65121 ns/op	  153490 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10918 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      33	   3589729 ns/op	  856293 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     312	    375963 ns/op	  251570 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      25	   4733010 ns/op	 1118456 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     492	    241687 ns/op	   90985 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     205	    588351 ns/op	   53599 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40232	      2947 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29468	      4077 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   40442	      2943 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29414	      4097 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   38737	      3067 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19491	      6155 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   35259	      2943 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29250	      4091 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   41106	      2953 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   24994	      4825 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39303	      3056 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23068	      5280 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33103	      3650 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   20676	      5461 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20131	      5936 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6384	     18750 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4916	     25274 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     212	    560306 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   17208	      6554 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14619	      8198 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   32988	      3600 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     542	    219581 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4273	     26085 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     410	    287741 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10471 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6856	     18327 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2434	     46324 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     524	    231006 ns/op	  364694 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     333	    356664 ns/op	  136879 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   8845381 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2107	     57246 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1918	     63127 ns/op	  153490 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10460 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      33	   3406186 ns/op	  856286 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     327	    359628 ns/op	  251569 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      26	   4534893 ns/op	 1118452 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     480	    244377 ns/op	   90974 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     205	    587011 ns/op	   53598 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40495	      2969 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29194	      4078 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   41266	      2984 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29188	      4092 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39324	      3049 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19432	      6189 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   41204	      2938 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29012	      4105 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   40917	      2944 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   24764	      4783 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39116	      3090 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23463	      5132 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33387	      3631 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21841	      5491 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20539	      5914 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6232	     18891 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4617	     25038 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     208	    565978 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18387	      6552 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14432	      8164 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33026	      3628 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     547	    220771 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4746	     25309 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     412	    289754 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10568 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6115	     18285 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2455	     46257 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     517	    229655 ns/op	  364693 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     328	    360236 ns/op	  136879 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   9008144 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2103	     57363 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1894	     61837 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10336 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      34	   3451385 ns/op	  856284 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     327	    346739 ns/op	  251568 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      25	   4598200 ns/op	 1118464 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     486	    244692 ns/op	   90974 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     206	    581655 ns/op	   53572 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40876	      2920 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29252	      4068 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   40821	      2916 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29425	      4134 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39478	      3049 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19546	      6155 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   41182	      2940 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29096	      4078 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   40568	      2913 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   25089	      4784 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39055	      3012 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23350	      5166 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33021	      3585 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21884	      5451 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20257	      5921 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6391	     18870 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4995	     26471 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     211	    566159 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18422	      6578 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14670	      8186 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33108	      3607 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     542	    220838 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4796	     26276 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     414	    292033 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10503 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6506	     18069 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2383	     46419 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     518	    229749 ns/op	  364694 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     310	    383041 ns/op	  136880 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   8986029 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2137	     57321 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1947	     62292 ns/op	  153490 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10550 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      36	   3451378 ns/op	  856283 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     324	    360257 ns/op	  251568 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      26	   4559913 ns/op	 1118447 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     484	    243275 ns/op	   90984 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     205	    585449 ns/op	   53572 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40297	      2937 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29335	      4077 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   41442	      2944 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29438	      4061 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39436	      3046 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19323	      6202 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   40497	      2941 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29230	      4123 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   40768	      2936 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   25050	      4790 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   38958	      3069 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23026	      5163 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33643	      3600 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21968	      5476 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20168	      5916 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6446	     18948 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    5011	     25099 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     210	    571953 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18391	      6582 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14809	      8080 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33381	      3620 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     535	    222464 ns/op	   62357 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4934	     24917 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     409	    293501 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10420 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6298	     17938 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2409	     46504 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     513	    231684 ns/op	  364694 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     330	    347213 ns/op	  136880 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   9103500 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2092	     57848 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1940	     61922 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10594 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      34	   3501657 ns/op	  856281 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     346	    347705 ns/op	  251567 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      25	   4644562 ns/op	 1118464 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     486	    243438 ns/op	   90996 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     205	    589163 ns/op	   53572 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   39909	      2993 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29306	      4094 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   40636	      2946 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29320	      4092 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39246	      3090 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19641	      6129 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   40742	      2948 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29266	      4098 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   40410	      2928 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   24804	      4812 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   39279	      3080 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23107	      5140 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   33224	      3606 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   22027	      5482 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20068	      5916 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6430	     18970 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4231	     27227 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     208	    568782 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18412	      6553 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14481	      8271 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   33159	      3660 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     541	    219668 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4674	     28092 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     408	    293037 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10290 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6511	     17947 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2408	     46422 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     517	    231900 ns/op	  364694 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     319	    392521 ns/op	  136880 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   8943445 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2102	     57805 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1801	     63777 ns/op	  153489 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10395 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      34	   3431652 ns/op	  856284 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     294	    401374 ns/op	  251570 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      25	   4557070 ns/op	 1118451 B/op	      54 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionJSONParseLoop-10        	     481	    243712 ns/op	   90974 B/op	    1797 allocs/op
+BenchmarkExecutionJSONStringifyLoop-10    	     204	    589231 ns/op	   53573 B/op	     520 allocs/op
+BenchmarkAuditJSON/parse/16/ascii-10      	   40400	      2924 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/ascii-10  	   29470	      4097 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/sparse-escape-10         	   40405	      2930 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/sparse-escape-10     	   29190	      4110 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/dense-escape-10          	   39289	      3077 ns/op	    5832 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/dense-escape-10      	   19297	      6167 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/unicode-10               	   40294	      2958 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/unicode-10           	   29106	      4113 ns/op	    6080 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/html-10                  	   40800	      2944 ns/op	    5816 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/16/html-10              	   24864	      4817 ns/op	    6096 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/16/invalid-utf8-10          	   38508	      3051 ns/op	    5864 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/16/invalid-utf8-10      	   23306	      5158 ns/op	    6112 B/op	      34 allocs/op
+BenchmarkAuditJSON/parse/4096/ascii-10               	   32619	      3622 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/ascii-10           	   21684	      5498 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/sparse-escape-10       	   20113	      5961 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/sparse-escape-10   	    6540	     18919 ns/op	   28304 B/op	      41 allocs/op
+BenchmarkAuditJSON/parse/4096/dense-escape-10        	    4387	     26490 ns/op	   13992 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/dense-escape-10    	     211	    569262 ns/op	   48027 B/op	      43 allocs/op
+BenchmarkAuditJSON/parse/4096/unicode-10             	   18344	      6553 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/unicode-10         	   14178	      8660 ns/op	   15760 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/4096/html-10                	   32608	      3646 ns/op	    9896 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/4096/html-10            	     534	    222604 ns/op	   62356 B/op	      44 allocs/op
+BenchmarkAuditJSON/parse/4096/invalid-utf8-10        	    4476	     26671 ns/op	   22184 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/4096/invalid-utf8-10    	     414	    294208 ns/op	   82070 B/op	      45 allocs/op
+BenchmarkAuditJSON/parse/65536/ascii-10              	   10000	     10500 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/ascii-10          	    6681	     18126 ns/op	  153488 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/sparse-escape-10      	    2437	     46425 ns/op	  136873 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/sparse-escape-10  	     518	    231244 ns/op	  364693 B/op	      50 allocs/op
+BenchmarkAuditJSON/parse/65536/dense-escape-10       	     337	    353014 ns/op	  136880 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/dense-escape-10   	      13	   9026965 ns/op	  643407 B/op	      52 allocs/op
+BenchmarkAuditJSON/parse/65536/unicode-10            	    2102	     57728 ns/op	   71337 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/unicode-10        	    1725	     64349 ns/op	  153490 B/op	      35 allocs/op
+BenchmarkAuditJSON/parse/65536/html-10               	   10000	     10488 ns/op	   71336 B/op	      37 allocs/op
+BenchmarkAuditJSON/stringify/65536/html-10           	      34	   3448681 ns/op	  856284 B/op	      53 allocs/op
+BenchmarkAuditJSON/parse/65536/invalid-utf8-10       	     322	    386866 ns/op	  251567 B/op	      38 allocs/op
+BenchmarkAuditJSON/stringify/65536/invalid-utf8-10   	      26	   4597215 ns/op	 1118447 B/op	      54 allocs/op
+PASS

@@ -1,0 +1,15 @@
+fuzz: elapsed: 0s, gathering baseline coverage: 0/10 completed
+fuzz: elapsed: 0s, gathering baseline coverage: 10/10 completed, now fuzzing with 4 workers
+fuzz: elapsed: 3s, execs: 64987 (21648/sec), new interesting: 95 (total: 105)
+fuzz: elapsed: 6s, execs: 78110 (4374/sec), new interesting: 112 (total: 122)
+fuzz: elapsed: 9s, execs: 170032 (30640/sec), new interesting: 115 (total: 125)
+fuzz: elapsed: 12s, execs: 257872 (29299/sec), new interesting: 118 (total: 128)
+fuzz: elapsed: 15s, execs: 264126 (2083/sec), new interesting: 122 (total: 132)
+fuzz: elapsed: 18s, execs: 362276 (32723/sec), new interesting: 126 (total: 136)
+fuzz: elapsed: 21s, execs: 362276 (0/sec), new interesting: 126 (total: 136)
+fuzz: elapsed: 24s, execs: 362276 (0/sec), new interesting: 126 (total: 136)
+fuzz: elapsed: 27s, execs: 362276 (0/sec), new interesting: 126 (total: 136)
+fuzz: elapsed: 30s, execs: 500111 (45931/sec), new interesting: 135 (total: 145)
+fuzz: elapsed: 31s, execs: 500111 (0/sec), new interesting: 135 (total: 145)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	31.439s

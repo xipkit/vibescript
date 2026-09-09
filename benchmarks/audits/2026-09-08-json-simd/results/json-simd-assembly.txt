@@ -1,0 +1,93 @@
+TEXT github.com/mgomes/vibescript/internal/runtime.auditJSONParseSpanSIMD(SB) /private/tmp/vibescript-json-simd-20260908/internal/runtime/json_audit_kernel.go
+  json_audit_kernel.go:7	0x10048a2c0		f9400b90		MOVD 16(R28), R16
+  json_audit_kernel.go:7	0x10048a2c4		eb3063ff		CMP R16, RSP
+  json_audit_kernel.go:7	0x10048a2c8		54000a49		BLS 82(PC)
+  json_audit_kernel.go:7	0x10048a2cc		f81e0ffe		MOVD.W R30, -32(RSP)
+  json_audit_kernel.go:7	0x10048a2d0		f81f83fd		MOVD R29, -8(RSP)
+  json_audit_kernel.go:7	0x10048a2d4		d10023fd		SUB $8, RSP, R29
+  json_audit_kernel.go:7	0x10048a2d8		f90017e0		MOVD R0, 40(RSP)
+  json_audit_kernel.go:9	0x10048a2dc		f100403f		CMP $16, R1
+  json_audit_kernel.go:9	0x10048a2e0		540002eb		BLT 23(PC)
+  json_audit_kernel.go:10	0x10048a2e4		39400002		MOVBU (R0), R2
+  json_audit_kernel.go:10	0x10048a2e8		d1008043		SUB $32, R2, R3
+  json_audit_kernel.go:10	0x10048a2ec		d3401c63		UBFX $0, R3, $8, R3
+  json_audit_kernel.go:10	0x10048a2f0		7101807f		CMPW $96, R3
+  json_audit_kernel.go:10	0x10048a2f4		540001c2		BCS 14(PC)
+  json_audit_kernel.go:10	0x10048a2f8		7100885f		CMPW $34, R2
+  json_audit_kernel.go:10	0x10048a2fc		54000180		BEQ 12(PC)
+  json_audit_kernel.go:10	0x10048a300		7101705f		CMPW $92, R2
+  json_audit_kernel.go:10	0x10048a304		54000140		BEQ 10(PC)
+  json_audit_kernel.go:13	0x10048a308		d503201f		NOOP
+  json_audit_kernel.go:14	0x10048a30c		d503201f		NOOP
+  json_audit_kernel.go:15	0x10048a310		d503201f		NOOP
+  json_audit_kernel.go:16	0x10048a314		a900ffff		STP (ZR, ZR), 8(RSP)
+  other_gen_arm64.go:11		0x10048a318		4f01e400		VMOVI $32, V0.B16
+  other_gen_arm64.go:39		0x10048a31c		4f01e441		VMOVI $34, V1.B16
+  other_gen_arm64.go:39		0x10048a320		4f02e782		VMOVI $92, V2.B16
+  json_audit_kernel.go:17	0x10048a324		aa1f03e2		MOVD ZR, R2
+  json_audit_kernel.go:17	0x10048a328		1400001e		JMP 30(PC)
+  json_audit_kernel.go:11	0x10048a32c		aa1f03e0		MOVD ZR, R0
+  json_audit_kernel.go:11	0x10048a330		f85f83fd		MOVD -8(RSP), R29
+  json_audit_kernel.go:11	0x10048a334		f84207fe		MOVD.P 32(RSP), R30
+  json_audit_kernel.go:11	0x10048a338		d65f03c0		RET
+  json_audit_kernel.go:28	0x10048a33c		aa1f03e2		MOVD ZR, R2
+  json_audit_kernel.go:9	0x10048a340		14000002		JMP 2(PC)
+  json_audit_kernel.go:33	0x10048a344		91000442		ADD $1, R2, R2
+  json_audit_kernel.go:28	0x10048a348		eb02003f		CMP R2, R1
+  json_audit_kernel.go:28	0x10048a34c		540001ed		BLE 15(PC)
+  json_audit_kernel.go:29	0x10048a350		54000249		BLS 18(PC)
+  json_audit_kernel.go:29	0x10048a354		38626803		MOVBU (R0)(R2), R3
+  json_audit_kernel.go:30	0x10048a358		d1008064		SUB $32, R3, R4
+  json_audit_kernel.go:30	0x10048a35c		d3401c84		UBFX $0, R4, $8, R4
+  json_audit_kernel.go:30	0x10048a360		7101809f		CMPW $96, R4
+  json_audit_kernel.go:30	0x10048a364		540000a2		BCS 5(PC)
+  json_audit_kernel.go:30	0x10048a368		7100887f		CMPW $34, R3
+  json_audit_kernel.go:30	0x10048a36c		54000060		BEQ 3(PC)
+  json_audit_kernel.go:30	0x10048a370		7101707f		CMPW $92, R3
+  json_audit_kernel.go:30	0x10048a374		54fffe81		BNE -12(PC)
+  json_audit_kernel.go:31	0x10048a378		aa0203e0		MOVD R2, R0
+  json_audit_kernel.go:31	0x10048a37c		f85f83fd		MOVD -8(RSP), R29
+  json_audit_kernel.go:31	0x10048a380		f84207fe		MOVD.P 32(RSP), R30
+  json_audit_kernel.go:31	0x10048a384		d65f03c0		RET
+  json_audit_kernel.go:35	0x10048a388		aa0203e0		MOVD R2, R0
+  json_audit_kernel.go:35	0x10048a38c		f85f83fd		MOVD -8(RSP), R29
+  json_audit_kernel.go:35	0x10048a390		f84207fe		MOVD.P 32(RSP), R30
+  json_audit_kernel.go:35	0x10048a394		d65f03c0		RET
+  json_audit_kernel.go:29	0x10048a398		97f00dae		CALL runtime.panicBounds(SB)
+  json_audit_kernel.go:17	0x10048a39c		aa0303e2		MOVD R3, R2
+  json_audit_kernel.go:17	0x10048a3a0		cb020023		SUB R2, R1, R3
+  json_audit_kernel.go:17	0x10048a3a4		f100407f		CMP $16, R3
+  json_audit_kernel.go:17	0x10048a3a8		54fffd0b		BLT -24(PC)
+  json_audit_kernel.go:18	0x10048a3ac		91004043		ADD $16, R2, R3
+  json_audit_kernel.go:18	0x10048a3b0		eb03003f		CMP R3, R1
+  json_audit_kernel.go:18	0x10048a3b4		540002a3		BCC 21(PC)
+  json_audit_kernel.go:18	0x10048a3b8		eb03005f		CMP R3, R2
+  json_audit_kernel.go:18	0x10048a3bc		54000248		BHI 18(PC)
+  json_audit_kernel.go:18	0x10048a3c0		8b020004		ADD R2, R0, R4
+  json_audit_kernel.go:18	0x10048a3c4		910023e5		ADD $8, RSP, R5
+  json_audit_kernel.go:18	0x10048a3c8		eb0400bf		CMP R4, R5
+  json_audit_kernel.go:18	0x10048a3cc		54000060		BEQ 3(PC)
+  json_audit_kernel.go:18	0x10048a3d0		3dc00083		FMOVQ (R4), F3
+  json_audit_kernel.go:18	0x10048a3d4		3c8083e3		FMOVQ F3, 8(RSP)
+  json_audit_kernel.go:19	0x10048a3d8		3cc083e3		FMOVQ 8(RSP), F3
+  json_audit_kernel.go:21	0x10048a3dc		6e218c64		VCMEQ V1.B16, V3.B16, V4.B16
+  json_audit_kernel.go:21	0x10048a3e0		6e228c65		VCMEQ V2.B16, V3.B16, V5.B16
+  compare_gen_arm64.go:9	0x10048a3e4		4e233403		VCMGT V3.B16, V0.B16, V3.B16
+  json_audit_kernel.go:21	0x10048a3e8		4ea41c63		VORR V4.B16, V3.B16, V3.B16
+  json_audit_kernel.go:21	0x10048a3ec		4ea31ca3		VORR V3.B16, V5.B16, V3.B16
+  other_gen_arm64.go:469	0x10048a3f0		6e30a863		VUMAXV V3.B16, V3
+  other_gen_arm64.go:469	0x10048a3f4		0e013c64		VMOV V3.B[0], R4
+  json_audit_kernel.go:22	0x10048a3f8		d3401c84		UBFX $0, R4, $8, R4
+  json_audit_kernel.go:22	0x10048a3fc		34fffd04		CBZW R4, -24(PC)
+  json_audit_kernel.go:22	0x10048a400		17ffffd2		JMP -46(PC)
+  json_audit_kernel.go:18	0x10048a404		97f00d93		CALL runtime.panicBounds(SB)
+  json_audit_kernel.go:18	0x10048a408		97f00d92		CALL runtime.panicBounds(SB)
+  json_audit_kernel.go:18	0x10048a40c		d503201f		NOOP
+  json_audit_kernel.go:7	0x10048a410		a90087e0		STP (R0, R1), 8(RSP)
+  json_audit_kernel.go:7	0x10048a414		aa1e03e3		MOVD R30, R3
+  json_audit_kernel.go:7	0x10048a418		97f0054a		CALL runtime.morestack_noctxt.abi0(SB)
+  json_audit_kernel.go:7	0x10048a41c		a94087e0		LDP 8(RSP), (R0, R1)
+  json_audit_kernel.go:7	0x10048a420		17ffffa8		JMP github.com/mgomes/vibescript/internal/runtime.auditJSONParseSpanSIMD(SB)
+  json_audit_kernel.go:7	0x10048a424		00000000		?
+  json_audit_kernel.go:7	0x10048a428		00000000		?
+  json_audit_kernel.go:7	0x10048a42c		00000000		?

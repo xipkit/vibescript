@@ -1,0 +1,1 @@
+ok  	github.com/mgomes/vibescript/internal/runtime	0.514s

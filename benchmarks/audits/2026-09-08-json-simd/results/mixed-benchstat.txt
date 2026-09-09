@@ -1,0 +1,35 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                                           │ /tmp/vibescript-json-simd-final/mixed-original.txt │ /tmp/vibescript-json-simd-final/mixed-scalar.txt │ /tmp/vibescript-json-simd-final/mixed-simd.txt │
+                                           │                       sec/op                       │          sec/op            vs base               │         sec/op           vs base               │
+AuditJSON/parse/4096/mixed-unicode-10                                               7.044µ ± 2%                 7.002µ ± 1%       ~ (p=0.288 n=10)               6.981µ ± 1%       ~ (p=0.102 n=10)
+AuditJSON/stringify/4096/mixed-unicode-10                                           8.889µ ± 2%                 9.094µ ± 2%       ~ (p=0.105 n=10)               8.783µ ± 2%  -1.19% (p=0.043 n=10)
+AuditJSON/parse/65536/mixed-unicode-10                                              61.79µ ± 2%                 61.02µ ± 2%       ~ (p=0.165 n=10)               61.25µ ± 2%       ~ (p=0.280 n=10)
+AuditJSON/stringify/65536/mixed-unicode-10                                          67.50µ ± 4%                 71.13µ ± 3%  +5.37% (p=0.002 n=10)               66.43µ ± 4%       ~ (p=0.165 n=10)
+AuditJSON/parse/16/mixed-unicode-10                                                 2.918µ ± 1%                 2.924µ ± 1%       ~ (p=0.517 n=10)               2.917µ ± 1%       ~ (p=0.896 n=10)
+AuditJSON/stringify/16/mixed-unicode-10                                             4.045µ ± 0%                 4.061µ ± 2%       ~ (p=0.060 n=10)               4.058µ ± 1%       ~ (p=0.159 n=10)
+geomean                                                                             12.06µ                      12.19µ       +1.05%                              11.98µ       -0.72%
+
+                                           │ /tmp/vibescript-json-simd-final/mixed-original.txt │ /tmp/vibescript-json-simd-final/mixed-scalar.txt │ /tmp/vibescript-json-simd-final/mixed-simd.txt │
+                                           │                        B/op                        │          B/op            vs base                 │         B/op           vs base                 │
+AuditJSON/parse/4096/mixed-unicode-10                                              9.664Ki ± 0%              9.664Ki ± 0%       ~ (p=1.000 n=10) ¹            9.664Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/mixed-unicode-10                                          15.39Ki ± 0%              15.39Ki ± 0%       ~ (p=1.000 n=10) ¹            15.39Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/mixed-unicode-10                                             69.67Ki ± 0%              69.67Ki ± 0%       ~ (p=0.474 n=10)              69.67Ki ± 0%       ~ (p=1.000 n=10)
+AuditJSON/stringify/65536/mixed-unicode-10                                         149.9Ki ± 0%              149.9Ki ± 0%       ~ (p=0.638 n=10)              149.9Ki ± 0%       ~ (p=0.721 n=10)
+AuditJSON/parse/16/mixed-unicode-10                                                5.680Ki ± 0%              5.680Ki ± 0%       ~ (p=1.000 n=10) ¹            5.680Ki ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/mixed-unicode-10                                            5.938Ki ± 0%              5.938Ki ± 0%       ~ (p=1.000 n=10) ¹            5.938Ki ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                            19.34Ki                   19.34Ki       +0.00%                             19.34Ki       +0.00%
+¹ all samples are equal
+
+                                           │ /tmp/vibescript-json-simd-final/mixed-original.txt │ /tmp/vibescript-json-simd-final/mixed-scalar.txt │ /tmp/vibescript-json-simd-final/mixed-simd.txt │
+                                           │                     allocs/op                      │        allocs/op         vs base                 │       allocs/op        vs base                 │
+AuditJSON/parse/4096/mixed-unicode-10                                                37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/4096/mixed-unicode-10                                            35.00 ± 0%                35.00 ± 0%       ~ (p=1.000 n=10) ¹              35.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/65536/mixed-unicode-10                                               37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/65536/mixed-unicode-10                                           35.00 ± 0%                35.00 ± 0%       ~ (p=1.000 n=10) ¹              35.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/parse/16/mixed-unicode-10                                                  37.00 ± 0%                37.00 ± 0%       ~ (p=1.000 n=10) ¹              37.00 ± 0%       ~ (p=1.000 n=10) ¹
+AuditJSON/stringify/16/mixed-unicode-10                                              34.00 ± 0%                34.00 ± 0%       ~ (p=1.000 n=10) ¹              34.00 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                              35.81                     35.81       +0.00%                               35.81       +0.00%
+¹ all samples are equal
