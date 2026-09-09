@@ -1,0 +1,12 @@
+{
+  "fixture": "internal/runtime/regexp_scan_benchmark_test.go",
+  "benchmark": "BenchmarkRegexpEscape(Spans|Caller)",
+  "cases": 22,
+  "sources": [
+    "internal/runtime/regexp_scan*.go",
+    "internal/runtime/regexp_namespace.go"
+  ],
+  "inputs": [
+    "internal/runtime/simd_controls_benchmark_test.go"
+  ]
+}

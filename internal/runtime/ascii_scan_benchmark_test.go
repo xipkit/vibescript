@@ -28,7 +28,7 @@ func BenchmarkStringASCIIShortCalls(b *testing.B) {
 		} {
 			b.Run(operation.name+"/"+input.name, func(b *testing.B) {
 				source := "def run(text, n)\n  total = 0\n  for i in 1..n\n    total = total + " + operation.expr + "\n  end\n  total\nend"
-				benchmarkStringHelperLoop(b, source, []Value{NewString(input.text), NewInt(200)})
+				simdBenchmarkStringHelperLoop(b, source, []Value{NewString(input.text), NewInt(200)})
 			})
 		}
 	}

@@ -1,0 +1,14 @@
+{
+  "fixture": "internal/runtime/compile_literal_spans_benchmark_test.go",
+  "benchmark": "BenchmarkCompile(LiteralSpans|RepeatedSmallLiterals|SnippetRepresentativeWorkloads|RepresentativeWorkloads)",
+  "cases": 70,
+  "inputs": [
+    "internal/runtime/simd_controls_benchmark_test.go",
+    "tests/complex/loops.vibe",
+    "tests/complex/typed.vibe",
+    "tests/complex/massive.vibe"
+  ],
+  "sources": [
+    "internal/parser/lexer*.go"
+  ]
+}

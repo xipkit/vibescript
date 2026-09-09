@@ -41,7 +41,7 @@ func (compiler literalCompiler) source(body string) string {
 }
 
 func BenchmarkCompileLiteralSpans(b *testing.B) {
-	for _, compiler := range literalCompilers(benchmarkEngine()) {
+	for _, compiler := range literalCompilers(simdBenchmarkEngine()) {
 		for _, quote := range []string{`"`, `'`} {
 			quoteName := "double"
 			if quote == `'` {
@@ -82,7 +82,7 @@ func repeatLiteralUnit(unit string, size int) string {
 }
 
 func BenchmarkCompileRepeatedSmallLiterals(b *testing.B) {
-	for _, compiler := range literalCompilers(benchmarkEngine()) {
+	for _, compiler := range literalCompilers(simdBenchmarkEngine()) {
 		for _, fixture := range []struct {
 			name  string
 			quote string
@@ -98,8 +98,7 @@ func BenchmarkCompileRepeatedSmallLiterals(b *testing.B) {
 	}
 }
 
-func BenchmarkCompileSnippetRepresentativeWorkloads(b *testing.B) {
-	compiler := literalCompilers(benchmarkEngine())[1]
+func BenchmarkCompileRepresentativeWorkloads(b *testing.B) {
 	for _, fixture := range []struct {
 		name string
 		path string
@@ -109,7 +108,32 @@ func BenchmarkCompileSnippetRepresentativeWorkloads(b *testing.B) {
 		{name: "massive", path: "tests/complex/massive.vibe"},
 	} {
 		b.Run(fixture.name, func(b *testing.B) {
-			source := benchmarkSourceFromFile(b, fixture.path) + "\nrun()\n"
+			source := simdBenchmarkSourceFromFile(b, fixture.path)
+			engine := simdBenchmarkEngine()
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				if _, err := engine.Compile(source); err != nil {
+					b.Fatalf("compile failed: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkCompileSnippetRepresentativeWorkloads(b *testing.B) {
+	compiler := literalCompilers(simdBenchmarkEngine())[1]
+	for _, fixture := range []struct {
+		name string
+		path string
+	}{
+		{name: "control_flow", path: "tests/complex/loops.vibe"},
+		{name: "typed", path: "tests/complex/typed.vibe"},
+		{name: "massive", path: "tests/complex/massive.vibe"},
+	} {
+		b.Run(fixture.name, func(b *testing.B) {
+			source := simdBenchmarkSourceFromFile(b, fixture.path) + "\nrun()\n"
 			benchmarkLiteralCompilation(b, compiler, source, false)
 		})
 	}
@@ -137,7 +161,7 @@ func TestCompileLiteralSpanHeapEvidence(t *testing.T) {
 	// These samples read process-wide heap and temporarily disable GC, so they
 	// must run serially. The input and engine exist before the baseline sample.
 	const bodyBytes = 64 << 10
-	for _, compiler := range literalCompilers(benchmarkEngine()) {
+	for _, compiler := range literalCompilers(simdBenchmarkEngine()) {
 		for _, quote := range []string{`"`, `'`} {
 			t.Run(compiler.name+"/"+strconv.Quote(quote), func(t *testing.T) {
 				body := strings.Repeat("a", bodyBytes)
@@ -168,7 +192,7 @@ func TestCompileLiteralSpanHeapEvidence(t *testing.T) {
 				retainedBytes := int64(retained.HeapAlloc) - int64(before.HeapAlloc)
 				t.Logf("%s: %d-byte ASCII body; peak heap growth with GC disabled = %d bytes; retained with script alive after two GCs = %d bytes",
 					compiler.name, bodyBytes, peakBytes, retainedBytes)
-				got := callScript(t, context.Background(), script, compiler.entrypoint, nil, CallOptions{})
+				got := simdBenchmarkCall(t, context.Background(), script, compiler.entrypoint, nil, CallOptions{})
 				if got.Kind() != KindString || got.String() != body {
 					t.Errorf("%s literal result has kind %v and %d bytes, want string with %d identical ASCII bytes",
 						compiler.name, got.Kind(), len(got.String()), bodyBytes)
@@ -186,7 +210,7 @@ func TestCompiledPlainLiteralsReleaseSourceDocuments(t *testing.T) {
 	// The 16 distinct source allocations total 8 MiB; allow 2 MiB for noise.
 	const documents = 16
 	const documentBytes = 512 << 10
-	for _, compiler := range literalCompilers(benchmarkEngine()) {
+	for _, compiler := range literalCompilers(simdBenchmarkEngine()) {
 		for _, quote := range []string{`"`, `'`} {
 			t.Run(compiler.name+"/"+strconv.Quote(quote), func(t *testing.T) {
 				compileLiteralValue(t, compiler, compiler.source(quote+"warm"+quote))
@@ -232,7 +256,7 @@ func compileLiteralValue(t testing.TB, compiler literalCompiler, source string) 
 		t.Fatalf("%s(%d source bytes) returned script = %t, error = %v, want a compiled script",
 			compiler.name, len(source), script != nil, err)
 	}
-	return callScript(t, context.Background(), script, compiler.entrypoint, nil, CallOptions{})
+	return simdBenchmarkCall(t, context.Background(), script, compiler.entrypoint, nil, CallOptions{})
 }
 
 // Two collections clear both generations of temporary sync.Pool storage.
