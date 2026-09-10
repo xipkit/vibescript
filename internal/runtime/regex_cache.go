@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"regexp"
 	"regexp/syntax"
+	"strings"
 	"sync"
 )
 
@@ -256,6 +257,8 @@ func (c *regexCache) compileWithWork(pattern string, work *regexWork, limit int)
 		return nil, err
 	}
 
+	// The regexp retains its expression too, so detach before compiling.
+	pattern = strings.Clone(pattern)
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, err
