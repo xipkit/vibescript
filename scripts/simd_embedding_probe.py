@@ -84,6 +84,7 @@ import (
     "fmt"
     "os"
     "runtime/pprof"
+    "strings"
     "time"
 )
 
@@ -91,6 +92,12 @@ func profileWorkload(path, workload string) error {
     var source string
     var args []Value
     switch workload {
+    case "length":
+        source = "def run(text, n) total = 0; for i in 1..n; total = total + text.length; end; total; end"
+        args = []Value{NewString(simdBenchmarkUnicodeStringText()), NewInt(200)}
+    case "strip":
+        source = "def run(text) text.strip end"
+        args = []Value{NewString(strings.Repeat(" ", 32768) + "value" + strings.Repeat(" ", 32768))}
     case "json":
         encoded, err := json.Marshal(jsonSpanBenchmarkPayload("dense-escape", 65536))
         if err != nil { return err }

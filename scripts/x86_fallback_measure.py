@@ -79,7 +79,7 @@ for revision in revisions:
         with (out / f"{revision}-{mode}.asm").open("w") as log:
             subprocess.run(
                 ["go", "tool", "objdump", "-s",
-                 "(jsonValueParser.*parse(String|EscapedContents).*|unicodeDowncase|caseInsensitiveEqual|stringCase.*|asciiCase.*|stringRune.*|stringIsASCII.*)",
+                 "(jsonValueParser.*parse(String|EscapedContents).*|unicodeDowncase|caseInsensitiveEqual|stringCase.*|asciiCase.*|stringRune.*|stringIsASCII.*|.*Whitespace.*|whitespace.*|ruby.*strip|.*evalDirectString.*|.*resolveStringMember.*)",
                  str(binary)], env=env, stdout=log, check=True,
             )
 
@@ -116,20 +116,28 @@ for trial in range(manifest["rounds"]):
             })
             (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
+profiles = [("json", "simd"), ("index", "simd"), ("rindex", "simd")]
+if os.environ.get("SIMD_PROFILE_ONLY") == "true" and full_matrix:
+    profiles = [(workload, mode) for workload in ("length", "strip") for mode in ("nosimd", "simd", "simd-avx2-disabled")]
 for revision in revisions:
-    for workload in ("json", "index", "rindex"):
-        profile = out / f"{revision}-{workload}.pprof"
-        command = ["taskset", "-c", str(cpu), str(binaries / f"{revision}-simd")]
-        with (out / f"{revision}-{workload}-profile.txt").open("w") as log:
+    for workload, mode in profiles:
+        suffix = workload if mode == "simd" else f"{workload}-{mode}"
+        experiment = "nosimd" if mode == "nosimd" else "simd"
+        profile = out / f"{revision}-{suffix}.pprof"
+        command = ["taskset", "-c", str(cpu), str(binaries / f"{revision}-{experiment}")]
+        profile_env = dict(env, GOEXPERIMENT=experiment, SIMD_PROFILE_FILE=str(profile), SIMD_PROFILE_WORKLOAD=workload)
+        if mode.endswith("avx2-disabled"):
+            profile_env["GODEBUG"] = "cpu.avx2=off"
+        with (out / f"{revision}-{suffix}-profile.txt").open("w") as log:
             subprocess.run(
                 command, cwd=root / revision / "internal/runtime",
-                env=dict(env, GOEXPERIMENT="simd", SIMD_PROFILE_FILE=str(profile), SIMD_PROFILE_WORKLOAD=workload),
+                env=profile_env,
                 stdout=log, check=True,
             )
         assert profile.stat().st_size > 0
-        with (out / f"{revision}-{workload}-top.txt").open("w") as log:
+        with (out / f"{revision}-{suffix}-top.txt").open("w") as log:
             subprocess.run(
-                ["go", "tool", "pprof", "-top", "-nodecount=50", str(binaries / f"{revision}-simd"), str(profile)],
+                ["go", "tool", "pprof", "-top", "-nodecount=50", str(binaries / f"{revision}-{experiment}"), str(profile)],
                 env=env, stdout=log, check=True,
             )
 (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
