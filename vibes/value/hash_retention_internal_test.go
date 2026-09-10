@@ -25,7 +25,7 @@ func TestHashDeleteClearsRetiredOrderSlots(t *testing.T) {
 					t.Fatalf("HashDeleteKey(%q) found=%t, error=%v, want true, nil", name, found, err)
 				}
 				want = slices.Delete(want, slices.Index(want, name), slices.Index(want, name)+1)
-				var got []string
+				got := make([]string, 0, hash.HashLen())
 				for _, entry := range hash.HashEntries() {
 					got = append(got, entry.Key.String())
 				}
