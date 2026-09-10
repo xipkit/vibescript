@@ -1,0 +1,120 @@
+{
+  "mode": "go126",
+  "rounds": 10,
+  "benchtime": "200ms",
+  "pattern": "^Benchmark(CallShortScript|CallManyUnusedFunctions|Execution(ArithmeticLoop|RecursiveFib|RecursiveFibQuota|MethodDispatchLoop|ArrayPipeline|CapabilityFindLoop|CapabilityWorkflowLoop))$",
+  "samples": [
+    {
+      "trial": 0,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 0,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 1,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 1,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 2,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 2,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 3,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 3,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 4,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 4,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 5,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 5,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 6,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 6,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 7,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 7,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 8,
+      "revision": "base",
+      "cases": 9
+    },
+    {
+      "trial": 8,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 9,
+      "revision": "head",
+      "cases": 9
+    },
+    {
+      "trial": 9,
+      "revision": "base",
+      "cases": 9
+    }
+  ],
+  "revisions": {
+    "base": {
+      "head": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "41b93df68046b2ffc74679404284b7c5c093566d650e1fd1d11ea0b1dae620f9"
+    },
+    "head": {
+      "head": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+      "diff_sha256": "3ab8741ab3cfd5217023c9ce919d7565e182d954911e34b1971e3da8b23c75f3",
+      "binary_sha256": "03501e48680e963fd0048f3583e27421ebc6aab2f0d843e9c4d28da58e1308b0"
+    }
+  }
+}

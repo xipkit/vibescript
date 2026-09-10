@@ -1,0 +1,120 @@
+{
+  "mode": "go126",
+  "rounds": 10,
+  "benchtime": "200ms",
+  "pattern": "^BenchmarkExecutionCallDepth$",
+  "samples": [
+    {
+      "trial": 0,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 0,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 1,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 1,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 2,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 2,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 3,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 3,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 4,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 4,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 5,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 5,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 6,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 6,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 7,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 7,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 8,
+      "revision": "base",
+      "cases": 7
+    },
+    {
+      "trial": 8,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 9,
+      "revision": "head",
+      "cases": 7
+    },
+    {
+      "trial": 9,
+      "revision": "base",
+      "cases": 7
+    }
+  ],
+  "revisions": {
+    "base": {
+      "head": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "9e1f14877b6354dc0f026b80e51eed2873ee433edb522ea429c442298fd46321"
+    },
+    "head": {
+      "head": "779d1afc68516e9d7500d2fb83b25e2ec7924d0d",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "e1ac521a8a57431265f7b5bc43cb19348bc6014137916b45a10be03837e38581"
+    }
+  }
+}

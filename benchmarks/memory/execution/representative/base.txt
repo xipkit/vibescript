@@ -1,0 +1,140 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2377	    104725 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     360	    697953 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     500	    489046 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     172	   1394357 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      32	   7083734 ns/op	   21346 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23109435 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  211934	      1053 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  220533	      1106 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	      99	   2935271 ns/op	  920995 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2406	    102209 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     366	    670084 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     512	    472334 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     181	   1324548 ns/op	  492878 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      33	   6925700 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  22622977 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  221624	      1024 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  228243	      1032 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2825550 ns/op	  920994 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2412	    101854 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     375	    653379 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     508	    471614 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     178	   1331701 ns/op	  492878 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      34	   7063212 ns/op	   21342 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23057884 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  214384	      1051 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  219146	      1071 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2914195 ns/op	  920995 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2409	    104361 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     367	    692833 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     502	    485962 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     175	   1391781 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      33	   7085827 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23253690 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  209857	      1061 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  217105	      1081 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	      99	   2936601 ns/op	  920993 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2354	    104892 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     357	    697217 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     502	    483547 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     172	   1397685 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      32	   7149367 ns/op	   21346 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23215653 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  215546	      1061 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  225306	      1081 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2938208 ns/op	  920993 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2382	    104234 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     369	    703564 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     505	    493964 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     171	   1413419 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      32	   7130659 ns/op	   21346 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23132903 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  216525	      1074 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  215696	      1087 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2900682 ns/op	  920993 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2418	    104171 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     367	    704424 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     506	    488955 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     170	   1384735 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      33	   7072826 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23133889 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  206913	      1112 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  217501	      1141 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2928362 ns/op	  920994 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2413	    102245 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     372	    663391 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     511	    475584 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     178	   1342044 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      33	   6980316 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  22785204 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  218733	      1039 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  224601	      1061 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2820984 ns/op	  920993 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2412	    102610 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     367	    661659 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     501	    493457 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     175	   1424340 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      33	   7127952 ns/op	   21344 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23818181 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  198946	      1176 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  206553	      1104 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	     100	   2956093 ns/op	  920994 B/op	   11364 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionArithmeticLoop         	    2356	    105602 ns/op	    3833 B/op	      14 allocs/op
+BenchmarkExecutionArrayPipeline          	     352	    724478 ns/op	   78495 B/op	      52 allocs/op
+BenchmarkExecutionMethodDispatchLoop     	     504	    485211 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkExecutionCapabilityFindLoop     	     170	   1409406 ns/op	  492879 B/op	    6709 allocs/op
+BenchmarkExecutionRecursiveFib           	      32	   7214014 ns/op	   21346 B/op	      82 allocs/op
+BenchmarkExecutionRecursiveFibQuota      	       9	  23411134 ns/op	   24828 B/op	      95 allocs/op
+BenchmarkCallShortScript                 	  212283	      1099 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkCallManyUnusedFunctions         	  206366	      1142 ns/op	    3472 B/op	       8 allocs/op
+BenchmarkExecutionCapabilityWorkflowLoop 	      94	   2979947 ns/op	  920994 B/op	   11364 allocs/op
+PASS

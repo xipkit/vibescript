@@ -1,0 +1,17 @@
+package runtime
+
+import (
+ "reflect"
+ "testing"
+)
+
+func TestExecutionSizeProbe(t *testing.T) {
+ typ := reflect.TypeFor[Execution]()
+ var bytes uintptr
+ for i := range typ.NumField() {
+  f := typ.Field(i)
+  bytes += f.Type.Size()
+  t.Logf("%s offset=%d bytes=%d align=%d", f.Name, f.Offset, f.Type.Size(), f.Type.Align())
+ }
+ t.Logf("total=%d fieldbytes=%d padding=%d",typ.Size(),bytes,typ.Size()-bytes)
+}

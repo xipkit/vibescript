@@ -1,0 +1,120 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   96649	      2436 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   44764	      5339 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   35736	      6749 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   22004	     10955 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   19194	     12677 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4778	     49769 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     906	    264397 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   96764	      2466 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   44774	      5365 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   34964	      6842 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   21781	     10950 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18919	     12601 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4671	     50139 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     903	    265414 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   96544	      2462 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   44418	      5313 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   35319	      6733 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   21709	     10903 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18666	     12967 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4471	     51407 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     868	    273397 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   93486	      2497 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   44815	      5345 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   35464	      6769 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   21854	     10879 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18900	     12701 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4699	     50064 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     902	    263832 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   98547	      2467 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   44694	      5354 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   35283	      6734 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   22009	     10913 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18973	     12646 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4686	     49722 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     889	    266982 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   95850	      2543 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   42013	      5708 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   33146	      7061 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   20419	     11836 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   17451	     13667 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4459	     53636 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     841	    283032 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   93943	      2533 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   43537	      5527 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   34125	      7040 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   21339	     11254 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18388	     12992 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4550	     51109 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     878	    269732 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   94606	      2499 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   43894	      5476 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   34219	      6957 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   20804	     11580 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   17882	     13213 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4720	     51756 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     841	    281863 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   93686	      2580 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   43480	      5428 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   34746	      6959 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   21234	     11189 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18624	     13197 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4537	     51071 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     878	    270046 ns/op	  117530 B/op	     341 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionCallDepth/depth=0         	   95463	      2515 ns/op	    4224 B/op	      24 allocs/op
+BenchmarkExecutionCallDepth/depth=2         	   43582	      5506 ns/op	    5584 B/op	      38 allocs/op
+BenchmarkExecutionCallDepth/depth=3         	   34602	      6979 ns/op	    6512 B/op	      44 allocs/op
+BenchmarkExecutionCallDepth/depth=6         	   21102	     11278 ns/op	    8336 B/op	      54 allocs/op
+BenchmarkExecutionCallDepth/depth=7         	   18609	     12904 ns/op	   10032 B/op	      60 allocs/op
+BenchmarkExecutionCallDepth/depth=30        	    4730	     51571 ns/op	   29656 B/op	     127 allocs/op
+BenchmarkExecutionCallDepth/depth=126       	     872	    277363 ns/op	  117530 B/op	     341 allocs/op
+PASS
