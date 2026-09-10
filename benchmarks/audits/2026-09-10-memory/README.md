@@ -4,6 +4,19 @@ Baseline: [`10ebb92c9967d0bad8a4b008071c882bcae9b511`](https://github.com/xipkit
 
 This branch contains diagnostic evidence. The production prototypes were reverted after measurement. They establish opportunities; implementation still needs normal correctness, accounting, review, and performance gates.
 
+## GitHub issues
+
+| Issue | Finding |
+| --- | --- |
+| [#1298](https://github.com/xipkit/vibescript/issues/1298) | Detach Regex.match results from discarded source strings |
+| [#1299](https://github.com/xipkit/vibescript/issues/1299) | Detach cached regex patterns from oversized string backings |
+| [#1300](https://github.com/xipkit/vibescript/issues/1300) | Clear retired hash insertion-order slots after deleting keys |
+| [#1301](https://github.com/xipkit/vibescript/issues/1301) | Release receivers and rescued errors when runtime stack frames pop |
+| [#1302](https://github.com/xipkit/vibescript/issues/1302) | Avoid temporary entry snapshots when cloning small hashes for the host |
+| [#1303](https://github.com/xipkit/vibescript/issues/1303) | Reduce JSON stringify working memory for small object entries |
+| [#1304](https://github.com/xipkit/vibescript/issues/1304) | Investigate the fixed Execution allocation on small Script.Call invocations |
+| [#1305](https://github.com/xipkit/vibescript/issues/1305) | Skip directive collision maps when a script has no classes |
+
 ## Retained heap
 
 Each probe forces GC before and after the measured work and keeps the intended result or execution alive. The controls change one ownership condition. Small differences of a few kilobytes include process bookkeeping; the retained megabytes reproduce across runs and toolchains.

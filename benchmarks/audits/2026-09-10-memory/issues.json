@@ -1,0 +1,93 @@
+{
+  "verified_at": "2026-09-10T02:19:55.943837+00:00",
+  "issues": [
+    {
+      "number": 1298,
+      "title": "Detach Regex.match results from discarded source strings",
+      "url": "https://github.com/xipkit/vibescript/issues/1298",
+      "state": "OPEN",
+      "labels": [
+        "bug",
+        "performance"
+      ],
+      "body_sha256": "d9961ab319ee1301e9855eea965b99b8e05bdda108f7fda6e4eec702d6a1fd4c"
+    },
+    {
+      "number": 1299,
+      "title": "Detach cached regex patterns from oversized string backings",
+      "url": "https://github.com/xipkit/vibescript/issues/1299",
+      "state": "OPEN",
+      "labels": [
+        "bug",
+        "performance"
+      ],
+      "body_sha256": "43ba8f7a274a919fb6f76edeb7512271841d8cfa999c97be7e009b9663d10511"
+    },
+    {
+      "number": 1300,
+      "title": "Clear retired hash insertion-order slots after deleting keys",
+      "url": "https://github.com/xipkit/vibescript/issues/1300",
+      "state": "OPEN",
+      "labels": [
+        "bug",
+        "performance"
+      ],
+      "body_sha256": "e8c92f4bab5246a6696719cecd14019b82a6806c468822d82da432b83b77519f"
+    },
+    {
+      "number": 1301,
+      "title": "Release receivers and rescued errors when runtime stack frames pop",
+      "url": "https://github.com/xipkit/vibescript/issues/1301",
+      "state": "OPEN",
+      "labels": [
+        "bug",
+        "performance"
+      ],
+      "body_sha256": "7b5cf56036394a322207b7ce1d4a7f53333bf83c4dff45a8508f9ec5e9f0f6cc"
+    },
+    {
+      "number": 1302,
+      "title": "Avoid temporary entry snapshots when cloning small hashes for the host",
+      "url": "https://github.com/xipkit/vibescript/issues/1302",
+      "state": "OPEN",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "body_sha256": "2bdbc7408b138170424d82ab8c66d4d8980bdfb54c152937c5fabb0c8cdc29c4"
+    },
+    {
+      "number": 1303,
+      "title": "Reduce JSON stringify working memory for small object entries",
+      "url": "https://github.com/xipkit/vibescript/issues/1303",
+      "state": "OPEN",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "body_sha256": "5a2bdc2c757a8ccfc9468a6ab9907bea8ec6ba9bc686dbf9eef39c266a049399"
+    },
+    {
+      "number": 1304,
+      "title": "Investigate the fixed Execution allocation on small Script.Call invocations",
+      "url": "https://github.com/xipkit/vibescript/issues/1304",
+      "state": "OPEN",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "body_sha256": "b0932ea31da475b4c12988d8c3e8c3d8c9cfb1676b7efea19062a9f57e761f26"
+    },
+    {
+      "number": 1305,
+      "title": "Skip directive collision maps when a script has no classes",
+      "url": "https://github.com/xipkit/vibescript/issues/1305",
+      "state": "OPEN",
+      "labels": [
+        "enhancement",
+        "performance"
+      ],
+      "body_sha256": "be0861e2c3a550f0e50668134bf9eff5c86d0863b90a68f5dc1f0bbbb7ccddd3"
+    }
+  ]
+}
