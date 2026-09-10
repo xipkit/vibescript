@@ -1,0 +1,36 @@
+=== RUN   TestSnapshotMemoryProbe
+=== RUN   TestSnapshotMemoryProbe/json_objects/depth=256
+    snapshot_memory_probe_test.go:35: allocated=41704 heap_delta=41704 stack_delta=262144
+--- PASS: TestSnapshotMemoryProbe (0.00s)
+    --- PASS: TestSnapshotMemoryProbe/json_objects/depth=256 (0.00s)
+PASS
+=== RUN   TestSnapshotMemoryProbe
+=== RUN   TestSnapshotMemoryProbe/json_objects/depth=8192
+    snapshot_memory_probe_test.go:35: allocated=1457976 heap_delta=1457976 stack_delta=8388608
+--- PASS: TestSnapshotMemoryProbe (0.01s)
+    --- PASS: TestSnapshotMemoryProbe/json_objects/depth=8192 (0.01s)
+PASS
+=== RUN   TestSnapshotMemoryProbe
+=== RUN   TestSnapshotMemoryProbe/json_arrays/depth=256
+    snapshot_memory_probe_test.go:35: allocated=27304 heap_delta=27304 stack_delta=262144
+--- PASS: TestSnapshotMemoryProbe (0.00s)
+    --- PASS: TestSnapshotMemoryProbe/json_arrays/depth=256 (0.00s)
+PASS
+=== RUN   TestSnapshotMemoryProbe
+=== RUN   TestSnapshotMemoryProbe/json_arrays/depth=8192
+    snapshot_memory_probe_test.go:35: allocated=891064 heap_delta=891064 stack_delta=8388608
+--- PASS: TestSnapshotMemoryProbe (0.00s)
+    --- PASS: TestSnapshotMemoryProbe/json_arrays/depth=8192 (0.00s)
+PASS
+=== RUN   TestSnapshotMemoryProbe
+=== RUN   TestSnapshotMemoryProbe/host_hashes/depth=256
+    snapshot_memory_probe_test.go:35: allocated=217008 heap_delta=217008 stack_delta=262144
+--- PASS: TestSnapshotMemoryProbe (0.00s)
+    --- PASS: TestSnapshotMemoryProbe/host_hashes/depth=256 (0.00s)
+PASS
+=== RUN   TestSnapshotMemoryProbe
+=== RUN   TestSnapshotMemoryProbe/host_hashes/depth=8192
+    snapshot_memory_probe_test.go:35: allocated=7139664 heap_delta=7139664 stack_delta=8388608
+--- PASS: TestSnapshotMemoryProbe (0.01s)
+    --- PASS: TestSnapshotMemoryProbe/host_hashes/depth=8192 (0.01s)
+PASS
