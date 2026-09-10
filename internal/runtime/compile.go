@@ -131,8 +131,10 @@ func compileParsed(e *Engine, source string, program *ast.Program) (*Script, err
 	classOrder := make([]string, 0, classCount)
 	enums := make(map[string]*EnumDef, enumCount)
 
-	if err := checkDirectiveNameCollisions(program.Statements); err != nil {
-		return nil, err
+	if classCount > 0 {
+		if err := checkDirectiveNameCollisions(program.Statements); err != nil {
+			return nil, err
+		}
 	}
 
 	for _, stmt := range program.Statements {
