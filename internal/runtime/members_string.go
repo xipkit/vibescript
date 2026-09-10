@@ -1371,6 +1371,13 @@ func stringRuneRIndex(exec *Execution, text, needle string, offset int) (int, er
 	if !utf8.ValidString(text) || !utf8.ValidString(needle) {
 		return stringRuneRIndexFallback(exec, text, needle, offset)
 	}
+	if offset >= len(text) {
+		index := strings.LastIndex(text, needle)
+		if index < 0 {
+			return -1, nil
+		}
+		return validUTF8RuneCount(text[:index]), nil
+	}
 	textLen := validUTF8RuneCount(text)
 	if offset > textLen {
 		offset = textLen
@@ -4219,7 +4226,8 @@ func stringMemberQuery(property string) (Value, error) {
 			if len(args) < 1 || len(args) > 2 {
 				return NewNil(), fmt.Errorf("string.rindex expects substring and optional offset")
 			}
-			offset := stringRuneLen(receiver.String())
+			// The byte length bounds the rune length; the search clamps it.
+			offset := len(receiver.String())
 			if len(args) == 2 {
 				i, err := valueToInt(args[1])
 				if err != nil {

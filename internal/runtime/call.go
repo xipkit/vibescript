@@ -3341,13 +3341,8 @@ func (exec *Execution) evalDirectStringRIndexCall(call *CallExpr, receiver Value
 	if err := exec.chargeStringCall(receiver, directStringCallArgs(needle, offsetVal, hasOffset), stringArgumentCapFactor("string.rindex")); err != nil {
 		return NewNil(), true, err
 	}
-	// The default offset counts the receiver's runes, an O(n) scan of its own.
-	// It runs after the charge so an exhausted quota stops it, and only when no
-	// explicit offset was given, since an explicit one replaces it.
-	offset := 0
-	if !hasOffset {
-		offset = stringRuneLen(receiver.String())
-	}
+	// The search clamps this byte bound to the last possible rune position.
+	offset := len(receiver.String())
 	if err := exec.checkContext(); err != nil {
 		return NewNil(), true, err
 	}

@@ -80,8 +80,11 @@ func TestStringSearchPreservesRuneOffsets(t *testing.T) {
 	t.Parallel()
 	for _, text := range []string{"", "a", "aé終😀aé", strings.Repeat("abé終😀", 16), "a\xffé\x80😀b\uFFFD"} {
 		for _, needle := range []string{"", "a", "é", "終😀", "😀b", "\uFFFD", "\xfe", "missing"} {
+			offsets := []int{len(text), len(text) + 1, int(^uint(0) >> 1)}
 			for i := range utf8.RuneCountInString(text) + 3 {
-				offset := i - 1
+				offsets = append(offsets, i-1)
+			}
+			for _, offset := range offsets {
 				for _, reverse := range []bool{false, true} {
 					want := referenceRuneSearch(text, needle, offset, reverse)
 					search := stringRuneIndex
