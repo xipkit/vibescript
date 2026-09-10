@@ -1187,7 +1187,7 @@ func stringRuneLen(text string) int {
 	if stringIsASCII(text) {
 		return len(text)
 	}
-	return utf8.RuneCountInString(text)
+	return stringRuneCount(text)
 }
 
 func stringByteIndexForRuneOffset(text string, offset int) (int, bool) {

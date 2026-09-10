@@ -5,6 +5,43 @@ import (
 	"math/bits"
 )
 
+// stringRuneCount validates encoded widths without constructing rune values.
+// A malformed leading byte consumes only itself, matching UTF-8 range loops.
+func stringRuneCount(text string) int {
+	count := 0
+	for i := 0; i < len(text); {
+		first := text[i]
+		i++
+		count++
+		if first < 0xc2 {
+			continue
+		}
+		switch {
+		case first < 0xe0:
+			if i < len(text) && text[i]&0xc0 == 0x80 {
+				i++
+			}
+		case first < 0xf0:
+			if len(text)-i < 2 || text[i]&0xc0 != 0x80 || text[i+1]&0xc0 != 0x80 {
+				continue
+			}
+			if first == 0xe0 && text[i] < 0xa0 || first == 0xed && text[i] >= 0xa0 {
+				continue
+			}
+			i += 2
+		case first < 0xf5:
+			if len(text)-i < 3 || text[i]&0xc0 != 0x80 || text[i+1]&0xc0 != 0x80 || text[i+2]&0xc0 != 0x80 {
+				continue
+			}
+			if first == 0xf0 && text[i] < 0x90 || first == 0xf4 && text[i] >= 0x90 {
+				continue
+			}
+			i += 3
+		}
+	}
+	return count
+}
+
 // utf8ContinuationBits marks each byte whose high bits are 10. Shifting left
 // places bit 6 under bit 7 independently in every byte.
 func utf8ContinuationBits(word uint64) uint64 {
