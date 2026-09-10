@@ -937,7 +937,8 @@ func cloneHostHashValue(val Value, state hostValueCloneState) Value {
 		// the reservation it crossed the boundary with.
 		cloned.ReserveHashCapacity(value.HashEntryCapacity(val))
 		cloned.ReserveHashOrder(value.HashOrderCapacity(val))
-		for _, entry := range val.HashEntries() {
+		var inline [8]value.HashEntry
+		for _, entry := range val.HashEntriesInto(inline[:0]) {
 			setClonedHashEntry(cloned, entry.Key, cloneValueForHostWithState(entry.Value, state))
 		}
 	}
