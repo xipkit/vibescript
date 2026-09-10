@@ -1,0 +1,4 @@
+go version go1.26.3 darwin/arm64
+Darwin OTIS.local 25.5.0 Darwin Kernel Version 25.5.0: Tue Jun  9 22:26:22 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_T8132 arm64
+machdep.cpu.brand_string: Apple M4
+hw.ncpu: 10

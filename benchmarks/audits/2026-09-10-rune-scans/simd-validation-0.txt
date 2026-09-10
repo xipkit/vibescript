@@ -1,0 +1,48 @@
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+BenchmarkCalls/length/Unicode         	     430	    567062 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/index(needle)/Unicode  	     234	   1018193 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/rindex(needle)/Unicode 	     135	   1744996 ns/op	    4328 B/op	      18 allocs/op
+PASS
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+BenchmarkCalls/length/Unicode         	     436	    556906 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/index(needle)/Unicode  	     235	   1036155 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/rindex(needle)/Unicode 	     133	   1771924 ns/op	    4328 B/op	      18 allocs/op
+PASS
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+BenchmarkCalls/length/Unicode         	     424	    558904 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/index(needle)/Unicode  	     235	   1015842 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/rindex(needle)/Unicode 	     136	   1758148 ns/op	    4328 B/op	      18 allocs/op
+PASS
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+BenchmarkCalls/length/Unicode         	     436	    554175 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/index(needle)/Unicode  	     235	   1016244 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/rindex(needle)/Unicode 	     135	   1897995 ns/op	    4328 B/op	      18 allocs/op
+PASS
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+BenchmarkCalls/length/Unicode         	     434	    554574 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/index(needle)/Unicode  	     235	   1016507 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/rindex(needle)/Unicode 	     134	   1764766 ns/op	    4328 B/op	      18 allocs/op
+PASS
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+BenchmarkCalls/length/Unicode         	     435	    557120 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/index(needle)/Unicode  	     232	   1040347 ns/op	    4328 B/op	      18 allocs/op
+BenchmarkCalls/rindex(needle)/Unicode 	     134	   1763637 ns/op	    4328 B/op	      18 allocs/op
+PASS

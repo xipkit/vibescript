@@ -1,0 +1,26 @@
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+                             │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-length-0.txt │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-length-32.txt │
+                             │                                           sec/op                                           │                                sec/op                                  vs base              │
+Calls/length/Unicode                                                                                         584.8µ ±  3%                                                             541.0µ ± 5%  -7.50% (p=0.002 n=6)
+Calls/index(needle)/Unicode                                                                                  1.009m ±  4%                                                             1.012m ± 2%       ~ (p=0.394 n=6)
+Calls/rindex(needle)/Unicode                                                                                 1.775m ± 13%                                                             1.779m ± 4%       ~ (p=0.937 n=6)
+geomean                                                                                                      1.016m                                                                   991.4µ       -2.39%
+
+                             │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-length-0.txt │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-length-32.txt │
+                             │                                            B/op                                            │                                B/op                                  vs base                │
+Calls/length/Unicode                                                                                         4.227Ki ± 0%                                                          4.227Ki ± 0%       ~ (p=1.000 n=6) ¹
+Calls/index(needle)/Unicode                                                                                  4.227Ki ± 0%                                                          4.227Ki ± 0%       ~ (p=1.000 n=6) ¹
+Calls/rindex(needle)/Unicode                                                                                 4.227Ki ± 0%                                                          4.227Ki ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                                      4.227Ki                                                               4.227Ki       +0.00%
+¹ all samples are equal
+
+                             │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-length-0.txt │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-length-32.txt │
+                             │                                         allocs/op                                          │                              allocs/op                               vs base                │
+Calls/length/Unicode                                                                                           18.00 ± 0%                                                            18.00 ± 0%       ~ (p=1.000 n=6) ¹
+Calls/index(needle)/Unicode                                                                                    18.00 ± 0%                                                            18.00 ± 0%       ~ (p=1.000 n=6) ¹
+Calls/rindex(needle)/Unicode                                                                                   18.00 ± 0%                                                            18.00 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                                        18.00                                                                 18.00       +0.00%
+¹ all samples are equal
