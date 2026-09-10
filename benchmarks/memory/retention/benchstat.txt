@@ -1,0 +1,43 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                                │ /tmp/vibescript-memory-round/retention-bench/base.txt │ /tmp/vibescript-memory-round/retention-bench/head.txt │
+                                │                        sec/op                         │             sec/op              vs base               │
+ExecutionMethodDispatchLoop                                                 478.6µ ± 2%                      480.5µ ± 1%       ~ (p=0.631 n=10)
+RegexNamespaceMatch/small_match                                             3.111µ ± 3%                      3.406µ ± 2%  +9.48% (p=0.000 n=10)
+RegexNamespaceMatch/full_match                                              6.847µ ± 3%                      6.791µ ± 2%       ~ (p=0.436 n=10)
+RegexNamespaceMatch/no_match                                                2.951µ ± 2%                      2.926µ ± 4%       ~ (p=0.436 n=10)
+RegexCachePattern/hit                                                       6.668n ± 2%                      7.242n ± 1%  +8.61% (p=0.000 n=10)
+RegexCachePattern/miss                                                      918.6n ± 3%                      928.6n ± 3%       ~ (p=0.239 n=10)
+MemoryScopeLoops/hash_delete                                                239.7µ ± 3%                      237.8µ ± 3%       ~ (p=0.436 n=10)
+MemoryScopeLoops/rescue                                                     60.92µ ± 4%                      60.22µ ± 2%       ~ (p=0.353 n=10)
+geomean                                                                     6.364µ                           6.486µ       +1.91%
+
+                                │ /tmp/vibescript-memory-round/retention-bench/base.txt │ /tmp/vibescript-memory-round/retention-bench/head.txt │
+                                │                         B/op                          │             B/op              vs base                 │
+ExecutionMethodDispatchLoop                                              6.778Ki ± 0%                     6.778Ki ± 0%       ~ (p=1.000 n=10) ¹
+RegexNamespaceMatch/small_match                                          4.703Ki ± 0%                     4.711Ki ± 0%  +0.17% (p=0.000 n=10)
+RegexNamespaceMatch/full_match                                           4.750Ki ± 0%                     4.750Ki ± 0%       ~ (p=1.000 n=10) ¹
+RegexNamespaceMatch/no_match                                             4.656Ki ± 0%                     4.656Ki ± 0%       ~ (p=1.000 n=10) ¹
+RegexCachePattern/hit                                                      0.000 ± 0%                       0.000 ± 0%       ~ (p=1.000 n=10) ¹
+RegexCachePattern/miss                                                   2.108Ki ± 0%                     2.116Ki ± 0%  +0.37% (p=0.000 n=10)
+MemoryScopeLoops/hash_delete                                             44.17Ki ± 0%                     44.17Ki ± 0%       ~ (p=1.000 n=10) ¹
+MemoryScopeLoops/rescue                                                  31.51Ki ± 0%                     31.51Ki ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                               ²                                 +0.07%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                                │ /tmp/vibescript-memory-round/retention-bench/base.txt │ /tmp/vibescript-memory-round/retention-bench/head.txt │
+                                │                       allocs/op                       │          allocs/op            vs base                 │
+ExecutionMethodDispatchLoop                                                53.00 ± 0%                       53.00 ± 0%       ~ (p=1.000 n=10) ¹
+RegexNamespaceMatch/small_match                                            25.00 ± 0%                       26.00 ± 0%  +4.00% (p=0.000 n=10)
+RegexNamespaceMatch/full_match                                             26.00 ± 0%                       26.00 ± 0%       ~ (p=1.000 n=10) ¹
+RegexNamespaceMatch/no_match                                               22.00 ± 0%                       22.00 ± 0%       ~ (p=1.000 n=10) ¹
+RegexCachePattern/hit                                                      0.000 ± 0%                       0.000 ± 0%       ~ (p=1.000 n=10) ¹
+RegexCachePattern/miss                                                     26.00 ± 0%                       27.00 ± 0%  +3.85% (p=0.000 n=10)
+MemoryScopeLoops/hash_delete                                               607.0 ± 0%                       607.0 ± 0%       ~ (p=1.000 n=10) ¹
+MemoryScopeLoops/rescue                                                    893.0 ± 0%                       893.0 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                               ²                                 +0.97%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

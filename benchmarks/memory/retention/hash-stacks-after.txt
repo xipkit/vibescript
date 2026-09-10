@@ -1,0 +1,46 @@
+memory-hash-stacks-after: waiting for CPU slot
+memory-hash-stacks-after: acquired CPU slot (PID 96120)
+=== RUN   TestDeletedHashKeysReleasePayloads
+    hash_order_retention_test.go:23: 24 deleted one-MiB keys retain 46160 bytes
+--- PASS: TestDeletedHashKeysReleasePayloads (0.08s)
+=== RUN   TestReturnedReceiversReleasePayloads
+=== RUN   TestReturnedReceiversReleasePayloads/depth=1/fail=false
+    receiver_rescue_retention_test.go:38: popped receivers retain -96 bytes
+=== RUN   TestReturnedReceiversReleasePayloads/depth=1/fail=true
+    receiver_rescue_retention_test.go:38: popped receivers retain 1168 bytes
+=== RUN   TestReturnedReceiversReleasePayloads/depth=16/fail=false
+    receiver_rescue_retention_test.go:38: popped receivers retain 8600 bytes
+=== RUN   TestReturnedReceiversReleasePayloads/depth=16/fail=true
+    receiver_rescue_retention_test.go:38: popped receivers retain 5784 bytes
+--- PASS: TestReturnedReceiversReleasePayloads (0.16s)
+    --- PASS: TestReturnedReceiversReleasePayloads/depth=1/fail=false (0.04s)
+    --- PASS: TestReturnedReceiversReleasePayloads/depth=1/fail=true (0.04s)
+    --- PASS: TestReturnedReceiversReleasePayloads/depth=16/fail=false (0.04s)
+    --- PASS: TestReturnedReceiversReleasePayloads/depth=16/fail=true (0.04s)
+=== RUN   TestCompletedRescuesReleasePayloads
+=== RUN   TestCompletedRescuesReleasePayloads/depth=0
+    receiver_rescue_retention_test.go:68: completed rescues retain 4752 bytes
+=== RUN   TestCompletedRescuesReleasePayloads/depth=16
+    receiver_rescue_retention_test.go:68: completed rescues retain 12208 bytes
+--- PASS: TestCompletedRescuesReleasePayloads (0.02s)
+    --- PASS: TestCompletedRescuesReleasePayloads/depth=0 (0.01s)
+    --- PASS: TestCompletedRescuesReleasePayloads/depth=16 (0.01s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.785s
+=== RUN   TestHashDeleteClearsRetiredOrderSlots
+=== PAUSE TestHashDeleteClearsRetiredOrderSlots
+=== RUN   TestHashReconciliationClearsRetiredOrderSlots
+=== PAUSE TestHashReconciliationClearsRetiredOrderSlots
+=== CONT  TestHashDeleteClearsRetiredOrderSlots
+=== RUN   TestHashDeleteClearsRetiredOrderSlots/[c_b_a]
+=== CONT  TestHashReconciliationClearsRetiredOrderSlots
+--- PASS: TestHashReconciliationClearsRetiredOrderSlots (0.00s)
+=== RUN   TestHashDeleteClearsRetiredOrderSlots/[a_b_c]
+=== RUN   TestHashDeleteClearsRetiredOrderSlots/[b_c_a]
+--- PASS: TestHashDeleteClearsRetiredOrderSlots (0.00s)
+    --- PASS: TestHashDeleteClearsRetiredOrderSlots/[c_b_a] (0.00s)
+    --- PASS: TestHashDeleteClearsRetiredOrderSlots/[a_b_c] (0.00s)
+    --- PASS: TestHashDeleteClearsRetiredOrderSlots/[b_c_a] (0.00s)
+PASS
+ok  	github.com/mgomes/vibescript/vibes/value	0.259s
+memory-hash-stacks-after: finished with status 0

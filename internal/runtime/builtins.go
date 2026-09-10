@@ -1834,7 +1834,7 @@ func builtinRegexMatch(exec *Execution, receiver Value, args []Value, kwargs map
 	if indices == nil {
 		return NewNil(), nil
 	}
-	return NewString(text[indices[0]:indices[1]]), nil
+	return detachedStringValue(exec, text, text[indices[0]:indices[1]], receiver, args, kwargs, block)
 }
 
 func builtinRegexpEscape(exec *Execution, receiver Value, args []Value, kwargs map[string]Value, block Value) (Value, error) {

@@ -1,0 +1,43 @@
+memory-cache-after: waiting for CPU slot
+memory-cache-after: acquired CPU slot (PID 96058)
+=== RUN   TestRegexCacheReleasesPatternBackings
+=== RUN   TestRegexCacheReleasesPatternBackings/capacity=2
+    regex_cache_retention_test.go:36: 12 borrowed patterns retain 44240 bytes
+=== RUN   TestRegexCacheReleasesPatternBackings/capacity=64
+    regex_cache_retention_test.go:36: 12 borrowed patterns retain 48760 bytes
+--- PASS: TestRegexCacheReleasesPatternBackings (0.01s)
+    --- PASS: TestRegexCacheReleasesPatternBackings/capacity=2 (0.00s)
+    --- PASS: TestRegexCacheReleasesPatternBackings/capacity=64 (0.00s)
+=== RUN   TestRegexCacheHitDoesNotAllocate
+--- PASS: TestRegexCacheHitDoesNotAllocate (0.00s)
+=== RUN   TestRegexCacheConcurrentMissesShareProgram
+=== PAUSE TestRegexCacheConcurrentMissesShareProgram
+=== RUN   TestRegexCacheReusesCompiledPattern
+=== PAUSE TestRegexCacheReusesCompiledPattern
+=== RUN   TestRegexCacheEvictsLeastRecentlyUsedPattern
+=== PAUSE TestRegexCacheEvictsLeastRecentlyUsedPattern
+=== RUN   TestRegexCacheDoesNotStoreInvalidPattern
+=== PAUSE TestRegexCacheDoesNotStoreInvalidPattern
+=== RUN   TestRegexCacheRejectsOversizedPrograms
+=== PAUSE TestRegexCacheRejectsOversizedPrograms
+=== RUN   TestRegexCacheEvictsOnInstructionBudget
+=== PAUSE TestRegexCacheEvictsOnInstructionBudget
+=== RUN   TestRegexCacheKeepsOrdinaryPatterns
+=== PAUSE TestRegexCacheKeepsOrdinaryPatterns
+=== CONT  TestRegexCacheConcurrentMissesShareProgram
+=== CONT  TestRegexCacheRejectsOversizedPrograms
+=== CONT  TestRegexCacheKeepsOrdinaryPatterns
+=== CONT  TestRegexCacheDoesNotStoreInvalidPattern
+--- PASS: TestRegexCacheDoesNotStoreInvalidPattern (0.00s)
+=== CONT  TestRegexCacheEvictsLeastRecentlyUsedPattern
+--- PASS: TestRegexCacheEvictsLeastRecentlyUsedPattern (0.00s)
+=== CONT  TestRegexCacheReusesCompiledPattern
+--- PASS: TestRegexCacheReusesCompiledPattern (0.00s)
+--- PASS: TestRegexCacheConcurrentMissesShareProgram (0.00s)
+=== CONT  TestRegexCacheEvictsOnInstructionBudget
+--- PASS: TestRegexCacheKeepsOrdinaryPatterns (0.00s)
+--- PASS: TestRegexCacheRejectsOversizedPrograms (0.00s)
+--- PASS: TestRegexCacheEvictsOnInstructionBudget (0.02s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.387s
+memory-cache-after: finished with status 0

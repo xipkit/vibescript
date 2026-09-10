@@ -203,6 +203,7 @@ func (hd *hashData) reconcileRecordedOrder() {
 			kept = append(kept, key)
 		}
 	}
+	clear(hd.order[len(kept):])
 	hd.order = kept
 }
 
@@ -363,7 +364,7 @@ func (v Value) HashDeleteKey(key Value) (Value, bool, error) {
 			return key.data.(string) == name
 		})
 		if i >= 0 {
-			hd.order = append(hd.order[:i], hd.order[i+1:]...)
+			hd.order = slices.Delete(hd.order, i, i+1)
 		}
 	}
 	return val, true, nil

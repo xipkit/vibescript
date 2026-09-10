@@ -385,7 +385,13 @@ func (exec *Execution) popReceiver() {
 	if len(exec.receiverStack) == 0 {
 		return
 	}
-	exec.receiverStack = exec.receiverStack[:len(exec.receiverStack)-1]
+	last := len(exec.receiverStack) - 1
+	exec.receiverStack[last] = NewNil()
+	// The inline array remains reachable after the stack grows onto the heap.
+	if last < len(exec.receiverStackArr) {
+		exec.receiverStackArr[last] = NewNil()
+	}
+	exec.receiverStack = exec.receiverStack[:last]
 }
 
 func (exec *Execution) currentReceiver() Value {
@@ -731,7 +737,9 @@ func (exec *Execution) popRescuedError() {
 	if len(exec.rescuedErrors) == 0 {
 		return
 	}
-	exec.rescuedErrors = exec.rescuedErrors[:len(exec.rescuedErrors)-1]
+	last := len(exec.rescuedErrors) - 1
+	exec.rescuedErrors[last] = nil
+	exec.rescuedErrors = exec.rescuedErrors[:last]
 }
 
 func (exec *Execution) currentRescuedError() error {
