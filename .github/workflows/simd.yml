@@ -1,4 +1,4 @@
-name: Rune layout diagnostic
+name: Rune layout comparison
 
 on:
   workflow_dispatch:
@@ -8,19 +8,43 @@ permissions:
 
 jobs:
   measure:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: macos-latest
+            arch: arm64
     steps:
       - uses: actions/checkout@v4
         with:
+          path: diagnostic
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 25b77777f8b802adebee760c106868c92758ae92
+          path: base
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: cc45416913f6ccb870f817ea9f6390d90fbfecd0
+          path: head
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.1'
-      - name: Isolate function placement while keeping other text addresses fixed
-        run: python3 -u scripts/rune_alignment.py
+          cache-dependency-path: head/go.sum
+      - name: Compare ordinary embedding executables across layouts
+        run: |
+          python3 -u diagnostic/scripts/bench_string_layout.py \
+            --base base --head head --output "$RUNNER_TEMP/rune-comparison" \
+            --toolchain go1.27.1 --experiments nosimd,simd \
+            --seeds 0,1,2,3,4,5,6,7,8,9,10,11,12 --count 3 --benchtime 100ms
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rune-alignment-${{ github.run_id }}
-          path: ${{ runner.temp }}/rune-alignment/
+          name: rune-comparison-${{ matrix.arch }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/rune-comparison/
