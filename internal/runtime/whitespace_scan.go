@@ -4,6 +4,9 @@ package runtime
 const whitespaceProbeBytes = 64
 
 func whitespacePrefixScalar(text string, strip bool) int {
+	if len(text) > whitespaceProbeBytes {
+		return whitespacePrefixWords(text, strip)
+	}
 	i := 0
 	if strip {
 		for i < len(text) && isRubyStripSpace(text[i]) {
@@ -18,6 +21,9 @@ func whitespacePrefixScalar(text string, strip bool) int {
 }
 
 func nonWhitespacePrefixScalar(text string) int {
+	if len(text) > whitespaceProbeBytes {
+		return nonWhitespacePrefixWords(text)
+	}
 	i := 0
 	for i < len(text) && !isRubyASCIISpace(text[i]) {
 		i++
@@ -26,6 +32,9 @@ func nonWhitespacePrefixScalar(text string) int {
 }
 
 func whitespaceSuffixScalar(text string, strip bool) int {
+	if len(text) > whitespaceProbeBytes {
+		return whitespaceSuffixWords(text, strip)
+	}
 	i := len(text)
 	if strip {
 		for i > 0 && isRubyStripSpace(text[i-1]) {
