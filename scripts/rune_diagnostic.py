@@ -35,8 +35,8 @@ for experiment in ["nosimd", "simd"]:
         with (out / f"{name}.asm").open("w") as log:
             subprocess.run(["go", "tool", "objdump", "-s", "(^main.count|^runtime.decoderune$|^unicode/utf8.ValidString$|stringMemberQuery.func2$|validUTF8RuneCount$|validUTF8ByteIndex$)", str(binary)], env=options, stdout=log, check=True)
         patterns = [
-            ("kernels", "^Benchmark(Range|Validated|TwoByte|Widths)$/(Unicode|CJK|Emoji|InvalidSuffix)$", 16),
-            ("calls", "^BenchmarkCalls$/(length|index.*|rindex.*)$/(ASCII|Unicode)$", 6),
+            ("kernels", "^Benchmark(Range|Validated|TwoByte|Widths)$/^(Unicode|CJK|Emoji|InvalidSuffix)$", 16),
+            ("calls", "^BenchmarkCalls$/^(length|index.*|rindex.*)$/^(ASCII|Unicode)$", 6),
         ]
         for trial in range(2):
             for group, pattern, cases in patterns if trial == 0 else reversed(patterns):
