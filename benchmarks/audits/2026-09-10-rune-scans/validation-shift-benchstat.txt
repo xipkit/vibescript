@@ -1,0 +1,26 @@
+probe: rune-width-candidates
+goos: linux
+goarch: amd64
+cpu: Intel(R) Xeon(R) 6973P-C
+                             │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-validation-0.txt │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-validation-32.txt │
+                             │                                             sec/op                                             │                                  sec/op                                   vs base               │
+Calls/length/Unicode                                                                                              557.0µ ± 2%                                                                564.1µ ± 9%        ~ (p=0.240 n=6)
+Calls/index(needle)/Unicode                                                                                       1.017m ± 2%                                                                1.160m ± 7%  +14.03% (p=0.002 n=6)
+Calls/rindex(needle)/Unicode                                                                                      1.764m ± 8%                                                                1.885m ± 4%   +6.86% (p=0.015 n=6)
+geomean                                                                                                           999.9µ                                                                     1.073m        +7.26%
+
+                             │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-validation-0.txt │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-validation-32.txt │
+                             │                                              B/op                                              │                                  B/op                                    vs base                │
+Calls/length/Unicode                                                                                             4.227Ki ± 0%                                                              4.227Ki ± 0%       ~ (p=1.000 n=6) ¹
+Calls/index(needle)/Unicode                                                                                      4.227Ki ± 0%                                                              4.227Ki ± 0%       ~ (p=1.000 n=6) ¹
+Calls/rindex(needle)/Unicode                                                                                     4.227Ki ± 0%                                                              4.227Ki ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                                          4.227Ki                                                                   4.227Ki       +0.00%
+¹ all samples are equal
+
+                             │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-validation-0.txt │ /tmp/vibescript-rune-results/native-alignment/rune-alignment-34515806414/simd-validation-32.txt │
+                             │                                           allocs/op                                            │                                allocs/op                                 vs base                │
+Calls/length/Unicode                                                                                               18.00 ± 0%                                                                18.00 ± 0%       ~ (p=1.000 n=6) ¹
+Calls/index(needle)/Unicode                                                                                        18.00 ± 0%                                                                18.00 ± 0%       ~ (p=1.000 n=6) ¹
+Calls/rindex(needle)/Unicode                                                                                       18.00 ± 0%                                                                18.00 ± 0%       ~ (p=1.000 n=6) ¹
+geomean                                                                                                            18.00                                                                     18.00       +0.00%
+¹ all samples are equal

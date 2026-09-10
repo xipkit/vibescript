@@ -1,0 +1,96 @@
+goos: darwin
+goarch: arm64
+cpu: Apple M4
+BenchmarkSIMDStringLengthLoopASCII   	     717	    145143 ns/op	    4331 B/op	      18 allocs/op
+BenchmarkSIMDStringLengthLoopUnicode 	     259	    470002 ns/op	    4337 B/op	      18 allocs/op
+BenchmarkSIMDStringIndexLoopASCII    	     680	    173472 ns/op	    4363 B/op	      18 allocs/op
+BenchmarkSIMDStringIndexLoopUnicode  	     181	    663470 ns/op	    4373 B/op	      18 allocs/op
+BenchmarkSIMDStringRIndexLoopASCII   	     734	    168853 ns/op	    4363 B/op	      18 allocs/op
+BenchmarkSIMDStringRIndexLoopUnicode 	     184	    645297 ns/op	    4373 B/op	      18 allocs/op
+BenchmarkSIMDStringSliceLoopASCII    	     568	    213388 ns/op	    8380 B/op	     419 allocs/op
+BenchmarkSIMDStringSliceLoopUnicode  	     178	    667283 ns/op	    9189 B/op	     419 allocs/op
+BenchmarkStringRIndexOffsets/Short/Default         	     639	    200282 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/Zero            	     578	    221959 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/Negative        	     550	    227166 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/PastEnd         	     568	    223735 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Default         	     445	    274512 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Zero            	     495	    250662 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Negative        	     351	    358805 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/PastEnd         	     417	    289458 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Default       	     158	    754013 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Zero          	     165	    725614 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Negative      	      93	   1313073 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/PastEnd       	     160	    756176 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Default           	     200	    600191 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Zero              	     211	    577075 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Negative          	      91	   1364644 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/PastEnd           	     199	    606663 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Default       	      16	   7021414 ns/op	 5511784 B/op	    1023 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Zero          	      40	   2907079 ns/op	 3335784 B/op	     823 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Negative      	      14	   8312488 ns/op	 5511784 B/op	    1023 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/PastEnd       	      16	   7041854 ns/op	 5511784 B/op	    1023 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+cpu: Apple M4
+BenchmarkSIMDStringLengthLoopASCII   	     841	    145263 ns/op	    4330 B/op	      18 allocs/op
+BenchmarkSIMDStringLengthLoopUnicode 	     247	    481170 ns/op	    4338 B/op	      18 allocs/op
+BenchmarkSIMDStringIndexLoopASCII    	     694	    174436 ns/op	    4363 B/op	      18 allocs/op
+BenchmarkSIMDStringIndexLoopUnicode  	     181	    658525 ns/op	    4373 B/op	      18 allocs/op
+BenchmarkSIMDStringRIndexLoopASCII   	     724	    165842 ns/op	    4363 B/op	      18 allocs/op
+BenchmarkSIMDStringRIndexLoopUnicode 	     184	    646502 ns/op	    4373 B/op	      18 allocs/op
+BenchmarkSIMDStringSliceLoopASCII    	     573	    209943 ns/op	    8380 B/op	     419 allocs/op
+BenchmarkSIMDStringSliceLoopUnicode  	     180	    669083 ns/op	    9189 B/op	     419 allocs/op
+BenchmarkStringRIndexOffsets/Short/Default         	     627	    203142 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/Zero            	     570	    225403 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/Negative        	     558	    227952 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/PastEnd         	     574	    224154 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Default         	     456	    276422 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Zero            	     493	    251073 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Negative        	     363	    350212 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/PastEnd         	     432	    282717 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Default       	     160	    742801 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Zero          	     165	    725082 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Negative      	      93	   1312686 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/PastEnd       	     159	    754231 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Default           	     198	    603894 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Zero              	     208	    578930 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Negative          	      91	   1354543 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/PastEnd           	     199	    593468 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Default       	      16	   6964125 ns/op	 5511784 B/op	    1023 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Zero          	      40	   2919971 ns/op	 3335784 B/op	     823 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Negative      	      14	   8314637 ns/op	 5511784 B/op	    1023 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/PastEnd       	      16	   7013529 ns/op	 5511784 B/op	    1023 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+cpu: Apple M4
+BenchmarkSIMDStringLengthLoopASCII   	     834	    145081 ns/op	    4331 B/op	      18 allocs/op
+BenchmarkSIMDStringLengthLoopUnicode 	     235	    487554 ns/op	    4338 B/op	      18 allocs/op
+BenchmarkSIMDStringIndexLoopASCII    	     693	    173299 ns/op	    4363 B/op	      18 allocs/op
+BenchmarkSIMDStringIndexLoopUnicode  	     181	    662011 ns/op	    4373 B/op	      18 allocs/op
+BenchmarkSIMDStringRIndexLoopASCII   	     721	    165575 ns/op	    4363 B/op	      18 allocs/op
+BenchmarkSIMDStringRIndexLoopUnicode 	     184	    649891 ns/op	    4373 B/op	      18 allocs/op
+BenchmarkSIMDStringSliceLoopASCII    	     577	    212057 ns/op	    8380 B/op	     419 allocs/op
+BenchmarkSIMDStringSliceLoopUnicode  	     178	    679600 ns/op	    9189 B/op	     419 allocs/op
+BenchmarkStringRIndexOffsets/Short/Default         	     643	    197186 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/Zero            	     578	    223920 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/Negative        	     549	    224680 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Short/PastEnd         	     560	    224713 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Default         	     446	    278453 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Zero            	     481	    248527 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/Negative        	     354	    347085 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/ASCII/PastEnd         	     430	    288536 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Default       	     162	    754976 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Zero          	     165	    724723 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/Negative      	      93	   1317561 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Unicode/PastEnd       	     159	    760074 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Default           	     201	    598967 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Zero              	     207	    576664 ns/op	  113384 B/op	    1223 allocs/op
+BenchmarkStringRIndexOffsets/CJK/Negative          	      90	   1358084 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/CJK/PastEnd           	     198	    609134 ns/op	   58984 B/op	     623 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Default       	      15	   7275897 ns/op	 5511784 B/op	    1023 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Zero          	      39	   2945609 ns/op	 3335784 B/op	     823 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/Negative      	      13	   8542910 ns/op	 5511784 B/op	    1023 allocs/op
+BenchmarkStringRIndexOffsets/Invalid/PastEnd       	      15	   7269892 ns/op	 5511784 B/op	    1023 allocs/op
+PASS

@@ -1,0 +1,235 @@
+{
+  "binaries": [
+    {
+      "name": "base-go1.26.3",
+      "sha256": "3ccd75911a6aaf97da189338caa22416a7101bc6111e8bedd94cf155d2d07429"
+    },
+    {
+      "name": "head-go1.26.3",
+      "sha256": "636bdc4f4a0902407ad29bad46523de278b51c66eea390199615200bf682d68f"
+    },
+    {
+      "name": "base-go1.27.1",
+      "sha256": "a4d6940eecd4755cf5b7a2f139a873f65094d91d60098194b47fdc35cb443eb3"
+    },
+    {
+      "name": "head-go1.27.1",
+      "sha256": "1d528dcc73bea53298ed91cb2aa660d163296b8511b8cb8e24d0da7ede4635df"
+    }
+  ],
+  "samples": [
+    {
+      "name": "base-go1.26.3",
+      "trial": 0,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 0,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 1,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 1,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 2,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 2,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 3,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 3,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 4,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 4,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 5,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 5,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 6,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 6,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 7,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 7,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 8,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 8,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.26.3",
+      "trial": 9,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.26.3",
+      "trial": 9,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 0,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 0,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 1,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 1,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 2,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 2,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 3,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 3,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 4,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 4,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 5,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 5,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 6,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 6,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 7,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 7,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 8,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 8,
+      "cases": 60
+    },
+    {
+      "name": "head-go1.27.1",
+      "trial": 9,
+      "cases": 60
+    },
+    {
+      "name": "base-go1.27.1",
+      "trial": 9,
+      "cases": 60
+    }
+  ],
+  "base_commit": "25b77777f8b802adebee760c106868c92758ae92",
+  "head_production_commit": "cc45416913f6ccb870f817ea9f6390d90fbfecd0",
+  "environment": "Apple M4, darwin/arm64, GOMAXPROCS=1",
+  "toolchains": {
+    "go1.26.3": "GOEXPERIMENT=nosimd",
+    "go1.27.1": "GOEXPERIMENT=simd"
+  },
+  "fixtures": {
+    "string_rindex_benchmark_test.go": "5cf873530467864bf29a46b06401d8d625ecd1cc9544d6225598cf1125ac2140",
+    "ascii_scan_benchmark_test.go": "f95db63d543de6baee0dd6d42cef824440a971ae7be88b2d256d586d802c46c4",
+    "simd_controls_benchmark_test.go": "004a0ef03e9d9baaeb44b0f5d416e0dd4ecf5e07544f295eed2fb5830c7547e0"
+  },
+  "accounting_probe_sha256": "f3905dd98501104f650b33ce1f8ade3475c1c81e9bb2354a20aa63e771b2240a"
+}

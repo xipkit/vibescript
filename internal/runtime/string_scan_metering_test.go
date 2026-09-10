@@ -244,27 +244,22 @@ func TestFormatChargesForTheInputItRenders(t *testing.T) {
 	}
 }
 
-// rindex without an explicit offset counts the receiver's runes to find where
-// to start, which is a full scan of its own. It must not run before the charge,
-// or an exhausted quota still pays for it.
+// Searching with the default offset must charge for the receiver before
+// scanning it, including when the search no longer needs a preliminary count.
 func TestRindexDefaultOffsetScanRunsAfterCharging(t *testing.T) {
 	t.Parallel()
 
 	hay := NewString(strings.Repeat("ab", (256<<10)/2))
 	src := "def run(s)\n  s.rindex(\"zzz\")\nend"
 
-	// A quota far too small for the receiver scan: the call must fail without
-	// having walked the receiver to compute its default offset.
+	// A quota far too small for the receiver scan must reject the call.
 	script := compileScriptWithConfig(t, Config{StepQuota: 8, MemoryQuotaBytes: Unlimited}, src)
 	if _, err := script.Call(context.Background(), "run", []Value{hay}, CallOptions{}); err == nil {
 		t.Fatal("rindex over a 256 KiB receiver completed on an 8-step quota")
 	}
 
-	// An explicit offset also skips computing the default it would replace.
-	// That saving is not separately observable in steps -- the rune scan was
-	// never charged on its own, which is the whole defect -- so this pins only
-	// that supplying an offset does not cost more than the receiver charge plus
-	// evaluating the extra argument.
+	// Supplying an offset costs at most the receiver charge plus evaluating
+	// the extra argument.
 	withDefault := minStepsForStringOp(t, "s.rindex(\"zzz\").inspect", 64<<10)
 	withExplicit := minStepsForStringOp(t, "s.rindex(\"zzz\", 10).inspect", 64<<10)
 	if withExplicit > withDefault+2 {

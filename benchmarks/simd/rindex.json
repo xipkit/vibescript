@@ -1,0 +1,14 @@
+{
+  "fixture": "internal/runtime/string_rindex_benchmark_test.go",
+  "benchmark": "BenchmarkStringRIndexOffsets",
+  "cases": 20,
+  "sources": [
+    "internal/runtime/ascii_scan*.go",
+    "internal/runtime/utf8_scan.go",
+    "internal/runtime/members_string.go",
+    "internal/runtime/call.go"
+  ],
+  "inputs": [
+    "internal/runtime/simd_controls_benchmark_test.go"
+  ]
+}
