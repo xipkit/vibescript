@@ -1,6 +1,6 @@
 # Execution allocation footprint
 
-Baseline: `10ebb92c9967d0bad8a4b008071c882bcae9b511`. The final change reduces only the inline call-frame capacity from eight to four; receiver, environment and capability stacks keep their original capacities. The [representative comparison](representative/benchstat.txt) used the exact production diff recorded by its manifest. The [depth comparison](depths/benchstat.txt) used commit `779d1afc`. Go 1.26.3, Apple M4, darwin/arm64, ten alternating 200 ms samples at GOMAXPROCS=1.
+Baseline: `10ebb92c9967d0bad8a4b008071c882bcae9b511`. The final change reduces only the inline call-frame capacity from eight to four; receiver, environment and capability stacks keep their original capacities. The [representative comparison](representative/benchstat.txt) measured the layout change before commit; its manifest records the working-diff and binary hashes. The [depth comparison](depths/benchstat.txt) used commit `779d1afc` before rebasing. The [complete experiment patch](implementation.patch) preserves that committed revision against the baseline, including its benchmark fixture. Go 1.26.3, Apple M4, darwin/arm64, ten alternating 200 ms samples at GOMAXPROCS=1.
 
 The Execution struct shrinks from **2,216 to 2,024 bytes**, moving its allocation from the 2,304-byte class into the 2,048-byte class. A short public Script.Call changes from **3,472 to 3,216 B/op (-7.37%)**, retaining eight allocations. Calls with 200 unused functions have the same reduction. [Layout probes](execution-layout-after.txt) confirm the struct size.
 
