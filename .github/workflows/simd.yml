@@ -17,10 +17,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.27.1'
-      - name: Measure ordinary executables and rune-width candidates
-        run: python3 -u scripts/rune_diagnostic.py
+      - name: Isolate function placement while keeping other text addresses fixed
+        run: python3 -u scripts/rune_alignment.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rune-layout-${{ github.run_id }}
-          path: ${{ runner.temp }}/rune-results/
+          name: rune-alignment-${{ github.run_id }}
+          path: ${{ runner.temp }}/rune-alignment/

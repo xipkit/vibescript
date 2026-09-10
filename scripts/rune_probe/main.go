@@ -104,6 +104,11 @@ func main() {
 		{Name: "BenchmarkRange", F: func(b *testing.B) { benchmarkCount(b, countRange) }},
 		{Name: "BenchmarkValidated", F: func(b *testing.B) { benchmarkCount(b, countValidated) }},
 		{Name: "BenchmarkTwoByte", F: func(b *testing.B) { benchmarkCount(b, countTwoByte) }},
+		{Name: "BenchmarkWidthWords", F: func(b *testing.B) { benchmarkCount(b, countWidthWords) }},
+		{Name: "BenchmarkASCIIRuns", F: func(b *testing.B) { benchmarkCount(b, countASCIIRuns) }},
+		{Name: "BenchmarkIndexed", F: func(b *testing.B) { benchmarkCount(b, countIndexed) }},
+		{Name: "BenchmarkRunWords", F: func(b *testing.B) { benchmarkCount(b, countRunWords) }},
+		{Name: "BenchmarkWidthCalls", F: func(b *testing.B) { benchmarkCount(b, countWidthCalls) }},
 		{Name: "BenchmarkWidths", F: func(b *testing.B) { benchmarkCount(b, countWidths) }},
 		{Name: "BenchmarkCalls", F: benchmarkCalls},
 	}
