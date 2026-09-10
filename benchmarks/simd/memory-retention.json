@@ -1,0 +1,12 @@
+{
+  "fixture": "internal/runtime/memory_retention_benchmark_test.go",
+  "benchmark": "Benchmark(RegexNamespaceMatch|RegexCachePattern|MemoryScopeLoops|ExecutionMethodDispatchLoop)",
+  "cases": 8,
+  "inputs": ["internal/runtime/execution_benchmark_test.go"],
+  "sources": [
+    "internal/runtime/builtins.go",
+    "internal/runtime/regex_cache.go",
+    "internal/runtime/execution.go",
+    "vibes/value/hash_entries.go"
+  ]
+}
