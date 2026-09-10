@@ -29,6 +29,8 @@ def prepare(source, destination):
 
 import (
     "context"
+    "os"
+    "runtime/pprof"
     "regexp"
     "testing"
 
@@ -55,10 +57,21 @@ func parseProbeJSON(text string) (Value, error) {
     return script.Call(context.Background(), "run", []value.Value{value.NewString(text)}, vibes.CallOptions{})
 }
 
+func profileBenchmark(b *testing.B, run func(*testing.B)) {
+    path := os.Getenv("MEMORY_CPU_PROFILE")
+    if path == "" { run(b); return }
+    output, err := os.Create(path)
+    if err != nil { b.Fatal(err) }
+    defer output.Close()
+    if err := pprof.StartCPUProfile(output); err != nil { b.Fatal(err) }
+    defer pprof.StopCPUProfile()
+    run(b)
+}
+
 func main() {
     testing.Main(regexp.MatchString, nil, []testing.InternalBenchmark{
 '''
-    main += "".join(f'        {{Name: "{name}", F: {name}}},\n' for name in benchmarks)
+    main += "".join(f'        {{Name: "{name}", F: func(b *testing.B) {{ profileBenchmark(b, {name}) }}}},\n' for name in benchmarks)
     main += "    }, nil)\n}\n"
     (destination / "main.go").write_text(main)
     (destination / "fixture-hashes.json").write_text(json.dumps(hashes, indent=2) + "\n")

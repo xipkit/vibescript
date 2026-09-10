@@ -17,7 +17,7 @@ binaries = Path(os.environ['RUNNER_TEMP']) / f'memory-{mode}-binaries'
 binaries.mkdir()
 env = dict(os.environ, GOTOOLCHAIN='go1.27.1', GOAMD64='v1', GOMAXPROCS='1')
 cpu = min(os.sched_getaffinity(0))
-revisions = ['base', 'head'] if mode == 'layout' else ['base', 'head', 'merged-base', 'merged-head']
+revisions = ['base', 'head'] if mode != 'embedding' else ['base', 'head', 'merged-base', 'merged-head']
 manifest = {
     'mode': mode,
     'affinity_cpu': cpu,
@@ -29,7 +29,7 @@ with (out / 'environment.txt').open('w') as log:
     for command in [['uname', '-a'], ['lscpu'], ['go', 'version']]:
         subprocess.run(command, env=env, stdout=log, check=True)
 
-if mode == 'embedding':
+if mode in ['embedding', 'profile']:
     prepare(root / 'head', root / 'head/cmd/simd-embedding-probe')
     for name in revisions:
         if name != 'head':
@@ -64,7 +64,16 @@ def measure(name, experiment, binary, trial, pattern, cases, duration, fallback=
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('Measured', name, variant, trial, flush=True)
 
-if mode == 'layout':
+if mode == 'profile':
+    for name in revisions:
+        binary = build(name, 'simd')
+        profile = out / f'{name}-length.prof'
+        subprocess.run(['taskset', '-c', str(cpu), str(binary), '-test.run=^$', '-test.bench=^BenchmarkSIMDStringLengthLoopUnicode$', '-test.benchtime=3s'], cwd=root / name / 'internal/runtime', env=dict(env, GOEXPERIMENT='simd', MEMORY_CPU_PROFILE=str(profile)), check=True)
+        assert profile.stat().st_size > 0
+        with (out / f'{name}-length-top.txt').open('w') as log:
+            subprocess.run(['go', 'tool', 'pprof', '-top', '-nodecount=20', str(binary), str(profile)], env=env, stdout=log, check=True)
+    (out / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+elif mode == 'layout':
     for seed in range(13):
         for experiment in ['nosimd', 'simd']:
             for name in revisions if seed % 2 == 0 else list(reversed(revisions)):
@@ -83,7 +92,7 @@ else:
     for name in ['base', 'head']:
         binary = built[name, 'simd']
         profile = out / f'{name}-length.prof'
-        subprocess.run(['taskset', '-c', str(cpu), str(binary), '-test.run=^$', '-test.bench=^BenchmarkSIMDStringLengthLoopUnicode$', '-test.benchtime=3s', '-test.cpuprofile=' + str(profile)], cwd=root / name / 'internal/runtime', env=dict(env, GOEXPERIMENT='simd'), check=True)
+        subprocess.run(['taskset', '-c', str(cpu), str(binary), '-test.run=^$', '-test.bench=^BenchmarkSIMDStringLengthLoopUnicode$', '-test.benchtime=3s'], cwd=root / name / 'internal/runtime', env=dict(env, GOEXPERIMENT='simd', MEMORY_CPU_PROFILE=str(profile)), check=True)
         with (out / f'{name}-length-top.txt').open('w') as log:
             subprocess.run(['go', 'tool', 'pprof', '-top', '-nodecount=20', str(binary), str(profile)], env=env, stdout=log, check=True)
 print('Diagnostic complete:', mode, flush=True)
