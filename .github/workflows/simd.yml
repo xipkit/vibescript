@@ -19,6 +19,10 @@ on:
         description: Measure all public workloads including format and mixed strings
         type: boolean
         default: false
+      control_matrix:
+        description: Restrict the full driver to 98 string and whitespace controls
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,6 +36,7 @@ jobs:
       SIMD_HEAD: ${{ inputs.head_ref }}
       SIMD_PROFILE_ONLY: ${{ inputs.profile_only }}
       SIMD_FULL_MATRIX: ${{ inputs.full_matrix }}
+      SIMD_CONTROL_MATRIX: ${{ inputs.control_matrix }}
     steps:
       - uses: actions/checkout@v4
         with:

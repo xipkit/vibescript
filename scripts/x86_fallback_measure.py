@@ -18,7 +18,11 @@ env = dict(os.environ, GOTOOLCHAIN="go1.27.1", GOAMD64="v1", GOMAXPROCS="1")
 env.pop("GODEBUG", None)
 cpu = min(os.sched_getaffinity(0))
 full_matrix = os.environ.get("SIMD_FULL_MATRIX") == "true"
+control_matrix = os.environ.get("SIMD_CONTROL_MATRIX") == "true"
+assert not control_matrix or full_matrix
 pattern = "^Benchmark.*$" if full_matrix else "^Benchmark(SIMDString.*|StringASCIICase|StringCaseComparison|JSONSpans.*)$"
+if control_matrix:
+    pattern = "^Benchmark(SIMDString.*|Whitespace.*|StringASCII(ShortCalls|MixedCalls)|StringASCIICase)$"
 manifest = {
     "revisions": revisions,
     "trees": {},
@@ -26,8 +30,9 @@ manifest = {
     "benchtime": "100ms",
     "affinity_cpu": cpu,
     "benchmark_pattern": pattern,
-    "expected_cases": 231 if full_matrix else 116,
+    "expected_cases": 98 if control_matrix else (231 if full_matrix else 116),
     "full_matrix": full_matrix,
+    "control_matrix": control_matrix,
     "binaries": [],
     "samples": [],
 }
