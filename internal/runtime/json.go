@@ -742,65 +742,64 @@ func appendJSONValueRendered(buf []byte, val Value, state *jsonStringifyState) (
 		}
 		return append(buf, ']'), nil
 	case KindHash, KindObject:
-		return appendJSONObject(buf, val, state)
+		if err := state.enterContainer(); err != nil {
+			return nil, err
+		}
+		defer state.leaveContainer()
+
+		id := jsonObjectIdentity(val)
+		hashSlot, err := state.pushSeenHash(id)
+		if err != nil {
+			return nil, err
+		}
+		defer state.popSeenHash(hashSlot)
+
+		entries, scratchStart := state.objectEntries(val)
+		if scratchStart >= 0 {
+			defer state.releaseObjectScratch(scratchStart)
+		}
+
+		buf = append(buf, '{')
+		// Settle the delimiter before descending. A container that fails below
+		// this point -- nesting depth, an unsupported value -- returns without
+		// reaching the settlement in appendJSONValue, so every level's bracket
+		// went uncharged: 10,001 nested arrays emitted 10,000 of them for
+		// nothing, and the depth error is rescuable.
+		if err := state.settleOutput(len(buf)); err != nil {
+			return nil, err
+		}
+		for i, entry := range entries {
+			if i > 0 {
+				buf = append(buf, ',')
+			}
+			buf, err = appendJSONString(buf, entry.key, state)
+			if err != nil {
+				return nil, err
+			}
+			buf = append(buf, ':')
+			updated, err := appendJSONValue(buf, entry.value, state)
+			if err != nil {
+				if errors.Is(err, errJSONMaxDepth) {
+					return nil, err
+				}
+				return nil, fmt.Errorf("JSON.stringify key %q: %w", entry.key, err)
+			}
+			buf = updated
+		}
+		return append(buf, '}'), nil
 	default:
 		return nil, fmt.Errorf("JSON.stringify unsupported value type %s", val.Kind())
 	}
 }
 
-func appendJSONObject(buf []byte, val Value, state *jsonStringifyState) ([]byte, error) {
-	if err := state.enterContainer(); err != nil {
-		return nil, err
-	}
-	defer state.leaveContainer()
-
-	id := jsonObjectIdentity(val)
-	hashSlot, err := state.pushSeenHash(id)
-	if err != nil {
-		return nil, err
-	}
-	defer state.popSeenHash(hashSlot)
-
-	scratchStart := state.objectScratchUsed
-	var scratch []jsonObjectEntry
-	if n := val.HashLen(); n <= len(state.objectScratch)-scratchStart {
+func (state *jsonStringifyState) objectEntries(val Value) ([]jsonObjectEntry, int) {
+	start := state.objectScratchUsed
+	if n := val.HashLen(); n <= len(state.objectScratch)-start {
 		state.objectScratchUsed += n
-		scratch = state.objectScratch[scratchStart:state.objectScratchUsed]
+		scratch := state.objectScratch[start:state.objectScratchUsed]
+		return jsonObjectEntries(val, scratch[:0]), start
 	}
-	defer state.releaseObjectScratch(scratchStart)
-	entries, err := jsonObjectEntries(val, scratch[:0])
-	if err != nil {
-		return nil, err
-	}
-
-	buf = append(buf, '{')
-	// Settle the delimiter before descending. A container that fails below
-	// this point -- nesting depth, an unsupported value -- returns without
-	// reaching the settlement in appendJSONValue, so every level's bracket
-	// went uncharged: 10,001 nested arrays emitted 10,000 of them for
-	// nothing, and the depth error is rescuable.
-	if err := state.settleOutput(len(buf)); err != nil {
-		return nil, err
-	}
-	for i, entry := range entries {
-		if i > 0 {
-			buf = append(buf, ',')
-		}
-		buf, err = appendJSONString(buf, entry.key, state)
-		if err != nil {
-			return nil, err
-		}
-		buf = append(buf, ':')
-		updated, err := appendJSONValue(buf, entry.value, state)
-		if err != nil {
-			if errors.Is(err, errJSONMaxDepth) {
-				return nil, err
-			}
-			return nil, fmt.Errorf("JSON.stringify key %q: %w", entry.key, err)
-		}
-		buf = updated
-	}
-	return append(buf, '}'), nil
+	return jsonObjectEntries(val, nil), -1
 }
 
 func (state *jsonStringifyState) releaseObjectScratch(start int) {
@@ -826,7 +825,7 @@ func jsonObjectIdentity(val Value) uintptr {
 // iterates: Ruby-style insertion order for a hash built by a script, the way
 // Ruby's JSON.generate does, and sorted keys for a bare host map or an object,
 // which record no order.
-func jsonObjectEntries(val Value, buf []jsonObjectEntry) ([]jsonObjectEntry, error) {
+func jsonObjectEntries(val Value, buf []jsonObjectEntry) []jsonObjectEntry {
 	// Fill the returned buffer directly and sort it in place when insertion
 	// order is unavailable. RangeHashEntries' fallback used to allocate a
 	// second []Value of keys on top of this slice, which stringify's quota
@@ -848,7 +847,7 @@ func jsonObjectEntries(val Value, buf []jsonObjectEntry) ([]jsonObjectEntry, err
 			return cmp.Compare(a.key, b.key)
 		})
 	}
-	return entries, nil
+	return entries
 }
 
 func appendJSONFloat(buf []byte, f float64) []byte {
