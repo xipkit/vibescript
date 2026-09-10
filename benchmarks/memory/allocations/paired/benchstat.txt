@@ -1,0 +1,59 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                                         │ /tmp/vibescript-memory-round/final-snapshots/base.txt │ /tmp/vibescript-memory-round/final-snapshots/head.txt │
+                                         │                        sec/op                         │             sec/op              vs base               │
+ExecutionGroupByHashRowsLowCardinality                                               1.617m ± 4%                      1.599m ± 3%       ~ (p=0.218 n=10)
+ExecutionPartitionHashRowsLowCardinality                                             1.579m ± 3%                      1.566m ± 2%       ~ (p=0.075 n=10)
+ExecutionJSONStringifyLoop                                                           197.2µ ± 2%                      193.0µ ± 2%  -2.10% (p=0.007 n=10)
+JSONStringifyObjectShapes/small_hash                                                 4.167µ ± 2%                      4.090µ ± 2%  -1.86% (p=0.011 n=10)
+JSONStringifyObjectShapes/large_hash                                                 10.89µ ± 2%                      10.81µ ± 3%       ~ (p=0.143 n=10)
+JSONStringifyObjectShapes/small_object                                               4.055µ ± 3%                      3.958µ ± 2%  -2.39% (p=0.004 n=10)
+JSONStringifyObjectShapes/large_object                                               11.79µ ± 2%                      11.63µ ± 2%       ~ (p=0.075 n=10)
+JSONStringifyObjectShapes/nested_hash                                               100.38µ ± 2%                      99.84µ ± 2%       ~ (p=0.971 n=10)
+HostCloneNestedHashes/depth=4                                                        1.686µ ± 2%                      1.636µ ± 3%  -3.00% (p=0.034 n=10)
+HostCloneNestedHashes/depth=64                                                       33.36µ ± 4%                      32.85µ ± 4%       ~ (p=0.971 n=10)
+HostCloneNestedHashes/depth=256                                                      135.7µ ± 3%                      135.4µ ± 2%       ~ (p=0.971 n=10)
+CompileControlFlowWorkload                                                           18.43µ ± 2%                      18.29µ ± 2%       ~ (p=0.436 n=10)
+CompileTypedWorkload                                                                 26.34µ ± 2%                      25.96µ ± 2%       ~ (p=0.143 n=10)
+CompileMassiveWorkload                                                               280.5µ ± 1%                      265.1µ ± 3%  -5.47% (p=0.000 n=10)
+geomean                                                                              44.35µ                           43.61µ       -1.68%
+
+                                         │ /tmp/vibescript-memory-round/final-snapshots/base.txt │ /tmp/vibescript-memory-round/final-snapshots/head.txt │
+                                         │                         B/op                          │            B/op              vs base                  │
+ExecutionGroupByHashRowsLowCardinality                                              1.232Mi ± 0%                  1.085Mi ± 0%  -11.90% (p=0.000 n=10)
+ExecutionPartitionHashRowsLowCardinality                                            1.211Mi ± 0%                  1.064Mi ± 0%  -12.10% (p=0.000 n=10)
+ExecutionJSONStringifyLoop                                                          52.31Ki ± 0%                  37.31Ki ± 0%  -28.68% (p=0.000 n=10)
+JSONStringifyObjectShapes/small_hash                                                6.094Ki ± 0%                  5.906Ki ± 0%   -3.08% (p=0.000 n=10)
+JSONStringifyObjectShapes/large_hash                                                12.21Ki ± 0%                  12.21Ki ± 0%        ~ (p=1.000 n=10) ¹
+JSONStringifyObjectShapes/small_object                                              5.766Ki ± 0%                  5.578Ki ± 0%   -3.25% (p=0.000 n=10)
+JSONStringifyObjectShapes/large_object                                              10.88Ki ± 0%                  10.88Ki ± 0%        ~ (p=1.000 n=10) ¹
+JSONStringifyObjectShapes/nested_hash                                               89.84Ki ± 0%                  89.47Ki ± 0%   -0.42% (p=0.000 n=10)
+HostCloneNestedHashes/depth=4                                                       3.500Ki ± 0%                  3.000Ki ± 0%  -14.29% (p=0.000 n=10)
+HostCloneNestedHashes/depth=64                                                      70.42Ki ± 0%                  69.92Ki ± 0%   -0.71% (p=0.000 n=10)
+HostCloneNestedHashes/depth=256                                                     284.4Ki ± 0%                  283.9Ki ± 0%   -0.18% (p=0.000 n=10)
+CompileControlFlowWorkload                                                          14.43Ki ± 0%                  14.43Ki ± 0%        ~ (p=1.000 n=10) ¹
+CompileTypedWorkload                                                                18.59Ki ± 0%                  18.59Ki ± 0%        ~ (p=1.000 n=10) ¹
+CompileMassiveWorkload                                                              243.1Ki ± 0%                  216.8Ki ± 0%  -10.79% (p=0.000 n=10)
+geomean                                                                             45.38Ki                       42.43Ki        -6.49%
+¹ all samples are equal
+
+                                         │ /tmp/vibescript-memory-round/final-snapshots/base.txt │ /tmp/vibescript-memory-round/final-snapshots/head.txt │
+                                         │                       allocs/op                       │          allocs/op           vs base                  │
+ExecutionGroupByHashRowsLowCardinality                                               5.574k ± 0%                   4.973k ± 0%  -10.78% (p=0.000 n=10)
+ExecutionPartitionHashRowsLowCardinality                                             5.549k ± 0%                   4.949k ± 0%  -10.81% (p=0.000 n=10)
+ExecutionJSONStringifyLoop                                                            520.0 ± 0%                    440.0 ± 0%  -15.38% (p=0.000 n=10)
+JSONStringifyObjectShapes/small_hash                                                  34.00 ± 0%                    33.00 ± 0%   -2.94% (p=0.000 n=10)
+JSONStringifyObjectShapes/large_hash                                                  37.00 ± 0%                    37.00 ± 0%        ~ (p=1.000 n=10) ¹
+JSONStringifyObjectShapes/small_object                                                31.00 ± 0%                    30.00 ± 0%   -3.23% (p=0.000 n=10)
+JSONStringifyObjectShapes/large_object                                                34.00 ± 0%                    34.00 ± 0%        ~ (p=1.000 n=10) ¹
+JSONStringifyObjectShapes/nested_hash                                                 393.0 ± 0%                    391.0 ± 0%   -0.51% (p=0.000 n=10)
+HostCloneNestedHashes/depth=4                                                         20.00 ± 0%                    18.00 ± 0%  -10.00% (p=0.000 n=10)
+HostCloneNestedHashes/depth=64                                                        338.0 ± 0%                    336.0 ± 0%   -0.59% (p=0.000 n=10)
+HostCloneNestedHashes/depth=256                                                      1.306k ± 0%                   1.304k ± 0%   -0.15% (p=0.000 n=10)
+CompileControlFlowWorkload                                                            197.0 ± 0%                    197.0 ± 0%        ~ (p=1.000 n=10) ¹
+CompileTypedWorkload                                                                  257.0 ± 0%                    257.0 ± 0%        ~ (p=1.000 n=10) ¹
+CompileMassiveWorkload                                                               2.221k ± 0%                   2.208k ± 0%   -0.59% (p=0.000 n=10)
+geomean                                                                               264.8                         254.0        -4.07%
+¹ all samples are equal

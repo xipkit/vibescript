@@ -1,0 +1,428 @@
+diff --git a/benchmarks/simd/memory-allocations.json b/benchmarks/simd/memory-allocations.json
+new file mode 100644
+index 00000000..5a4ee3e9
+--- /dev/null
++++ b/benchmarks/simd/memory-allocations.json
+@@ -0,0 +1,17 @@
++{
++  "fixture": "internal/runtime/memory_allocations_benchmark_test.go",
++  "benchmark": "Benchmark(JSONStringifyObjectShapes|HostCloneNestedHashes|Execution(GroupByHashRowsLowCardinality|PartitionHashRowsLowCardinality|JSONStringifyLoop)|Compile(Massive|ControlFlow|Typed)Workload)",
++  "cases": 14,
++  "inputs": [
++    "internal/runtime/execution_benchmark_test.go",
++    "internal/runtime/performance_benchmark_test.go",
++    "tests/complex/massive.vibe",
++    "tests/complex/loops.vibe",
++    "tests/complex/typed.vibe"
++  ],
++  "sources": [
++    "internal/runtime/aliases.go",
++    "internal/runtime/json.go",
++    "internal/runtime/compile.go"
++  ]
++}
+diff --git a/internal/runtime/aliases.go b/internal/runtime/aliases.go
+index 981cf30e..4ccdbe81 100644
+--- a/internal/runtime/aliases.go
++++ b/internal/runtime/aliases.go
+@@ -436,6 +436,8 @@ func parseTimeString(input, layout string, hasLayout bool, loc *time.Location) (
+ }
+ 
+ type hostValueCloneState struct {
++	// Each recursive clone borrows disjoint slots until its children return.
++	hashScratch *hostHashScratch
+ 	// arrays caches cloned KindArray values keyed on the source array's wrapper
+ 	// identity, so aliases of one mutable array clone to one shared object (a
+ 	// later in-place mutation through one cloned alias stays visible through
+@@ -618,7 +620,9 @@ func hostBoundaryNeedsClone(val Value, state *hostValueScanState) bool {
+ }
+ 
+ func cloneValueForHost(val Value) Value {
++	var scratch hostHashScratch
+ 	state := hostValueCloneState{
++		hashScratch:   &scratch,
+ 		arrays:        make(map[uintptr]Value),
+ 		hashes:        make(map[uintptr]Value),
+ 		hashEntries:   make(map[uintptr]map[string]Value),
+@@ -937,13 +941,32 @@ func cloneHostHashValue(val Value, state hostValueCloneState) Value {
+ 		// the reservation it crossed the boundary with.
+ 		cloned.ReserveHashCapacity(value.HashEntryCapacity(val))
+ 		cloned.ReserveHashOrder(value.HashOrderCapacity(val))
+-		for _, entry := range val.HashEntries() {
++		var scratch []value.HashEntry
++		if state.hashScratch != nil {
++			start := state.hashScratch.used
++			if n := val.HashLen(); n <= len(state.hashScratch.entries)-start {
++				state.hashScratch.used += n
++				scratch = state.hashScratch.entries[start:state.hashScratch.used]
++				defer state.hashScratch.release(start)
++			}
++		}
++		for _, entry := range val.HashEntriesInto(scratch[:0]) {
+ 			setClonedHashEntry(cloned, entry.Key, cloneValueForHostWithState(entry.Value, state))
+ 		}
+ 	}
+ 	return cloned
+ }
+ 
++type hostHashScratch struct {
++	entries [8]value.HashEntry
++	used    int
++}
++
++func (scratch *hostHashScratch) release(start int) {
++	clear(scratch.entries[start:scratch.used])
++	scratch.used = start
++}
++
+ func cloneHostMapValue(val Value, state hostValueCloneState, construct func(map[string]Value) Value) Value {
+ 	entries := val.HashEntryMap()
+ 	ptr := reflect.ValueOf(entries).Pointer()
+diff --git a/internal/runtime/compile.go b/internal/runtime/compile.go
+index bc384acf..0e747ace 100644
+--- a/internal/runtime/compile.go
++++ b/internal/runtime/compile.go
+@@ -131,8 +131,10 @@ func compileParsed(e *Engine, source string, program *ast.Program) (*Script, err
+ 	classOrder := make([]string, 0, classCount)
+ 	enums := make(map[string]*EnumDef, enumCount)
+ 
+-	if err := checkDirectiveNameCollisions(program.Statements); err != nil {
+-		return nil, err
++	if classCount > 0 {
++		if err := checkDirectiveNameCollisions(program.Statements); err != nil {
++			return nil, err
++		}
+ 	}
+ 
+ 	for _, stmt := range program.Statements {
+diff --git a/internal/runtime/host_hash_scratch_test.go b/internal/runtime/host_hash_scratch_test.go
+new file mode 100644
+index 00000000..59116a4c
+--- /dev/null
++++ b/internal/runtime/host_hash_scratch_test.go
+@@ -0,0 +1,65 @@
++package runtime
++
++import (
++	"fmt"
++	"testing"
++
++	"github.com/mgomes/vibescript/vibes/value"
++)
++
++func TestHostHashScratchPreservesNestedValues(t *testing.T) {
++	t.Parallel()
++	for _, width := range []int{4, 8, 9, 32} {
++		t.Run(fmt.Sprintf("width=%d", width), func(t *testing.T) {
++			input := NewInt(9)
++			for range 4 {
++				hash := NewHashWithCapacity(width)
++				setClonedHashEntry(hash, NewString("child"), input)
++				for i := range width - 1 {
++					setClonedHashEntry(hash, NewString(fmt.Sprintf("key%d", i)), NewInt(int64(i)))
++				}
++				input = hash
++			}
++			input.ReserveHashCapacity(width * 2)
++			input.ReserveHashOrder(width * 2)
++			cloned := cloneValueForHost(input)
++			if !cloned.Equal(input) || hashIdentity(cloned) == hashIdentity(input) {
++				t.Fatal("host clone must preserve nested values in an independent hash")
++			}
++			if value.HashEntryCapacity(cloned) != value.HashEntryCapacity(input) || value.HashOrderCapacity(cloned) != value.HashOrderCapacity(input) {
++				t.Fatal("host clone changed reserved hash capacities")
++			}
++			child, found, err := cloned.HashGet(NewString("child"))
++			if err != nil || !found {
++				t.Fatalf("cloned child found=%t, error=%v, want true, nil", found, err)
++			}
++			if err := child.HashSet(NewString("changed"), NewBool(true)); err != nil {
++				t.Fatal(err)
++			}
++			originalChild, _, err := input.HashGet(NewString("child"))
++			if err != nil {
++				t.Fatal(err)
++			}
++			if _, found, err := originalChild.HashGet(NewString("changed")); err != nil || found {
++				t.Errorf("host mutation reached original child: found=%t, error=%v", found, err)
++			}
++		})
++	}
++}
++
++func TestHostHashScratchPreservesCyclesAndAliases(t *testing.T) {
++	t.Parallel()
++	input := NewHashWithCapacity(3)
++	shared := NewArray([]Value{NewInt(1)})
++	setClonedHashEntry(input, NewSymbol("self"), input)
++	setClonedHashEntry(input, NewString("first"), shared)
++	setClonedHashEntry(input, NewString("second"), shared)
++	cloned := cloneValueForHost(input)
++	entries := cloned.HashEntryMap()
++	if hashIdentity(entries["self"]) != hashIdentity(cloned) {
++		t.Error("host clone broke its self reference")
++	}
++	if arrayIdentity(entries["first"]) != arrayIdentity(entries["second"]) || arrayIdentity(entries["first"]) == arrayIdentity(shared) {
++		t.Error("host clone must preserve the array alias with independent storage")
++	}
++}
+diff --git a/internal/runtime/json.go b/internal/runtime/json.go
+index 54f59ebe..08b10df7 100644
+--- a/internal/runtime/json.go
++++ b/internal/runtime/json.go
+@@ -23,8 +23,12 @@ type jsonStringifyState struct {
+ 	seenHashes      map[uintptr]struct{}
+ 	seenArrayLen    int
+ 	seenHashLen     int
+-	depth           int
+-	exec            *Execution
++	// Nested objects hold disjoint slots until their children finish, keeping
++	// the total inline scratch bounded for the entire stringify call.
++	objectScratch     [8]jsonObjectEntry
++	objectScratchUsed int
++	depth             int
++	exec              *Execution
+ 	// chargedSteps is the number of steps already billed for the output. It
+ 	// counts steps rather than bytes because escaping calls checkOutputBytes
+ 	// once per escaped character: a six-byte delta divides to zero steps, so
+@@ -750,9 +754,9 @@ func appendJSONValueRendered(buf []byte, val Value, state *jsonStringifyState) (
+ 		}
+ 		defer state.popSeenHash(hashSlot)
+ 
+-		entries, err := jsonObjectEntries(val)
+-		if err != nil {
+-			return nil, err
++		entries, scratchStart := state.objectEntries(val)
++		if scratchStart >= 0 {
++			defer state.releaseObjectScratch(scratchStart)
+ 		}
+ 
+ 		buf = append(buf, '{')
+@@ -788,6 +792,21 @@ func appendJSONValueRendered(buf []byte, val Value, state *jsonStringifyState) (
+ 	}
+ }
+ 
++func (state *jsonStringifyState) objectEntries(val Value) ([]jsonObjectEntry, int) {
++	start := state.objectScratchUsed
++	if n := val.HashLen(); n <= len(state.objectScratch)-start {
++		state.objectScratchUsed += n
++		scratch := state.objectScratch[start:state.objectScratchUsed]
++		return jsonObjectEntries(val, scratch[:0]), start
++	}
++	return jsonObjectEntries(val, nil), -1
++}
++
++func (state *jsonStringifyState) releaseObjectScratch(start int) {
++	clear(state.objectScratch[start:state.objectScratchUsed])
++	state.objectScratchUsed = start
++}
++
+ type jsonObjectEntry struct {
+ 	key   string
+ 	value Value
+@@ -806,13 +825,16 @@ func jsonObjectIdentity(val Value) uintptr {
+ // iterates: Ruby-style insertion order for a hash built by a script, the way
+ // Ruby's JSON.generate does, and sorted keys for a bare host map or an object,
+ // which record no order.
+-func jsonObjectEntries(val Value) ([]jsonObjectEntry, error) {
++func jsonObjectEntries(val Value, buf []jsonObjectEntry) []jsonObjectEntry {
+ 	// Fill the returned buffer directly and sort it in place when insertion
+ 	// order is unavailable. RangeHashEntries' fallback used to allocate a
+ 	// second []Value of keys on top of this slice, which stringify's quota
+ 	// checks never reserved.
+ 	n := val.HashLen()
+-	entries := make([]jsonObjectEntry, 0, n)
++	entries := buf[:0]
++	if cap(entries) < n {
++		entries = make([]jsonObjectEntry, 0, n)
++	}
+ 	val.RangeHashEntries(func(key string, item Value) {
+ 		entries = append(entries, jsonObjectEntry{key: key, value: item})
+ 	})
+@@ -825,7 +847,7 @@ func jsonObjectEntries(val Value) ([]jsonObjectEntry, error) {
+ 			return cmp.Compare(a.key, b.key)
+ 		})
+ 	}
+-	return entries, nil
++	return entries
+ }
+ 
+ func appendJSONFloat(buf []byte, f float64) []byte {
+diff --git a/internal/runtime/json_object_scratch_test.go b/internal/runtime/json_object_scratch_test.go
+new file mode 100644
+index 00000000..41643b1d
+--- /dev/null
++++ b/internal/runtime/json_object_scratch_test.go
+@@ -0,0 +1,97 @@
++package runtime
++
++import (
++	"errors"
++	"fmt"
++	"strconv"
++	"strings"
++	"testing"
++)
++
++func TestJSONStringifyNestedObjectScratch(t *testing.T) {
++	t.Parallel()
++	for _, width := range []int{1, 4, 8, 9, 32} {
++		for _, depth := range []int{1, 3, 64} {
++			t.Run(fmt.Sprintf("width=%d/depth=%d", width, depth), func(t *testing.T) {
++				input, want := jsonObjectScratchFixture(t, width, depth)
++				got, err := builtinJSONStringify(nil, NewNil(), []Value{input}, nil, NewNil())
++				if err != nil || got.String() != want {
++					t.Errorf("JSON.stringify nested objects = %q, %v, want %q, nil", got.String(), err, want)
++				}
++			})
++		}
++	}
++}
++
++func TestJSONStringifyScratchPreservesFallbackOrder(t *testing.T) {
++	t.Parallel()
++	for _, width := range []int{4, 9} {
++		child, _ := jsonObjectScratchFixture(t, width, 3)
++		entries := map[string]Value{"z": NewInt(1), "b": child}
++		hash := NewHash(entries)
++		delete(entries, "z")
++		entries["a"] = NewInt(2)
++		object := NewObject(entries)
++		got, err := builtinJSONStringify(nil, NewNil(), []Value{hash}, nil, NewNil())
++		if err != nil {
++			t.Fatal(err)
++		}
++		want, err := builtinJSONStringify(nil, NewNil(), []Value{object}, nil, NewNil())
++		if err != nil {
++			t.Fatal(err)
++		}
++		if got.String() != want.String() || !strings.HasPrefix(got.String(), `{"a":2,"b":`) {
++			t.Errorf("mutated hash JSON = %q, want sorted object JSON %q", got.String(), want.String())
++		}
++	}
++}
++
++func TestJSONStringifyScratchUnwindsErrors(t *testing.T) {
++	t.Parallel()
++	input, _ := jsonObjectScratchFixture(t, 4, 4)
++	setClonedHashEntry(input, NewString("cycle"), input)
++	var state jsonStringifyState
++	if _, err := appendJSONValue(nil, input, &state); err == nil {
++		t.Fatal("JSON.stringify(cycle) succeeded, want a cycle error")
++	}
++	valid, want := jsonObjectScratchFixture(t, 8, 2)
++	got, err := appendJSONValue(nil, valid, &state)
++	if err != nil || string(got) != want {
++		t.Errorf("stringify after a cycle = %q, %v, want %q, nil", got, err, want)
++	}
++}
++
++func TestJSONStringifyRejectsExcessiveObjectNesting(t *testing.T) {
++	t.Parallel()
++	input := NewInt(0)
++	for range maxJSONNestingDepth + 1 {
++		hash := NewHashWithCapacity(1)
++		setClonedHashEntry(hash, NewString("child"), input)
++		input = hash
++	}
++	if _, err := builtinJSONStringify(nil, NewNil(), []Value{input}, nil, NewNil()); !errors.Is(err, errJSONMaxDepth) {
++		t.Errorf("JSON.stringify(deep objects) error = %v, want depth limit", err)
++	}
++}
++
++func jsonObjectScratchFixture(t testing.TB, width, depth int) (Value, string) {
++	t.Helper()
++	var suffix strings.Builder
++	for n := range width - 1 {
++		i := n + 1
++		suffix.WriteString(`,"key` + strconv.Itoa(i) + `":` + strconv.Itoa(i))
++	}
++	suffix.WriteByte('}')
++	input := NewString("q\xff\"")
++	for range depth {
++		hash := NewHashWithCapacity(width)
++		setClonedHashEntry(hash, NewString("child"), input)
++		for n := range width - 1 {
++			i := n + 1
++			setClonedHashEntry(hash, NewString("key"+strconv.Itoa(i)), NewInt(int64(i)))
++		}
++		input = hash
++	}
++	want := strings.Repeat(`{"child":`, depth) + `"q\ufffd\""` + strings.Repeat(suffix.String(), depth)
++	return input, want
++}
+diff --git a/internal/runtime/memory_allocations_benchmark_test.go b/internal/runtime/memory_allocations_benchmark_test.go
+new file mode 100644
+index 00000000..411291fc
+--- /dev/null
++++ b/internal/runtime/memory_allocations_benchmark_test.go
+@@ -0,0 +1,69 @@
++package runtime
++
++import (
++	"context"
++	"fmt"
++	"testing"
++)
++
++func BenchmarkJSONStringifyObjectShapes(b *testing.B) {
++	for _, tc := range []struct {
++		name   string
++		width  int
++		depth  int
++		object bool
++	}{
++		{name: "small_hash", width: 4, depth: 1},
++		{name: "large_hash", width: 32, depth: 1},
++		{name: "small_object", width: 4, depth: 1, object: true},
++		{name: "large_object", width: 32, depth: 1, object: true},
++		{name: "nested_hash", width: 4, depth: 64},
++	} {
++		b.Run(tc.name, func(b *testing.B) {
++			input := memorySnapshotBenchmarkValue(tc.width, tc.depth)
++			if tc.object {
++				input = NewObject(input.HashEntryMap())
++			}
++			script := compileScriptWithEngine(b, benchmarkEngine(), "def run(input)\nJSON.stringify(input)\nend")
++			args := []Value{input}
++			b.ReportAllocs()
++			b.ResetTimer()
++			for range b.N {
++				if _, err := script.Call(context.Background(), "run", args, CallOptions{}); err != nil {
++					b.Fatal(err)
++				}
++			}
++		})
++	}
++}
++
++func BenchmarkHostCloneNestedHashes(b *testing.B) {
++	for _, depth := range []int{4, 64, 256} {
++		b.Run(fmt.Sprintf("depth=%d", depth), func(b *testing.B) {
++			input := memorySnapshotBenchmarkValue(4, depth)
++			var got Value
++			b.ReportAllocs()
++			b.ResetTimer()
++			for range b.N {
++				got = cloneValueForHost(input)
++			}
++			b.StopTimer()
++			if !got.Equal(input) {
++				b.Fatal("host clone changed the nested value")
++			}
++		})
++	}
++}
++
++func memorySnapshotBenchmarkValue(width, depth int) Value {
++	input := NewString("leaf")
++	for range depth {
++		hash := NewHashWithCapacity(width)
++		setClonedHashEntry(hash, NewString("child"), input)
++		for i := range width - 1 {
++			setClonedHashEntry(hash, NewString(fmt.Sprintf("key%d", i)), NewInt(int64(i)))
++		}
++		input = hash
++	}
++	return input
++}

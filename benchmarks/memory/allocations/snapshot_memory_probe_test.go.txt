@@ -1,0 +1,41 @@
+package runtime
+
+import (
+    "fmt"
+    goruntime "runtime"
+    "testing"
+)
+
+func TestSnapshotMemoryProbe(t *testing.T) {
+    for _, mode := range []string{"json_objects", "json_arrays", "host_hashes"} {
+        for _, depth := range []int{256, 8192} {
+            t.Run(fmt.Sprintf("%s/depth=%d", mode, depth), func(t *testing.T) {
+                input := NewString("leaf")
+                for range depth {
+                    if mode == "json_arrays" {
+                        input = NewArray([]Value{input})
+                    } else {
+                        row := NewHashWithCapacity(1)
+                        setClonedHashEntry(row, NewString("child"), input)
+                        input = row
+                    }
+                }
+                var before, after goruntime.MemStats
+                goruntime.GC()
+                goruntime.ReadMemStats(&before)
+                var got Value
+                if mode == "host_hashes" {
+                    got = cloneValueForHost(input)
+                } else {
+                    var err error
+                    got, err = builtinJSONStringify(nil, NewNil(), []Value{input}, nil, NewNil())
+                    if err != nil { t.Fatal(err) }
+                }
+                goruntime.ReadMemStats(&after)
+                t.Logf("allocated=%d heap_delta=%d stack_delta=%d", after.TotalAlloc-before.TotalAlloc, int64(after.HeapAlloc)-int64(before.HeapAlloc), int64(after.StackInuse)-int64(before.StackInuse))
+                goruntime.KeepAlive(got)
+                goruntime.KeepAlive(input)
+            })
+        }
+    }
+}

@@ -1,0 +1,190 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     148	   1605293 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     150	   1572984 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1207	    196564 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   58796	      4169 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21939	     10858 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   59569	      3996 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20866	     11575 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2380	     99633 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  142021	      1648 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7244	     32277 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1768	    132286 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   13204	     18131 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9897	     25769 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     860	    274576 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     152	   1579611 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     153	   1558787 ns/op	 1269808 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1245	    193467 ns/op	   53561 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   58509	      4218 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21855	     10640 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   60441	      4089 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20672	     11993 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2397	     99398 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  144741	      1691 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    6836	     33729 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1723	    137110 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12974	     18467 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9751	     27072 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     842	    288250 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     141	   1676224 ns/op	 1291810 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     146	   1630557 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1203	    198709 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   56238	      4165 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21942	     10973 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   59179	      4044 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20320	     11838 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2310	    102180 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  136566	      1725 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    6639	     33969 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1717	    134867 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12876	     18523 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9236	     26463 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     846	    283190 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     148	   1589898 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     153	   1544093 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1234	    193236 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   58143	      4112 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   22410	     10753 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   60630	      3969 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20694	     11743 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2389	     99160 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  144436	      1652 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7260	     32582 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1807	    133347 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12853	     18617 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9458	     26234 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     859	    280138 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     140	   1698270 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     145	   1629572 ns/op	 1269810 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1189	    199282 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   55694	      4269 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21493	     10911 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   58584	      4128 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20020	     11964 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2354	    101756 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  141140	      1686 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7332	     33513 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1690	    140165 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12733	     18382 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9670	     26220 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     849	    280374 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     150	   1598321 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     152	   1550604 ns/op	 1269808 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1216	    192992 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   58135	      4058 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   22579	     10570 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   60256	      3981 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20854	     11568 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2415	     98370 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  147668	      1630 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7245	     32057 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1796	    130955 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   13260	     18159 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	   10000	     25818 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     859	    282818 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     141	   1636593 ns/op	 1291810 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     150	   1600579 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1186	    197984 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   56637	      4293 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21133	     11079 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   57456	      4179 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   19741	     11730 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2323	    101247 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  142862	      1686 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7210	     33211 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1749	    136838 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12892	     18561 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9709	     26488 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     846	    281104 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     146	   1640386 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     148	   1633316 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1194	    200445 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   55951	      4162 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21852	     10958 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   59058	      4066 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20269	     11998 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2264	     99153 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  143840	      1644 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7046	     32149 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1782	    131833 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   13198	     18012 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9712	     26464 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     838	    280559 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     146	   1627984 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     151	   1582803 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1212	    194740 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   58987	      4096 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   21992	     11016 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   58053	      4192 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   19958	     12042 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2286	    103975 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  140475	      1718 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    6884	     33613 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1764	    136514 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12922	     18400 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9860	     26453 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     855	    280235 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     146	   1603642 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     148	   1576078 ns/op	 1269809 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1195	    197786 ns/op	   53562 B/op	     520 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_hash     	   56431	      4246 ns/op	    6240 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_hash     	   22072	     10879 ns/op	   12504 B/op	      37 allocs/op
+BenchmarkJSONStringifyObjectShapes/small_object   	   59558	      4034 ns/op	    5904 B/op	      31 allocs/op
+BenchmarkJSONStringifyObjectShapes/large_object   	   20535	     11702 ns/op	   11144 B/op	      34 allocs/op
+BenchmarkJSONStringifyObjectShapes/nested_hash    	    2340	    101124 ns/op	   92001 B/op	     393 allocs/op
+BenchmarkHostCloneNestedHashes/depth=4            	  144164	      1687 ns/op	    3584 B/op	      20 allocs/op
+BenchmarkHostCloneNestedHashes/depth=64           	    7090	     34063 ns/op	   72112 B/op	     338 allocs/op
+BenchmarkHostCloneNestedHashes/depth=256          	    1717	    139149 ns/op	  291248 B/op	    1306 allocs/op
+BenchmarkCompileControlFlowWorkload               	   12976	     18455 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload                     	    9679	     26140 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload                   	     852	    279654 ns/op	  248888 B/op	    2221 allocs/op
+PASS
