@@ -1,0 +1,43 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                                │ /tmp/vibescript-memory-round/execution-four-frames/base.txt │ /tmp/vibescript-memory-round/execution-four-frames/head.txt │
+                                │                           sec/op                            │                sec/op                 vs base               │
+ExecutionArithmeticLoop                                                           104.2µ ± 2%                            104.5µ ± 3%       ~ (p=0.739 n=10)
+ExecutionArrayPipeline                                                            695.0µ ± 5%                            693.7µ ± 5%       ~ (p=0.739 n=10)
+ExecutionMethodDispatchLoop                                                       485.6µ ± 3%                            483.9µ ± 3%       ~ (p=0.579 n=10)
+ExecutionCapabilityFindLoop                                                       1.393m ± 4%                            1.378m ± 3%       ~ (p=0.631 n=10)
+ExecutionRecursiveFib                                                             7.085m ± 1%                            7.103m ± 3%       ~ (p=1.000 n=10)
+ExecutionRecursiveFibQuota                                                        23.13m ± 2%                            22.93m ± 1%       ~ (p=0.247 n=10)
+CallShortScript                                                                   1.061µ ± 5%                            1.054µ ± 3%       ~ (p=0.288 n=10)
+CallManyUnusedFunctions                                                           1.084µ ± 5%                            1.063µ ± 2%  -1.94% (p=0.045 n=10)
+ExecutionCapabilityWorkflowLoop                                                   2.932m ± 4%                            2.900m ± 3%       ~ (p=0.353 n=10)
+geomean                                                                           310.8µ                                 308.9µ       -0.62%
+
+                                │ /tmp/vibescript-memory-round/execution-four-frames/base.txt │ /tmp/vibescript-memory-round/execution-four-frames/head.txt │
+                                │                            B/op                             │                 B/op                  vs base               │
+ExecutionArithmeticLoop                                                          3.743Ki ± 0%                           3.493Ki ± 0%  -6.68% (p=0.000 n=10)
+ExecutionArrayPipeline                                                           76.66Ki ± 0%                           76.41Ki ± 0%  -0.33% (p=0.000 n=10)
+ExecutionMethodDispatchLoop                                                      6.778Ki ± 0%                           6.528Ki ± 0%  -3.69% (p=0.000 n=10)
+ExecutionCapabilityFindLoop                                                      481.3Ki ± 0%                           481.1Ki ± 0%  -0.05% (p=0.000 n=10)
+ExecutionRecursiveFib                                                            20.84Ki ± 0%                           20.97Ki ± 0%  +0.60% (p=0.000 n=10)
+ExecutionRecursiveFibQuota                                                       24.25Ki ± 0%                           24.37Ki ± 0%  +0.52% (p=0.000 n=10)
+CallShortScript                                                                  3.391Ki ± 0%                           3.141Ki ± 0%  -7.37% (p=0.000 n=10)
+CallManyUnusedFunctions                                                          3.391Ki ± 0%                           3.141Ki ± 0%  -7.37% (p=0.000 n=10)
+ExecutionCapabilityWorkflowLoop                                                  899.4Ki ± 0%                           899.2Ki ± 0%  -0.03% (p=0.000 n=10)
+geomean                                                                          25.70Ki                                24.99Ki       -2.77%
+
+                                │ /tmp/vibescript-memory-round/execution-four-frames/base.txt │ /tmp/vibescript-memory-round/execution-four-frames/head.txt │
+                                │                          allocs/op                          │             allocs/op               vs base                 │
+ExecutionArithmeticLoop                                                            14.00 ± 0%                           14.00 ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionArrayPipeline                                                             52.00 ± 0%                           52.00 ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionMethodDispatchLoop                                                        53.00 ± 0%                           53.00 ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionCapabilityFindLoop                                                       6.709k ± 0%                          6.709k ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionRecursiveFib                                                              82.00 ± 0%                           83.00 ± 0%  +1.22% (p=0.000 n=10)
+ExecutionRecursiveFibQuota                                                         95.00 ± 0%                           96.00 ± 0%  +1.05% (p=0.000 n=10)
+CallShortScript                                                                    8.000 ± 0%                           8.000 ± 0%       ~ (p=1.000 n=10) ¹
+CallManyUnusedFunctions                                                            8.000 ± 0%                           8.000 ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionCapabilityWorkflowLoop                                                   11.36k ± 0%                          11.36k ± 0%       ~ (p=1.000 n=10) ¹
+geomean                                                                            104.3                                104.6       +0.25%
+¹ all samples are equal

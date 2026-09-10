@@ -315,7 +315,8 @@ type Execution struct {
 	// Inline backing storage for the always-used per-call stacks, so a
 	// fresh Execution costs one allocation instead of one per stack.
 	// Appends beyond these capacities spill to the heap as usual.
-	callStackArr               [8]callFrame
+	// Four call frames save an allocator size class on 64-bit targets.
+	callStackArr               [4]callFrame
 	receiverStackArr           [8]Value
 	envStackArr                [8]*Env
 	validatedCapabilityArgsArr [4]string

@@ -1,0 +1,37 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                             │ /tmp/vibescript-memory-round/execution-depth/base.txt │ /tmp/vibescript-memory-round/execution-depth/head.txt │
+                             │                        sec/op                         │             sec/op              vs base               │
+ExecutionCallDepth/depth=0                                               2.534µ ± 5%                      2.498µ ± 2%       ~ (p=0.739 n=10)
+ExecutionCallDepth/depth=2                                               5.485µ ± 5%                      5.397µ ± 2%       ~ (p=0.382 n=10)
+ExecutionCallDepth/depth=3                                               6.781µ ± 6%                      6.900µ ± 2%       ~ (p=0.684 n=10)
+ExecutionCallDepth/depth=6                                               11.05µ ± 5%                      11.07µ ± 5%       ~ (p=0.529 n=10)
+ExecutionCallDepth/depth=7                                               12.83µ ± 4%                      12.94µ ± 2%       ~ (p=0.579 n=10)
+ExecutionCallDepth/depth=30                                              50.72µ ± 4%                      51.09µ ± 3%       ~ (p=1.000 n=10)
+ExecutionCallDepth/depth=126                                             268.0µ ± 4%                      269.9µ ± 4%       ~ (p=0.436 n=10)
+geomean                                                                  15.13µ                           15.16µ       +0.15%
+
+                             │ /tmp/vibescript-memory-round/execution-depth/base.txt │ /tmp/vibescript-memory-round/execution-depth/head.txt │
+                             │                         B/op                          │              B/op               vs base               │
+ExecutionCallDepth/depth=0                                              4.375Ki ± 0%                     4.125Ki ± 0%  -5.71% (p=0.000 n=10)
+ExecutionCallDepth/depth=2                                              5.703Ki ± 0%                     5.453Ki ± 0%  -4.38% (p=0.000 n=10)
+ExecutionCallDepth/depth=3                                              6.234Ki ± 0%                     6.359Ki ± 0%  +2.01% (p=0.000 n=10)
+ExecutionCallDepth/depth=6                                              8.016Ki ± 0%                     8.141Ki ± 0%  +1.56% (p=0.000 n=10)
+ExecutionCallDepth/depth=7                                              9.672Ki ± 0%                     9.797Ki ± 0%  +1.29% (p=0.000 n=10)
+ExecutionCallDepth/depth=30                                             28.84Ki ± 0%                     28.96Ki ± 0%  +0.43% (p=0.000 n=10)
+ExecutionCallDepth/depth=126                                            114.7Ki ± 0%                     114.8Ki ± 0%  +0.11% (p=0.000 n=10)
+geomean                                                                 12.18Ki                          12.10Ki       -0.71%
+
+                             │ /tmp/vibescript-memory-round/execution-depth/base.txt │ /tmp/vibescript-memory-round/execution-depth/head.txt │
+                             │                       allocs/op                       │          allocs/op            vs base                 │
+ExecutionCallDepth/depth=0                                                24.00 ± 0%                     24.00 ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionCallDepth/depth=2                                                38.00 ± 0%                     38.00 ± 0%       ~ (p=1.000 n=10) ¹
+ExecutionCallDepth/depth=3                                                43.00 ± 0%                     44.00 ± 0%  +2.33% (p=0.000 n=10)
+ExecutionCallDepth/depth=6                                                53.00 ± 0%                     54.00 ± 0%  +1.89% (p=0.000 n=10)
+ExecutionCallDepth/depth=7                                                59.00 ± 0%                     60.00 ± 0%  +1.69% (p=0.000 n=10)
+ExecutionCallDepth/depth=30                                               126.0 ± 0%                     127.0 ± 0%  +0.79% (p=0.000 n=10)
+ExecutionCallDepth/depth=126                                              340.0 ± 0%                     341.0 ± 0%  +0.29% (p=0.000 n=10)
+geomean                                                                   65.65                          66.30       +1.00%
+¹ all samples are equal

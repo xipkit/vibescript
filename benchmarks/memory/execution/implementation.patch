@@ -1,0 +1,72 @@
+diff --git a/benchmarks/simd/execution-footprint.json b/benchmarks/simd/execution-footprint.json
+new file mode 100644
+index 00000000..bf195ebb
+--- /dev/null
++++ b/benchmarks/simd/execution-footprint.json
+@@ -0,0 +1,13 @@
++{
++  "fixture": "internal/runtime/execution_footprint_benchmark_test.go",
++  "benchmark": "Benchmark(ExecutionCallDepth|CallShortScript|CallManyUnusedFunctions|Execution(ArithmeticLoop|RecursiveFib|RecursiveFibQuota|MethodDispatchLoop|ArrayPipeline|CapabilityFindLoop|CapabilityWorkflowLoop))",
++  "cases": 16,
++  "inputs": [
++    "internal/runtime/execution_benchmark_test.go",
++    "internal/runtime/performance_benchmark_test.go"
++  ],
++  "sources": [
++    "internal/runtime/execution.go",
++    "internal/runtime/call.go"
++  ]
++}
+diff --git a/internal/runtime/execution.go b/internal/runtime/execution.go
+index 2702aabc..f0ef267c 100644
+--- a/internal/runtime/execution.go
++++ b/internal/runtime/execution.go
+@@ -315,7 +315,8 @@ type Execution struct {
+ 	// Inline backing storage for the always-used per-call stacks, so a
+ 	// fresh Execution costs one allocation instead of one per stack.
+ 	// Appends beyond these capacities spill to the heap as usual.
+-	callStackArr               [8]callFrame
++	// Four call frames save an allocator size class on 64-bit targets.
++	callStackArr               [4]callFrame
+ 	receiverStackArr           [8]Value
+ 	envStackArr                [8]*Env
+ 	validatedCapabilityArgsArr [4]string
+diff --git a/internal/runtime/execution_footprint_benchmark_test.go b/internal/runtime/execution_footprint_benchmark_test.go
+new file mode 100644
+index 00000000..56ceebbc
+--- /dev/null
++++ b/internal/runtime/execution_footprint_benchmark_test.go
+@@ -0,0 +1,33 @@
++package runtime
++
++import (
++	"context"
++	"fmt"
++	"testing"
++)
++
++func BenchmarkExecutionCallDepth(b *testing.B) {
++	for _, depth := range []int64{0, 2, 3, 6, 7, 30, 126} {
++		b.Run(fmt.Sprintf("depth=%d", depth), func(b *testing.B) {
++			script := compileScriptWithEngine(b, benchmarkEngine(), `def descend(depth)
++  if depth == 0
++    1
++  else
++    descend(depth - 1)
++  end
++end
++def run(depth)
++  descend(depth)
++end`)
++			args := []Value{NewInt(depth)}
++			b.ReportAllocs()
++			b.ResetTimer()
++			for range b.N {
++				got, err := script.Call(context.Background(), "run", args, CallOptions{})
++				if err != nil || got.Int() != 1 {
++					b.Fatalf("Call(depth=%d) = %v, %v, want 1, nil", depth, got, err)
++				}
++			}
++		})
++	}
++}
