@@ -436,6 +436,8 @@ func parseTimeString(input, layout string, hasLayout bool, loc *time.Location) (
 }
 
 type hostValueCloneState struct {
+	// Each recursive clone borrows disjoint slots until its children return.
+	hashScratch *hostHashScratch
 	// arrays caches cloned KindArray values keyed on the source array's wrapper
 	// identity, so aliases of one mutable array clone to one shared object (a
 	// later in-place mutation through one cloned alias stays visible through
@@ -618,7 +620,9 @@ func hostBoundaryNeedsClone(val Value, state *hostValueScanState) bool {
 }
 
 func cloneValueForHost(val Value) Value {
+	var scratch hostHashScratch
 	state := hostValueCloneState{
+		hashScratch:   &scratch,
 		arrays:        make(map[uintptr]Value),
 		hashes:        make(map[uintptr]Value),
 		hashEntries:   make(map[uintptr]map[string]Value),
@@ -937,11 +941,30 @@ func cloneHostHashValue(val Value, state hostValueCloneState) Value {
 		// the reservation it crossed the boundary with.
 		cloned.ReserveHashCapacity(value.HashEntryCapacity(val))
 		cloned.ReserveHashOrder(value.HashOrderCapacity(val))
-		for _, entry := range val.HashEntries() {
+		var scratch []value.HashEntry
+		if state.hashScratch != nil {
+			start := state.hashScratch.used
+			if n := val.HashLen(); n <= len(state.hashScratch.entries)-start {
+				state.hashScratch.used += n
+				scratch = state.hashScratch.entries[start:state.hashScratch.used]
+				defer state.hashScratch.release(start)
+			}
+		}
+		for _, entry := range val.HashEntriesInto(scratch[:0]) {
 			setClonedHashEntry(cloned, entry.Key, cloneValueForHostWithState(entry.Value, state))
 		}
 	}
 	return cloned
+}
+
+type hostHashScratch struct {
+	entries [8]value.HashEntry
+	used    int
+}
+
+func (scratch *hostHashScratch) release(start int) {
+	clear(scratch.entries[start:scratch.used])
+	scratch.used = start
 }
 
 func cloneHostMapValue(val Value, state hostValueCloneState, construct func(map[string]Value) Value) Value {

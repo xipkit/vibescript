@@ -23,8 +23,12 @@ type jsonStringifyState struct {
 	seenHashes      map[uintptr]struct{}
 	seenArrayLen    int
 	seenHashLen     int
-	depth           int
-	exec            *Execution
+	// Nested objects hold disjoint slots until their children finish, keeping
+	// the total inline scratch bounded for the entire stringify call.
+	objectScratch     [8]jsonObjectEntry
+	objectScratchUsed int
+	depth             int
+	exec              *Execution
 	// chargedSteps is the number of steps already billed for the output. It
 	// counts steps rather than bytes because escaping calls checkOutputBytes
 	// once per escaped character: a six-byte delta divides to zero steps, so
@@ -750,9 +754,9 @@ func appendJSONValueRendered(buf []byte, val Value, state *jsonStringifyState) (
 		}
 		defer state.popSeenHash(hashSlot)
 
-		entries, err := jsonObjectEntries(val)
-		if err != nil {
-			return nil, err
+		entries, scratchStart := state.objectEntries(val)
+		if scratchStart >= 0 {
+			defer state.releaseObjectScratch(scratchStart)
 		}
 
 		buf = append(buf, '{')
@@ -788,6 +792,21 @@ func appendJSONValueRendered(buf []byte, val Value, state *jsonStringifyState) (
 	}
 }
 
+func (state *jsonStringifyState) objectEntries(val Value) ([]jsonObjectEntry, int) {
+	start := state.objectScratchUsed
+	if n := val.HashLen(); n <= len(state.objectScratch)-start {
+		state.objectScratchUsed += n
+		scratch := state.objectScratch[start:state.objectScratchUsed]
+		return jsonObjectEntries(val, scratch[:0]), start
+	}
+	return jsonObjectEntries(val, nil), -1
+}
+
+func (state *jsonStringifyState) releaseObjectScratch(start int) {
+	clear(state.objectScratch[start:state.objectScratchUsed])
+	state.objectScratchUsed = start
+}
+
 type jsonObjectEntry struct {
 	key   string
 	value Value
@@ -806,13 +825,16 @@ func jsonObjectIdentity(val Value) uintptr {
 // iterates: Ruby-style insertion order for a hash built by a script, the way
 // Ruby's JSON.generate does, and sorted keys for a bare host map or an object,
 // which record no order.
-func jsonObjectEntries(val Value) ([]jsonObjectEntry, error) {
+func jsonObjectEntries(val Value, buf []jsonObjectEntry) []jsonObjectEntry {
 	// Fill the returned buffer directly and sort it in place when insertion
 	// order is unavailable. RangeHashEntries' fallback used to allocate a
 	// second []Value of keys on top of this slice, which stringify's quota
 	// checks never reserved.
 	n := val.HashLen()
-	entries := make([]jsonObjectEntry, 0, n)
+	entries := buf[:0]
+	if cap(entries) < n {
+		entries = make([]jsonObjectEntry, 0, n)
+	}
 	val.RangeHashEntries(func(key string, item Value) {
 		entries = append(entries, jsonObjectEntry{key: key, value: item})
 	})
@@ -825,7 +847,7 @@ func jsonObjectEntries(val Value) ([]jsonObjectEntry, error) {
 			return cmp.Compare(a.key, b.key)
 		})
 	}
-	return entries, nil
+	return entries
 }
 
 func appendJSONFloat(buf []byte, f float64) []byte {

@@ -1,0 +1,17 @@
+{
+  "fixture": "internal/runtime/memory_allocations_benchmark_test.go",
+  "benchmark": "Benchmark(JSONStringifyObjectShapes|HostCloneNestedHashes|Execution(GroupByHashRowsLowCardinality|PartitionHashRowsLowCardinality|JSONStringifyLoop)|Compile(Massive|ControlFlow|Typed)Workload)",
+  "cases": 14,
+  "inputs": [
+    "internal/runtime/execution_benchmark_test.go",
+    "internal/runtime/performance_benchmark_test.go",
+    "tests/complex/massive.vibe",
+    "tests/complex/loops.vibe",
+    "tests/complex/typed.vibe"
+  ],
+  "sources": [
+    "internal/runtime/aliases.go",
+    "internal/runtime/json.go",
+    "internal/runtime/compile.go"
+  ]
+}
