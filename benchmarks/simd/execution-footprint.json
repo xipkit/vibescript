@@ -1,0 +1,13 @@
+{
+  "fixture": "internal/runtime/execution_footprint_benchmark_test.go",
+  "benchmark": "Benchmark(ExecutionCallDepth|CallShortScript|CallManyUnusedFunctions|Execution(ArithmeticLoop|RecursiveFib|RecursiveFibQuota|MethodDispatchLoop|ArrayPipeline|CapabilityFindLoop|CapabilityWorkflowLoop))",
+  "cases": 16,
+  "inputs": [
+    "internal/runtime/execution_benchmark_test.go",
+    "internal/runtime/performance_benchmark_test.go"
+  ],
+  "sources": [
+    "internal/runtime/execution.go",
+    "internal/runtime/call.go"
+  ]
+}
