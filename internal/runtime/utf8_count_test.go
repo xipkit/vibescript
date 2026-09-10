@@ -6,13 +6,14 @@ import (
 )
 
 func TestStringRuneCountAllScalars(t *testing.T) {
-	for r := rune(0); r <= utf8.MaxRune; r++ {
+	for scalar := range int(utf8.MaxRune) + 1 {
+		r := rune(scalar)
 		if !utf8.ValidRune(r) {
 			continue
 		}
 		text := string(r)
 		for end := range len(text) + 1 {
-			for _, sample := range []string{text[:end], "a\xff" + text[:end] + "\x80z"} {
+			for _, sample := range []string{text[:end], "a\xff" + text[:end] + "\x80z", text[:end] + "abcdefgh"} {
 				if got, want := stringRuneCount(sample), utf8.RuneCountInString(sample); got != want {
 					t.Fatalf("%x: count %d, want %d", sample, got, want)
 				}
@@ -26,8 +27,10 @@ func TestStringRuneCountInvalidWidths(t *testing.T) {
 		for second := range 256 {
 			for _, tail := range []string{"", "\x80", "\xbf", "\x80\x80", "\xbf\xbf", "a\x80", "\x80z"} {
 				text := string([]byte{byte(first), byte(second)}) + tail
-				if got, want := stringRuneCount(text), utf8.RuneCountInString(text); got != want {
-					t.Fatalf("%x: count %d, want %d", text, got, want)
+				for _, sample := range []string{text, text + "abcdefgh"} {
+					if got, want := stringRuneCount(sample), utf8.RuneCountInString(sample); got != want {
+						t.Fatalf("%x: count %d, want %d", sample, got, want)
+					}
 				}
 			}
 		}

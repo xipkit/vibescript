@@ -3,43 +3,66 @@ package runtime
 import (
 	"encoding/binary"
 	"math/bits"
+	"unicode/utf8"
 )
 
+// Each entry stores width minus one in the low two bits and the second-byte
+// acceptance range in the high three bits. Zero marks ASCII or an invalid lead.
+var utf8RuneInfo = func() [256]byte {
+	var info [256]byte
+	for i := range 0x1e {
+		info[0xc2+i] = 1
+	}
+	for i := range 0x10 {
+		info[0xe0+i] = 2
+	}
+	for i := range 5 {
+		info[0xf0+i] = 3
+	}
+	info[0xe0] = 1<<5 | 2
+	info[0xed] = 2<<5 | 2
+	info[0xf0] = 3<<5 | 3
+	info[0xf4] = 4<<5 | 3
+	return info
+}()
+
+// Each range stores its lower byte and the maximum allowed offset from it.
+var utf8SecondRanges = [8][2]byte{
+	{0x80, 0x3f},
+	{0xa0, 0x1f},
+	{0x80, 0x1f},
+	{0x90, 0x2f},
+	{0x80, 0x0f},
+}
+
 // stringRuneCount validates encoded widths without constructing rune values.
-// A malformed leading byte consumes only itself, matching UTF-8 range loops.
+// The loop keeps four bytes available so each width needs no separate bound
+// check. A malformed leading byte consumes only itself, as in UTF-8 range loops.
 func stringRuneCount(text string) int {
 	count := 0
-	for i := 0; i < len(text); {
-		first := text[i]
-		i++
+	for len(text) > 4 {
 		count++
-		if first < 0xc2 {
+		first := text[0]
+		if first < utf8.RuneSelf {
+			text = text[1:]
 			continue
 		}
-		switch {
-		case first < 0xe0:
-			if i < len(text) && text[i]&0xc0 == 0x80 {
-				i++
-			}
-		case first < 0xf0:
-			if len(text)-i < 2 || text[i]&0xc0 != 0x80 || text[i+1]&0xc0 != 0x80 {
-				continue
-			}
-			if first == 0xe0 && text[i] < 0xa0 || first == 0xed && text[i] >= 0xa0 {
-				continue
-			}
-			i += 2
-		case first < 0xf5:
-			if len(text)-i < 3 || text[i]&0xc0 != 0x80 || text[i+1]&0xc0 != 0x80 || text[i+2]&0xc0 != 0x80 {
-				continue
-			}
-			if first == 0xf0 && text[i] < 0x90 || first == 0xf4 && text[i] >= 0x90 {
-				continue
-			}
-			i += 3
+		info := utf8RuneInfo[first]
+		if info == 0 {
+			text = text[1:]
+			continue
 		}
+		width := int(info&3) + 1
+		accept := utf8SecondRanges[info>>5]
+		if text[1]-accept[0] > accept[1] ||
+			width > 2 && text[2]&0xc0 != 0x80 ||
+			width > 3 && text[3]&0xc0 != 0x80 {
+			text = text[1:]
+			continue
+		}
+		text = text[width:]
 	}
-	return count
+	return count + utf8.RuneCountInString(text)
 }
 
 // utf8ContinuationBits marks each byte whose high bits are 10. Shifting left
