@@ -1,0 +1,22 @@
+memory-cache-before: waiting for CPU slot
+memory-cache-before: acquired CPU slot (PID 96010)
+=== RUN   TestRegexCacheReleasesPatternBackings
+=== RUN   TestRegexCacheReleasesPatternBackings/capacity=2
+    regex_cache_retention_test.go:36: 12 borrowed patterns retain 12726792 bytes
+    regex_cache_retention_test.go:38: 12 borrowed patterns retain 12726792 bytes, want less than 2097152
+=== RUN   TestRegexCacheReleasesPatternBackings/capacity=64
+    regex_cache_retention_test.go:36: 12 borrowed patterns retain 12731424 bytes
+    regex_cache_retention_test.go:38: 12 borrowed patterns retain 12731424 bytes, want less than 2097152
+--- FAIL: TestRegexCacheReleasesPatternBackings (0.01s)
+    --- FAIL: TestRegexCacheReleasesPatternBackings/capacity=2 (0.01s)
+    --- FAIL: TestRegexCacheReleasesPatternBackings/capacity=64 (0.00s)
+=== RUN   TestRegexCacheHitDoesNotAllocate
+--- PASS: TestRegexCacheHitDoesNotAllocate (0.00s)
+=== RUN   TestRegexCacheConcurrentMissesShareProgram
+=== PAUSE TestRegexCacheConcurrentMissesShareProgram
+=== CONT  TestRegexCacheConcurrentMissesShareProgram
+--- PASS: TestRegexCacheConcurrentMissesShareProgram (0.00s)
+FAIL
+FAIL	github.com/mgomes/vibescript/internal/runtime	0.321s
+FAIL
+memory-cache-before: finished with status 1

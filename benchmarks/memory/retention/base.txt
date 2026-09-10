@@ -1,0 +1,130 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     501	    472635 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   79117	      3009 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   36549	      6603 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   83236	      2860 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	36378793	         6.645 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  257254	       902.4 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1036	    227807 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4299	     58294 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     500	    486719 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   75518	      3132 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   35041	      6833 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   80630	      2957 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	34733528	         6.810 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  254980	       900.6 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1028	    243887 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    3824	     62179 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     495	    486754 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   74823	      3154 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   34629	      6916 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   80080	      2994 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	35868187	         6.614 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  249332	       950.2 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	     994	    242456 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4077	     60904 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     510	    480314 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   78016	      3116 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   34786	      6861 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   79370	      2998 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	36976168	         6.697 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  258538	       921.5 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1016	    236915 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4120	     61072 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     501	    482021 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   76170	      3192 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   35226	      6769 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   81832	      2936 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	33624826	         6.630 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  259316	       920.4 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1023	    233546 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4098	     59793 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     507	    476870 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   76488	      3064 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   35127	      6881 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   78272	      3046 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	33389172	         6.692 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  246319	       945.0 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	     990	    245446 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    3835	     61830 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     505	    481733 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   75490	      3132 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   34364	      6962 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   80060	      3017 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	36126667	         6.805 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  248707	       939.3 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1042	    245940 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    3936	     61485 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     510	    474031 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   76845	      3104 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   35426	      6871 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   80478	      2945 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	36252866	         6.600 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  253732	       913.3 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1016	    233650 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4183	     60469 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     506	    470061 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   75718	      3106 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   35388	      6788 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   81212	      2939 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	35285248	         6.879 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  251401	       916.9 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1020	    242462 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4044	     60930 ns/op	   32266 B/op	     893 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionMethodDispatchLoop 	     513	    473084 ns/op	    6941 B/op	      53 allocs/op
+BenchmarkRegexNamespaceMatch/small_match         	   79700	      2979 ns/op	    4816 B/op	      25 allocs/op
+BenchmarkRegexNamespaceMatch/full_match          	   35985	      6650 ns/op	    4864 B/op	      26 allocs/op
+BenchmarkRegexNamespaceMatch/no_match            	   83868	      2881 ns/op	    4768 B/op	      22 allocs/op
+BenchmarkRegexCachePattern/hit                   	35407802	         6.521 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRegexCachePattern/miss                  	  262396	       897.1 ns/op	    2159 B/op	      26 allocs/op
+BenchmarkMemoryScopeLoops/hash_delete            	    1042	    232509 ns/op	   45226 B/op	     607 allocs/op
+BenchmarkMemoryScopeLoops/rescue                 	    4093	     58781 ns/op	   32266 B/op	     893 allocs/op
+PASS

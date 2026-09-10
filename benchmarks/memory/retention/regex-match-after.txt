@@ -1,0 +1,22 @@
+memory-match-after: waiting for CPU slot
+memory-match-after: acquired CPU slot (PID 95996)
+=== RUN   TestRegexNamespaceMatchReleasesSubject
+    regex_match_retention_test.go:33: 24 one-byte matches retain -1112 bytes
+--- PASS: TestRegexNamespaceMatchReleasesSubject (0.19s)
+=== RUN   TestRegexNamespaceMatchReservesCopy
+--- PASS: TestRegexNamespaceMatchReservesCopy (0.01s)
+=== RUN   TestRegexNamespaceMatchPreservesBytes
+=== PAUSE TestRegexNamespaceMatchPreservesBytes
+=== CONT  TestRegexNamespaceMatchPreservesBytes
+=== RUN   TestRegexNamespaceMatchPreservesBytes/full
+=== RUN   TestRegexNamespaceMatchPreservesBytes/invalid_UTF-8
+=== RUN   TestRegexNamespaceMatchPreservesBytes/unicode
+=== RUN   TestRegexNamespaceMatchPreservesBytes/empty
+--- PASS: TestRegexNamespaceMatchPreservesBytes (0.00s)
+    --- PASS: TestRegexNamespaceMatchPreservesBytes/full (0.00s)
+    --- PASS: TestRegexNamespaceMatchPreservesBytes/invalid_UTF-8 (0.00s)
+    --- PASS: TestRegexNamespaceMatchPreservesBytes/unicode (0.00s)
+    --- PASS: TestRegexNamespaceMatchPreservesBytes/empty (0.00s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.568s
+memory-match-after: finished with status 0

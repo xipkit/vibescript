@@ -1,0 +1,74 @@
+memory-hash-stacks-before: waiting for CPU slot
+memory-hash-stacks-before: acquired CPU slot (PID 96076)
+=== RUN   TestDeletedHashKeysReleasePayloads
+    hash_order_retention_test.go:23: 24 deleted one-MiB keys retain 25217768 bytes
+    hash_order_retention_test.go:25: deleted hash keys retain 25217768 bytes, want less than 2097152
+--- FAIL: TestDeletedHashKeysReleasePayloads (0.07s)
+=== RUN   TestReturnedReceiversReleasePayloads
+=== RUN   TestReturnedReceiversReleasePayloads/depth=1/fail=false
+    receiver_rescue_retention_test.go:38: popped receivers retain 16782952 bytes
+    receiver_rescue_retention_test.go:40: popped receivers retain 16782952 bytes, want less than 2097152
+=== RUN   TestReturnedReceiversReleasePayloads/depth=1/fail=true
+    receiver_rescue_retention_test.go:38: popped receivers retain 16784552 bytes
+    receiver_rescue_retention_test.go:40: popped receivers retain 16784552 bytes, want less than 2097152
+=== RUN   TestReturnedReceiversReleasePayloads/depth=16/fail=false
+    receiver_rescue_retention_test.go:38: popped receivers retain 16786296 bytes
+    receiver_rescue_retention_test.go:40: popped receivers retain 16786296 bytes, want less than 2097152
+=== RUN   TestReturnedReceiversReleasePayloads/depth=16/fail=true
+    receiver_rescue_retention_test.go:38: popped receivers retain 16784552 bytes
+    receiver_rescue_retention_test.go:40: popped receivers retain 16784552 bytes, want less than 2097152
+--- FAIL: TestReturnedReceiversReleasePayloads (0.20s)
+    --- FAIL: TestReturnedReceiversReleasePayloads/depth=1/fail=false (0.05s)
+    --- FAIL: TestReturnedReceiversReleasePayloads/depth=1/fail=true (0.04s)
+    --- FAIL: TestReturnedReceiversReleasePayloads/depth=16/fail=false (0.06s)
+    --- FAIL: TestReturnedReceiversReleasePayloads/depth=16/fail=true (0.06s)
+=== RUN   TestCompletedRescuesReleasePayloads
+=== RUN   TestCompletedRescuesReleasePayloads/depth=0
+    receiver_rescue_retention_test.go:68: completed rescues retain 4193896 bytes
+    receiver_rescue_retention_test.go:70: completed rescues retain 4193896 bytes, want less than 1048576
+=== RUN   TestCompletedRescuesReleasePayloads/depth=16
+    receiver_rescue_retention_test.go:68: completed rescues retain 4223992 bytes
+    receiver_rescue_retention_test.go:70: completed rescues retain 4223992 bytes, want less than 1048576
+--- FAIL: TestCompletedRescuesReleasePayloads (0.03s)
+    --- FAIL: TestCompletedRescuesReleasePayloads/depth=0 (0.01s)
+    --- FAIL: TestCompletedRescuesReleasePayloads/depth=16 (0.01s)
+FAIL
+FAIL	github.com/mgomes/vibescript/internal/runtime	0.601s
+=== RUN   TestHashDeleteClearsRetiredOrderSlots
+=== PAUSE TestHashDeleteClearsRetiredOrderSlots
+=== RUN   TestHashReconciliationClearsRetiredOrderSlots
+=== PAUSE TestHashReconciliationClearsRetiredOrderSlots
+=== CONT  TestHashDeleteClearsRetiredOrderSlots
+=== RUN   TestHashDeleteClearsRetiredOrderSlots/[c_b_a]
+=== CONT  TestHashReconciliationClearsRetiredOrderSlots
+    hash_retention_internal_test.go:68: retired order slot 2 retains last, want nil
+--- FAIL: TestHashReconciliationClearsRetiredOrderSlots (0.00s)
+=== NAME  TestHashDeleteClearsRetiredOrderSlots/[c_b_a]
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 1 retains b, want nil
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 0 retains a, want nil
+    hash_retention_internal_test.go:40: retired order slot 1 retains b, want nil
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+=== RUN   TestHashDeleteClearsRetiredOrderSlots/[a_b_c]
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 1 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 0 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 1 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+=== RUN   TestHashDeleteClearsRetiredOrderSlots/[b_c_a]
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 1 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 0 retains a, want nil
+    hash_retention_internal_test.go:40: retired order slot 1 retains c, want nil
+    hash_retention_internal_test.go:40: retired order slot 2 retains c, want nil
+--- FAIL: TestHashDeleteClearsRetiredOrderSlots (0.00s)
+    --- FAIL: TestHashDeleteClearsRetiredOrderSlots/[c_b_a] (0.00s)
+    --- FAIL: TestHashDeleteClearsRetiredOrderSlots/[a_b_c] (0.00s)
+    --- FAIL: TestHashDeleteClearsRetiredOrderSlots/[b_c_a] (0.00s)
+FAIL
+FAIL	github.com/mgomes/vibescript/vibes/value	0.467s
+FAIL
+memory-hash-stacks-before: finished with status 1

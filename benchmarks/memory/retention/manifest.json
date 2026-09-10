@@ -1,0 +1,120 @@
+{
+  "mode": "go126",
+  "rounds": 10,
+  "benchtime": "200ms",
+  "pattern": "^Benchmark(RegexNamespaceMatch|RegexCachePattern|MemoryScopeLoops|ExecutionMethodDispatchLoop)$",
+  "samples": [
+    {
+      "trial": 0,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 0,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 1,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 1,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 2,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 2,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 3,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 3,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 4,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 4,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 5,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 5,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 6,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 6,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 7,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 7,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 8,
+      "revision": "base",
+      "cases": 8
+    },
+    {
+      "trial": 8,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 9,
+      "revision": "head",
+      "cases": 8
+    },
+    {
+      "trial": 9,
+      "revision": "base",
+      "cases": 8
+    }
+  ],
+  "revisions": {
+    "base": {
+      "head": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "f7956f3f2cbf0467fc84f063ec2c2af38d48f33a443ec346baf01ce73b3ac20d"
+    },
+    "head": {
+      "head": "11d86c7a8fca9d94d8f041b49750241df9c82bd7",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "cac733dc730880693676b1f59090ad4b2e9d3398c8b884f90e4575df2fc62708"
+    }
+  }
+}
