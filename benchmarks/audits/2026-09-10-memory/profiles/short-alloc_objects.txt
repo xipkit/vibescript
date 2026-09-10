@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_objects
+Time: 2026-09-09 21:50:03 EDT
+Showing nodes accounting for 38261, 98.34% of 38906 total
+Dropped 204 nodes (cum <= 194)
+Showing top 16 nodes out of 35
+      flat  flat%   sum%        cum   cum%
+      5009 12.87% 12.87%       5009 12.87%  github.com/mgomes/vibescript/internal/runtime.(*Env).growStatics (inline)
+      5003 12.86% 25.73%       5003 12.86%  github.com/mgomes/vibescript/internal/runtime.newEnvWithCapacity (inline)
+      5001 12.85% 38.59%       5001 12.85%  github.com/mgomes/vibescript/internal/runtime.(*Env).DefineStatic
+      5001 12.85% 51.44%       5001 12.85%  github.com/mgomes/vibescript/internal/runtime.(*Execution).pushReturnToken (inline)
+      5001 12.85% 64.30%       5001 12.85%  github.com/mgomes/vibescript/internal/runtime.cloneFunctionForEnv (inline)
+      5001 12.85% 77.15%       5001 12.85%  github.com/mgomes/vibescript/internal/runtime.newCallRoot (inline)
+      5001 12.85% 90.00%       5001 12.85%  github.com/mgomes/vibescript/internal/runtime.newExecutionForCall
+      3213  8.26% 98.26%       3213  8.26%  strings.genSplit
+        18 0.046% 98.31%        432  1.11%  github.com/mgomes/vibescript/internal/runtime.NewEngine
+         4  0.01% 98.32%        232   0.6%  testing.runBenchmarks
+         3 0.0077% 98.33%      35551 91.38%  testing.(*B).runN
+         3 0.0077% 98.33%       3391  8.72%  testing.(*M).Run
+         3 0.0077% 98.34%       3112  8.00%  testing.runTests
+         0     0% 98.34%       5011 12.88%  github.com/mgomes/vibescript/internal/runtime.(*Engine).attachBuiltins
+         0     0% 98.34%       5001 12.85%  github.com/mgomes/vibescript/internal/runtime.(*Engine).bindBuiltinsLocked (inline)
+         0     0% 98.34%      10002 25.71%  github.com/mgomes/vibescript/internal/runtime.(*Env).Get (inline)

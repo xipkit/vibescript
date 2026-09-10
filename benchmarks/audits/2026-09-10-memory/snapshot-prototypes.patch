@@ -1,0 +1,47 @@
+diff --git a/internal/runtime/aliases.go b/internal/runtime/aliases.go
+index 981cf30e..543c658d 100644
+--- a/internal/runtime/aliases.go
++++ b/internal/runtime/aliases.go
+@@ -937,7 +937,8 @@ func cloneHostHashValue(val Value, state hostValueCloneState) Value {
+ 		// the reservation it crossed the boundary with.
+ 		cloned.ReserveHashCapacity(value.HashEntryCapacity(val))
+ 		cloned.ReserveHashOrder(value.HashOrderCapacity(val))
+-		for _, entry := range val.HashEntries() {
++		var inline [8]value.HashEntry
++		for _, entry := range val.HashEntriesInto(inline[:0]) {
+ 			setClonedHashEntry(cloned, entry.Key, cloneValueForHostWithState(entry.Value, state))
+ 		}
+ 	}
+diff --git a/internal/runtime/json.go b/internal/runtime/json.go
+index 54f59ebe..522ec18e 100644
+--- a/internal/runtime/json.go
++++ b/internal/runtime/json.go
+@@ -750,7 +750,8 @@ func appendJSONValueRendered(buf []byte, val Value, state *jsonStringifyState) (
+ 		}
+ 		defer state.popSeenHash(hashSlot)
+ 
+-		entries, err := jsonObjectEntries(val)
++		var inline [8]jsonObjectEntry
++		entries, err := jsonObjectEntries(val, inline[:0])
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -806,13 +807,16 @@ func jsonObjectIdentity(val Value) uintptr {
+ // iterates: Ruby-style insertion order for a hash built by a script, the way
+ // Ruby's JSON.generate does, and sorted keys for a bare host map or an object,
+ // which record no order.
+-func jsonObjectEntries(val Value) ([]jsonObjectEntry, error) {
++func jsonObjectEntries(val Value, buf []jsonObjectEntry) ([]jsonObjectEntry, error) {
+ 	// Fill the returned buffer directly and sort it in place when insertion
+ 	// order is unavailable. RangeHashEntries' fallback used to allocate a
+ 	// second []Value of keys on top of this slice, which stringify's quota
+ 	// checks never reserved.
+ 	n := val.HashLen()
+-	entries := make([]jsonObjectEntry, 0, n)
++	entries := buf[:0]
++	if cap(entries) < n {
++		entries = make([]jsonObjectEntry, 0, n)
++	}
+ 	val.RangeHashEntries(func(key string, item Value) {
+ 		entries = append(entries, jsonObjectEntry{key: key, value: item})
+ 	})

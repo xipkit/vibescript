@@ -1,0 +1,7 @@
+{
+  "base": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+  "rounds": 6,
+  "benchtime": "200ms",
+  "cases": 3,
+  "patch": "../compile-prototype.patch"
+}

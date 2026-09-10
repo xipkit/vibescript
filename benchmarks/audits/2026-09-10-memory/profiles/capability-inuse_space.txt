@@ -1,0 +1,13 @@
+File: runtime.test
+Type: inuse_space
+Time: 2026-09-09 21:50:05 EDT
+Showing nodes accounting for 1.04MB, 99.33% of 1.05MB total
+Dropped 118 nodes (cum <= 0.01MB)
+      flat  flat%   sum%        cum   cum%
+    1.04MB 99.33% 99.33%     1.04MB 99.33%  pgregory.net/rapid.expandRangeTable
+         0     0% 99.33%     1.04MB 99.33%  pgregory.net/rapid.Rune (inline)
+         0     0% 99.33%     1.04MB 99.33%  pgregory.net/rapid.init
+         0     0% 99.33%     1.04MB 99.33%  pgregory.net/rapid.runesFrom
+         0     0% 99.33%     1.04MB 99.33%  runtime.doInit (inline)
+         0     0% 99.33%     1.04MB 99.33%  runtime.doInit1
+         0     0% 99.33%     1.04MB 99.37%  runtime.main

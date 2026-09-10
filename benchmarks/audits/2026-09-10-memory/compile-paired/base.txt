@@ -1,0 +1,48 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCompileControlFlowWorkload 	   14296	     16662 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload       	   10000	     23521 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload     	     940	    261404 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCompileControlFlowWorkload 	   14239	     16691 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload       	   10000	     23691 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload     	     940	    258501 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCompileControlFlowWorkload 	   14203	     16612 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload       	   10000	     23479 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload     	     930	    253379 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCompileControlFlowWorkload 	   14259	     16742 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload       	   10000	     23592 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload     	     934	    255606 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCompileControlFlowWorkload 	   14262	     16747 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload       	   10000	     23851 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload     	     933	    256717 ns/op	  248888 B/op	    2221 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkCompileControlFlowWorkload 	   14268	     16859 ns/op	   14776 B/op	     197 allocs/op
+BenchmarkCompileTypedWorkload       	   10000	     23625 ns/op	   19033 B/op	     257 allocs/op
+BenchmarkCompileMassiveWorkload     	     933	    257539 ns/op	  248888 B/op	    2221 allocs/op
+PASS

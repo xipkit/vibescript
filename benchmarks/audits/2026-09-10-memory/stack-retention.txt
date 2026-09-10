@@ -1,0 +1,13 @@
+memory-runtime-stacks: waiting for CPU slot
+memory-runtime-stacks: acquired CPU slot (PID 94999)
+=== RUN   TestMemoryAuditPoppedReceiver
+    memory_audit_test.go:145: overwrite=false: popped receiver retains 16807864 bytes
+    memory_audit_test.go:145: overwrite=true: popped receiver retains 6448 bytes
+--- PASS: TestMemoryAuditPoppedReceiver (0.11s)
+=== RUN   TestMemoryAuditPoppedRescue
+    memory_audit_test.go:167: overwrite=false: popped rescue retains 4193480 bytes
+    memory_audit_test.go:167: overwrite=true: popped rescue retains 576 bytes
+--- PASS: TestMemoryAuditPoppedRescue (0.02s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.552s
+memory-runtime-stacks: finished with status 0

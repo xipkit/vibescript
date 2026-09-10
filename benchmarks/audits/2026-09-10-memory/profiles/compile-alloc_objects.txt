@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_objects
+Time: 2026-09-09 21:50:07 EDT
+Showing nodes accounting for 213968, 99.28% of 215527 total
+Dropped 184 nodes (cum <= 1077)
+Showing top 16 nodes out of 48
+      flat  flat%   sum%        cum   cum%
+     35552 16.50% 16.50%      35552 16.50%  github.com/mgomes/vibescript/internal/parser.(*parser).parseIdentifier (inline)
+     25957 12.04% 28.54%     144543 67.06%  github.com/mgomes/vibescript/internal/parser.(*parser).parseBlock
+     25351 11.76% 40.30%     116863 54.22%  github.com/mgomes/vibescript/internal/parser.(*parser).parseExpressionOrAssignStatement
+     25351 11.76% 52.06%     170047 78.90%  github.com/mgomes/vibescript/internal/parser.(*parser).parseFunctionStatement
+     25351 11.76% 63.83%      25351 11.76%  github.com/mgomes/vibescript/internal/parser.(*parser).parseIntegerLiteral
+     25351 11.76% 75.59%      25351 11.76%  github.com/mgomes/vibescript/internal/runtime.compileFunctionDef
+     25250 11.72% 87.30%      50501 23.43%  github.com/mgomes/vibescript/internal/parser.(*parser).parseInfixExpression
+     12682  5.88% 93.19%      12682  5.88%  unicode/utf8.AppendRune (inline)
+      5151  2.39% 95.58%      61009 28.31%  github.com/mgomes/vibescript/internal/parser.(*parser).parseAssignmentValue
+      3213  1.49% 97.07%       3213  1.49%  strings.genSplit
+      1723   0.8% 97.87%       1725   0.8%  github.com/mgomes/vibescript/internal/parser.(*parser).nodeDepth
+      1313  0.61% 98.48%       1313  0.61%  github.com/mgomes/vibescript/internal/runtime.checkDirectiveNameCollisions
+      1010  0.47% 98.95%     183635 85.20%  github.com/mgomes/vibescript/internal/parser.(*parser).parseProgram
+       707  0.33% 99.27%      27371 12.70%  github.com/mgomes/vibescript/internal/runtime.compileParsed
+         3 0.0014% 99.28%      50506 23.43%  github.com/mgomes/vibescript/internal/parser.(*parser).continueExpressionParse
+         3 0.0014% 99.28%     170051 78.90%  github.com/mgomes/vibescript/internal/parser.(*parser).parseStatement

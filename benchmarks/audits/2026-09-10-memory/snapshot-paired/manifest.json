@@ -1,0 +1,72 @@
+{
+  "base": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+  "patch_sha256": "6c1313cc334f7619398989701bb77b56c0e57147d8a8234b53f2027509ef85e8",
+  "rounds": 6,
+  "benchtime": "200ms",
+  "samples": [
+    {
+      "trial": 0,
+      "revision": "base",
+      "cases": 3
+    },
+    {
+      "trial": 0,
+      "revision": "head",
+      "cases": 3
+    },
+    {
+      "trial": 1,
+      "revision": "head",
+      "cases": 3
+    },
+    {
+      "trial": 1,
+      "revision": "base",
+      "cases": 3
+    },
+    {
+      "trial": 2,
+      "revision": "base",
+      "cases": 3
+    },
+    {
+      "trial": 2,
+      "revision": "head",
+      "cases": 3
+    },
+    {
+      "trial": 3,
+      "revision": "head",
+      "cases": 3
+    },
+    {
+      "trial": 3,
+      "revision": "base",
+      "cases": 3
+    },
+    {
+      "trial": 4,
+      "revision": "base",
+      "cases": 3
+    },
+    {
+      "trial": 4,
+      "revision": "head",
+      "cases": 3
+    },
+    {
+      "trial": 5,
+      "revision": "head",
+      "cases": 3
+    },
+    {
+      "trial": 5,
+      "revision": "base",
+      "cases": 3
+    }
+  ],
+  "binaries": {
+    "base": "d83ef04070d2f1c159cf796f570625b6ee209e6d8f1032b52dcc7ac066710970",
+    "head": "c08befef97658b379398e80ea3fb5ebc7c567afeb4f93b98adda5b15145ea0ab"
+  }
+}

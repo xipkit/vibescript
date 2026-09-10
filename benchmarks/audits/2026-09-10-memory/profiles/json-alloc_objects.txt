@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_objects
+Time: 2026-09-09 21:50:06 EDT
+Showing nodes accounting for 153128, 95.76% of 159909 total
+Dropped 266 nodes (cum <= 799)
+Showing top 16 nodes out of 71
+      flat  flat%   sum%        cum   cum%
+     48160 30.12% 30.12%     120400 75.29%  github.com/mgomes/vibescript/internal/runtime.builtinJSONStringify
+     24088 15.06% 45.18%      24088 15.06%  github.com/mgomes/vibescript/vibes/value.NewString (inline)
+     24080 15.06% 60.24%      24081 15.06%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalCallArgsForCalleeInto
+     24080 15.06% 75.30%      48160 30.12%  github.com/mgomes/vibescript/internal/runtime.appendJSONValueRendered
+     24080 15.06% 90.36%      24080 15.06%  github.com/mgomes/vibescript/internal/runtime.jsonObjectEntries
+      3213  2.01% 92.37%       3213  2.01%  strings.genSplit
+      1204  0.75% 93.12%       1204  0.75%  github.com/mgomes/vibescript/internal/runtime.(*localBindingCollector).add (inline)
+       903  0.56% 93.68%        903  0.56%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).objectWrapperBytes
+       903  0.56% 94.25%        903  0.56%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).stringPayloadSize
+       602  0.38% 94.62%       1807  1.13%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+       602  0.38% 95.00%        928  0.58%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+       602  0.38% 95.38%       1204  0.75%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataEntries
+       301  0.19% 95.57%       2107  1.32%  github.com/mgomes/vibescript/internal/runtime.(*callFunctionRebinder).rebindValues
+       301  0.19% 95.75%       1806  1.13%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataValue
+         6 0.0038% 95.76%     156487 97.86%  github.com/mgomes/vibescript/internal/runtime.BenchmarkExecutionJSONStringifyLoop
+         3 0.0019% 95.76%       3405  2.13%  testing.(*M).Run

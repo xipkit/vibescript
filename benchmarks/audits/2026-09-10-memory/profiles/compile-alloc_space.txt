@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-09 21:50:07 EDT
+Showing nodes accounting for 24933.67kB, 98.84% of 25227.07kB total
+Dropped 188 nodes (cum <= 126.13kB)
+Showing top 16 nodes out of 44
+      flat  flat%   sum%        cum   cum%
+ 7726.02kB 30.63% 30.63%  7726.15kB 30.63%  github.com/mgomes/vibescript/internal/parser.(*parser).nodeDepth
+ 3564.98kB 14.13% 44.76%  3564.98kB 14.13%  github.com/mgomes/vibescript/internal/runtime.compileFunctionDef
+ 2772.77kB 10.99% 55.75% 15731.52kB 62.36%  github.com/mgomes/vibescript/internal/parser.(*parser).parseFunctionStatement
+ 2648.88kB 10.50% 66.25%  2648.88kB 10.50%  github.com/mgomes/vibescript/internal/runtime.checkDirectiveNameCollisions
+ 1578.12kB  6.26% 72.50%  2367.27kB  9.38%  github.com/mgomes/vibescript/internal/parser.(*parser).parseInfixExpression
+ 1376.91kB  5.46% 77.96%  7590.78kB 30.09%  github.com/mgomes/vibescript/internal/runtime.compileParsed
+    1111kB  4.40% 82.37%     1111kB  4.40%  github.com/mgomes/vibescript/internal/parser.(*parser).parseIdentifier (inline)
+  922.41kB  3.66% 86.02% 16850.66kB 66.80%  github.com/mgomes/vibescript/internal/parser.(*parser).parseProgram
+  792.22kB  3.14% 89.16%  4621.09kB 18.32%  github.com/mgomes/vibescript/internal/parser.(*parser).parseExpressionOrAssignStatement
+  792.22kB  3.14% 92.30%   792.22kB  3.14%  github.com/mgomes/vibescript/internal/parser.(*parser).parseIntegerLiteral
+  607.58kB  2.41% 94.71% 12954.79kB 51.35%  github.com/mgomes/vibescript/internal/parser.(*parser).parseBlock
+     520kB  2.06% 96.77%      520kB  2.06%  pgregory.net/rapid.expandRangeTable
+  321.94kB  1.28% 98.05%  2875.64kB 11.40%  github.com/mgomes/vibescript/internal/parser.(*parser).parseAssignmentValue
+  198.17kB  0.79% 98.84%   198.17kB  0.79%  unicode/utf8.AppendRune (inline)
+    0.27kB 0.0011% 98.84% 15731.77kB 62.36%  github.com/mgomes/vibescript/internal/parser.(*parser).parseStatement
+    0.17kB 0.00068% 98.84%  2367.53kB  9.38%  github.com/mgomes/vibescript/internal/parser.(*parser).continueExpressionParse

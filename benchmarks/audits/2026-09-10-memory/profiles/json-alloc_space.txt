@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-09 21:50:06 EDT
+Showing nodes accounting for 15.43MB, 96.10% of 16.06MB total
+Dropped 262 nodes (cum <= 0.08MB)
+Showing top 16 nodes out of 75
+      flat  flat%   sum%        cum   cum%
+    7.35MB 45.76% 45.76%    12.68MB 78.94%  github.com/mgomes/vibescript/internal/runtime.builtinJSONStringify
+    4.41MB 27.46% 73.22%     4.41MB 27.46%  github.com/mgomes/vibescript/internal/runtime.jsonObjectEntries
+    0.73MB  4.58% 77.80%     0.73MB  4.58%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalCallArgsForCalleeInto
+    0.66MB  4.12% 81.92%     0.66MB  4.12%  github.com/mgomes/vibescript/internal/runtime.newExecutionForCall
+    0.55MB  3.43% 85.35%     4.96MB 30.89%  github.com/mgomes/vibescript/internal/runtime.appendJSONValueRendered
+    0.53MB  3.31% 88.66%     0.53MB  3.31%  pgregory.net/rapid.expandRangeTable
+    0.37MB  2.29% 90.95%     0.37MB  2.29%  github.com/mgomes/vibescript/vibes/value.NewString (inline)
+    0.13MB  0.83% 91.78%     0.13MB  0.83%  github.com/mgomes/vibescript/internal/runtime.(*Env).promoteInlineBindings
+    0.13MB  0.83% 92.61%     0.13MB  0.83%  github.com/mgomes/vibescript/internal/runtime.cloneBuiltinMapForCall
+    0.13MB  0.83% 93.44%     0.17MB  1.06%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataEntries
+    0.12MB  0.74% 94.18%     0.12MB  0.74%  github.com/mgomes/vibescript/internal/runtime.(*Env).DefineStatic
+    0.09MB  0.54% 94.72%     0.09MB  0.54%  github.com/mgomes/vibescript/internal/runtime.(*localBindingCollector).add
+    0.08MB  0.51% 95.24%     0.08MB  0.51%  github.com/mgomes/vibescript/internal/runtime.newCallRoot
+    0.06MB  0.34% 95.58%     0.18MB  1.14%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+    0.06MB  0.34% 95.92%     0.09MB  0.59%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+    0.03MB  0.17% 96.10%     0.22MB  1.37%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataValue

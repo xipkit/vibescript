@@ -1,0 +1,48 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     162	   1475374 ns/op	 1291808 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     174	   1439887 ns/op	 1269806 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1338	    176084 ns/op	   53561 B/op	     520 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     162	   1493183 ns/op	 1291808 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     163	   1470108 ns/op	 1269808 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1314	    177398 ns/op	   53561 B/op	     520 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     163	   1451473 ns/op	 1291807 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     164	   1432309 ns/op	 1269807 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1339	    182280 ns/op	   53561 B/op	     520 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     156	   1503182 ns/op	 1291808 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     164	   1426365 ns/op	 1269807 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1410	    178899 ns/op	   53561 B/op	     520 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     159	   1492220 ns/op	 1291809 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     164	   1397679 ns/op	 1269808 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1359	    180687 ns/op	   53561 B/op	     520 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+BenchmarkExecutionGroupByHashRowsLowCardinality   	     162	   1478647 ns/op	 1291808 B/op	    5574 allocs/op
+BenchmarkExecutionPartitionHashRowsLowCardinality 	     164	   1435626 ns/op	 1269807 B/op	    5549 allocs/op
+BenchmarkExecutionJSONStringifyLoop               	    1356	    178760 ns/op	   53561 B/op	     520 allocs/op
+PASS

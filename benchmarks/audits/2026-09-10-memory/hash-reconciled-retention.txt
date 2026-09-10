@@ -1,0 +1,11 @@
+memory-hash-reconcile: waiting for CPU slot
+memory-hash-reconcile: acquired CPU slot (PID 95342)
+=== RUN   TestMemoryAuditReconciledHashKeys
+    memory_audit_test.go:120: reconciled order retains 25184248 bytes after 24 hashes drop both one-MiB keys
+--- PASS: TestMemoryAuditReconciledHashKeys (0.01s)
+=== RUN   TestMemoryAuditReconciledHashKeys
+    memory_audit_test.go:120: reconciled order retains 25182856 bytes after 24 hashes drop both one-MiB keys
+--- PASS: TestMemoryAuditReconciledHashKeys (0.01s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.388s
+memory-hash-reconcile: finished with status 0

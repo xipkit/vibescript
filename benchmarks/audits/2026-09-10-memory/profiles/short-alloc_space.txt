@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-09 21:50:03 EDT
+Showing nodes accounting for 17946.78kB, 98.86% of 18153kB total
+Dropped 214 nodes (cum <= 90.76kB)
+Showing top 16 nodes out of 25
+      flat  flat%   sum%        cum   cum%
+11252.25kB 61.99% 61.99% 11252.25kB 61.99%  github.com/mgomes/vibescript/internal/runtime.newExecutionForCall
+ 2031.66kB 11.19% 73.18%  2031.66kB 11.19%  github.com/mgomes/vibescript/internal/runtime.(*Env).DefineStatic
+ 1406.53kB  7.75% 80.93%  1406.53kB  7.75%  github.com/mgomes/vibescript/internal/runtime.newCallRoot (inline)
+ 1250.75kB  6.89% 87.82%  1250.75kB  6.89%  github.com/mgomes/vibescript/internal/runtime.newEnvWithCapacity (inline)
+    1064kB  5.86% 93.68%     1064kB  5.86%  pgregory.net/rapid.expandRangeTable
+  703.27kB  3.87% 97.55%   703.27kB  3.87%  github.com/mgomes/vibescript/internal/runtime.cloneFunctionForEnv (inline)
+  238.09kB  1.31% 98.86%   238.09kB  1.31%  github.com/mgomes/vibescript/internal/runtime.(*Env).growStatics (inline)
+    0.23kB 0.0013% 98.86% 17021.82kB 93.77%  testing.(*B).runN
+         0     0% 98.86%   238.59kB  1.31%  github.com/mgomes/vibescript/internal/runtime.(*Engine).attachBuiltins
+         0     0% 98.86%   234.42kB  1.29%  github.com/mgomes/vibescript/internal/runtime.(*Engine).bindBuiltinsLocked (inline)
+         0     0% 98.86%  2734.92kB 15.07%  github.com/mgomes/vibescript/internal/runtime.(*Env).Get (inline)
+         0     0% 98.86%  2734.92kB 15.07%  github.com/mgomes/vibescript/internal/runtime.(*Env).getBoundValue
+         0     0% 98.86%  2734.92kB 15.07%  github.com/mgomes/vibescript/internal/runtime.(*Env).getWithScope
+         0     0% 98.86%  2734.92kB 15.07%  github.com/mgomes/vibescript/internal/runtime.(*Env).materializeDeclaration
+         0     0% 98.86% 16961.42kB 93.44%  github.com/mgomes/vibescript/internal/runtime.(*Script).Call
+         0     0% 98.86% 17016.61kB 93.74%  github.com/mgomes/vibescript/internal/runtime.BenchmarkCallShortScript

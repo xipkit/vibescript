@@ -1,0 +1,26 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/mgomes/vibescript/internal/runtime
+cpu: Apple M4
+                           │ /tmp/vibescript-memory-delivery/compile-paired/base.txt │ /tmp/vibescript-memory-delivery/compile-paired/head.txt │
+                           │                         sec/op                          │              sec/op                vs base              │
+CompileControlFlowWorkload                                               16.72µ ± 1%                         16.69µ ± 2%       ~ (p=0.485 n=6)
+CompileTypedWorkload                                                     23.61µ ± 1%                         23.77µ ± 1%       ~ (p=0.180 n=6)
+CompileMassiveWorkload                                                   257.1µ ± 2%                         244.9µ ± 1%  -4.74% (p=0.002 n=6)
+geomean                                                                  46.64µ                              45.98µ       -1.43%
+
+                           │ /tmp/vibescript-memory-delivery/compile-paired/base.txt │ /tmp/vibescript-memory-delivery/compile-paired/head.txt │
+                           │                          B/op                           │              B/op               vs base                 │
+CompileControlFlowWorkload                                              14.43Ki ± 0%                     14.43Ki ± 0%        ~ (p=1.000 n=6) ¹
+CompileTypedWorkload                                                    18.59Ki ± 0%                     18.59Ki ± 0%        ~ (p=1.000 n=6) ¹
+CompileMassiveWorkload                                                  243.1Ki ± 0%                     216.8Ki ± 0%  -10.79% (p=0.002 n=6)
+geomean                                                                 40.25Ki                          38.74Ki        -3.73%
+¹ all samples are equal
+
+                           │ /tmp/vibescript-memory-delivery/compile-paired/base.txt │ /tmp/vibescript-memory-delivery/compile-paired/head.txt │
+                           │                        allocs/op                        │            allocs/op             vs base                │
+CompileControlFlowWorkload                                                197.0 ± 0%                        197.0 ± 0%       ~ (p=1.000 n=6) ¹
+CompileTypedWorkload                                                      257.0 ± 0%                        257.0 ± 0%       ~ (p=1.000 n=6) ¹
+CompileMassiveWorkload                                                   2.221k ± 0%                       2.208k ± 0%  -0.59% (p=0.002 n=6)
+geomean                                                                   482.7                             481.7       -0.20%
+¹ all samples are equal

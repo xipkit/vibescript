@@ -1,0 +1,23 @@
+File: runtime.test
+Type: inuse_space
+Time: 2026-09-09 21:50:07 EDT
+Showing nodes accounting for 523.75kB, 98.96% of 529.27kB total
+Dropped 111 nodes (cum <= 2.65kB)
+Showing top 16 nodes out of 18
+      flat  flat%   sum%        cum   cum%
+     520kB 98.25% 98.25%      520kB 98.25%  pgregory.net/rapid.expandRangeTable
+    3.56kB  0.67% 98.92%     3.56kB  0.67%  runtime.mallocgc
+    0.19kB 0.035% 98.96%     4.09kB  0.77%  regexp.compile
+         0     0% 98.96%     4.97kB  0.94%  github.com/mgomes/vibescript/internal/runtime.TestMain
+         0     0% 98.96%     4.97kB  0.94%  main.main
+         0     0% 98.96%      520kB 98.25%  pgregory.net/rapid.Rune (inline)
+         0     0% 98.96%      520kB 98.25%  pgregory.net/rapid.init
+         0     0% 98.96%      520kB 98.25%  pgregory.net/rapid.runesFrom
+         0     0% 98.96%     4.09kB  0.77%  regexp.Compile (inline)
+         0     0% 98.96%      520kB 98.25%  runtime.doInit (inline)
+         0     0% 98.96%      520kB 98.25%  runtime.doInit1
+         0     0% 98.96%   524.97kB 99.19%  runtime.main
+         0     0% 98.96%     3.44kB  0.65%  runtime.newobject
+         0     0% 98.96%     4.97kB  0.94%  testing.(*M).Run
+         0     0% 98.96%     4.14kB  0.78%  testing.newMatcher
+         0     0% 98.96%     4.57kB  0.86%  testing.runBenchmarks

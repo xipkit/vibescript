@@ -1,0 +1,21 @@
+diff --git a/internal/runtime/compile.go b/internal/runtime/compile.go
+index bc384acf..fd576dd6 100644
+--- a/internal/runtime/compile.go
++++ b/internal/runtime/compile.go
+@@ -212,6 +212,16 @@ func compileParsed(e *Engine, source string, program *ast.Program) (*Script, err
+ // consults declaration names directly so a function defined after the class
+ // still collides.
+ func checkDirectiveNameCollisions(statements []ast.Statement) error {
++	hasClass := false
++	for _, stmt := range statements {
++		if _, ok := stmt.(*ClassStmt); ok {
++			hasClass = true
++			break
++		}
++	}
++	if !hasClass {
++		return nil
++	}
+ 	names := make(map[string]struct{})
+ 	for _, stmt := range statements {
+ 		switch s := stmt.(type) {

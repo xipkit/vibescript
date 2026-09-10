@@ -1,0 +1,57 @@
+memory-retention-go127: waiting for CPU slot
+memory-retention-go127: acquired CPU slot (PID 95114)
+=== RUN   TestMemoryAuditRegexMatchRetention
+    memory_audit_test.go:32: Regex.match("x$", text): 24 result bytes retain 12772816 bytes after GC
+    memory_audit_test.go:32: text.byteslice(-1, 1): 24 result bytes retain 4480 bytes after GC
+--- PASS: TestMemoryAuditRegexMatchRetention (0.18s)
+=== RUN   TestMemoryAuditRegexCacheRetention
+    memory_audit_test.go:63: detach=false: 288 pattern bytes retain 50558832 bytes after GC; cache entries=25, instruction cost=292
+    memory_audit_test.go:63: detach=true: 288 pattern bytes retain 30944 bytes after GC; cache entries=25, instruction cost=292
+--- PASS: TestMemoryAuditRegexCacheRetention (0.01s)
+=== RUN   TestMemoryAuditStateSizes
+    memory_audit_test.go:70: Execution=2216 Env=248 memoryEstimator=248 baseWalkCache=352 ScriptFunction=136 Value=32 callFrame=48
+--- PASS: TestMemoryAuditStateSizes (0.00s)
+=== RUN   TestMemoryAuditDeletedHashKeyRetention
+    memory_audit_test.go:95: clear=false: 24 one-entry hashes retain 50342656 bytes after deleting their 2 MiB keys
+    memory_audit_test.go:95: clear=true: 24 one-entry hashes retain 11480 bytes after deleting their 2 MiB keys
+--- PASS: TestMemoryAuditDeletedHashKeyRetention (0.01s)
+=== RUN   TestMemoryAuditScriptDeletedHashKeys
+    memory_audit_test.go:118: script retains 25216328 bytes after deleting 24 one-MiB hash keys
+--- PASS: TestMemoryAuditScriptDeletedHashKeys (0.08s)
+=== RUN   TestMemoryAuditPoppedReceiver
+    memory_audit_test.go:145: overwrite=false: popped receiver retains 16776592 bytes
+    memory_audit_test.go:145: overwrite=true: popped receiver retains 1160 bytes
+--- PASS: TestMemoryAuditPoppedReceiver (0.10s)
+=== RUN   TestMemoryAuditPoppedRescue
+    memory_audit_test.go:167: overwrite=false: popped rescue retains 4193352 bytes
+    memory_audit_test.go:167: overwrite=true: popped rescue retains 576 bytes
+--- PASS: TestMemoryAuditPoppedRescue (0.03s)
+=== RUN   TestMemoryAuditRegexMatchRetention
+    memory_audit_test.go:32: Regex.match("x$", text): 24 result bytes retain 12776664 bytes after GC
+    memory_audit_test.go:32: text.byteslice(-1, 1): 24 result bytes retain -1032 bytes after GC
+--- PASS: TestMemoryAuditRegexMatchRetention (0.16s)
+=== RUN   TestMemoryAuditRegexCacheRetention
+    memory_audit_test.go:63: detach=false: 288 pattern bytes retain 50553400 bytes after GC; cache entries=25, instruction cost=292
+    memory_audit_test.go:63: detach=true: 288 pattern bytes retain 25352 bytes after GC; cache entries=25, instruction cost=292
+--- PASS: TestMemoryAuditRegexCacheRetention (0.01s)
+=== RUN   TestMemoryAuditStateSizes
+    memory_audit_test.go:70: Execution=2216 Env=248 memoryEstimator=248 baseWalkCache=352 ScriptFunction=136 Value=32 callFrame=48
+--- PASS: TestMemoryAuditStateSizes (0.00s)
+=== RUN   TestMemoryAuditDeletedHashKeyRetention
+    memory_audit_test.go:95: clear=false: 24 one-entry hashes retain 50342992 bytes after deleting their 2 MiB keys
+    memory_audit_test.go:95: clear=true: 24 one-entry hashes retain 11256 bytes after deleting their 2 MiB keys
+--- PASS: TestMemoryAuditDeletedHashKeyRetention (0.01s)
+=== RUN   TestMemoryAuditScriptDeletedHashKeys
+    memory_audit_test.go:118: script retains 25180560 bytes after deleting 24 one-MiB hash keys
+--- PASS: TestMemoryAuditScriptDeletedHashKeys (0.08s)
+=== RUN   TestMemoryAuditPoppedReceiver
+    memory_audit_test.go:145: overwrite=false: popped receiver retains 16776592 bytes
+    memory_audit_test.go:145: overwrite=true: popped receiver retains 1144 bytes
+--- PASS: TestMemoryAuditPoppedReceiver (0.10s)
+=== RUN   TestMemoryAuditPoppedRescue
+    memory_audit_test.go:167: overwrite=false: popped rescue retains 4193352 bytes
+    memory_audit_test.go:167: overwrite=true: popped rescue retains 576 bytes
+--- PASS: TestMemoryAuditPoppedRescue (0.03s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	1.162s
+memory-retention-go127: finished with status 0

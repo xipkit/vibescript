@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_objects
+Time: 2026-09-09 21:50:04 EDT
+Showing nodes accounting for 292907, 98.32% of 297905 total
+Dropped 294 nodes (cum <= 1489)
+Showing top 16 nodes out of 67
+      flat  flat%   sum%        cum   cum%
+     92106 30.92% 30.92%      92106 30.92%  github.com/mgomes/vibescript/vibes/value.NewHashWithCapacity (inline)
+     61200 20.54% 51.46%      61200 20.54%  maps.clone
+     30702 10.31% 61.77%      30702 10.31%  github.com/mgomes/vibescript/vibes/value.Value.hashSetInternal
+     30651 10.29% 72.06%      30651 10.29%  github.com/mgomes/vibescript/vibes/value.Value.HashEntriesInto
+     30600 10.27% 82.33%      30600 10.27%  github.com/mgomes/vibescript/vibes/value.NewHashWithTrustedOrder
+     30600 10.27% 92.60%      30600 10.27%  slices.Clone[go.shape.[]github.com/mgomes/vibescript/vibes/value.Value,go.shape.struct { github.com/mgomes/vibescript/vibes/value.kind github.com/mgomes/vibescript/vibes/value.ValueKind; github.com/mgomes/vibescript/vibes/value.data interface {}; github.com/mgomes/vibescript/vibes/value.scalar uint64 }]
+      4800  1.61% 94.21%       4800  1.61%  github.com/mgomes/vibescript/vibes/value.NewString (inline)
+      3213  1.08% 95.29%       3213  1.08%  strings.genSplit
+      2402  0.81% 96.10%       9604  3.22%  github.com/mgomes/vibescript/internal/runtime.benchmarkHashRows
+      1530  0.51% 96.61%     154989 52.03%  github.com/mgomes/vibescript/internal/runtime.cloneHostHashValue
+      1228  0.41% 97.02%       1785   0.6%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+      1200   0.4% 97.42%       7200  2.42%  github.com/mgomes/vibescript/vibes/value.NewHash
+      1200   0.4% 97.83%       6000  2.01%  github.com/mgomes/vibescript/vibes/value.sortedMapKeysInto
+      1122  0.38% 98.20%       1836  0.62%  github.com/mgomes/vibescript/internal/runtime.arrayMemberGrouping.func4
+       200 0.067% 98.27%       2750  0.92%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+       153 0.051% 98.32%       3064  1.03%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).value

@@ -1,0 +1,16 @@
+memory-retention: waiting for CPU slot
+memory-retention: acquired CPU slot (PID 94815)
+=== RUN   TestMemoryAuditRegexMatchRetention
+    memory_audit_test.go:32: Regex.match("x$", text): 24 result bytes retain 12772624 bytes after GC
+    memory_audit_test.go:32: text.byteslice(-1, 1): 24 result bytes retain 4416 bytes after GC
+--- PASS: TestMemoryAuditRegexMatchRetention (0.19s)
+=== RUN   TestMemoryAuditRegexCacheRetention
+    memory_audit_test.go:63: detach=false: 288 pattern bytes retain 50558720 bytes after GC; cache entries=25, instruction cost=292
+    memory_audit_test.go:63: detach=true: 288 pattern bytes retain 25992 bytes after GC; cache entries=25, instruction cost=292
+--- PASS: TestMemoryAuditRegexCacheRetention (0.01s)
+=== RUN   TestMemoryAuditStateSizes
+    memory_audit_test.go:70: Execution=2216 Env=248 memoryEstimator=248 baseWalkCache=352 ScriptFunction=136 Value=32 callFrame=48
+--- PASS: TestMemoryAuditStateSizes (0.00s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.576s
+memory-retention: finished with status 0

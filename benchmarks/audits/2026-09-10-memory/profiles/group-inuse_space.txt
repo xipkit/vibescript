@@ -1,0 +1,23 @@
+File: runtime.test
+Type: inuse_space
+Time: 2026-09-09 21:50:04 EDT
+Showing nodes accounting for 586.13kB, 99.73% of 587.73kB total
+Dropped 82 nodes (cum <= 2.94kB)
+Showing top 16 nodes out of 56
+      flat  flat%   sum%        cum   cum%
+  546.62kB 93.01% 93.01%   546.62kB 93.01%  pgregory.net/rapid.expandRangeTable
+   11.12kB  1.89% 94.90%    11.12kB  1.89%  github.com/mgomes/vibescript/internal/runtime.newBuiltin (inline)
+    6.46kB  1.10% 96.00%    23.81kB  4.05%  github.com/mgomes/vibescript/internal/runtime.(*memberTable).buildAll
+    5.56kB  0.95% 96.94%     5.56kB  0.95%  github.com/mgomes/vibescript/internal/runtime.guardMemberReceiver (inline)
+    5.25kB  0.89% 97.84%     5.25kB  0.89%  fmt.Sprintf
+    4.05kB  0.69% 98.53%     4.05kB  0.69%  runtime.mallocgc
+    3.42kB  0.58% 99.11%     3.42kB  0.58%  regexp.onePassCopy
+       3kB  0.51% 99.62%        3kB  0.51%  regexp/syntax.(*compiler).inst (inline)
+    0.25kB 0.043% 99.66%     4.88kB  0.83%  github.com/mgomes/vibescript/internal/runtime.arrayMemberTransforms
+    0.20kB 0.035% 99.70%     7.02kB  1.19%  regexp.compile
+    0.11kB 0.019% 99.71%    24.35kB  4.14%  testing.(*B).runN
+    0.08kB 0.013% 99.73%     4.92kB  0.84%  github.com/mgomes/vibescript/internal/runtime.arrayMemberQuery
+         0     0% 99.73%    23.81kB  4.05%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalCallExpr
+         0     0% 99.73%    23.81kB  4.05%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpression (inline)
+         0     0% 99.73%    23.81kB  4.05%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalExpressionWithAuto
+         0     0% 99.73%    23.81kB  4.05%  github.com/mgomes/vibescript/internal/runtime.(*Execution).evalLocalScopeStatements (inline)

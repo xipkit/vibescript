@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_space
+Time: 2026-09-09 21:50:04 EDT
+Showing nodes accounting for 63.66MB, 98.89% of 64.38MB total
+Dropped 297 nodes (cum <= 0.32MB)
+Showing top 16 nodes out of 64
+      flat  flat%   sum%        cum   cum%
+   13.54MB 21.03% 21.03%    13.54MB 21.03%  maps.clone
+   12.18MB 18.92% 39.95%    12.18MB 18.92%  github.com/mgomes/vibescript/vibes/value.Value.hashSetInternal
+    7.48MB 11.61% 51.57%     7.48MB 11.61%  github.com/mgomes/vibescript/vibes/value.Value.HashEntriesInto
+    6.55MB 10.18% 61.75%     6.55MB 10.18%  github.com/mgomes/vibescript/vibes/value.NewHashWithCapacity (inline)
+    6.30MB  9.79% 71.53%    33.43MB 51.93%  github.com/mgomes/vibescript/internal/runtime.cloneHostHashValue
+    3.74MB  5.80% 77.33%     3.74MB  5.80%  slices.Clone[go.shape.[]github.com/mgomes/vibescript/vibes/value.Value,go.shape.struct { github.com/mgomes/vibescript/vibes/value.kind github.com/mgomes/vibescript/vibes/value.ValueKind; github.com/mgomes/vibescript/vibes/value.data interface {}; github.com/mgomes/vibescript/vibes/value.scalar uint64 }] (inline)
+    3.62MB  5.63% 82.96%     3.62MB  5.63%  github.com/mgomes/vibescript/internal/runtime.(*inboundDataScanner).admit
+    1.95MB  3.03% 85.99%     2.02MB  3.14%  github.com/mgomes/vibescript/internal/runtime.arrayMemberGrouping.func4
+    1.92MB  2.99% 88.98%     2.04MB  3.16%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+    1.92MB  2.99% 91.97%     1.92MB  2.99%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hashWrapperBytes
+    1.40MB  2.18% 94.14%     1.40MB  2.18%  github.com/mgomes/vibescript/vibes/value.NewHashWithTrustedOrder
+       1MB  1.55% 95.69%    19.67MB 30.56%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataValue
+    0.95MB  1.47% 97.16%    33.43MB 51.93%  github.com/mgomes/vibescript/internal/runtime.cloneValueForHostWithState
+    0.57MB  0.89% 98.05%     0.84MB  1.31%  github.com/mgomes/vibescript/internal/runtime.benchmarkHashRows
+    0.53MB  0.83% 98.88%     0.53MB  0.83%  pgregory.net/rapid.expandRangeTable
+    0.01MB 0.017% 98.89%     3.87MB  6.01%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice

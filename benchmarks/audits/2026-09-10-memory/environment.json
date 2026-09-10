@@ -1,0 +1,8 @@
+{
+  "base": "10ebb92c9967d0bad8a4b008071c882bcae9b511",
+  "go": "go1.26.3 darwin/arm64",
+  "cpu": "Apple M4",
+  "retention_confirmation": "go1.27.1 darwin/arm64 GOEXPERIMENT=simd",
+  "measurements": "HeapAlloc after forced GC; TotalAlloc and allocs/op for call benchmarks",
+  "prototype_status": "Diagnostic only; all production changes reverted after measurement."
+}

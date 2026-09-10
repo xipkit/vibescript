@@ -1,0 +1,17 @@
+memory-hash-retention: waiting for CPU slot
+memory-hash-retention: acquired CPU slot (PID 94908)
+=== RUN   TestMemoryAuditDeletedHashKeyRetention
+    memory_audit_test.go:95: clear=false: 24 one-entry hashes retain 50343984 bytes after deleting their 2 MiB keys
+    memory_audit_test.go:95: clear=true: 24 one-entry hashes retain 11384 bytes after deleting their 2 MiB keys
+--- PASS: TestMemoryAuditDeletedHashKeyRetention (0.02s)
+=== RUN   TestMemoryAuditDeletedHashKeyRetention
+    memory_audit_test.go:95: clear=false: 24 one-entry hashes retain 50348072 bytes after deleting their 2 MiB keys
+    memory_audit_test.go:95: clear=true: 24 one-entry hashes retain 16576 bytes after deleting their 2 MiB keys
+--- PASS: TestMemoryAuditDeletedHashKeyRetention (0.01s)
+=== RUN   TestMemoryAuditDeletedHashKeyRetention
+    memory_audit_test.go:95: clear=false: 24 one-entry hashes retain 50342640 bytes after deleting their 2 MiB keys
+    memory_audit_test.go:95: clear=true: 24 one-entry hashes retain 17104 bytes after deleting their 2 MiB keys
+--- PASS: TestMemoryAuditDeletedHashKeyRetention (0.01s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.426s
+memory-hash-retention: finished with status 0

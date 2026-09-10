@@ -1,0 +1,23 @@
+File: runtime.test
+Type: alloc_objects
+Time: 2026-09-09 21:50:05 EDT
+Showing nodes accounting for 281413, 97.74% of 287913 total
+Dropped 266 nodes (cum <= 1439)
+Showing top 16 nodes out of 68
+      flat  flat%   sum%        cum   cum%
+     62062 21.56% 21.56%     124837 43.36%  github.com/mgomes/vibescript/internal/capabilitydata.(*Cloner).cloneMap
+     62062 21.56% 43.11%      62062 21.56%  github.com/mgomes/vibescript/vibes/value.NewHashWithTrustedOrder
+     62062 21.56% 64.67%      62062 21.56%  slices.Clone[go.shape.[]github.com/mgomes/vibescript/vibes/value.Value,go.shape.struct { github.com/mgomes/vibescript/vibes/value.kind github.com/mgomes/vibescript/vibes/value.ValueKind; github.com/mgomes/vibescript/vibes/value.data interface {}; github.com/mgomes/vibescript/vibes/value.scalar uint64 }] (inline)
+     62000 21.53% 86.20%      62000 21.53%  maps.clone
+     16064  5.58% 91.78%      16064  5.58%  github.com/mgomes/vibescript/vibes/value.NewString (inline)
+      5490  1.91% 93.69%      28396  9.86%  github.com/mgomes/vibescript/internal/runtime.capabilityBenchRows
+      3216  1.12% 94.81%       3216  1.12%  strings.genSplit
+      2903  1.01% 95.81%       2915  1.01%  fmt.Sprintf
+      2002   0.7% 96.51%      16006  5.56%  github.com/mgomes/vibescript/vibes/value.NewHash
+      2002   0.7% 97.20%      14004  4.86%  github.com/mgomes/vibescript/vibes/value.sortedMapKeysInto
+       682  0.24% 97.44%       2387  0.83%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).hash
+       465  0.16% 97.60%       1519  0.53%  github.com/mgomes/vibescript/internal/runtime.(*dbCapabilityAdapter).Bind
+       186 0.065% 97.67%       2201  0.76%  github.com/mgomes/vibescript/internal/runtime.bindCapabilitiesForCall
+        93 0.032% 97.70%     124930 43.39%  github.com/mgomes/vibescript/vibes/capability/db.(*Capability).callUpdateValidated
+        62 0.022% 97.72%       2325  0.81%  github.com/mgomes/vibescript/internal/runtime.(*memoryEstimator).slice
+        62 0.022% 97.74%     124124 43.11%  github.com/mgomes/vibescript/internal/runtime.copyInboundDataEntries

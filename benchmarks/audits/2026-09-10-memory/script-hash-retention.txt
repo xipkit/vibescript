@@ -1,0 +1,8 @@
+memory-script-hash: waiting for CPU slot
+memory-script-hash: acquired CPU slot (PID 94951)
+=== RUN   TestMemoryAuditScriptDeletedHashKeys
+    memory_audit_test.go:118: script retains 25212448 bytes after deleting 24 one-MiB hash keys
+--- PASS: TestMemoryAuditScriptDeletedHashKeys (0.08s)
+PASS
+ok  	github.com/mgomes/vibescript/internal/runtime	0.445s
+memory-script-hash: finished with status 0

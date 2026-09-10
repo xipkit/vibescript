@@ -1,0 +1,193 @@
+package runtime
+
+import (
+	"context"
+	"fmt"
+	goruntime "runtime"
+	"strings"
+	"testing"
+	"unsafe"
+)
+
+func TestMemoryAuditRegexMatchRetention(t *testing.T) {
+	for _, expr := range []string{`Regex.match("x$", text)`, `text.byteslice(-1, 1)`} {
+		script := compileScriptWithConfig(t, Config{StepQuota: 2_000_000, MemoryQuotaBytes: 4 << 20}, "def run(text)\n"+expr+"\nend")
+		if _, err := script.Call(context.Background(), "run", []Value{NewString("warmx")}, CallOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		goruntime.GC()
+		var before, after goruntime.MemStats
+		goruntime.ReadMemStats(&before)
+		kept := make([]Value, 24)
+		for i := range kept {
+			text := strings.Repeat("z", 512<<10) + "x"
+			got, err := script.Call(context.Background(), "run", []Value{NewString(text)}, CallOptions{})
+			if err != nil || got.String() != "x" {
+				t.Fatalf("%s: result %v, error %v", expr, got, err)
+			}
+			kept[i] = got
+		}
+		goruntime.GC()
+		goruntime.ReadMemStats(&after)
+		t.Logf("%s: 24 result bytes retain %d bytes after GC", expr, int64(after.HeapAlloc)-int64(before.HeapAlloc))
+		goruntime.KeepAlive(kept)
+		goruntime.KeepAlive(script)
+	}
+}
+
+func TestMemoryAuditRegexCacheRetention(t *testing.T) {
+	for _, detach := range []bool{false, true} {
+		old := compiledRegexps
+		compiledRegexps = newRegexCache(compiledRegexCacheCapacity, compiledRegexCacheInstructionBudget)
+		script := compileScriptWithConfig(t, Config{StepQuota: 2_000_000, MemoryQuotaBytes: 4 << 20}, "def run(pattern)\nRegex.match(pattern, \"nomatch\")\nend")
+		if _, err := script.Call(context.Background(), "run", []Value{NewString("warm")}, CallOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		goruntime.GC()
+		var before, after goruntime.MemStats
+		goruntime.ReadMemStats(&before)
+		for i := range 24 {
+			suffix := fmt.Sprintf("mem_audit_%02d", i)
+			backing := strings.Repeat("z", 2<<20) + suffix
+			pattern := backing[len(backing)-len(suffix):]
+			if detach {
+				pattern = strings.Clone(pattern)
+			}
+			got, err := script.Call(context.Background(), "run", []Value{NewString(pattern)}, CallOptions{})
+			if err != nil || !got.IsNil() {
+				t.Fatalf("pattern %d: result %v, error %v", i, got, err)
+			}
+		}
+		goruntime.GC()
+		goruntime.ReadMemStats(&after)
+		t.Logf("detach=%t: 288 pattern bytes retain %d bytes after GC; cache entries=%d, instruction cost=%d", detach, int64(after.HeapAlloc)-int64(before.HeapAlloc), len(compiledRegexps.entries), compiledRegexps.cost)
+		compiledRegexps = old
+		goruntime.KeepAlive(script)
+	}
+}
+
+func TestMemoryAuditStateSizes(t *testing.T) {
+	t.Logf("Execution=%d Env=%d memoryEstimator=%d baseWalkCache=%d ScriptFunction=%d Value=%d callFrame=%d", unsafe.Sizeof(Execution{}), unsafe.Sizeof(Env{}), unsafe.Sizeof(memoryEstimator{}), unsafe.Sizeof(baseWalkCache{}), unsafe.Sizeof(ScriptFunction{}), unsafe.Sizeof(Value{}), unsafe.Sizeof(callFrame{}))
+}
+
+func TestMemoryAuditDeletedHashKeyRetention(t *testing.T) {
+	for _, clearEntries := range []bool{false, true} {
+		goruntime.GC()
+		var before, after goruntime.MemStats
+		goruntime.ReadMemStats(&before)
+		kept := make([]Value, 24)
+		for i := range kept {
+			hash := NewHashWithCapacity(2)
+			setClonedHashEntry(hash, NewString("keep"), NewInt(1))
+			key := NewString(strings.Repeat("z", 2<<20))
+			setClonedHashEntry(hash, key, NewInt(2))
+			if _, found, err := hash.HashDeleteKey(key); err != nil || !found {
+				t.Fatalf("delete: found %t, error %v", found, err)
+			}
+			if clearEntries {
+				hash.HashClearEntries()
+				setClonedHashEntry(hash, NewString("keep"), NewInt(1))
+			}
+			kept[i] = hash
+		}
+		goruntime.GC()
+		goruntime.ReadMemStats(&after)
+		t.Logf("clear=%t: 24 one-entry hashes retain %d bytes after deleting their 2 MiB keys", clearEntries, int64(after.HeapAlloc)-int64(before.HeapAlloc))
+		goruntime.KeepAlive(kept)
+	}
+}
+
+func TestMemoryAuditReconciledHashKeys(t *testing.T) {
+	goruntime.GC()
+	var before, after goruntime.MemStats
+	goruntime.ReadMemStats(&before)
+	kept := make([]Value, 24)
+	for i := range kept {
+		hash := NewHashWithCapacity(3)
+		setClonedHashEntry(hash, NewString("keep"), NewInt(1))
+		first := strings.Repeat("x", 1<<20)
+		last := strings.Repeat("y", 1<<20)
+		setClonedHashEntry(hash, NewString(first), NewInt(2))
+		setClonedHashEntry(hash, NewString(last), NewInt(3))
+		entries := hash.Hash()
+		delete(entries, first)
+		delete(entries, last)
+		setClonedHashEntry(hash, NewString("trigger"), NewInt(4))
+		kept[i] = hash
+	}
+	goruntime.GC()
+	goruntime.ReadMemStats(&after)
+	t.Logf("reconciled order retains %d bytes after 24 hashes drop both one-MiB keys", int64(after.HeapAlloc)-int64(before.HeapAlloc))
+	goruntime.KeepAlive(kept)
+}
+
+func TestMemoryAuditScriptDeletedHashKeys(t *testing.T) {
+	const source = `def run(bytes, count)
+  kept = []
+  measure_heap()
+  for i in 1..count
+    key = "z" * bytes
+    row = {}
+    row["keep"] = 1
+    row[key] = 2
+    row.delete(key)
+    kept.push(row)
+  end
+  key = nil
+  row = nil
+  measure_heap()
+  19
+end`
+	held := returnedFrameHeapBytes(t, source, []Value{NewInt(1 << 20), NewInt(24)})
+	t.Logf("script retains %d bytes after deleting 24 one-MiB hash keys", held)
+}
+
+func TestMemoryAuditPoppedReceiver(t *testing.T) {
+	for _, overwrite := range []bool{false, true} {
+		tail := ""
+		if overwrite {
+			tail = "Box.new(0).touch()"
+		}
+		source := `class Box
+  def initialize(bytes)
+    @payload = "x" * bytes
+  end
+  def touch()
+    @payload.length
+  end
+end
+def run(bytes)
+  measure_heap()
+  box = Box.new(bytes)
+  box.touch()
+  box = nil
+  ` + tail + `
+  measure_heap()
+  19
+end`
+		held := returnedFrameHeapBytes(t, source, []Value{NewInt(16 << 20)})
+		t.Logf("overwrite=%t: popped receiver retains %d bytes", overwrite, held)
+	}
+}
+
+func TestMemoryAuditPoppedRescue(t *testing.T) {
+	for _, overwrite := range []bool{false, true} {
+		tail := ""
+		if overwrite {
+			tail = "begin\n    raise(\"tiny\")\n  rescue\n    nil\n  end"
+		}
+		source := `def run(bytes)
+  measure_heap()
+  begin
+    raise("x" * bytes)
+  rescue
+    nil
+  end
+  ` + tail + `
+  measure_heap()
+  19
+end`
+		held := returnedFrameHeapBytes(t, source, []Value{NewInt(4 << 20)})
+		t.Logf("overwrite=%t: popped rescue retains %d bytes", overwrite, held)
+	}
+}
