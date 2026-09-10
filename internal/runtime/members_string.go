@@ -1265,7 +1265,7 @@ func stringRuneIndex(exec *Execution, text, needle string, offset int) (int, err
 	if !utf8.ValidString(text) || !utf8.ValidString(needle) {
 		return stringRuneIndexFallback(exec, text, needle, offset)
 	}
-	startByte, ok := stringByteIndexForRuneOffset(text, offset)
+	startByte, ok := validUTF8ByteIndex(text, offset)
 	if !ok {
 		return -1, nil
 	}
@@ -1276,7 +1276,7 @@ func stringRuneIndex(exec *Execution, text, needle string, offset int) (int, err
 	if index < 0 {
 		return -1, nil
 	}
-	return offset + utf8.RuneCountInString(text[startByte:startByte+index]), nil
+	return offset + validUTF8RuneCount(text[startByte:startByte+index]), nil
 }
 
 // reserveFallbackSearchScratch checks everything the invalid-UTF-8 search
@@ -1371,19 +1371,19 @@ func stringRuneRIndex(exec *Execution, text, needle string, offset int) (int, er
 	if !utf8.ValidString(text) || !utf8.ValidString(needle) {
 		return stringRuneRIndexFallback(exec, text, needle, offset)
 	}
-	textLen := stringRuneLen(text)
+	textLen := validUTF8RuneCount(text)
 	if offset > textLen {
 		offset = textLen
 	}
 	if needle == "" {
 		return offset, nil
 	}
-	needleLen := stringRuneLen(needle)
+	needleLen := validUTF8RuneCount(needle)
 	if needleLen > textLen {
 		return -1, nil
 	}
 	start := min(offset, textLen-needleLen)
-	endByte, ok := stringByteIndexForRuneOffset(text, start+needleLen)
+	endByte, ok := validUTF8ByteIndex(text, start+needleLen)
 	if !ok {
 		return -1, nil
 	}
@@ -1391,7 +1391,7 @@ func stringRuneRIndex(exec *Execution, text, needle string, offset int) (int, er
 	if index < 0 {
 		return -1, nil
 	}
-	return utf8.RuneCountInString(text[:index]), nil
+	return validUTF8RuneCount(text[:index]), nil
 }
 
 // stringRuneRIndexFallback is stringRuneIndexFallback searching backwards; see
