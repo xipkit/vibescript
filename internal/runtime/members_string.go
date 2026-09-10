@@ -1187,6 +1187,9 @@ func stringRuneLen(text string) int {
 	if stringIsASCII(text) {
 		return len(text)
 	}
+	if len(text) >= 64 && utf8.ValidString(text) {
+		return validUTF8RuneCount(text)
+	}
 	return utf8.RuneCountInString(text)
 }
 
