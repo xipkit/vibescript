@@ -1,1 +1,0 @@
-- **Improved string literal compilation.** Ordinary ASCII text in quoted strings compiles faster and uses less temporary memory.

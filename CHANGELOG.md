@@ -9,6 +9,146 @@ All notable changes to this project will be documented in this file.
 <!-- Unreleased entries are tracked as individual files in changelog.d/ so
      pull requests never conflict on this file. They are compiled into a
      versioned section by scripts/build_changelog.sh at release time. -->
+
+## v0.70.0 - 2026-09-10
+
+Vibescript 0.70 improves string processing, JSON, static checking, and repeated
+script calls while reducing temporary allocations and retained memory. Optimized
+paths keep their work, memory, and cancellation checks, and this release also
+closes accounting and module-policy gaps found during the performance audit.
+
+Ordinary release binaries continue to target Go 1.26. Source builds can opt into
+Go 1.27.1 SIMD on ARM64 and AVX2-capable x86-64, with portable fallbacks for
+unsupported CPUs and short inputs. See [building instructions](docs/building.md).
+
+Go module users already on a `v1.0.0-rc` release must select this version
+explicitly because `v0.70.0` has lower semantic-version precedence:
+`go get github.com/mgomes/vibescript@v0.70.0`.
+
+### Performance and memory highlights
+
+- Speed up ASCII length, index, reverse index, slicing, case conversion, and
+  case comparison through shared word scans and optional SIMD kernels.
+- Scan literal spans in regular-expression quoting, JSON, formatting, and string
+  compilation, and batch long whitespace runs in split and trim operations.
+- Avoid redundant Unicode rune scans in `rindex`, including calls that omit an
+  offset, while preserving bounded and negative offsets and malformed UTF-8.
+- Stream block `String#scan` matches so early returns avoid collecting the
+  remaining matches.
+- Reuse stable memory estimates during `uniq` and keep unrelated writes from
+  invalidating cached estimates of unchanged values.
+- Avoid cloning unused declarations on each script call and keep static checking
+  of independent declarations linear. Reuse union-type classifications.
+- Release discarded JSON documents, regex subjects and cached pattern storage,
+  deleted hash keys, and values in returned function, receiver, and rescue scopes.
+- Reduce short-call execution state, reuse bounded scratch space for JSON and
+  outbound host cloning, and skip unused compiler directive maps.
+
+Representative before/after measurements for individual changes on Apple M4,
+Go 1.26.3 (these are not a cumulative comparison against v0.60.0):
+
+| Workload | Before | After |
+| --- | ---: | ---: |
+| 200 Unicode `rindex` calls | 1,198.2 µs | 640.1 µs |
+| Short `Script.Call`, allocated bytes | 3,472 B/op | 3,216 B/op |
+| 80 JSON stringify calls, allocated bytes | 53,562 B/op | 38,201 B/op |
+| Compile 251 functions, allocated bytes | 248,888 B/op | 222,032 B/op |
+
+See the [rune-scan investigation](benchmarks/audits/2026-09-10-rune-scans/README.md),
+[execution measurements](benchmarks/memory/execution/README.md),
+[allocation measurements](benchmarks/memory/allocations/README.md), and
+[retention measurements](benchmarks/memory/retention/README.md) for workloads,
+platform results, and tradeoffs. Detached JSON tokens and partial regex matches
+pay a copying cost to release source buffers; calls deeper than four frames need
+an extra allocation. Some unchanged string controls still vary with executable
+layout, so the measurements do not imply that every workload becomes faster.
+
+### Detailed changes
+
+- Reuse memory-estimator graph walks during `JSON.stringify` so escape-heavy strings avoid repeatedly traversing unchanged values while enforcing the same quotas.
+
+- Parse and generate long ASCII JSON strings in spans, with opt-in experimental
+  Go 1.27 SIMD acceleration on ARM64 and AVX2-capable x86-64 CPUs while preserving
+  memory and step accounting.
+
+- **Improved string literal compilation.** Ordinary ASCII text in quoted strings compiles faster and uses less temporary memory.
+
+- **Improved formatting performance.** Long literal spans in `format`, `sprintf`, string `%`, and `Time#strftime` reuse Go's optimized byte search while preserving memory quotas and cancellation checkpoints.
+
+- **Performance: SIMD whitespace split and trim scans.** Long whitespace runs can use optional Go 1.27 SIMD through ARM64 and guarded AVX2 implementations, preserving Ruby byte classes, scalar fallbacks, and quota accounting.
+
+- Reuse per-call Unicode mapping buffers in `String#swapcase`, reducing temporary allocations while preserving full case expansions and invalid UTF-8 behavior.
+
+- Fix trailing `%` diagnostics in `format`, `sprintf`, and String `%` exceeding the output limit. Include the full diagnostic size in output and memory preflights.
+
+- Reduce escaped JSON decoding and Unicode `index`/`rindex` costs by filling pre-sized output buffers and reusing prior UTF-8 validation while preserving quota checks.
+
+- Counted `Array.first` and `last`, `take`, `drop`, and `transpose` now charge copied work and reserve output memory before allocating it, including every transposed column.
+
+- Memory-accounting walks caused by assignments now consume the step quota. Repeated wrapper assignments can no longer drive unbounded accounting work under a small step budget, while unrelated mutations remain uncharged.
+
+- **Fixed: bound syntax nesting during compilation.** Excessively nested
+  syntax now returns a parse error before parsing or AST traversal can exhaust
+  the host stack.
+
+- **Fixed: enforce regex replacement output limits before expansion.**
+  `Regex.replace` and `Regex.replace_all` bound each captured substring before
+  appending it, including calls through the direct dispatch path.
+
+- Enforce `Regexp.union`'s pattern limit before escaping or joining strings,
+  and charge `Regexp` string preparation against the execution budgets.
+
+- `Value.StringBounded` and `Value.InspectBounded` now return `ErrStringRenderDepthExceeded` before descending beyond 16,384 nested composites, preventing deeply nested host values from exhausting the Go stack. The nesting limit also applies when the byte limit is zero or negative.
+
+- **Fixed: capability data copying.** DB, events, jobqueue, and context adapters
+  preserve shared data within requests and snapshots, bound copy work and
+  allocations, and charge runtime step and memory quotas.
+
+- **Fixed: static checks respect require permission.** Under strict effects,
+  checking a script no longer reads modules or exposes their diagnostics unless
+  the call options allow `require`. Authorized checks still resolve imports.
+
+- Static checking now reuses container classification for union types, avoiding repeated union traversal and temporary allocations when many statements use the same annotation.
+
+- Recursive formatting skips symlinks and special files, and keeps file reads and writes within the selected directory. Explicit file aliases remain supported.
+
+- The HTTP embedding starter now closes stalled reads, blocked writes, and idle connections using explicit server timeouts.
+
+- **Fixed: JSON parsing resource limits.** Parsing charges collection elements
+  and all partially built values without repeatedly walking growing prefixes.
+  Escaped strings allocate only for their decoded token, and parsing checks
+  cancellation while building collections. Duplicate keys still keep the last
+  value and their original insertion order.
+
+- Small match captures and pre/post-match strings no longer retain the entire subject. String and regular-expression matches check the memory and step cost of detached captures before copying them.
+
+- Charge regex namespace compilation, matching, and replacement work against
+  the step quota, including repeated suffix scans and capture-state copies.
+
+- **Fixed: denied module requests stop before filesystem access.** Module
+  allow-list and deny-list checks now precede filename inspection and source
+  reads, so denied requests consistently return policy errors regardless of
+  whether the target exists, is readable, or is a valid module file.
+
+- **Fixed: module policy filename matching.** Whitespace within path components
+  and additional filename extensions no longer let distinct modules share an
+  allow-list or deny-list match. Module loading requires the stored spelling of
+  each path component, so filesystem aliases cannot bypass policy checks or
+  initialize a second copy of the same named module.
+  Policy patterns with ambiguous edge whitespace now fail engine construction;
+  use explicit dot components for literal whitespace. Linux module directories
+  must permit listing for filename verification.
+
+- **Fixed: bounded module request cache text.** Repeated `require` calls now
+  retain at most 8 MiB of request, search, and suggestion text per engine.
+  Requests beyond the cache limit still resolve normally.
+
+- Charge the step quota for retained-result memory walks caused by callback calls that invalidate or bypass the estimator cache.
+
+- Static checking now reuses scalar-union classifications for assignments and argument expansion, avoiding repeated temporary allocations when many statements use the same annotation. Named types continue to resolve against the current environment.
+
+- Time#strftime now bounds aggregate output to 1 MiB and checks work, cancellation, and memory before expanding directives.
+
 ## v0.60.0 - 2026-08-22
 
 Vibescript 0.60 narrows the language around predictable sandboxing. Tasks,

@@ -30,7 +30,7 @@ checksum:
 
 release:
   github:
-    owner: mgomes
+    owner: xipkit
     name: vibescript
   prerelease: auto
 
