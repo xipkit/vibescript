@@ -983,4 +983,31 @@ gaps found during 1.0 release-candidate hardening.
 - [x] Full tests pass.
 - [x] Release checklist passes for `v0.60.0`.
 
+## v0.70.0 - Faster Execution and Lower Memory Use (completed 2026-09-10)
+
+Goal: ship the performance and memory audit improvements with measured CPU and
+allocation results while preserving sandbox accounting and portable builds.
+
+### Execution, Strings, and Memory
+
+- [x] Accelerate string scans, case conversion and comparison, JSON, whitespace,
+  regular-expression quoting, formatting, and string literal compilation.
+- [x] Support opt-in Go 1.27.1 SIMD on native ARM64 and x86-64 with guarded CPU
+  dispatch and portable fallbacks; keep ordinary releases on Go 1.26.
+- [x] Reduce redundant Unicode rune scans and document executable-layout effects
+  with native embedding measurements.
+- [x] Stream block scans, reuse stable quota estimates, avoid unused declaration
+  clones, and make independent declaration checking linear.
+- [x] Reduce short-call and serialization allocations and release discarded
+  source buffers, deleted keys, and completed runtime scopes.
+
+### Accounting and Delivery
+
+- [x] Bound parser and rendering depth, collection projections, regex and JSON
+  materialization, capability cloning, and module request caches.
+- [x] Meter assignment and retained-callback accounting walks and enforce module
+  policy before filesystem access.
+- [x] Document benchmark gains and tradeoffs in `CHANGELOG.md` and the audit reports.
+- [x] Pass the full test suite and release checklist for `v0.70.0`.
+
 ## Unreleased

@@ -1,1 +1,0 @@
-- **Improved formatting performance.** Long literal spans in `format`, `sprintf`, string `%`, and `Time#strftime` reuse Go's optimized byte search while preserving memory quotas and cancellation checkpoints.

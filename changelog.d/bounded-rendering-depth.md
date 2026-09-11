@@ -1,1 +1,0 @@
-`Value.StringBounded` and `Value.InspectBounded` now return `ErrStringRenderDepthExceeded` before descending beyond 16,384 nested composites, preventing deeply nested host values from exhausting the Go stack. The nesting limit also applies when the byte limit is zero or negative.
