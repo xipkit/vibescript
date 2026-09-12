@@ -47,14 +47,56 @@ impl<T: Clone> Heap<T> {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct Bytes {
+    pub data: Arc<Vec<u8>>,
+    _storage: Option<Charge>,
+    header: Option<Charge>,
+}
+
+impl Bytes {
+    fn header_bytes() -> usize {
+        size_of::<Self>() + size_of::<Vec<u8>>() + 4 * size_of::<usize>()
+    }
+    fn new(ctx: &mut CallContext, buffer: Buffer<u8>) -> Result<Arc<Self>> {
+        let header = ctx.reserve(Self::header_bytes())?;
+        let (data, storage) = buffer.into_parts();
+        Ok(Arc::new(Self {
+            data: Arc::new(data),
+            _storage: storage,
+            header,
+        }))
+    }
+    fn untracked(data: Vec<u8>) -> Arc<Self> {
+        Arc::new(Self {
+            data: Arc::new(data),
+            _storage: None,
+            header: None,
+        })
+    }
+    fn import(ctx: &mut CallContext, bytes: &Arc<Self>) -> Result<Arc<Self>> {
+        if ctx.owns(&bytes.header) || ctx.options.limits.memory_bytes.is_none() {
+            return Ok(bytes.clone());
+        }
+        // Charge the entire backing capacity, including unused space retained from the host.
+        let storage = ctx.reserve(bytes.data.capacity())?;
+        let header = ctx.reserve(Self::header_bytes())?;
+        Ok(Arc::new(Self {
+            data: bytes.data.clone(),
+            _storage: storage,
+            header,
+        }))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
     Nil,
     Bool(bool),
     Int(i64),
     Float(f64),
-    Bytes(Arc<Heap<u8>>),
-    Symbol(Arc<Heap<u8>>),
+    Bytes(Arc<Bytes>),
+    Symbol(Arc<Bytes>),
     Array(Arc<Heap<Value>>),
     Hash(Arc<Heap<(Value, Value)>>),
 }
@@ -88,11 +130,11 @@ impl Value {
     }
     /// Creates caller-owned bytes; importing them into a call is accounted separately.
     pub fn bytes(value: impl Into<Vec<u8>>) -> Self {
-        Self(Kind::Bytes(Heap::untracked(value.into(), 0)))
+        Self(Kind::Bytes(Bytes::untracked(value.into())))
     }
     /// Creates a symbol.
     pub fn symbol(value: impl Into<Vec<u8>>) -> Self {
-        Self(Kind::Symbol(Heap::untracked(value.into(), 0)))
+        Self(Kind::Symbol(Bytes::untracked(value.into())))
     }
     /// Creates a caller-owned array.
     pub fn array(values: Vec<Value>) -> Self {
@@ -134,7 +176,7 @@ impl Value {
     /// Returns the raw bytes of a string or symbol, including invalid UTF-8.
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match &self.0 {
-            Kind::Bytes(h) | Kind::Symbol(h) => Some(&h.buffer.data),
+            Kind::Bytes(h) | Kind::Symbol(h) => Some(&h.data),
             _ => None,
         }
     }
@@ -175,7 +217,7 @@ impl Value {
     pub(crate) fn copy_bytes(ctx: &mut CallContext, bytes: &[u8], symbol: bool) -> Result<Self> {
         let mut buf = Buffer::with_capacity(ctx, bytes.len())?;
         buf.extend(ctx, bytes)?;
-        let heap = Heap::new(ctx, buf, 0)?;
+        let heap = Bytes::new(ctx, buf)?;
         Ok(Self(if symbol {
             Kind::Symbol(heap)
         } else {
@@ -183,7 +225,7 @@ impl Value {
         }))
     }
     pub(crate) fn from_bytes(ctx: &mut CallContext, bytes: Buffer<u8>) -> Result<Self> {
-        Ok(Self(Kind::Bytes(Heap::new(ctx, bytes, 0)?)))
+        Ok(Self(Kind::Bytes(Bytes::new(ctx, bytes)?)))
     }
     pub(crate) fn from_array(ctx: &mut CallContext, values: Buffer<Value>) -> Result<Self> {
         let mut depth = 1;
@@ -272,7 +314,7 @@ impl Value {
 }
 
 impl CallContext {
-    /// Imports a host value, copying foreign storage and sharing values already owned by this call.
+    /// Imports a host value, sharing immutable bytes and charging retained storage to this call.
     pub fn import(&mut self, value: &Value) -> Result<Value> {
         self.import_depth(value, 0)
     }
@@ -284,10 +326,12 @@ impl CallContext {
         }
         match &value.0 {
             Kind::Bytes(h) | Kind::Symbol(h) => {
-                if self.owns(&h.header) {
-                    return Ok(value.clone());
-                }
-                Value::copy_bytes(self, &h.buffer.data, matches!(value.0, Kind::Symbol(_)))
+                let bytes = Bytes::import(self, h)?;
+                Ok(Value(if matches!(value.0, Kind::Symbol(_)) {
+                    Kind::Symbol(bytes)
+                } else {
+                    Kind::Bytes(bytes)
+                }))
             }
             Kind::Array(h) => {
                 if self.owns(&h.header) {
@@ -325,7 +369,7 @@ impl fmt::Display for Value {
             Kind::Int(n) => write!(f, "{n}"),
             Kind::Float(n) => write!(f, "{n}"),
             Kind::Bytes(h) | Kind::Symbol(h) => {
-                write!(f, "{}", String::from_utf8_lossy(&h.buffer.data))
+                write!(f, "{}", String::from_utf8_lossy(&h.data))
             }
             Kind::Array(h) => {
                 f.write_str("[")?;
@@ -348,5 +392,35 @@ impl fmt::Display for Value {
                 f.write_str("}")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn shared_bytes_have_independent_budget_lifetimes() {
+        let mut first = CallContext::new(CallOptions::default());
+        let original = first.bytes(&[b'x'; 8192]).unwrap();
+        let mut second = CallContext::new(CallOptions::default());
+        let imported = second.import(&original).unwrap();
+        assert_eq!(
+            original.as_bytes().unwrap().as_ptr(),
+            imported.as_bytes().unwrap().as_ptr()
+        );
+        assert!(first.stats().retained_memory_bytes >= 8192);
+        let retained = second.stats().retained_memory_bytes;
+        assert!(retained >= 8192);
+        let alias = second.import(&imported).unwrap();
+        assert_eq!(second.stats().retained_memory_bytes, retained);
+        drop(original);
+        assert_eq!(first.stats().retained_memory_bytes, 0);
+        assert_eq!(imported.as_bytes().unwrap(), &[b'x'; 8192]);
+        drop(imported);
+        assert_eq!(second.stats().retained_memory_bytes, retained);
+        drop(alias);
+        assert_eq!(second.stats().retained_memory_bytes, 0);
     }
 }

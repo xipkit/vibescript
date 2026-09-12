@@ -255,6 +255,10 @@ impl<T> Buffer<T> {
         Self { data, charge: None }
     }
 
+    pub fn into_parts(self) -> (Vec<T>, Option<Charge>) {
+        (self.data, self.charge)
+    }
+
     pub fn with_capacity(ctx: &mut CallContext, capacity: usize) -> Result<Self> {
         let mut buf = Self::empty();
         buf.ensure(ctx, capacity)?;

@@ -99,24 +99,23 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         }
         (Kind::Bytes(a), Kind::Bytes(b)) if op == "+" => {
             let mut out = Buffer::empty();
-            out.extend(ctx, &a.buffer.data)?;
-            out.extend(ctx, &b.buffer.data)?;
+            out.extend(ctx, &a.data)?;
+            out.extend(ctx, &b.data)?;
             Value::from_bytes(ctx, out)
         }
         (Kind::Bytes(s), Kind::Int(n)) if op == "*" => {
             let n = usize::try_from(*n)
                 .map_err(|_| Error::new(ErrorKind::Argument, "negative repeat count"))?;
             let len = s
-                .buffer
                 .data
                 .len()
                 .checked_mul(n)
                 .ok_or_else(|| Error::new(ErrorKind::Memory, "string size overflow"))?;
             let mut out = Buffer::with_capacity(ctx, len)?;
-            if !s.buffer.data.is_empty() {
+            if !s.data.is_empty() {
                 for _ in 0..n {
                     ctx.charge(1)?;
-                    out.extend(ctx, &s.buffer.data)?;
+                    out.extend(ctx, &s.data)?;
                 }
             }
             Value::from_bytes(ctx, out)
@@ -132,14 +131,14 @@ fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Orderin
             Ok(a.as_float().unwrap().partial_cmp(&b.as_float().unwrap()))
         }
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
-            for (a, b) in a.buffer.data.chunks(CHUNK).zip(b.buffer.data.chunks(CHUNK)) {
+            for (a, b) in a.data.chunks(CHUNK).zip(b.data.chunks(CHUNK)) {
                 ctx.work_bytes(a.len().min(b.len()))?;
                 let cmp = a.cmp(b);
                 if cmp != Ordering::Equal {
                     return Ok(Some(cmp));
                 }
             }
-            Ok(Some(a.buffer.data.len().cmp(&b.buffer.data.len())))
+            Ok(Some(a.data.len().cmp(&b.data.len())))
         }
         _ => Err(type_error()),
     }
@@ -158,7 +157,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
             Ok(a.as_float() == b.as_float())
         }
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
-            json::bytes_equal(ctx, &a.buffer.data, &b.buffer.data)
+            json::bytes_equal(ctx, &a.data, &b.data)
         }
         (Kind::Array(a), Kind::Array(b)) => {
             if a.buffer.data.len() != b.buffer.data.len() {
@@ -216,7 +215,7 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
             Ok(Value::nil())
         }
         Kind::Bytes(h) => {
-            let bytes = &h.buffer.data;
+            let bytes = &h.data;
             let n = index.require_int()?;
             let n = if n < 0 {
                 let (count, _) = runes(ctx, bytes)?;
@@ -306,7 +305,7 @@ pub(crate) fn method(
         Length => {
             arity(args, 0)?;
             let n = match &value.0 {
-                Kind::Bytes(h) => runes(ctx, &h.buffer.data)?.0,
+                Kind::Bytes(h) => runes(ctx, &h.data)?.0,
                 Kind::Array(h) => h.buffer.data.len(),
                 Kind::Hash(h) => h.buffer.data.len(),
                 _ => return Err(type_error()),
@@ -638,7 +637,7 @@ fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut text = json::Number::new();
     match &value.0 {
         Kind::Bytes(_) => return Ok(value.clone()),
-        Kind::Symbol(h) => return ctx.bytes(&h.buffer.data),
+        Kind::Symbol(h) => return ctx.bytes(&h.data),
         Kind::Nil => return ctx.bytes(b""),
         Kind::Bool(v) => return ctx.bytes(if *v { b"true" } else { b"false" }),
         Kind::Int(n) => write!(text, "{n}").unwrap(),

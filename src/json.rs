@@ -345,7 +345,7 @@ fn write_value(
             write!(text, "{n}").unwrap();
             out.extend(ctx, text.bytes())?;
         }
-        Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, &h.buffer.data, out)?,
+        Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, &h.data, out)?,
         Kind::Array(h) => {
             out.push(ctx, b'[')?;
             for (i, v) in h.buffer.data.iter().enumerate() {

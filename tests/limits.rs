@@ -85,6 +85,49 @@ fn cancelled_before_import_never_invokes_host() {
 }
 
 #[test]
+fn shared_inputs_charge_spare_capacity_and_release_it_for_small_results() {
+    let mut bytes = Vec::with_capacity(65536);
+    bytes.extend_from_slice(b"hello");
+    let capacity = bytes.capacity();
+    let input = Value::bytes(bytes);
+    let script = Engine::new()
+        .compile("def identity(s)\n s\nend\ndef first(s)\n s[0]\nend")
+        .unwrap();
+    let result = script
+        .call(
+            "identity",
+            std::slice::from_ref(&input),
+            CallOptions::default(),
+        )
+        .unwrap();
+    assert_eq!(result.value.as_bytes(), input.as_bytes());
+    assert_eq!(
+        result.value.as_bytes().unwrap().as_ptr(),
+        input.as_bytes().unwrap().as_ptr()
+    );
+    assert!(result.stats.retained_memory_bytes >= capacity);
+    let options = CallOptions {
+        limits: Limits {
+            memory_bytes: Some(capacity - 1),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        script
+            .call("identity", std::slice::from_ref(&input), options)
+            .unwrap_err()
+            .kind,
+        ErrorKind::Memory
+    );
+    let first = script
+        .call("first", &[input], CallOptions::default())
+        .unwrap();
+    assert_eq!(first.value.as_bytes(), Some(b"h".as_slice()));
+    assert!(first.stats.retained_memory_bytes < 1024);
+}
+
+#[test]
 fn running_script_observes_cancellation() {
     let token = CancellationToken::new();
     let signal = token.clone();
