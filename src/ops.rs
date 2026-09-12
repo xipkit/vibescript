@@ -45,6 +45,11 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
     if op == "<<" {
         return a.push(ctx, &[b]);
     }
+    if op == "+" && matches!(a.0, Kind::Array(_)) {
+        if let Some(values) = b.as_array() {
+            return a.push(ctx, values);
+        }
+    }
     match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => {
             let n = match op {
@@ -97,12 +102,6 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
             out.extend(ctx, &a.buffer.data)?;
             out.extend(ctx, &b.buffer.data)?;
             Value::from_bytes(ctx, out)
-        }
-        (Kind::Array(a), Kind::Array(b)) if op == "+" => {
-            let mut out = Buffer::empty();
-            out.extend(ctx, &a.buffer.data)?;
-            out.extend(ctx, &b.buffer.data)?;
-            Value::from_array(ctx, out)
         }
         (Kind::Bytes(s), Kind::Int(n)) if op == "*" => {
             let n = usize::try_from(*n)

@@ -62,6 +62,9 @@ fn array_updates_preserve_aliases_and_evaluate_arguments_before_writing() {
         ("a=[1]\na.push(a.length,a[0])\na", "[1,1,1]"),
         ("a=[1]\nb=[a]\na.push(2)\n[b,a]", "[[[1]],[1,2]]"),
         ("a=[1]\nb=a.push(2)\na[0]=9\n[a,b]", "[[9,2],[1,2]]"),
+        ("a=[1]\nb=a\na=a+[a.length]\na+=[3]\n[a,b]", "[[1,1,3],[1]]"),
+        ("a=[1]\na=a+a\na", "[1,1]"),
+        ("a=[1]\nb=a\na=(false || a)+[a[0]]\n[a,b]", "[[1,1],[1]]"),
     ] {
         assert_eq!(json(&run(source)), expected, "{source}");
     }

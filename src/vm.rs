@@ -77,6 +77,14 @@ pub(crate) fn execute(
                 let value = ops::binary(ctx, op, a, b)?;
                 stack.push(ctx, value)?;
             }
+            Op::AddStore(n) => {
+                let b = stack.data.pop().unwrap();
+                let a = stack.data.pop().unwrap();
+                frame.locals.data[n] = None;
+                let value = ops::binary(ctx, "+", a, b)?;
+                frame.locals.data[n] = Some(value.clone());
+                stack.push(ctx, value)?;
+            }
             Op::Array(n) => {
                 let base = stack.data.len() - n;
                 let mut values = Buffer::with_capacity(ctx, n)?;

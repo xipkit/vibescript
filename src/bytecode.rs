@@ -16,6 +16,7 @@ pub(crate) enum Op {
     Dup2,
     Unary(&'static str),
     Binary(&'static str),
+    AddStore(usize),
     Array(usize),
     Hash(usize),
     Index,
@@ -211,10 +212,22 @@ impl Compiler<'_> {
                 match &target.node {
                     Node::Var(name) => {
                         let slot = self.slot(name);
+                        if binary.is_none() {
+                            if let Node::Binary("+", left, right) = &rhs.node {
+                                self.expr(left)?;
+                                self.expr(right)?;
+                                self.emit(Op::AddStore(slot));
+                                return Ok(());
+                            }
+                        }
                         if binary.is_some() {
                             self.emit(Op::Load(slot));
                         }
                         self.expr(rhs)?;
+                        if binary == Some("+") {
+                            self.emit(Op::AddStore(slot));
+                            return Ok(());
+                        }
                         if let Some(op) = binary {
                             self.emit(Op::Binary(op));
                         }
