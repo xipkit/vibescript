@@ -1,6 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
+    hash::Hash,
     scan::{self, Class},
     value::Kind,
 };
@@ -83,7 +84,7 @@ impl Parser<'_> {
             Some(b'{') => {
                 self.pos += 1;
                 self.space()?;
-                let mut out = Buffer::empty();
+                let mut out = Hash::empty();
                 if !self.take(b'}') {
                     loop {
                         self.space()?;
@@ -96,7 +97,7 @@ impl Parser<'_> {
                             return self.err("expected colon");
                         }
                         let value = self.value(depth + 1)?;
-                        insert(self.ctx, &mut out, key, value)?;
+                        out.insert(self.ctx, key, value)?;
                         self.space()?;
                         if self.take(b'}') {
                             break;
@@ -303,22 +304,6 @@ impl Parser<'_> {
         }
         Ok(())
     }
-}
-
-pub(crate) fn insert(
-    ctx: &mut CallContext,
-    entries: &mut Buffer<(Value, Value)>,
-    key: Value,
-    value: Value,
-) -> Result<()> {
-    for (k, v) in &mut entries.data {
-        ctx.charge(1)?;
-        if bytes_equal(ctx, k.require_bytes()?, key.require_bytes()?)? {
-            *v = value;
-            return Ok(());
-        }
-    }
-    entries.push(ctx, (key, value))
 }
 
 pub(crate) fn bytes_equal(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<bool> {

@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, HostFunction, Result, Value,
     budget::Buffer,
     bytecode::{Op, Program},
+    hash::Hash,
     json, ops,
 };
 
@@ -97,11 +98,12 @@ pub(crate) fn execute(
             }
             Op::Hash(n) => {
                 let base = stack.data.len() - n * 2;
-                let mut values = Buffer::with_capacity(ctx, n)?;
+                let mut values = Hash::empty();
+                values.buffer.ensure(ctx, n)?;
                 let mut iter = stack.data.drain(base..);
                 while let Some(key) = iter.next() {
                     let value = iter.next().unwrap();
-                    json::insert(ctx, &mut values, key, value)?;
+                    values.insert(ctx, key, value)?;
                 }
                 drop(iter);
                 let value = Value::from_hash(ctx, values)?;

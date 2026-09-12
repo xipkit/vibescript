@@ -1,8 +1,9 @@
 use crate::{
     CallContext, Error, ErrorKind, Result,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH},
+    hash::Hash,
 };
-use std::{fmt, mem::size_of, sync::Arc};
+use std::{collections::HashMap, fmt, mem::size_of, sync::Arc};
 
 #[derive(Debug)]
 pub(crate) struct Heap<T> {
@@ -98,7 +99,7 @@ pub(crate) enum Kind {
     Bytes(Arc<Bytes>),
     Symbol(Arc<Bytes>),
     Array(Arc<Heap<Value>>),
-    Hash(Arc<Heap<(Value, Value)>>),
+    Hash(Arc<Hash>),
 }
 
 /// An immutable Vibescript value. Clones share storage; script updates preserve each clone's value.
@@ -144,18 +145,18 @@ impl Value {
     /// Creates a caller-owned insertion-ordered hash with string keys, replacing duplicate values.
     pub fn hash(entries: Vec<(Vec<u8>, Value)>) -> Self {
         let mut values: Vec<(Value, Value)> = Vec::with_capacity(entries.len());
+        let mut positions: HashMap<Arc<Vec<u8>>, usize> = HashMap::with_capacity(entries.len());
         for (key, value) in entries {
-            if let Some(entry) = values
-                .iter_mut()
-                .find(|(k, _)| k.as_bytes() == Some(key.as_slice()))
-            {
-                entry.1 = value;
+            if let Some(&i) = positions.get(&key) {
+                values[i].1 = value;
             } else {
-                values.push((Self::bytes(key), value));
+                let bytes = Bytes::untracked(key);
+                positions.insert(bytes.data.clone(), values.len());
+                values.push((Self(Kind::Bytes(bytes)), value));
             }
         }
         let depth = 1 + values.iter().map(|(_, v)| v.depth()).max().unwrap_or(0);
-        Self(Kind::Hash(Heap::untracked(values, depth)))
+        Self(Kind::Hash(Hash::untracked(values, depth)))
     }
     /// Returns an integer if this value is an integer.
     pub fn as_int(&self) -> Option<i64> {
@@ -235,13 +236,20 @@ impl Value {
         }
         Ok(Self(Kind::Array(Heap::new(ctx, values, depth)?)))
     }
-    pub(crate) fn from_hash(ctx: &mut CallContext, values: Buffer<(Value, Value)>) -> Result<Self> {
-        let mut depth = 1;
-        for (_, v) in &values.data {
-            ctx.charge(1)?;
-            depth = depth.max(v.depth() + 1);
-        }
-        Ok(Self(Kind::Hash(Heap::new(ctx, values, depth)?)))
+    pub(crate) fn from_hash(ctx: &mut CallContext, hash: Hash) -> Result<Self> {
+        Ok(Self(Kind::Hash(hash.into_arc(ctx)?)))
+    }
+    pub(crate) fn set_hash_index(
+        self,
+        ctx: &mut CallContext,
+        key: Value,
+        value: Value,
+    ) -> Result<Self> {
+        let Kind::Hash(mut hash) = self.0 else {
+            return Err(Error::new(ErrorKind::Type, "expected hash"));
+        };
+        Hash::make_mut(ctx, &mut hash)?.insert(ctx, key, value)?;
+        Ok(Self(Kind::Hash(hash)))
     }
     pub(crate) fn push(self, ctx: &mut CallContext, values: &[Value]) -> Result<Self> {
         let Kind::Array(mut heap) = self.0 else {
@@ -296,7 +304,7 @@ impl Value {
         writable.depth = depth;
         Ok(Self(Kind::Array(heap)))
     }
-    fn depth(&self) -> usize {
+    pub(crate) fn depth(&self) -> usize {
         match &self.0 {
             Kind::Array(h) => h.depth,
             Kind::Hash(h) => h.depth,
@@ -354,7 +362,8 @@ impl CallContext {
                     let v = self.import_depth(v, depth + 1)?;
                     buf.data.push((k, v));
                 }
-                Value::from_hash(self, buf)
+                let hash = Hash::from_entries(self, buf)?;
+                Value::from_hash(self, hash)
             }
             _ => Ok(value.clone()),
         }

@@ -175,18 +175,10 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
                 return Ok(false);
             }
             for (k, v) in &a.buffer.data {
-                let mut found = false;
-                for (k2, v2) in &b.buffer.data {
-                    ctx.charge(1)?;
-                    if json::bytes_equal(ctx, k.require_bytes()?, k2.require_bytes()?)? {
-                        if !equal(ctx, v, v2, depth + 1)? {
-                            return Ok(false);
-                        }
-                        found = true;
-                        break;
-                    }
-                }
-                if !found {
+                let Some(i) = b.find(ctx, k.require_bytes()?)? else {
+                    return Ok(false);
+                };
+                if !equal(ctx, v, &b.buffer.data[i].1, depth + 1)? {
                     return Ok(false);
                 }
             }
@@ -206,13 +198,9 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
         }
         Kind::Hash(h) => {
             let key = index.require_bytes()?;
-            for (k, v) in &h.buffer.data {
-                ctx.charge(1)?;
-                if json::bytes_equal(ctx, k.require_bytes()?, key)? {
-                    return Ok(v.clone());
-                }
-            }
-            Ok(Value::nil())
+            Ok(h.find(ctx, key)?
+                .map(|i| h.buffer.data[i].1.clone())
+                .unwrap_or_default())
         }
         Kind::Bytes(h) => {
             let bytes = &h.data;
@@ -267,17 +255,14 @@ pub(crate) fn set_index(
             }
             root.set_array_index(ctx, n, value)
         }
-        Kind::Hash(h) => {
+        Kind::Hash(_) => {
             let key = if matches!(key.0, Kind::Symbol(_)) {
                 ctx.bytes(key.require_bytes()?)?
             } else {
                 key
             };
             key.require_bytes()?;
-            let mut out = Buffer::empty();
-            out.extend(ctx, &h.buffer.data)?;
-            json::insert(ctx, &mut out, key, value)?;
-            Value::from_hash(ctx, out)
+            root.set_hash_index(ctx, key, value)
         }
         _ => Err(type_error()),
     }

@@ -13,6 +13,7 @@ pub mod asynchronous;
 mod budget;
 mod bytecode;
 mod error;
+mod hash;
 mod json;
 mod ops;
 mod scan;
