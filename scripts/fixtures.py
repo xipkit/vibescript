@@ -104,7 +104,7 @@ def conformance_cases():
     for padding in [15,16,17,4093,4094,4095,4096,4097]:
         text="a"*padding+"é界🙂\u2028\u2029<>&"
         encoded=json.dumps(text+"\ufffd"*3,ensure_ascii=False,separators=(",",":"))
-        for char,escape in [("<",r"\u003c"),(">",r"\u003e"),("&",r"\u0026"),("\u2028",r"\u2028"),("\u2029",r"\u2029")]:
+        for char,escape in [("<",r"\u003c"),(">",r"\u003e"),("&",r"\u0026"),("\u2028",r"\u2028"),("\u2029",r"\u2029"),("\ufffd",r"\ufffd")]:
             encoded=encoded.replace(char,escape)
         add(f"unicode_boundary_{padding}",'input=input+"\\xff\\xc0\\x80"\n[input.length,JSON.stringify(input)]',[len(text)+3,encoded],text)
     rng=random.Random(1309)
