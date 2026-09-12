@@ -16,6 +16,9 @@ fn ordinary(b: u8, class: Class) -> bool {
 }
 
 pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
+    if s.is_empty() || !ordinary(s[0], class) {
+        return 0;
+    }
     let mut i = 0;
     #[cfg(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64")))]
     while s.len() - i >= 16 {
@@ -51,6 +54,9 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
             span.len += n;
             span.runes += n;
             span.steps += (n as u64).div_ceil(64);
+            if span.len < s.len() && s[span.len] < 128 {
+                break;
+            }
         } else {
             let tail = &s[span.len..];
             let (n, valid) = rune_width(tail);

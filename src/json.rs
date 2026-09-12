@@ -143,7 +143,6 @@ impl Parser<'_> {
             let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
             if span.len > 0 {
                 self.ctx.charge(span.steps)?;
-                self.ctx.checkpoint()?;
                 self.pos += span.len;
                 continue;
             }
@@ -396,12 +395,15 @@ fn write_value(
     Ok(())
 }
 fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Buffer<u8>) -> Result<()> {
-    let Some(minimum) = out
-        .data
-        .len()
-        .checked_add(input.len())
-        .and_then(|n| n.checked_add(2))
-    else {
+    let Some(minimum) = out.data.len().checked_add(input.len()).and_then(|n| {
+        n.checked_add(
+            2 + if input.len() >= CHUNK {
+                MAX_VALUE_DEPTH
+            } else {
+                0
+            },
+        )
+    }) else {
         return ctx.fail(ErrorKind::Memory, "JSON output size overflow");
     };
     if minimum > out.data.capacity() {

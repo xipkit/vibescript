@@ -218,8 +218,14 @@ fn unescaped_json_strings_fit_without_repeated_buffer_growth() {
         },
         ..CallOptions::default()
     };
-    let encoded = stringify_json(&Value::bytes(text), options).unwrap();
+    let encoded = stringify_json(&Value::bytes(text), options.clone()).unwrap();
     assert_eq!(encoded.value.as_bytes(), Some(input.as_bytes()));
+    assert!(encoded.stats.peak_memory_bytes < 140000);
+    let object = Value::hash(vec![(b"payload".to_vec(), Value::bytes(vec![b'a'; 65536]))]);
+    let encoded = stringify_json(&object, options).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap();
+    assert_eq!(parsed["payload"].as_str().unwrap().len(), 65536);
     assert!(encoded.stats.peak_memory_bytes < 140000);
 }
 
