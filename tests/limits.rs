@@ -184,6 +184,42 @@ fn imported_host_arrays_and_deep_constructed_values_are_bounded() {
 }
 
 #[test]
+fn unaliased_array_growth_has_bounded_work_and_memory() {
+    let script = Engine::new()
+        .compile("a=[]\ni=0\nwhile i<2000\n a.push(i)\n i+=1\nend\na.sum")
+        .unwrap();
+    let result = script
+        .run(CallOptions {
+            limits: Limits {
+                steps: Some(150_000),
+                memory_bytes: Some(256 << 10),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        })
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(1_999_000));
+    assert_eq!(result.stats.retained_memory_bytes, 0);
+}
+
+#[test]
+fn array_mutation_keeps_depth_limits_accurate() {
+    let engine = Engine::new();
+    let result = engine
+        .compile("x=[]\ni=0\nwhile i<80\n x=[x]\n i+=1\nend\na=[x]\na[0]=0\ni=0\nwhile i<100\n a=[a]\n i+=1\nend\na.length")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(1));
+    let error = engine
+        .compile("a=[]\ni=0\nwhile i<200\n a << a\n i+=1\nend")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Recursion);
+}
+
+#[test]
 fn children_do_not_cancel_their_parent() {
     let parent = CancellationToken::new();
     let child = parent.child_token();

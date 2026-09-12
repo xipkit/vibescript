@@ -48,6 +48,10 @@ pub(crate) fn execute(
             Op::Store(n) => {
                 frame.locals.data[n] = Some(stack.data.last().unwrap().clone());
             }
+            Op::ReleaseLocal(n) => {
+                // Arguments have finished evaluating; the operand stack now owns the receiver.
+                frame.locals.data[n] = None;
+            }
             Op::Pop => {
                 stack.data.pop().unwrap();
             }
@@ -105,6 +109,7 @@ pub(crate) fn execute(
                 let value = stack.data.pop().unwrap();
                 let key = stack.data.pop().unwrap();
                 let root = stack.data.pop().unwrap();
+                frame.locals.data[n] = None;
                 let new = ops::set_index(ctx, root, key, value.clone())?;
                 frame.locals.data[n] = Some(new);
                 stack.push(ctx, value)?;
@@ -133,7 +138,7 @@ pub(crate) fn execute(
             }
             Op::Method(method, n) => {
                 let base = stack.data.len() - n - 1;
-                let root = stack.data[base].clone();
+                let root = std::mem::take(&mut stack.data[base]);
                 let value = ops::method(ctx, method, root, &stack.data[base + 1..])?;
                 stack.data.truncate(base);
                 stack.push(ctx, value)?;

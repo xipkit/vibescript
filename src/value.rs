@@ -32,6 +32,21 @@ impl<T> Heap<T> {
     }
 }
 
+impl<T: Clone> Heap<T> {
+    fn make_mut<'a>(
+        ctx: &mut CallContext,
+        heap: &'a mut Arc<Self>,
+        capacity: usize,
+    ) -> Result<&'a mut Self> {
+        if Arc::get_mut(heap).is_none() {
+            let mut buffer = Buffer::with_capacity(ctx, capacity)?;
+            buffer.extend(ctx, &heap.buffer.data)?;
+            *heap = Self::new(ctx, buffer, heap.depth)?;
+        }
+        Ok(Arc::get_mut(heap).unwrap())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
     Nil,
@@ -44,7 +59,7 @@ pub(crate) enum Kind {
     Hash(Arc<Heap<(Value, Value)>>),
 }
 
-/// An immutable Vibescript value. Clones share storage; script updates create new collections.
+/// An immutable Vibescript value. Clones share storage; script updates preserve each clone's value.
 #[derive(Clone, Debug)]
 pub struct Value(pub(crate) Kind);
 
@@ -185,6 +200,59 @@ impl Value {
             depth = depth.max(v.depth() + 1);
         }
         Ok(Self(Kind::Hash(Heap::new(ctx, values, depth)?)))
+    }
+    pub(crate) fn push(self, ctx: &mut CallContext, values: &[Value]) -> Result<Self> {
+        let Kind::Array(mut heap) = self.0 else {
+            return Err(Error::new(ErrorKind::Type, "expected array"));
+        };
+        let mut depth = heap.depth;
+        for value in values {
+            ctx.charge(1)?;
+            depth = depth.max(value.depth() + 1);
+        }
+        if depth > MAX_VALUE_DEPTH {
+            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+        }
+        if !values.is_empty() {
+            let Some(capacity) = heap.buffer.data.len().checked_add(values.len()) else {
+                return ctx.fail(ErrorKind::Memory, "array size overflow");
+            };
+            let writable = Heap::make_mut(ctx, &mut heap, capacity)?;
+            writable.buffer.extend(ctx, values)?;
+            writable.depth = depth;
+        }
+        Ok(Self(Kind::Array(heap)))
+    }
+    pub(crate) fn set_array_index(
+        self,
+        ctx: &mut CallContext,
+        index: usize,
+        value: Value,
+    ) -> Result<Self> {
+        let Kind::Array(mut heap) = self.0 else {
+            return Err(Error::new(ErrorKind::Type, "expected array"));
+        };
+        let mut depth = heap.depth.max(value.depth() + 1);
+        if heap.depth > 1
+            && heap.buffer.data[index].depth() + 1 == heap.depth
+            && value.depth() + 1 < heap.depth
+        {
+            depth = value.depth() + 1;
+            for (i, item) in heap.buffer.data.iter().enumerate() {
+                ctx.charge(1)?;
+                if i != index {
+                    depth = depth.max(item.depth() + 1);
+                }
+            }
+        }
+        if depth > MAX_VALUE_DEPTH {
+            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+        }
+        let len = heap.buffer.data.len();
+        let writable = Heap::make_mut(ctx, &mut heap, len)?;
+        writable.buffer.data[index] = value;
+        writable.depth = depth;
+        Ok(Self(Kind::Array(heap)))
     }
     fn depth(&self) -> usize {
         match &self.0 {

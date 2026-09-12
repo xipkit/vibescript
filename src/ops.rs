@@ -43,7 +43,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         }));
     }
     if op == "<<" {
-        return push(ctx, &a, &[b]);
+        return a.push(ctx, &[b]);
     }
     match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => {
@@ -267,10 +267,7 @@ pub(crate) fn set_index(
             if n >= len {
                 return Err(Error::new(ErrorKind::Argument, "array index out of bounds"));
             }
-            let mut out = Buffer::with_capacity(ctx, len)?;
-            out.extend(ctx, &h.buffer.data)?;
-            out.data[n] = value;
-            Value::from_array(ctx, out)
+            root.set_array_index(ctx, n, value)
         }
         Kind::Hash(h) => {
             let key = if matches!(key.0, Kind::Symbol(_)) {
@@ -391,7 +388,7 @@ pub(crate) fn method(
         }
         Split => split(ctx, &value, args),
         Join => join(ctx, &value, args),
-        Push => push(ctx, &value, args),
+        Push => value.push(ctx, args),
         Sum => {
             arity(args, 0)?;
             let array = value.as_array().ok_or_else(type_error)?;
@@ -444,14 +441,6 @@ pub(crate) fn method(
             }
         }
     }
-}
-
-fn push(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
-    let array = value.as_array().ok_or_else(type_error)?;
-    let mut out = Buffer::empty();
-    out.extend(ctx, array)?;
-    out.extend(ctx, args)?;
-    Value::from_array(ctx, out)
 }
 
 pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)> {

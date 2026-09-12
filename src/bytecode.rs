@@ -10,6 +10,7 @@ pub(crate) enum Op {
     Nil,
     Load(usize),
     Store(usize),
+    ReleaseLocal(usize),
     Pop,
     Dup,
     Dup2,
@@ -338,6 +339,9 @@ impl Compiler<'_> {
                     self.patch(jump, self.code.len());
                 } else {
                     self.expr(b)?;
+                    if *op == "<<" {
+                        self.release_receiver(a);
+                    }
                     self.emit(Op::Binary(op));
                     if *op == "<<" {
                         self.write_receiver(a)?;
@@ -372,6 +376,9 @@ impl Compiler<'_> {
                     for a in args {
                         self.expr(a)?;
                     }
+                    if name == "push" {
+                        self.release_receiver(recv);
+                    }
                     self.emit(Op::Method(Method::parse(name)?, args.len()));
                     if name == "push" {
                         self.write_receiver(recv)?;
@@ -385,6 +392,12 @@ impl Compiler<'_> {
             }
         }
         Ok(())
+    }
+    fn release_receiver(&mut self, recv: &Expr) {
+        if let Node::Var(name) = &recv.node {
+            let slot = self.slot(name);
+            self.emit(Op::ReleaseLocal(slot));
+        }
     }
     fn write_receiver(&mut self, recv: &Expr) -> Result<()> {
         match &recv.node {
