@@ -32,7 +32,7 @@ let result = script.call("run", &[Value::int(20)], CallOptions::default())?;
 assert_eq!(result.value.as_int(), Some(41));
 ```
 
-`Script` is immutable and shareable between threads. Each call imports its arguments and owns its budget. `Value` clones share immutable storage; collection writes replace the named local, preserving value semantics. Strings hold arbitrary bytes, and character indexing treats each invalid UTF-8 byte as a replacement rune.
+`Script` is immutable and shareable between threads. Each call imports its arguments and owns its budget. `Value` clones share immutable storage; collection writes replace the named local, preserving value semantics. Array updates reuse storage when no aliases exist and copy when another value shares the array. Strings hold arbitrary bytes, and character indexing counts each invalid UTF-8 byte as one rune.
 
 Enable the `tokio` feature to use `asynchronous::Runner`. It runs calls on the host's Tokio blocking pool with a concurrency limit. Dropping the call future cancels its child token, and the worker retains its permit until it exits. Host callbacks remain synchronous; native async callbacks and suspended script execution are not implemented.
 
@@ -52,7 +52,9 @@ Not implemented: classes, modules, imports, enums, blocks/iterators, keyword/def
 
 The VM charges instructions and builtin work. Long scans and copies operate in chunks of at most 4 KiB, and exhaustion stays latched across host callbacks. Memory reservations cover runtime buffer capacity, shared-value headers, imports, locals, operand and frame stacks, and temporary builders. A reservation is made before buffer growth; growth conservatively counts the old and new capacities together. Dropping storage releases its charge, including values retained by the host after a call.
 
-This differs from Go's reachable-graph estimator. Step counts and memory thresholds are not interchangeable between implementations. The budget excludes compiled code, caller-owned storage, fixed context metadata, allocator bookkeeping, and memory allocated independently by trusted host callbacks. It is not an RSS limit. Unlimited memory disables tracking, so memory counters are zero in that mode. Cancellation is cooperative: host callbacks, allocation, and cleanup must finish or cooperate before a call can exit.
+Imported strings share their immutable backing bytes. Each call charges the full retained capacity, including unused capacity in a host buffer, and owns an independent charge that is released with its view. Cloning an imported value shares that charge. Separately importing the same foreign value again conservatively charges another view. Character slices and parsed JSON strings own their output storage, so a small result does not retain its source document.
+
+This differs from Go's reachable-graph estimator. Step counts and memory thresholds are not interchangeable between implementations, and this prototype's instruction fusion and builtin optimizations can change logical step counts. The budget excludes compiled code, caller-owned storage that the call does not retain, fixed context metadata, allocator bookkeeping, and memory allocated independently by trusted host callbacks. It is not an RSS limit. Unlimited memory disables tracking, so memory counters are zero in that mode. Cancellation is cooperative: host callbacks, allocation, and cleanup must finish or cooperate before a call can exit.
 
 SIMD uses 16-byte NEON operations on ARM64 and SSE2 on x86_64, with portable fallbacks. The `simd` feature is enabled by default; `--no-default-features` selects the portable Rust scanners. LLVM may still auto-vectorize ordinary Rust code. Scanner tests compare every byte value at vector boundaries, and shared fixtures require identical Rust accounting with the feature on and off.
 
@@ -64,4 +66,4 @@ python3 scripts/compare.py --rounds 8
 
 The harness downloads the pinned Go v0.70.0 module using an external-volume cache, then builds Go 1.27.1 with and without `GOEXPERIMENT=simd` and Rust with and without explicit SIMD. It checks shared cases against independently computed expected results before measuring compiled calls with accounting enabled and disabled. This includes 46 invocations from [ten unchanged upstream files](tests/upstream/README.md), and three original examples in the benchmark suite. Timing uses uninstrumented Rust binaries; separate binaries count allocations. Raw results include repeated samples, output digests, toolchains, binary hashes, and process peak RSS.
 
-See the [performance report](benchmarks/README.md) for measured gains, allocation costs, and follow-up targets, and the [implementation plan](docs/implementation-plan.md) for the architecture. Native measurements describe the machine recorded in each result directory, and are not a general claim about Rust versus Go.
+See the [optimization results](benchmarks/performance-followup.md), the [initial comparison](benchmarks/README.md), and the [implementation plan](docs/implementation-plan.md). Native measurements describe the machine recorded in each result directory, and are not a general claim about Rust versus Go.

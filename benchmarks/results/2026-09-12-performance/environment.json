@@ -1,0 +1,47 @@
+{
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M4",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "go": "go version go1.27.1 darwin/arm64\n",
+  "go_module": {
+    "Path": "github.com/mgomes/vibescript",
+    "Version": "v0.70.0",
+    "Time": "2026-09-11T02:07:28Z",
+    "Dir": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/github.com/mgomes/vibescript@v0.70.0",
+    "GoMod": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/cache/download/github.com/mgomes/vibescript/@v/v0.70.0.mod",
+    "GoVersion": "1.26",
+    "Sum": "h1:cqb56SkwtZ7BPASNBwFcd/aXOYNaylBPS6arxavWjhg=",
+    "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
+  },
+  "source_revision": "f86f4bcf123005008a3118662ae8b41fc598edf5",
+  "dirty": " M README.md\n M docs/implementation-plan.md\n?? benchmarks/results/2026-09-12-performance/\n",
+  "binary_sha256": {
+    "go-portable": "d0c93b6f9c3636f665e052097c2b56f0e52353cf3ea5f75dc610f2fdf50c6703",
+    "go-simd": "ed78f73103b2958cdf21efabbd28a85a9eea82b3f3ff38f5dfdab24c5062d8ca",
+    "rust-portable": "f76687fb4d58ddb762d82cf28a1e05415f688d9c88af025205f26e74235720dd",
+    "rust-simd": "78dadbe5bed9df35824946dbcb32b1358b138f5f9d2451d556eb759433d69b5e",
+    "rust-before-portable": "0d8357791a9df24d45c00b444ac29ee0e1d63363bb5229277ecf9134578b401f",
+    "rust-before-simd": "2f234dc9d9dedd40a7e38b6c686a4603e7a7b8a1f67fb2b8e60e92ac308709ff"
+  },
+  "RUSTFLAGS": "",
+  "GOFLAGS": "",
+  "GOMAXPROCS": 1,
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--baseline",
+    ".cache/performance-baseline",
+    "--rounds",
+    "12",
+    "--out",
+    "benchmarks/results/2026-09-12-performance"
+  ],
+  "baseline_source_revision": "8403e83c4760cee2601b229cd4a94c97777414a1",
+  "allocation_binary_sha256": {
+    "rust-portable-alloc": "384e1d3a97b3048abad5402010607323f6119897707850623cf67582ebc85e5a",
+    "rust-simd-alloc": "418b60d6e3c9062805e61d8765d8aa4a41382ab9347d209b83a38f401ad5eaac",
+    "rust-before-portable-alloc": "44d73e984eb31dafd68a6f9bc88f08a0fd1cff639eb909f35cd3b82b3231e356",
+    "rust-before-simd-alloc": "cc2ebc4c5c895cde78c3d44c93fa849d1e3ff5134ec1269ffafdec95bb474266"
+  }
+}
