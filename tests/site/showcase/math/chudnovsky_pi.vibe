@@ -1,0 +1,82 @@
+# title: Chudnovsky π
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Calculate 100 digits of π with the Chudnovsky formula and big integers.
+# description: This is a direct port of the chudnovsky Go project. Binary splitting combines each term, and an integer square root calculates √10005. Nine terms produce about 100 digits.
+# tags: math, numerics, bignum, newton
+# source: https://github.com/mgomes/chudnovsky
+# vibe: 0.4
+
+# Binary splitting: each leaf holds one series term's P, Q, T; merges combine
+# ranges with T(a,b) = Q(m,b)T(a,m) + P(a,m)T(m,b), exactly as the Go
+# implementation does across CPU cores. 10939058860032000 is 640320^3 / 24.
+def split_series(a, b)
+  if b - a == 1
+    if a == 0
+      p = 1
+      q = 1
+    else
+      p = (6 * a - 5) * (2 * a - 1) * (6 * a - 1)
+      q = a * a * a * 10939058860032000
+    end
+    t = p * (13591409 + 545140134 * a)
+    if a % 2 == 1
+      t = -t
+    end
+    [p, q, t]
+  else
+    m = (a + b) / 2
+    left = split_series(a, m)
+    right = split_series(m, b)
+    [
+      left[0] * right[0],
+      left[1] * right[1],
+      right[1] * left[2] + left[0] * right[2]
+    ]
+  end
+end
+
+# Integer Newton square root. The float seed is inflated above the true root,
+# so the sequence descends monotonically and stops exactly at floor(sqrt(n)).
+def integer_sqrt(n, seed)
+  x = (seed + n / seed) / 2
+  y = (x + n / x) / 2
+  while y < x
+    x = y
+    y = (x + n / x) / 2
+  end
+  x
+end
+
+def matching_digits(computed, reference)
+  pairs = computed.chars.zip(reference.chars)
+  first_mismatch = pairs.find_index { |pair| pair[0] != pair[1] }
+  if first_mismatch == nil
+    computed.length
+  else
+    first_mismatch
+  end
+end
+
+def run
+  digits = 100
+  scale = digits + 5
+  terms = scale / 14 + 2
+
+  p, q, t = split_series(0, terms)
+
+  seed = (Math.sqrt(10005.0) * 1.001 * (10.0 ** scale)).to_i
+  sqrt_c = integer_sqrt(10005 * (10 ** (2 * scale)), seed)
+
+  # pi * 10^scale = 426880 * sqrt(10005 * 10^(2*scale)) * Q / T
+  pi = (q * 426880 * sqrt_c) / t
+  computed = "3.#{pi.to_s.slice(1, digits)}"
+  reference = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679"
+
+  {
+    pi_100_digits: computed,
+    matching_reference_digits: matching_digits(computed, reference),
+    terms_used: terms,
+    digits_per_term: 14.18
+  }
+end

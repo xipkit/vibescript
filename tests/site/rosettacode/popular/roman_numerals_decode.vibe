@@ -1,0 +1,60 @@
+# title: Roman numerals/Decode
+# source: https://rosettacode.org/wiki/Roman_numerals/Decode
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Convert a Roman numeral string back to its integer value.
+# tags: popular, strings, math, conversion
+# vibe: 0.2
+
+def roman_value(char)
+  if char == "M"
+    return 1000
+  elsif char == "D"
+    return 500
+  elsif char == "C"
+    return 100
+  elsif char == "L"
+    return 50
+  elsif char == "X"
+    return 10
+  elsif char == "V"
+    return 5
+  elsif char == "I"
+    return 1
+  end
+  0
+end
+
+def from_roman(roman)
+  total = 0
+  i = 0
+
+  while i < roman.length
+    current = roman_value(roman.slice(i))
+    if i + 1 < roman.length
+      next_val = roman_value(roman.slice(i + 1))
+      if current < next_val
+        total = total + (next_val - current)
+        i = i + 2
+      else
+        total = total + current
+        i = i + 1
+      end
+    else
+      total = total + current
+      i = i + 1
+    end
+  end
+
+  total
+end
+
+def run
+  {
+    i: from_roman("I"),
+    iv: from_roman("IV"),
+    xlii: from_roman("XLII"),
+    xcix: from_roman("XCIX"),
+    mmxxiv: from_roman("MMXXIV")
+  }
+end

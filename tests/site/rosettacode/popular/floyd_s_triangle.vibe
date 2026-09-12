@@ -1,0 +1,31 @@
+# title: Floyd's triangle
+# source: https://rosettacode.org/wiki/Floyd%27s_triangle
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate the opening rows of Floyd's triangle.
+# tags: popular, arrays, formatting, sequences
+# vibe: 0.2
+
+def floyd_triangle(rows_count)
+  rows = []
+  current = 1
+  row_size = 1
+
+  while row_size <= rows_count
+    row = []
+    index = 0
+    while index < row_size
+      row = row.push(current)
+      current = current + 1
+      index = index + 1
+    end
+    rows = rows.push(row)
+    row_size = row_size + 1
+  end
+
+  rows
+end
+
+def run
+  floyd_triangle(7)
+end

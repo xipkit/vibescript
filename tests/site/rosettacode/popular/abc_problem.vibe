@@ -1,0 +1,57 @@
+# title: ABC Problem
+# source: https://rosettacode.org/wiki/ABC_Problem
+# category: Rosetta Code Popular
+# difficulty: Intermediate
+# summary: Determine whether a word can be formed from a fixed set of two-letter blocks without reusing a block.
+# tags: popular, search, strings, recursion
+# vibe: 0.4
+
+def blocks
+  [
+    "BO", "XK", "DQ", "CP", "NA",
+    "GT", "RE", "TG", "QD", "FS",
+    "JW", "HU", "VI", "AN", "OB",
+    "ER", "FS", "LY", "PC", "ZM"
+  ]
+end
+
+def block_matches?(block, letter)
+  block.start_with?(letter) || block.slice(1) == letter
+end
+
+def can_make_from?(letters, letter_index, available_blocks)
+  if letter_index >= letters.size
+    return true
+  end
+
+  letter = letters[letter_index]
+  block_index = 0
+
+  while block_index < available_blocks.size
+    if block_matches?(available_blocks[block_index], letter)
+      remaining = available_blocks.take(block_index) + available_blocks.drop(block_index + 1)
+      if can_make_from?(letters, letter_index + 1, remaining)
+        return true
+      end
+    end
+    block_index = block_index + 1
+  end
+
+  false
+end
+
+def can_make?(word)
+  can_make_from?(word.upcase.chars, 0, blocks)
+end
+
+def run
+  {
+    a: can_make?("A"),
+    bark: can_make?("BARK"),
+    book: can_make?("BOOK"),
+    treat: can_make?("TREAT"),
+    common: can_make?("COMMON"),
+    squad: can_make?("SQUAD"),
+    confuse: can_make?("CONFUSE")
+  }
+end

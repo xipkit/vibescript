@@ -1,0 +1,53 @@
+# title: Sieve of Eratosthenes
+# source: https://rosettacode.org/wiki/Sieve_of_Eratosthenes
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate the prime numbers up to fifty with the classic sieve.
+# tags: popular, math, primes, arrays
+# vibe: 0.2
+
+def sieve(limit)
+  flags = []
+  value = 0
+  while value <= limit
+    flags = flags.push(true)
+    value = value + 1
+  end
+
+  flags[0] = false
+  if limit >= 1
+    flags[1] = false
+  end
+
+  candidate = 2
+  while candidate * candidate <= limit
+    if flags[candidate]
+      composite = candidate * candidate
+      while composite <= limit
+        flags[composite] = false
+        composite = composite + candidate
+      end
+    end
+    candidate = candidate + 1
+  end
+
+  primes = []
+  value = 2
+  while value <= limit
+    if flags[value]
+      primes = primes.push(value)
+    end
+    value = value + 1
+  end
+
+  primes
+end
+
+def run
+  primes = sieve(50)
+  {
+    limit: 50,
+    count: primes.length,
+    primes: primes
+  }
+end

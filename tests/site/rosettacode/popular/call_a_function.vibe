@@ -1,0 +1,24 @@
+# title: Call a function
+# source: https://rosettacode.org/wiki/Call_a_function
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Call functions with positional arguments and combine their results.
+# tags: popular, basics, functions, strings
+# vibe: 0.2
+
+def greet(name)
+  "hello, " + name
+end
+
+def emphasize(text)
+  text.upcase + "!"
+end
+
+def run
+  greeting = greet("vibescript")
+  {
+    greeting: greeting,
+    excited: emphasize(greeting),
+    combined: greet("rosetta code") + " / " + greet("browser runner")
+  }
+end

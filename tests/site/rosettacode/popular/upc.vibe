@@ -1,0 +1,36 @@
+# title: UPC
+# source: https://rosettacode.org/wiki/UPC
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Validate sample UPC codes with the standard checksum rule.
+# tags: popular, strings, validation, checksum
+# vibe: 0.2
+
+def digit_value(char)
+  "0123456789".index(char)
+end
+
+def valid_upc?(code)
+  sum = 0
+  index = 0
+
+  while index < code.length
+    digit = digit_value(code.slice(index))
+    if index.even?
+      sum = sum + (digit * 3)
+    else
+      sum = sum + digit
+    end
+    index = index + 1
+  end
+
+  sum % 10 == 0
+end
+
+def run
+  [
+    { code: "036000291452", valid: valid_upc?("036000291452") },
+    { code: "042100005264", valid: valid_upc?("042100005264") },
+    { code: "123456789999", valid: valid_upc?("123456789999") }
+  ]
+end

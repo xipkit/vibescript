@@ -1,0 +1,39 @@
+# title: N-smooth numbers
+# source: https://rosettacode.org/wiki/N-smooth_numbers
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate the first twenty 5-smooth numbers by stripping allowed small factors.
+# tags: popular, math, sequences, factors
+# vibe: 0.2
+
+def smooth?(number, limit)
+  remaining = number
+  factor = 2
+
+  while factor <= limit
+    while remaining % factor == 0
+      remaining = remaining / factor
+    end
+    factor = factor + 1
+  end
+
+  remaining == 1
+end
+
+def smooth_numbers(limit, count)
+  values = []
+  candidate = 1
+
+  while values.length < count
+    if smooth?(candidate, limit)
+      values = values.push(candidate)
+    end
+    candidate = candidate + 1
+  end
+
+  values
+end
+
+def run
+  smooth_numbers(5, 20)
+end

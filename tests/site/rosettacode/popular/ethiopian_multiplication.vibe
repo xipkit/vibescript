@@ -1,0 +1,31 @@
+# title: Ethiopian multiplication
+# source: https://rosettacode.org/wiki/Ethiopian_multiplication
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Multiply two integers by repeated halving, doubling, and summing odd rows.
+# tags: popular, math, multiplication, loops
+# vibe: 0.2
+
+def ethiopian_multiply(left, right)
+  total = 0
+  a = left
+  b = right
+
+  while a > 0
+    if a.odd?
+      total = total + b
+    end
+    a = a / 2
+    b = b * 2
+  end
+
+  total
+end
+
+def run
+  {
+    seventeen_thirty_four: ethiopian_multiply(17, 34),
+    twenty_seven_eighty_two: ethiopian_multiply(27, 82),
+    three_digit_pair: ethiopian_multiply(123, 45)
+  }
+end

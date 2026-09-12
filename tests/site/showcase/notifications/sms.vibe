@@ -1,0 +1,18 @@
+# title: Send an SMS
+# category: Vibescript Showcase
+# difficulty: Embedding
+# summary: Write a delivery update and send it through a Go SMS capability.
+# description: The Go adapter returns a message preview. No SMS is sent.
+# tags: notifications, capabilities, sms, embedding
+# featured: true
+# feature_rank: -3
+# uses: sms
+
+def delivery_update(phone, order_id)
+  body = "Order #{order_id} is on its way."
+  sms.send(phone, body)
+end
+
+def run
+  delivery_update("+12025550123", "1042")
+end

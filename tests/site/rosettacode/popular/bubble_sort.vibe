@@ -1,0 +1,38 @@
+# title: Bubble sort
+# source: https://rosettacode.org/wiki/Sorting_algorithms/Bubble_sort
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Sort an array of integers using the bubble sort algorithm.
+# tags: popular, sorting, arrays, loops
+# vibe: 0.2
+
+def bubble_sort(arr)
+  n = arr.size
+  swapped = true
+
+  while swapped
+    swapped = false
+    i = 1
+    while i < n
+      if arr[i - 1] > arr[i]
+        temp = arr[i - 1]
+        arr[i - 1] = arr[i]
+        arr[i] = temp
+        swapped = true
+      end
+      i = i + 1
+    end
+    n = n - 1
+  end
+
+  arr
+end
+
+def run
+  {
+    sorted: bubble_sort([64, 34, 25, 12, 22, 11, 90]),
+    already: bubble_sort([1, 2, 3, 4, 5]),
+    reversed: bubble_sort([5, 4, 3, 2, 1]),
+    single: bubble_sort([42])
+  }
+end

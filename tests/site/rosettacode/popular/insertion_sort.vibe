@@ -1,0 +1,31 @@
+# title: Insertion sort
+# source: https://rosettacode.org/wiki/Sorting_algorithms/Insertion_sort
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Sort an array by repeatedly inserting each element into its correct position.
+# tags: popular, sorting, arrays, loops
+# vibe: 0.2
+
+def insertion_sort(arr)
+  i = 1
+  while i < arr.size
+    key = arr[i]
+    j = i - 1
+    while j >= 0 && arr[j] > key
+      arr[j + 1] = arr[j]
+      j = j - 1
+    end
+    arr[j + 1] = key
+    i = i + 1
+  end
+  arr
+end
+
+def run
+  {
+    sorted: insertion_sort([64, 34, 25, 12, 22, 11, 90]),
+    already: insertion_sort([1, 2, 3, 4, 5]),
+    reversed: insertion_sort([5, 4, 3, 2, 1]),
+    single: insertion_sort([42])
+  }
+end

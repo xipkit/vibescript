@@ -1,0 +1,25 @@
+# title: String comparison
+# source: https://rosettacode.org/wiki/String_comparison
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compare sample string pairs lexicographically and report the sign of each comparison.
+# tags: popular, strings, basics, comparison
+# vibe: 0.2
+
+def compare_strings(left, right)
+  if left < right
+    -1
+  elsif left > right
+    1
+  else
+    0
+  end
+end
+
+def run
+  [
+    { left: "alpha", right: "beta", result: compare_strings("alpha", "beta") },
+    { left: "gamma", right: "gamma", result: compare_strings("gamma", "gamma") },
+    { left: "zeta", right: "epsilon", result: compare_strings("zeta", "epsilon") }
+  ]
+end

@@ -1,0 +1,32 @@
+# title: Fibonacci word
+# source: https://rosettacode.org/wiki/Fibonacci_word
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Build the opening Fibonacci words by concatenating the two previous terms.
+# tags: popular, strings, sequences, recursion
+# vibe: 0.2
+
+def fibonacci_words(count)
+  words = []
+  previous = "1"
+  current = "0"
+  index = 0
+
+  while index < count
+    words = words.push(current)
+    next_word = current + previous
+    previous = current
+    current = next_word
+    index = index + 1
+  end
+
+  words
+end
+
+def run
+  words = fibonacci_words(8)
+  {
+    words: words,
+    final_length: words[words.size - 1].length
+  }
+end

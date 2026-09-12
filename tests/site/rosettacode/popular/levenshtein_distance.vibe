@@ -1,0 +1,67 @@
+# title: Levenshtein distance
+# source: https://rosettacode.org/wiki/Levenshtein_distance
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Compute edit distance with insert, delete, and substitute operations using a single rolling row.
+# tags: popular, strings, dynamic-programming, metrics
+# vibe: 0.2
+
+def index_row(length)
+  row = []
+  index = 0
+  while index <= length
+    row = row + [index]
+    index = index + 1
+  end
+  row
+end
+
+def smallest(a, b, c)
+  value = a
+  if b < value
+    value = b
+  end
+  if c < value
+    value = c
+  end
+  value
+end
+
+def levenshtein(left, right)
+  if left.length > right.length
+    swap = left
+    left = right
+    right = swap
+  end
+
+  previous = index_row(left.length)
+  right_index = 0
+  while right_index < right.length
+    current = [right_index + 1]
+    left_index = 0
+    while left_index < left.length
+      if left.slice(left_index) == right.slice(right_index)
+        value = previous[left_index]
+      else
+        deletion = previous[left_index + 1] + 1
+        insertion = current[left_index] + 1
+        substitution = previous[left_index] + 1
+        value = smallest(deletion, insertion, substitution)
+      end
+      current = current + [value]
+      left_index = left_index + 1
+    end
+    previous = current
+    right_index = right_index + 1
+  end
+
+  previous[previous.size - 1]
+end
+
+def run
+  {
+    kitten_sitting: levenshtein("kitten", "sitting"),
+    rosettacode_raisethysword: levenshtein("rosettacode", "raisethysword"),
+    reverse_invariant: levenshtein("kitten", "sitting") == levenshtein("kitten".reverse, "sitting".reverse)
+  }
+end

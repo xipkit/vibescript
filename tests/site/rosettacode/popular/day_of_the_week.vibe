@@ -1,0 +1,42 @@
+# title: Day of the week
+# source: https://rosettacode.org/wiki/Day_of_the_week
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute weekdays for fixed Gregorian dates with Zeller's congruence.
+# tags: popular, dates, math, calendars
+# vibe: 0.2
+
+def weekday(year, month, day)
+  adjusted_year = year
+  adjusted_month = month
+
+  if adjusted_month < 3
+    adjusted_month = adjusted_month + 12
+    adjusted_year = adjusted_year - 1
+  end
+
+  century_year = adjusted_year % 100
+  zero_based_century = adjusted_year / 100
+  code = (
+    day +
+      ((13 * (adjusted_month + 1)) / 5) +
+      century_year +
+      (century_year / 4) +
+      (zero_based_century / 4) +
+      (5 * zero_based_century)
+  ) % 7
+
+  weekday_names[code]
+end
+
+def weekday_names
+  ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+end
+
+def run
+  [
+    { date: "2026-03-08", weekday: weekday(2026, 3, 8) },
+    { date: "2024-02-29", weekday: weekday(2024, 2, 29) },
+    { date: "2000-01-01", weekday: weekday(2000, 1, 1) }
+  ]
+end

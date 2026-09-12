@@ -1,0 +1,40 @@
+# title: Cartesian product of two or more lists
+# source: https://rosettacode.org/wiki/Cartesian_product_of_two_or_more_lists
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Build Cartesian products iteratively for a pair of lists and a three-list input.
+# tags: popular, arrays, combinatorics, iteration
+# vibe: 0.2
+
+def cartesian_product(lists)
+  combinations = [[]]
+  list_index = 0
+
+  while list_index < lists.length
+    current = lists[list_index]
+    next_combinations = []
+    combination_index = 0
+
+    while combination_index < combinations.length
+      prefix = combinations[combination_index]
+      value_index = 0
+      while value_index < current.length
+        next_combinations = next_combinations.push(prefix + [current[value_index]])
+        value_index = value_index + 1
+      end
+      combination_index = combination_index + 1
+    end
+
+    combinations = next_combinations
+    list_index = list_index + 1
+  end
+
+  combinations
+end
+
+def run
+  {
+    two_lists: cartesian_product([["red", "blue"], [1, 2, 3]]),
+    three_lists: cartesian_product([["small", "large"], ["circle", "square"], ["solid", "outline"]])
+  }
+end

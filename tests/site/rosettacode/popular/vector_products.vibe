@@ -1,0 +1,28 @@
+# title: Vector products
+# source: https://rosettacode.org/wiki/Vector_products
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute the dot product and cross product of two fixed three-dimensional vectors.
+# tags: popular, math, vectors, geometry
+# vibe: 0.2
+
+def dot(left, right)
+  (left[0] * right[0]) + (left[1] * right[1]) + (left[2] * right[2])
+end
+
+def cross(left, right)
+  [
+    (left[1] * right[2]) - (left[2] * right[1]),
+    (left[2] * right[0]) - (left[0] * right[2]),
+    (left[0] * right[1]) - (left[1] * right[0])
+  ]
+end
+
+def run
+  left = [3, -5, 4]
+  right = [2, 6, 5]
+  {
+    dot: dot(left, right),
+    cross: cross(left, right)
+  }
+end

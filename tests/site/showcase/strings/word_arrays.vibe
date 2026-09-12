@@ -1,0 +1,29 @@
+# title: Word and symbol arrays
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Build string and symbol arrays with %w, %i, %W, and %I.
+# description: Lowercase forms create fixed arrays. Uppercase forms allow interpolation.
+# tags: strings, symbols, literals
+# vibe: 0.4
+
+def static_tags
+  %w[alpha beta gamma]
+end
+
+def build_targets(env: string)
+  %W[build-#{env} deploy-#{env} verify-#{env}]
+end
+
+def lifecycle_states
+  %i[queued running done]
+end
+
+def run
+  {
+    static_tags: static_tags,
+    build_targets: build_targets("prod"),
+    lifecycle_states: lifecycle_states.map { |state| state.to_s },
+    first_state: lifecycle_states[0].to_s,
+    target_count: build_targets("staging").length
+  }
+end

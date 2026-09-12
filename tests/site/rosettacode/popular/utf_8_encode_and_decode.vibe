@@ -1,0 +1,59 @@
+# title: UTF-8 encode and decode
+# source: https://rosettacode.org/wiki/UTF-8_encode_and_decode
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Encode fixed code points into UTF-8 byte arrays and decode them back.
+# tags: popular, strings, encoding, unicode
+# vibe: 0.2
+
+def utf8_encode(code_point)
+  if code_point < 128
+    [code_point]
+  elsif code_point < 2048
+    [192 + (code_point / 64), 128 + (code_point % 64)]
+  elsif code_point < 65536
+    [
+      224 + (code_point / 4096),
+      128 + ((code_point / 64) % 64),
+      128 + (code_point % 64)
+    ]
+  else
+    [
+      240 + (code_point / 262144),
+      128 + ((code_point / 4096) % 64),
+      128 + ((code_point / 64) % 64),
+      128 + (code_point % 64)
+    ]
+  end
+end
+
+def utf8_decode(bytes)
+  if bytes.length == 1
+    bytes[0]
+  elsif bytes.length == 2
+    ((bytes[0] - 192) * 64) + (bytes[1] - 128)
+  elsif bytes.length == 3
+    ((bytes[0] - 224) * 4096) + ((bytes[1] - 128) * 64) + (bytes[2] - 128)
+  else
+    ((bytes[0] - 240) * 262144) + ((bytes[1] - 128) * 4096) + ((bytes[2] - 128) * 64) + (bytes[3] - 128)
+  end
+end
+
+def run
+  code_points = [36, 162, 8364, 128578]
+  rows = []
+  index = 0
+
+  while index < code_points.length
+    code_point = code_points[index]
+    bytes = utf8_encode(code_point)
+    rows = rows.push({
+      code_point: code_point,
+      bytes: bytes,
+      decoded: utf8_decode(bytes)
+    })
+    index = index + 1
+  end
+
+  rows
+end

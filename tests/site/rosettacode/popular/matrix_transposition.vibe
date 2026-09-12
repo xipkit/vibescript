@@ -1,0 +1,14 @@
+# title: Matrix transposition
+# source: https://rosettacode.org/wiki/Matrix_transposition
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Transpose a matrix by swapping its rows and columns with the built-in Array#transpose.
+# tags: popular, math, arrays
+# vibe: 0.4
+
+def run
+  {
+    square: [[1, 2, 3], [4, 5, 6], [7, 8, 9]].transpose,
+    rectangular: [[1, 2], [3, 4], [5, 6]].transpose
+  }
+end

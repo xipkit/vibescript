@@ -1,0 +1,23 @@
+# vibe: 1.0
+
+def total_raised_by_currency(donations)
+  grouped = {}
+  donations.each do |donation|
+    currency = donation[:amount].currency
+    current = grouped[currency]
+    if current == nil
+      current = money("0.00 " + currency)
+    end
+    grouped[currency] = current + donation[:amount]
+  end
+  grouped
+end
+
+def run
+  donations = [
+    { amount: money("25.00 USD") },
+    { amount: money("50.00 USD") },
+    { amount: money("10.00 USD") }
+  ]
+  total_raised_by_currency(donations)
+end

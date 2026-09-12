@@ -1,0 +1,44 @@
+# title: Numeric literals and rounding
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Read hex, octal, binary, and scientific numbers, then round them.
+# description: Vibescript uses Ruby-style number literals and helpers for rounding and checking values.
+# tags: numbers, literals, math
+# vibe: 0.4
+
+def permission_bits
+  {
+    read: 0b100,
+    write: 0b010,
+    execute: 0b001,
+    read_write: 0b100 + 0b010
+  }
+end
+
+def named_sizes
+  {
+    kilobyte: 1e3,
+    megabyte: 1e6,
+    hex_flags: 0xFF00,
+    octal_mode: 0o755
+  }
+end
+
+def rounding(value: float) -> hash
+  {
+    whole: value.round,
+    cents: value.round(2),
+    down: value.floor,
+    up: value.ceil
+  }
+end
+
+def run
+  {
+    permission_bits: permission_bits,
+    named_sizes: named_sizes,
+    rounding: rounding(3.14159),
+    is_even: 42.even?,
+    next_id: 41.succ
+  }
+end

@@ -1,0 +1,51 @@
+# title: Binary Search
+# source: https://rosettacode.org/wiki/Binary_search
+# category: Rosetta Code Popular
+# difficulty: Easy
+# summary: Locate values in a sorted array by repeatedly halving the remaining search interval.
+# tags: popular, search, arrays, divide-and-conquer
+# vibe: 0.2
+
+def midpoint(low, high)
+  middle = low
+  span = high - low
+  step = 0
+
+  while step < span
+    step = step + 2
+    if step <= span
+      middle = middle + 1
+    end
+  end
+
+  middle
+end
+
+def binary_search(values, target, low, high)
+  while low <= high
+    middle = midpoint(low, high)
+    candidate = values[middle]
+
+    if candidate == target
+      return middle
+    end
+
+    if candidate < target
+      low = middle + 1
+    else
+      high = middle - 1
+    end
+  end
+
+  nil
+end
+
+def run
+  values = [-31, -4, 0, 1, 5, 9, 12, 17, 23, 42, 77]
+  {
+    found_middle: binary_search(values, 23, 0, 10),
+    found_first: binary_search(values, -31, 0, 10),
+    found_last: binary_search(values, 77, 0, 10),
+    missing: binary_search(values, 8, 0, 10)
+  }
+end

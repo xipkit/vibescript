@@ -1,0 +1,43 @@
+# title: Farey sequence
+# source: https://rosettacode.org/wiki/Farey_sequence
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Generate Farey sequences of small orders with the classic iterative recurrence.
+# tags: popular, math, fractions, sequences
+# vibe: 0.2
+
+def fraction_text(numerator, denominator)
+  ("" + numerator) + "/" + ("" + denominator)
+end
+
+def farey_sequence(order)
+  left_numerator = 0
+  left_denominator = 1
+  right_numerator = 1
+  right_denominator = order
+  values = [fraction_text(left_numerator, left_denominator)]
+
+  while right_numerator <= order
+    values = values.push(fraction_text(right_numerator, right_denominator))
+
+    multiplier = (order + left_denominator) / right_denominator
+    next_left_numerator = right_numerator
+    next_left_denominator = right_denominator
+    next_right_numerator = (multiplier * right_numerator) - left_numerator
+    next_right_denominator = (multiplier * right_denominator) - left_denominator
+
+    left_numerator = next_left_numerator
+    left_denominator = next_left_denominator
+    right_numerator = next_right_numerator
+    right_denominator = next_right_denominator
+  end
+
+  values
+end
+
+def run
+  {
+    order_five: farey_sequence(5),
+    order_seven_count: farey_sequence(7).length
+  }
+end

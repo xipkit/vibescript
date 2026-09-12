@@ -1,0 +1,48 @@
+# title: Abundant, deficient and perfect number classifications
+# source: https://rosettacode.org/wiki/Abundant,_deficient_and_perfect_number_classifications
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Classify sample integers by comparing them with the sum of their proper divisors.
+# tags: popular, math, number-theory, classification
+# vibe: 0.2
+
+def proper_divisor_sum(number)
+  if number == 1
+    return 0
+  end
+
+  total = 1
+  candidate = 2
+
+  while candidate * candidate <= number
+    if number % candidate == 0
+      total = total + candidate
+      other = number / candidate
+      if other != candidate
+        total = total + other
+      end
+    end
+    candidate = candidate + 1
+  end
+
+  total
+end
+
+def classification(number)
+  divisor_sum = proper_divisor_sum(number)
+  if divisor_sum < number
+    "deficient"
+  elsif divisor_sum > number
+    "abundant"
+  else
+    "perfect"
+  end
+end
+
+def run
+  [
+    { value: 12, classification: classification(12) },
+    { value: 15, classification: classification(15) },
+    { value: 28, classification: classification(28) }
+  ]
+end

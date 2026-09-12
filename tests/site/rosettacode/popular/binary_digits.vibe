@@ -1,0 +1,32 @@
+# title: Binary digits
+# source: https://rosettacode.org/wiki/Binary_digits
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Convert fixed non-negative integers into binary strings.
+# tags: popular, numbers, strings, conversion
+# vibe: 0.2
+
+def binary_digits(value)
+  if value == 0
+    return "0"
+  end
+
+  digits = ""
+  current = value
+
+  while current > 0
+    digits = "" + (current % 2) + digits
+    current = current / 2
+  end
+
+  digits
+end
+
+def run
+  [
+    { value: 0, binary: binary_digits(0) },
+    { value: 5, binary: binary_digits(5) },
+    { value: 42, binary: binary_digits(42) },
+    { value: 255, binary: binary_digits(255) }
+  ]
+end

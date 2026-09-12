@@ -1,0 +1,60 @@
+# title: Humble numbers
+# source: https://rosettacode.org/wiki/Humble_numbers
+# category: Rosetta Code
+# difficulty: Intermediate
+# summary: Generate humble numbers with the standard 2-3-5-7 pointer technique.
+# tags: popular, math, sequences, dynamic-programming
+# vibe: 0.2
+
+def humble_numbers(count)
+  values = [1]
+  by_two = 0
+  by_three = 0
+  by_five = 0
+  by_seven = 0
+
+  while values.length < count
+    next_two = values[by_two] * 2
+    next_three = values[by_three] * 3
+    next_five = values[by_five] * 5
+    next_seven = values[by_seven] * 7
+
+    next_value = next_two
+    if next_three < next_value
+      next_value = next_three
+    end
+    if next_five < next_value
+      next_value = next_five
+    end
+    if next_seven < next_value
+      next_value = next_seven
+    end
+
+    if next_value != values[values.length - 1]
+      values = values.push(next_value)
+    end
+
+    if next_two == next_value
+      by_two = by_two + 1
+    end
+    if next_three == next_value
+      by_three = by_three + 1
+    end
+    if next_five == next_value
+      by_five = by_five + 1
+    end
+    if next_seven == next_value
+      by_seven = by_seven + 1
+    end
+  end
+
+  values
+end
+
+def run
+  values = humble_numbers(25)
+  {
+    first_twenty_five: values,
+    twenty_fifth: values[24]
+  }
+end

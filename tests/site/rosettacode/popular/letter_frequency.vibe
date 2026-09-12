@@ -1,0 +1,27 @@
+# title: Letter frequency
+# source: https://rosettacode.org/wiki/Letter_frequency
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Count alphabetic character frequencies in a sample phrase.
+# tags: popular, strings, hashes, counting
+# vibe: 0.2
+
+def letter_frequency(text)
+  counts = {}
+  normalized = text.downcase
+  index = 0
+
+  while index < normalized.length
+    char = normalized.slice(index)
+    if char >= "a" && char <= "z"
+      counts[char] = counts.fetch(char, 0) + 1
+    end
+    index = index + 1
+  end
+
+  counts
+end
+
+def run
+  letter_frequency("Vibescript makes Rosetta Code tasks feel concrete.")
+end

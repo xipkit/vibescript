@@ -1,0 +1,27 @@
+# title: Truth table
+# source: https://rosettacode.org/wiki/Truth_table
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Enumerate boolean combinations for common logical operators.
+# tags: popular, booleans, basics, operators
+
+def truth_row(a, b)
+  {
+    a: a,
+    b: b,
+    and: a && b,
+    or: a || b,
+    xor: (a || b) && !(a && b),
+    not_a: !a
+  }
+end
+
+def run
+  [
+    truth_row(true, true),
+    truth_row(true, false),
+    truth_row(false, true),
+    truth_row(false, false)
+  ]
+end
+

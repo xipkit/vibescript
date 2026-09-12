@@ -1,0 +1,21 @@
+# title: Arrays
+# source: https://rosettacode.org/wiki/Arrays
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Create, index, append to, and total arrays.
+# tags: popular, arrays, basics, collections
+# vibe: 0.4
+
+def run
+  values = [3, 1, 4]
+  expanded = values.dup.push(1, 5, 9)
+
+  {
+    original: values,
+    expanded: expanded,
+    first: expanded.first,
+    last: expanded.last,
+    count: expanded.size,
+    total: expanded.sum
+  }
+end

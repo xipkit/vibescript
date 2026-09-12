@@ -1,0 +1,52 @@
+# title: Hamming numbers
+# source: https://rosettacode.org/wiki/Hamming_numbers
+# category: Rosetta Code
+# difficulty: Intermediate
+# summary: Generate the opening Hamming numbers with the classic 2-3-5 pointer technique.
+# tags: popular, math, sequences, dynamic-programming
+# vibe: 0.2
+
+def hamming_numbers(count)
+  values = [1]
+  by_two = 0
+  by_three = 0
+  by_five = 0
+
+  while values.size < count
+    next_two = values[by_two] * 2
+    next_three = values[by_three] * 3
+    next_five = values[by_five] * 5
+
+    next_value = next_two
+    if next_three < next_value
+      next_value = next_three
+    end
+    if next_five < next_value
+      next_value = next_five
+    end
+
+    if next_value != values[values.size - 1]
+      values = values + [next_value]
+    end
+
+    if next_two == next_value
+      by_two = by_two + 1
+    end
+    if next_three == next_value
+      by_three = by_three + 1
+    end
+    if next_five == next_value
+      by_five = by_five + 1
+    end
+  end
+
+  values
+end
+
+def run
+  values = hamming_numbers(20)
+  {
+    first_twenty: values,
+    twentieth: values[19]
+  }
+end

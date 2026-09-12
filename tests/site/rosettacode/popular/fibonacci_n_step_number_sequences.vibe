@@ -1,0 +1,42 @@
+# title: Fibonacci n-step number sequences
+# source: https://rosettacode.org/wiki/Fibonacci_n-step_number_sequences
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate Tribonacci and Tetranacci sequences by summing the previous n terms.
+# tags: popular, math, sequences, iteration
+# vibe: 0.2
+
+def trailing_sum(values, count)
+  total = 0
+  index = values.length - count
+
+  while index < values.length
+    total = total + values[index]
+    index = index + 1
+  end
+
+  total
+end
+
+def n_step_sequence(seed, count)
+  values = []
+  index = 0
+
+  while index < seed.length && values.length < count
+    values = values.push(seed[index])
+    index = index + 1
+  end
+
+  while values.length < count
+    values = values.push(trailing_sum(values, seed.length))
+  end
+
+  values
+end
+
+def run
+  {
+    tribonacci: n_step_sequence([0, 0, 1], 12),
+    tetranacci: n_step_sequence([0, 0, 0, 1], 12)
+  }
+end

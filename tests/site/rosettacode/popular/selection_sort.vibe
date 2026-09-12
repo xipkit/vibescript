@@ -1,0 +1,39 @@
+# title: Selection sort
+# source: https://rosettacode.org/wiki/Sorting_algorithms/Selection_sort
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Sort an array by repeatedly selecting the minimum element from the unsorted portion.
+# tags: popular, sorting, arrays, loops
+# vibe: 0.2
+
+def selection_sort(arr)
+  i = 0
+  while i < arr.size - 1
+    min_idx = i
+    j = i + 1
+    while j < arr.size
+      if arr[j] < arr[min_idx]
+        min_idx = j
+      end
+      j = j + 1
+    end
+
+    if min_idx != i
+      temp = arr[i]
+      arr[i] = arr[min_idx]
+      arr[min_idx] = temp
+    end
+
+    i = i + 1
+  end
+
+  arr
+end
+
+def run
+  {
+    sorted: selection_sort([64, 25, 12, 22, 11]),
+    already: selection_sort([1, 2, 3, 4, 5]),
+    reversed: selection_sort([5, 4, 3, 2, 1])
+  }
+end

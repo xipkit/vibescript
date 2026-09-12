@@ -1,0 +1,83 @@
+# title: Spiral matrix
+# source: https://rosettacode.org/wiki/Spiral_matrix
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Fill a square matrix in clockwise spiral order.
+# tags: popular, matrices, arrays, indexing
+# vibe: 0.2
+
+def blank_matrix(size)
+  rows = []
+  row = 0
+  while row < size
+    current = []
+    column = 0
+    while column < size
+      current = current.push(0)
+      column = column + 1
+    end
+    rows = rows.push(current)
+    row = row + 1
+  end
+  rows
+end
+
+def set_cell(matrix, row, column, value)
+  current = matrix[row]
+  current[column] = value
+  matrix[row] = current
+  matrix
+end
+
+def spiral_matrix(size)
+  matrix = blank_matrix(size)
+  top = 0
+  bottom = size - 1
+  left = 0
+  right = size - 1
+  value = 1
+
+  while top <= bottom && left <= right
+    column = left
+    while column <= right
+      matrix = set_cell(matrix, top, column, value)
+      value = value + 1
+      column = column + 1
+    end
+    top = top + 1
+
+    row = top
+    while row <= bottom
+      matrix = set_cell(matrix, row, right, value)
+      value = value + 1
+      row = row + 1
+    end
+    right = right - 1
+
+    if top <= bottom
+      column = right
+      while column >= left
+        matrix = set_cell(matrix, bottom, column, value)
+        value = value + 1
+        column = column - 1
+      end
+      bottom = bottom - 1
+    end
+
+    if left <= right
+      row = bottom
+      while row >= top
+        matrix = set_cell(matrix, row, left, value)
+        value = value + 1
+        row = row - 1
+      end
+      left = left + 1
+    end
+  end
+
+  matrix
+end
+
+def run
+  spiral_matrix(5)
+end

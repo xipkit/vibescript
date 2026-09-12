@@ -1,0 +1,44 @@
+# title: Text toolkit
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Split, align, and inspect text with Ruby-style string helpers.
+# description: partition, center, chars, and start_with? handle common parsing and formatting without manual indexes.
+# tags: strings, text, formatting
+# vibe: 0.4
+
+def split_setting(line: string) -> hash
+  parts = line.partition("=")
+  {
+    key: parts[0],
+    assigned: parts[1] == "=",
+    value: parts[2]
+  }
+end
+
+def domain_of(email: string) -> string
+  email.rpartition("@")[2]
+end
+
+def banner(label: string, width: int) -> string
+  label.center(width, "*")
+end
+
+def initials(name: string) -> string
+  name.split(" ").map { |word| word.chars[0] }.join("")
+end
+
+def flagged?(line: string) -> bool
+  line.start_with?("WARN", "ERROR")
+end
+
+def run
+  {
+    setting: split_setting("timeout=30"),
+    no_assignment: split_setting("bare-token"),
+    domain: domain_of("ada@vibescript.dev"),
+    banner: banner(" ship it ", 20),
+    initials: initials("Grace Brewster Hopper"),
+    warn_flagged: flagged?("WARN disk almost full"),
+    info_flagged: flagged?("INFO all good")
+  }
+end

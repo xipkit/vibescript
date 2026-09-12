@@ -1,0 +1,24 @@
+# title: Sum multiples of 3 and 5
+# source: https://rosettacode.org/wiki/Sum_multiples_of_3_and_5
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Sum the integers below fixed limits that are divisible by three or five.
+# tags: popular, math, loops, project-euler
+# vibe: 0.2
+
+def sum_divisible_by(divisor, limit)
+  count = (limit - 1) / divisor
+  divisor * count * (count + 1) / 2
+end
+
+def sum_multiples(limit)
+  sum_divisible_by(3, limit) + sum_divisible_by(5, limit) - sum_divisible_by(15, limit)
+end
+
+def run
+  {
+    below_ten: sum_multiples(10),
+    below_one_hundred: sum_multiples(100),
+    below_one_thousand: sum_multiples(1000)
+  }
+end

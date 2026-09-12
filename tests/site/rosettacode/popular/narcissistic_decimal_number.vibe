@@ -1,0 +1,18 @@
+# title: Narcissistic decimal number
+# source: https://rosettacode.org/wiki/Narcissistic_decimal_number
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Identify fixed sample numbers that equal the sum of their digits raised to the digit count.
+# tags: popular, numbers, math, search
+# vibe: 0.4
+
+def narcissistic?(value)
+  digits = value.to_s.chars
+  digits.sum { |digit| digit.to_i ** digits.length } == value
+end
+
+def run
+  [153, 370, 407, 408].map do |value|
+    { value:, narcissistic: narcissistic?(value) }
+  end
+end

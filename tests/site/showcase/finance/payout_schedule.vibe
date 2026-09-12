@@ -1,0 +1,44 @@
+# title: Payout schedule
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Schedule payouts from the amount, cadence, and settlement delay.
+# description: Money tracks the payout amount, while enums and durations set the timing.
+# tags: finance, money, durations, enums, payouts
+# vibe: 0.2
+
+enum PayoutCadence
+  Daily
+  Weekly
+  Monthly
+end
+
+def settlement_delay(cadence: PayoutCadence) -> duration
+  if cadence == PayoutCadence::Daily
+    1.day
+  elsif cadence == PayoutCadence::Weekly
+    7.days
+  else
+    30.days
+  end
+end
+
+def payout_job(batch_id: string, cadence: PayoutCadence, total: money, closed_at: time) -> hash
+  delay = settlement_delay(cadence)
+
+  {
+    batch_id: batch_id,
+    cadence: cadence.name,
+    total: total,
+    settlement_delay: delay.iso8601,
+    payout_at: delay.after(closed_at).format("2006-01-02T15:04:05Z")
+  }
+end
+
+def run
+  closed_at = Time.at(1700400000)
+
+  {
+    daily: payout_job("batch_daily_19", PayoutCadence::Daily, money("1820.44 USD"), closed_at),
+    monthly: payout_job("batch_monthly_07", PayoutCadence::Monthly, money("98210.17 USD"), closed_at)
+  }
+end

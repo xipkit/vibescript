@@ -1,0 +1,47 @@
+# title: Word wrap
+# source: https://rosettacode.org/wiki/Word_wrap
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Wrap a paragraph with the standard greedy algorithm at two different column widths.
+# tags: popular, text-processing, formatting, greedy
+# vibe: 0.2
+
+def word_wrap(text, width)
+  words = text.split
+  lines = []
+  current = ""
+  index = 0
+
+  while index < words.size
+    word = words[index]
+    if current == ""
+      current = word
+    elsif current.length + 1 + word.length <= width
+      current = current + " " + word
+    else
+      lines = lines + [current]
+      current = word
+    end
+    index = index + 1
+  end
+
+  if current != ""
+    lines = lines + [current]
+  end
+
+  lines
+end
+
+def sample_text
+  "In olden times when wishing still helped one, there lived a king whose " +
+    "daughters were all beautiful, but the youngest was so beautiful that the " +
+    "sun itself, which has seen so much, was astonished whenever it shone in her face."
+end
+
+def run
+  text = sample_text
+  {
+    width_32: word_wrap(text, 32),
+    width_48: word_wrap(text, 48)
+  }
+end

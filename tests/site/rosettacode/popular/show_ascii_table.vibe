@@ -1,0 +1,33 @@
+# title: Show ASCII table
+# source: https://rosettacode.org/wiki/Show_ASCII_table
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Return a compact slice of ASCII rows with code, character, and ordinal data.
+# tags: popular, strings, tables, ascii
+# vibe: 0.2
+
+def sample_characters
+  [" ", "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+"]
+end
+
+def build_rows
+  rows = []
+  characters = sample_characters
+  index = 0
+
+  while index < characters.size
+    symbol = characters[index]
+    rows = rows + [{
+      code: symbol.ord,
+      character: symbol,
+      printable: symbol != " "
+    }]
+    index = index + 1
+  end
+
+  rows
+end
+
+def run
+  build_rows
+end

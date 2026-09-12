@@ -1,0 +1,76 @@
+# title: Natural sorting
+# source: https://rosettacode.org/wiki/Natural_sorting
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Sort filenames by comparing embedded digit runs numerically instead of lexicographically.
+# tags: popular, strings, sorting, parsing
+# vibe: 0.2
+
+def digit?(char)
+  char >= "0" && char <= "9"
+end
+
+def digit_value(char)
+  "0123456789".index(char)
+end
+
+def read_number(text, start_index)
+  value = 0
+  index = start_index
+
+  while index < text.length && digit?(text.slice(index))
+    value = (value * 10) + digit_value(text.slice(index))
+    index = index + 1
+  end
+
+  {
+    value: value,
+    next_index: index
+  }
+end
+
+def natural_compare(left, right)
+  left_index = 0
+  right_index = 0
+
+  while left_index < left.length && right_index < right.length
+    left_char = left.slice(left_index)
+    right_char = right.slice(right_index)
+
+    if digit?(left_char) && digit?(right_char)
+      left_number = read_number(left, left_index)
+      right_number = read_number(right, right_index)
+      if left_number[:value] != right_number[:value]
+        return left_number[:value] - right_number[:value]
+      end
+      left_index = left_number[:next_index]
+      right_index = right_number[:next_index]
+    else
+      if left_char < right_char
+        return -1
+      elsif left_char > right_char
+        return 1
+      end
+      left_index = left_index + 1
+      right_index = right_index + 1
+    end
+  end
+
+  if left.length < right.length
+    -1
+  elsif left.length > right.length
+    1
+  else
+    0
+  end
+end
+
+def natural_sort(values)
+  values.sort do |left, right|
+    natural_compare(left, right)
+  end
+end
+
+def run
+  natural_sort(["file2.txt", "file10.txt", "file1.txt", "file20.txt", "file3.txt"])
+end

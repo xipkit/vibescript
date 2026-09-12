@@ -1,0 +1,44 @@
+# title: Fraction reduction
+# source: https://rosettacode.org/wiki/Fraction_reduction
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Reduce sample fractions to lowest terms with Euclid's algorithm.
+# tags: popular, math, fractions, gcd
+# vibe: 0.2
+
+def gcd(a, b)
+  left = a.abs
+  right = b.abs
+
+  while right != 0
+    remainder = left % right
+    left = right
+    right = remainder
+  end
+
+  left
+end
+
+def reduce_fraction(numerator, denominator)
+  divisor = gcd(numerator, denominator)
+  reduced_numerator = numerator / divisor
+  reduced_denominator = denominator / divisor
+
+  if reduced_denominator < 0
+    reduced_numerator = -reduced_numerator
+    reduced_denominator = -reduced_denominator
+  end
+
+  {
+    numerator: reduced_numerator,
+    denominator: reduced_denominator
+  }
+end
+
+def run
+  [
+    { original: [42, 56], reduced: reduce_fraction(42, 56) },
+    { original: [13, 39], reduced: reduce_fraction(13, 39) },
+    { original: [-150, 100], reduced: reduce_fraction(-150, 100) }
+  ]
+end

@@ -1,0 +1,44 @@
+# title: Sequence of primorial primes
+# source: https://rosettacode.org/wiki/Sequence_of_primorial_primes
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Check primorial minus one and plus one values for primality over a short prime prefix.
+# tags: popular, math, primes, sequences
+# vibe: 0.2
+
+def prime?(number)
+  if number < 2
+    return false
+  end
+
+  factor = 2
+  while factor * factor <= number
+    if number % factor == 0
+      return false
+    end
+    factor = factor + 1
+  end
+
+  true
+end
+
+def run
+  primes = [2, 3, 5, 7, 11]
+  primorial = 1
+  rows = []
+  index = 0
+
+  while index < primes.length
+    primorial = primorial * primes[index]
+    rows = rows.push({
+      prime: primes[index],
+      primorial_minus_one: primorial - 1,
+      minus_one_prime: prime?(primorial - 1),
+      primorial_plus_one: primorial + 1,
+      plus_one_prime: prime?(primorial + 1)
+    })
+    index = index + 1
+  end
+
+  rows
+end

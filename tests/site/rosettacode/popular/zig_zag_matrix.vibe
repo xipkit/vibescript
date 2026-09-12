@@ -1,0 +1,76 @@
+# title: Zig-zag matrix
+# source: https://rosettacode.org/wiki/Zig-zag_matrix
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Fill a small square matrix with zig-zag diagonal ordering.
+# tags: popular, arrays, matrices, indexing
+# vibe: 0.2
+
+def blank_matrix(size)
+  matrix = []
+  row = 0
+
+  while row < size
+    current = []
+    column = 0
+    while column < size
+      current = current.push(0)
+      column = column + 1
+    end
+    matrix = matrix.push(current)
+    row = row + 1
+  end
+
+  matrix
+end
+
+def set_cell(matrix, row, column, value)
+  current = matrix[row]
+  current[column] = value
+  matrix[row] = current
+  matrix
+end
+
+def zig_zag_matrix(size)
+  matrix = blank_matrix(size)
+  diagonal = 0
+  value = 0
+
+  while diagonal <= (size - 1) * 2
+    if diagonal.even?
+      row = diagonal
+      if row >= size
+        row = size - 1
+      end
+      column = diagonal - row
+
+      while row >= 0 && column < size
+        matrix = set_cell(matrix, row, column, value)
+        value = value + 1
+        row = row - 1
+        column = column + 1
+      end
+    else
+      column = diagonal
+      if column >= size
+        column = size - 1
+      end
+      row = diagonal - column
+
+      while column >= 0 && row < size
+        matrix = set_cell(matrix, row, column, value)
+        value = value + 1
+        row = row + 1
+        column = column - 1
+      end
+    end
+
+    diagonal = diagonal + 1
+  end
+
+  matrix
+end
+
+def run
+  zig_zag_matrix(5)
+end

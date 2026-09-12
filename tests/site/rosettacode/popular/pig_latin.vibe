@@ -1,0 +1,65 @@
+# title: Pig Latin
+# source: https://rosettacode.org/wiki/Pig_Latin
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Translate English words into Pig Latin by moving leading consonants and appending ay.
+# tags: popular, strings, transformation
+# vibe: 0.2
+
+def is_vowel(char)
+  vowels = "aeiouAEIOU"
+  vowels.index(char) != nil
+end
+
+def pig_word(word)
+  if word.length == 0
+    return ""
+  end
+
+  if is_vowel(word.slice(0))
+    return word + "ay"
+  end
+
+  i = 0
+  while i < word.length
+    if is_vowel(word.slice(i))
+      consonants = ""
+      j = 0
+      while j < i
+        consonants = consonants + word.slice(j)
+        j = j + 1
+      end
+      rest = ""
+      j = i
+      while j < word.length
+        rest = rest + word.slice(j)
+        j = j + 1
+      end
+      return rest + consonants + "ay"
+    end
+    i = i + 1
+  end
+
+  word + "ay"
+end
+
+def pig_latin(sentence)
+  words = sentence.split(" ")
+  translated = []
+  i = 0
+  while i < words.size
+    translated = translated.push(pig_word(words[i]))
+    i = i + 1
+  end
+  translated.join(" ")
+end
+
+def run
+  {
+    hello: pig_word("hello"),
+    world: pig_word("world"),
+    apple: pig_word("apple"),
+    string: pig_word("string"),
+    sentence: pig_latin("hi there")
+  }
+end

@@ -1,0 +1,29 @@
+# title: Leap year
+# source: https://rosettacode.org/wiki/Leap_year
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Determine whether a given year is a leap year using the Gregorian calendar rules.
+# tags: popular, math, conditionals, basics
+# vibe: 0.2
+
+def leap_year?(year)
+  if year % 400 == 0
+    return true
+  elsif year % 100 == 0
+    return false
+  elsif year % 4 == 0
+    return true
+  end
+  false
+end
+
+def run
+  years = [1900, 2000, 1996, 1997, 2024, 2025, 2100, 2400]
+  results = []
+  i = 0
+  while i < years.size
+    results = results.push({ year: years[i], leap: leap_year?(years[i]) })
+    i = i + 1
+  end
+  results
+end

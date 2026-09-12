@@ -1,0 +1,59 @@
+# title: 99 Bottles of Beer
+# source: https://rosettacode.org/wiki/99_bottles_of_beer
+# category: Rosetta Code
+# difficulty: beginner
+# summary: Generate the full 99 Bottles of Beer song from 99 down to 0.
+# tags: rosetta-code, popular, strings, loops, conditionals
+# vibe: 0.2
+
+def bottle_phrase(count)
+  if count == 0
+    "no more bottles of beer"
+  elsif count == 1
+    "1 bottle of beer"
+  else
+    count + " bottles of beer"
+  end
+end
+
+def action_line(count)
+  if count == 0
+    "Go to the store and buy some more"
+  elsif count == 1
+    "Take it down and pass it around"
+  else
+    "Take one down and pass it around"
+  end
+end
+
+def next_count(count)
+  if count == 0
+    99
+  else
+    count - 1
+  end
+end
+
+def verse(count)
+  current = bottle_phrase(count)
+  upcoming = bottle_phrase(next_count(count))
+  text = current.capitalize + " on the wall, " + current + ".\n"
+  text = text + action_line(count) + ", " + upcoming + " on the wall.\n"
+  text
+end
+
+def sing(start)
+  song = ""
+  for count in start..0
+    if song == ""
+      song = verse(count)
+    else
+      song = song + "\n" + verse(count)
+    end
+  end
+  song
+end
+
+def run
+  sing(99)
+end

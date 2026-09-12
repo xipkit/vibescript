@@ -1,0 +1,54 @@
+# title: Angles (geometric), normalization and conversion
+# source: https://rosettacode.org/wiki/Angles_(geometric),_normalization_and_conversion
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Normalize degree angles and convert between degrees and radians for fixed sample values.
+# tags: popular, math, geometry, conversion
+# vibe: 0.2
+
+def pi
+  3.141592653589793
+end
+
+def normalize_360(angle)
+  value = angle
+
+  while value < 0
+    value = value + 360
+  end
+
+  while value >= 360
+    value = value - 360
+  end
+
+  value
+end
+
+def normalize_180(angle)
+  value = normalize_360(angle)
+
+  if value >= 180
+    value - 360
+  else
+    value
+  end
+end
+
+def degrees_to_radians(angle)
+  angle * pi / 180
+end
+
+def radians_to_degrees(angle)
+  angle * 180 / pi
+end
+
+def run
+  {
+    normalized_725: normalize_360(725),
+    normalized_negative_45: normalize_360(-45),
+    signed_725: normalize_180(725),
+    signed_225: normalize_180(225),
+    radians_from_225: degrees_to_radians(225),
+    degrees_from_half_pi: radians_to_degrees(pi / 2)
+  }
+end

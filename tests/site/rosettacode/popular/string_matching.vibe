@@ -1,0 +1,41 @@
+# title: String matching
+# source: https://rosettacode.org/wiki/String_matching
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Find every starting index of a pattern inside a fixed string with a naive scan.
+# tags: popular, strings, search, loops
+# vibe: 0.2
+
+def matches_at?(text, pattern, start_index)
+  offset = 0
+
+  while offset < pattern.length
+    if text.slice(start_index + offset) != pattern.slice(offset)
+      return false
+    end
+    offset = offset + 1
+  end
+
+  true
+end
+
+def string_matching(text, pattern)
+  matches = []
+  index = 0
+
+  while index + pattern.length <= text.length
+    if matches_at?(text, pattern, index)
+      matches = matches.push(index)
+    end
+    index = index + 1
+  end
+
+  matches
+end
+
+def run
+  {
+    aba_in_ababa: string_matching("ababa", "aba"),
+    ana_in_bananas: string_matching("bananas", "ana")
+  }
+end

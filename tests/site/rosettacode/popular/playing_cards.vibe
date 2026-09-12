@@ -1,0 +1,43 @@
+# title: Playing cards
+# source: https://rosettacode.org/wiki/Playing_cards
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Construct a standard 52-card deck from suit and rank combinations.
+# tags: popular, arrays, modeling, basics
+# vibe: 0.2
+
+def ranks
+  ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
+end
+
+def suits
+  ["spades", "hearts", "diamonds", "clubs"]
+end
+
+def build_deck
+  deck = []
+  suit_index = 0
+
+  while suit_index < suits.size
+    rank_index = 0
+    while rank_index < ranks.size
+      deck = deck.push({
+        rank: ranks[rank_index],
+        suit: suits[suit_index]
+      })
+      rank_index = rank_index + 1
+    end
+    suit_index = suit_index + 1
+  end
+
+  deck
+end
+
+def run
+  deck = build_deck
+  {
+    count: deck.size,
+    first_three: [deck[0], deck[1], deck[2]],
+    last_three: [deck[deck.size - 3], deck[deck.size - 2], deck[deck.size - 1]]
+  }
+end

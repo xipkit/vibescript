@@ -1,0 +1,37 @@
+# title: Minimum multiple of m where digital sum equals m
+# source: https://rosettacode.org/wiki/Minimum_multiple_of_m_where_digital_sum_equals_m
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Search small multiples until the digit sum matches the divisor.
+# tags: popular, math, search, digits
+# vibe: 0.2
+
+def digit_sum(value)
+  total = 0
+  current = value
+
+  while current > 0
+    total = total + (current % 10)
+    current = current / 10
+  end
+
+  total
+end
+
+def minimum_multiple(m)
+  value = m
+
+  while digit_sum(value) != m
+    value = value + m
+  end
+
+  value
+end
+
+def run
+  [
+    { m: 10, value: minimum_multiple(10) },
+    { m: 12, value: minimum_multiple(12) },
+    { m: 15, value: minimum_multiple(15) }
+  ]
+end

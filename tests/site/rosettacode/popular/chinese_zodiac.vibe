@@ -1,0 +1,37 @@
+# title: Chinese zodiac
+# source: https://rosettacode.org/wiki/Chinese_zodiac
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Map sample years to their Chinese zodiac animal and element.
+# tags: popular, dates, lookup, basics
+# vibe: 0.2
+
+def positive_mod(value, divisor)
+  result = value % divisor
+  if result < 0
+    result + divisor
+  else
+    result
+  end
+end
+
+def zodiac(year)
+  animals = ["Rat", "Ox", "Tiger", "Rabbit", "Dragon", "Snake", "Horse", "Goat", "Monkey", "Rooster", "Dog", "Pig"]
+  elements = ["Metal", "Metal", "Water", "Water", "Wood", "Wood", "Fire", "Fire", "Earth", "Earth"]
+  offset = year - 2020
+
+  {
+    year: year,
+    animal: animals[positive_mod(offset, 12)],
+    element: elements[positive_mod(offset, 10)]
+  }
+end
+
+def run
+  [
+    zodiac(2020),
+    zodiac(2024),
+    zodiac(2026),
+    zodiac(1984)
+  ]
+end

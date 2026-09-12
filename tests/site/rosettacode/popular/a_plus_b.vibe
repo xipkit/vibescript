@@ -1,0 +1,19 @@
+# title: A+B
+# source: https://rosettacode.org/wiki/A%2BB
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Return the sum of integer pairs.
+# tags: popular, basics, arithmetic, math
+# vibe: 0.2
+
+def add_pair(left, right)
+  left + right
+end
+
+def run
+  {
+    first: add_pair(3, 4),
+    second: add_pair(-8, 13),
+    third: add_pair(144, 233)
+  }
+end

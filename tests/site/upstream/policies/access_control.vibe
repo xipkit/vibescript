@@ -1,0 +1,19 @@
+# vibe: 1.0
+# uses: ctx
+
+def can_edit_player?(player)
+  ctx.user.role == "coach" || ctx.user.id == player[:created_by]
+end
+
+def can_view_player?(player)
+  player[:status] != "archived"
+end
+
+def run
+  {
+    note: "This example requires the ctx capability which is injected by the host application.",
+    functions: ["can_edit_player?", "can_view_player?"],
+    can_view_active: can_view_player?({ status: "active" }),
+    can_view_archived: can_view_player?({ status: "archived" })
+  }
+end

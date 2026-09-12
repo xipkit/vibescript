@@ -1,0 +1,52 @@
+# title: Retry backoff schedule
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Build an exponential retry schedule with enums, durations, and timestamps.
+# description: The retry policy names each delay and returns the exact time for every attempt.
+# tags: automation, durations, time, enums
+# featured: true
+# feature_rank: 2
+# vibe: 0.2
+
+enum RetryProfile
+  Fast
+  Careful
+end
+
+def base_delay(profile: RetryProfile) -> duration
+  if profile == RetryProfile::Fast
+    30.seconds
+  else
+    5.minutes
+  end
+end
+
+def retry_schedule(profile: RetryProfile, start: time, attempts: int) -> array
+  delay = base_delay(profile)
+  rows = []
+  current = start
+  multiplier = 1
+  attempt = 1
+
+  while attempt <= attempts
+    window = delay * multiplier
+    current = window.after(current)
+    rows = rows.push({
+      attempt: attempt,
+      delay: window.iso8601,
+      at: current.format("2006-01-02T15:04:05Z")
+    })
+    multiplier = multiplier * 2
+    attempt = attempt + 1
+  end
+
+  rows
+end
+
+def run
+  start = Time.at(1700000000)
+  {
+    fast: retry_schedule(RetryProfile::Fast, start, 4),
+    careful: retry_schedule(RetryProfile::Careful, start, 3)
+  }
+end

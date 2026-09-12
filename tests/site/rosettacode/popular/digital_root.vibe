@@ -1,0 +1,43 @@
+# title: Digital root
+# source: https://rosettacode.org/wiki/Digital_root
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Compute the digital root and additive persistence of a non-negative integer.
+# tags: popular, math, loops
+# vibe: 0.2
+
+def digit_sum(n)
+  total = 0
+  remaining = n
+  while remaining > 0
+    total = total + (remaining % 10)
+    remaining = remaining / 10
+  end
+  total
+end
+
+def digital_root(n)
+  persistence = 0
+  value = n
+  while value >= 10
+    value = digit_sum(value)
+    persistence = persistence + 1
+  end
+  { root: value, persistence: persistence }
+end
+
+def run
+  numbers = [627615, 39, 999999999, 0, 10, 493193]
+  results = []
+  i = 0
+  while i < numbers.size
+    dr = digital_root(numbers[i])
+    results = results.push({
+      number: numbers[i],
+      root: dr[:root],
+      persistence: dr[:persistence]
+    })
+    i = i + 1
+  end
+  results
+end

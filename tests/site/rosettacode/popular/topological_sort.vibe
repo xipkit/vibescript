@@ -1,0 +1,81 @@
+# title: Topological sort
+# source: https://rosettacode.org/wiki/Topological_sort
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Topologically sort a small dependency graph with Kahn's algorithm.
+# tags: popular, graphs, sorting, dependencies
+# vibe: 0.2
+
+def nodes
+  ["shop", "cook", "eat", "clean", "sleep"]
+end
+
+def edge_pairs
+  [
+    ["shop", "cook"],
+    ["cook", "eat"],
+    ["cook", "clean"],
+    ["eat", "sleep"],
+    ["clean", "sleep"]
+  ]
+end
+
+def topological_sort
+  graph = {}
+  indegree = {}
+  items = nodes
+  index = 0
+
+  while index < items.length
+    indegree[items[index]] = 0
+    index = index + 1
+  end
+
+  pairs = edge_pairs
+  index = 0
+  while index < pairs.length
+    from = pairs[index][0]
+    to = pairs[index][1]
+    if graph[from] == nil
+      graph[from] = []
+    end
+    graph[from] = graph[from].push(to)
+    indegree[to] = indegree[to] + 1
+    index = index + 1
+  end
+
+  queue = []
+  index = 0
+  while index < items.length
+    if indegree[items[index]] == 0
+      queue = queue.push(items[index])
+    end
+    index = index + 1
+  end
+
+  output = []
+  queue_index = 0
+  while queue_index < queue.length
+    current = queue[queue_index]
+    output = output.push(current)
+    neighbors = graph[current]
+    if neighbors != nil
+      neighbor_index = 0
+      while neighbor_index < neighbors.length
+        neighbor = neighbors[neighbor_index]
+        indegree[neighbor] = indegree[neighbor] - 1
+        if indegree[neighbor] == 0
+          queue = queue.push(neighbor)
+        end
+        neighbor_index = neighbor_index + 1
+      end
+    end
+    queue_index = queue_index + 1
+  end
+
+  output
+end
+
+def run
+  topological_sort
+end

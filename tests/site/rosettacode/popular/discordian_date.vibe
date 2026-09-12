@@ -1,0 +1,66 @@
+# title: Discordian date
+# source: https://rosettacode.org/wiki/Discordian_date
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Convert Gregorian dates into the Discordian calendar.
+# tags: popular, dates, calendars, formatting
+# vibe: 0.2
+
+def leap_year?(year)
+  if year % 400 == 0
+    true
+  elsif year % 100 == 0
+    false
+  else
+    year % 4 == 0
+  end
+end
+
+def day_of_year(year, month, day)
+  lengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  total = 0
+  index = 0
+
+  while index < month - 1
+    total = total + lengths[index]
+    index = index + 1
+  end
+
+  if month > 2 && leap_year?(year)
+    total = total + 1
+  end
+
+  total + day
+end
+
+def discordian_date(year, month, day)
+  if leap_year?(year) && month == 2 && day == 29
+    return {
+      year: year + 1166,
+      holiday: "St. Tib's Day"
+    }
+  end
+
+  day_index = day_of_year(year, month, day) - 1
+  if leap_year?(year) && day_index > 59
+    day_index = day_index - 1
+  end
+
+  seasons = ["Chaos", "Discord", "Confusion", "Bureaucracy", "The Aftermath"]
+  weekdays = ["Sweetmorn", "Boomtime", "Pungenday", "Prickle-Prickle", "Setting Orange"]
+
+  {
+    year: year + 1166,
+    weekday: weekdays[day_index % 5],
+    day: (day_index % 73) + 1,
+    season: seasons[day_index / 73]
+  }
+end
+
+def run
+  [
+    discordian_date(2024, 2, 29),
+    discordian_date(2026, 3, 8),
+    discordian_date(2025, 9, 19)
+  ]
+end

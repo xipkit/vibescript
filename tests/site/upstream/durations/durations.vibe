@@ -1,0 +1,21 @@
+# vibe: 1.0
+
+def reminder_delay_seconds
+  (5.minutes).seconds
+end
+
+def event_window
+  2.hours
+end
+
+def combine_delay_seconds(first, second)
+  first.seconds + second.seconds
+end
+
+def run
+  {
+    reminder_delay: reminder_delay_seconds,
+    event_window: event_window,
+    combined: combine_delay_seconds(5.minutes, 10.minutes)
+  }
+end

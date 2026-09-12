@@ -1,0 +1,32 @@
+# vibe: 1.0
+
+def greet(name)
+  "hello " + name
+end
+
+def decorated_greeting(name)
+  message = greet(name)
+  "[" + message + "]"
+end
+
+def sum_three(a, b, c)
+  add_two = a + b
+  add_two + c
+end
+
+def max_value(a, b)
+  if a > b
+    a
+  else
+    b
+  end
+end
+
+def run
+  {
+    greet: greet("vibescript"),
+    decorated: decorated_greeting("vibescript"),
+    sum: sum_three(10, 20, 30),
+    max: max_value(42, 17)
+  }
+end

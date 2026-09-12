@@ -1,0 +1,29 @@
+# vibe: 1.0
+
+def run
+  parsed = JSON.parse("{\"id\":\"p-1\",\"score\":10}")
+  event_id = uuid
+  token = random_id(8)
+  parsed_time = Time.parse("2024-05-01 10:30:00", in: "UTC")
+
+  {
+    json_id: parsed.fetch("id"),
+    json_score: parsed.fetch("score"),
+    json_encoded: JSON.stringify({ id: parsed.fetch("id"), score: parsed.fetch("score") }),
+    regex_match: Regex.match("ID-[0-9]+", "ID-12 ID-34"),
+    regex_replace: Regex.replace("ID-12 ID-34", "ID-[0-9]+", "X"),
+    regex_replace_all: Regex.replace_all("ID-12 ID-34", "ID-[0-9]+", "X"),
+    uuid_length: event_id.length,
+    uuid_has_dash: event_id.include?("-"),
+    random_length: token.length,
+    to_int: to_int("42"),
+    to_float: to_float("1.25"),
+    math_sqrt: Math.sqrt(144),
+    math_hypot: Math.hypot(3, 4),
+    math_log_base: Math.log(8, 2),
+    math_pi_rounded: Math::PI.round(3),
+    parsed_time: parsed_time.format("2006-01-02T15:04:05Z07:00"),
+    inspect_string: "a\tb".inspect,
+    inspect_array: [1, "x", nil].inspect
+  }
+end

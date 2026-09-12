@@ -1,0 +1,60 @@
+# title: Rot-13
+# source: https://rosettacode.org/wiki/Rot-13
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Encode and decode text by rotating letters by thirteen positions.
+# tags: popular, strings, crypto, substitution
+# vibe: 0.2
+
+def rotate_index(index, shift)
+  rotated = index + shift
+
+  while rotated >= 26
+    rotated = rotated - 26
+  end
+
+  while rotated < 0
+    rotated = rotated + 26
+  end
+
+  rotated
+end
+
+def rotate_char(char, shift)
+  upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  lower = "abcdefghijklmnopqrstuvwxyz"
+
+  upper_index = upper.index(char)
+  if upper_index != nil
+    return upper.slice(rotate_index(upper_index, shift))
+  end
+
+  lower_index = lower.index(char)
+  if lower_index != nil
+    return lower.slice(rotate_index(lower_index, shift))
+  end
+
+  char
+end
+
+def rot13(text)
+  output = ""
+  index = 0
+
+  while index < text.length
+    output = output + rotate_char(text.slice(index), 13)
+    index = index + 1
+  end
+
+  output
+end
+
+def run
+  plain = "Vibescript keeps Rosetta examples runnable."
+  encoded = rot13(plain)
+  {
+    plain: plain,
+    encoded: encoded,
+    decoded: rot13(encoded)
+  }
+end

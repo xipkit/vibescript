@@ -1,0 +1,37 @@
+# title: Roman numerals/Encode
+# source: https://rosettacode.org/wiki/Roman_numerals/Encode
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Convert an integer to its Roman numeral representation.
+# tags: popular, strings, math, conversion
+# vibe: 0.2
+
+def to_roman(number)
+  values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
+  symbols = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"]
+
+  result = ""
+  remaining = number
+  index = 0
+
+  while index < values.size
+    while remaining >= values[index]
+      result = result + symbols[index]
+      remaining = remaining - values[index]
+    end
+    index = index + 1
+  end
+
+  result
+end
+
+def run
+  numbers = [1, 4, 9, 14, 42, 99, 2024, 1776, 3999]
+  results = []
+  i = 0
+  while i < numbers.size
+    results = results.push({ number: numbers[i], roman: to_roman(numbers[i]) })
+    i = i + 1
+  end
+  results
+end

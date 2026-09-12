@@ -1,0 +1,96 @@
+# title: Abbreviations, automatic
+# source: https://rosettacode.org/wiki/Abbreviations,_automatic
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute the shortest unique command prefixes for a fixed command set and resolve sample abbreviations.
+# tags: popular, strings, search, prefixes
+# vibe: 0.2
+
+def commands
+  [
+    "add",
+    "append",
+    "commit",
+    "copy",
+    "delete",
+    "insert",
+    "move",
+    "print",
+    "quit"
+  ]
+end
+
+def unique_prefix?(prefix, commands)
+  matches = 0
+  index = 0
+
+  while index < commands.length
+    if commands[index].index(prefix) == 0
+      matches = matches + 1
+    end
+    index = index + 1
+  end
+
+  matches == 1
+end
+
+def shortest_abbreviation(command, commands)
+  length = 1
+
+  while length <= command.length
+    prefix = command.slice(0, length)
+    if unique_prefix?(prefix, commands)
+      return prefix
+    end
+    length = length + 1
+  end
+
+  command
+end
+
+def automatic_abbreviations(commands)
+  rows = []
+  index = 0
+
+  while index < commands.length
+    command = commands[index]
+    rows = rows.push({
+      command: command,
+      abbreviation: shortest_abbreviation(command, commands)
+    })
+    index = index + 1
+  end
+
+  rows
+end
+
+def resolve(token, commands)
+  matches = []
+  index = 0
+
+  while index < commands.length
+    command = commands[index]
+    if command.index(token.downcase) == 0
+      matches = matches.push(command)
+    end
+    index = index + 1
+  end
+
+  if matches.empty?
+    "unknown"
+  elsif matches.length == 1
+    matches[0]
+  else
+    "ambiguous"
+  end
+end
+
+def run
+  available = commands
+  {
+    abbreviations: automatic_abbreviations(available),
+    resolve_app: resolve("app", available),
+    resolve_pr: resolve("pr", available),
+    resolve_c: resolve("c", available)
+  }
+end

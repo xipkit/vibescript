@@ -1,0 +1,63 @@
+# title: Subscription billing
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Price a subscription invoice from the plan and quantity.
+# description: An enum names each plan, and money values keep prices and totals in the same currency.
+# tags: finance, money, enums, invoices
+# featured: true
+# feature_rank: 1
+# vibe: 0.2
+
+enum PlanTier
+  Starter
+  Growth
+  Scale
+end
+
+def base_fee(plan: PlanTier) -> money
+  if plan == PlanTier::Starter
+    money("29.00 USD")
+  elsif plan == PlanTier::Growth
+    money("79.00 USD")
+  else
+    money("199.00 USD")
+  end
+end
+
+def seat_fee_cents(plan: PlanTier) -> int
+  if plan == PlanTier::Starter
+    900
+  elsif plan == PlanTier::Growth
+    1900
+  else
+    2900
+  end
+end
+
+def seats_total(plan: PlanTier, seats: int) -> money
+  money_cents(seat_fee_cents(plan) * seats, "USD")
+end
+
+def invoice(plan: PlanTier, seats: int, discount: money) -> hash
+  base = base_fee(plan)
+  seats_fee = seats_total(plan, seats)
+  subtotal = base + seats_fee
+  total = subtotal - discount
+
+  {
+    plan: plan.name,
+    base: base,
+    seats: seats,
+    seats_fee: seats_fee,
+    discount: discount,
+    total: total,
+    currency: total.currency
+  }
+end
+
+def run
+  {
+    growth: invoice(PlanTier::Growth, 4, money("10.00 USD")),
+    scale: invoice(PlanTier::Scale, 12, money("0.00 USD"))
+  }
+end

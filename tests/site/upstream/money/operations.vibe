@@ -1,0 +1,23 @@
+# vibe: 1.0
+
+def add_pledges
+  money("50.00 USD") + money("12.50 USD")
+end
+
+def net_after_fee(cents)
+  gross = money_cents(cents, "USD")
+  fee = money("1.75 USD")
+  gross - fee
+end
+
+def exceeds_goal?(raised, goal)
+  raised > goal
+end
+
+def run
+  {
+    added: add_pledges,
+    net: net_after_fee(5000),
+    exceeds: exceeds_goal?(money("150.00 USD"), money("100.00 USD"))
+  }
+end

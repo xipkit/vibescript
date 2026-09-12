@@ -1,0 +1,51 @@
+# title: Find palindromic numbers in both binary and ternary bases
+# source: https://rosettacode.org/wiki/Find_palindromic_numbers_in_both_binary_and_ternary_bases
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Search for numbers whose binary and ternary representations are both palindromes.
+# tags: popular, numbers, bases, palindromes
+# vibe: 0.4
+
+def digits_in_base(number, base)
+  if number == 0
+    return "0"
+  end
+
+  digits = ""
+  current = number
+
+  while current > 0
+    digits = "#{current % base}#{digits}"
+    current = current / base
+  end
+
+  digits
+end
+
+def palindrome?(text)
+  text == text.reverse
+end
+
+def first_shared_palindromes(count)
+  values = []
+  candidate = 1
+
+  while values.length < count
+    if palindrome?(digits_in_base(candidate, 2)) && palindrome?(digits_in_base(candidate, 3))
+      values << candidate
+    end
+    candidate = candidate + 1
+  end
+
+  values
+end
+
+def run
+  [1, 6643].map do |value|
+    {
+      value:,
+      binary: digits_in_base(value, 2),
+      ternary: digits_in_base(value, 3)
+    }
+  end
+end

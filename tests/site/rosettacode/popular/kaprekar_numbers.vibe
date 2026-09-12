@@ -1,0 +1,57 @@
+# title: Kaprekar numbers
+# source: https://rosettacode.org/wiki/Kaprekar_numbers
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Test fixed integers for the Kaprekar split-square property.
+# tags: popular, math, numbers, strings
+# vibe: 0.2
+
+def digit_value(char)
+  "0123456789".index(char)
+end
+
+def to_int(text)
+  if text == ""
+    return 0
+  end
+
+  value = 0
+  index = 0
+  while index < text.length
+    value = (value * 10) + digit_value(text.slice(index))
+    index = index + 1
+  end
+  value
+end
+
+def kaprekar?(number)
+  if number == 1
+    return true
+  end
+
+  square = "" + (number * number)
+  split = 1
+
+  while split < square.length
+    left = to_int(square.slice(0, split))
+    right = to_int(square.slice(split, square.length - split))
+    if right != 0 && left + right == number
+      return true
+    end
+    split = split + 1
+  end
+
+  false
+end
+
+def run
+  [
+    { value: 1, kaprekar: kaprekar?(1) },
+    { value: 45, kaprekar: kaprekar?(45) },
+    { value: 55, kaprekar: kaprekar?(55) },
+    { value: 99, kaprekar: kaprekar?(99) },
+    { value: 297, kaprekar: kaprekar?(297) },
+    { value: 703, kaprekar: kaprekar?(703) },
+    { value: 10, kaprekar: kaprekar?(10) }
+  ]
+end

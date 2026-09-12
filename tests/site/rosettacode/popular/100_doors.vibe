@@ -1,0 +1,36 @@
+# title: 100 doors
+# source: https://rosettacode.org/wiki/100_doors
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Toggle one hundred doors and return the open door numbers.
+# tags: popular, loops, arrays, math
+
+def open_doors(limit)
+  doors = []
+  for _ in 1..limit
+    doors = doors.push(false)
+  end
+
+  pass = 1
+  while pass <= limit
+    door = pass
+    while door <= limit
+      doors[door - 1] = !doors[door - 1]
+      door = door + pass
+    end
+    pass = pass + 1
+  end
+
+  open = []
+  for door in 1..limit
+    if doors[door - 1]
+      open = open.push(door)
+    end
+  end
+  open
+end
+
+def run
+  open_doors(100)
+end
+

@@ -1,0 +1,34 @@
+# title: Factorial
+# source: https://rosettacode.org/wiki/Factorial
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Compute factorial values both recursively and iteratively, well past the 64-bit range.
+# tags: popular, math, recursion, loops, bignum
+# vibe: 0.4
+
+def recursive_factorial(n)
+  if n <= 1
+    1
+  else
+    n * recursive_factorial(n - 1)
+  end
+end
+
+def iterative_factorial(n)
+  result = 1
+  value = 2
+  while value <= n
+    result = result * value
+    value = value + 1
+  end
+  result
+end
+
+def run
+  {
+    recursive_10: recursive_factorial(10),
+    recursive_25: recursive_factorial(25),
+    iterative_50: iterative_factorial(50)
+  }
+end
+

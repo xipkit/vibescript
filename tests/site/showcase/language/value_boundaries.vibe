@@ -1,0 +1,37 @@
+# title: Value boundaries
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Update arrays and hashes without changing the values held by aliases.
+# description: Collections behave as values, while label, string, and symbol hash lookups share one string keyspace.
+# tags: language, collections, hashes, values
+# featured: true
+# feature_rank: -1
+# vibe: 1.0
+
+def with_status(order, status)
+  original = order
+  order[:status] = status
+
+  {
+    original: original,
+    updated: order,
+    string_lookup: order["status"]
+  }
+end
+
+def append_review(queue, review)
+  original = queue
+  queue << review
+
+  {
+    original: original,
+    updated: queue
+  }
+end
+
+def run
+  {
+    order: with_status({ id: "o-17", status: "new" }, "approved"),
+    reviews: append_review(["security"], "finance")
+  }
+end

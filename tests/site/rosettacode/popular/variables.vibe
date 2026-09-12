@@ -1,0 +1,23 @@
+# title: Variables
+# source: https://rosettacode.org/wiki/Variables
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Show variable assignment, reassignment, and derived values.
+# tags: popular, basics, variables, arithmetic
+# vibe: 0.2
+
+def run
+  count = 3
+  label = "examples"
+  total = count * 7
+
+  count = count + 2
+  label = label.upcase
+
+  {
+    count: count,
+    label: label,
+    total: total,
+    sentence: count + " " + label + " ready"
+  }
+end

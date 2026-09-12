@@ -1,0 +1,31 @@
+# title: Set
+# source: https://rosettacode.org/wiki/Set
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Find the union, intersection, and difference of array-backed sets.
+# tags: popular, arrays, sets, basics
+
+def set_union(left, right)
+  (left + right).uniq
+end
+
+def set_intersection(left, right)
+  left.select do |value|
+    right.include?(value)
+  end
+end
+
+def set_difference(left, right)
+  left - right
+end
+
+def run
+  left = [1, 2, 3, 4]
+  right = [3, 4, 5, 6]
+
+  {
+    union: set_union(left, right),
+    intersection: set_intersection(left, right),
+    difference: set_difference(left, right)
+  }
+end

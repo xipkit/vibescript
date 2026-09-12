@@ -1,0 +1,112 @@
+# title: Morse code
+# source: https://rosettacode.org/wiki/Morse_code
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Encode text to Morse code using a fixed A-Z and digit lookup table.
+# tags: popular, strings, encoding, lookup
+# vibe: 0.2
+
+def morse_for(char)
+  if char == "A"
+    ".-"
+  elsif char == "B"
+    "-..."
+  elsif char == "C"
+    "-.-."
+  elsif char == "D"
+    "-.."
+  elsif char == "E"
+    "."
+  elsif char == "F"
+    "..-."
+  elsif char == "G"
+    "--."
+  elsif char == "H"
+    "...."
+  elsif char == "I"
+    ".."
+  elsif char == "J"
+    ".---"
+  elsif char == "K"
+    "-.-"
+  elsif char == "L"
+    ".-.."
+  elsif char == "M"
+    "--"
+  elsif char == "N"
+    "-."
+  elsif char == "O"
+    "---"
+  elsif char == "P"
+    ".--."
+  elsif char == "Q"
+    "--.-"
+  elsif char == "R"
+    ".-."
+  elsif char == "S"
+    "..."
+  elsif char == "T"
+    "-"
+  elsif char == "U"
+    "..-"
+  elsif char == "V"
+    "...-"
+  elsif char == "W"
+    ".--"
+  elsif char == "X"
+    "-..-"
+  elsif char == "Y"
+    "-.--"
+  elsif char == "Z"
+    "--.."
+  elsif char == "0"
+    "-----"
+  elsif char == "1"
+    ".----"
+  elsif char == "2"
+    "..---"
+  elsif char == "3"
+    "...--"
+  elsif char == "4"
+    "....-"
+  elsif char == "5"
+    "....."
+  elsif char == "6"
+    "-...."
+  elsif char == "7"
+    "--..."
+  elsif char == "8"
+    "---.."
+  elsif char == "9"
+    "----."
+  else
+    nil
+  end
+end
+
+def encode_morse(text)
+  codes = []
+  index = 0
+
+  while index < text.length
+    char = text.slice(index).upcase
+    if char == " "
+      codes = codes + ["/"]
+    else
+      code = morse_for(char)
+      if code != nil
+        codes = codes + [code]
+      end
+    end
+    index = index + 1
+  end
+
+  codes.join(" ")
+end
+
+def run
+  {
+    sos: encode_morse("SOS"),
+    vibe: encode_morse("VIBE 2026")
+  }
+end

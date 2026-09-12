@@ -1,0 +1,48 @@
+# title: Palindrome detection
+# source: https://rosettacode.org/wiki/Palindrome_detection
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Detect palindromes after normalizing letters and digits to lowercase.
+# tags: popular, strings, scanning, predicates
+# vibe: 0.2
+
+def normalized(text)
+  output = ""
+  index = 0
+
+  while index < text.length
+    char = text.slice(index).downcase
+    if (char >= "a" && char <= "z") || (char >= "0" && char <= "9")
+      output = output + char
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def palindrome?(text)
+  value = normalized(text)
+  left = 0
+  right = value.length - 1
+
+  while left < right
+    if value.slice(left) != value.slice(right)
+      return false
+    end
+    left = left + 1
+    right = right - 1
+  end
+
+  true
+end
+
+def run
+  rows = []
+  rows = rows.push(["text", "palindrome"])
+  rows = rows.push(["racecar", palindrome?("racecar")])
+  rows = rows.push(["Able was I ere I saw Elba", palindrome?("Able was I ere I saw Elba")])
+  rows = rows.push(["12321", palindrome?("12321")])
+  rows = rows.push(["Vibescript", palindrome?("Vibescript")])
+  rows
+end

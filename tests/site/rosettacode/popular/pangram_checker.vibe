@@ -1,0 +1,50 @@
+# title: Pangram checker
+# source: https://rosettacode.org/wiki/Pangram_checker
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Check whether a sentence contains every letter of the alphabet at least once.
+# tags: popular, strings, analysis
+# vibe: 0.2
+
+def is_pangram(sentence)
+  alphabet = "abcdefghijklmnopqrstuvwxyz"
+  lower = sentence.downcase
+  i = 0
+
+  while i < alphabet.length
+    letter = alphabet.slice(i)
+    if lower.index(letter) == nil
+      return false
+    end
+    i = i + 1
+  end
+
+  true
+end
+
+def missing_letters(sentence)
+  alphabet = "abcdefghijklmnopqrstuvwxyz"
+  lower = sentence.downcase
+  missing = []
+  i = 0
+
+  while i < alphabet.length
+    letter = alphabet.slice(i)
+    if lower.index(letter) == nil
+      missing = missing.push(letter)
+    end
+    i = i + 1
+  end
+
+  missing
+end
+
+def run
+  fox = "The quick brown fox jumps over the lazy dog"
+  almost = "The quick brown fox jumped over the lazy dog"
+  {
+    fox_pangram: is_pangram(fox),
+    almost_pangram: is_pangram(almost),
+    almost_missing: missing_letters(almost)
+  }
+end

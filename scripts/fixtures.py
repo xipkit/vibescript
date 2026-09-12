@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 UPSTREAM=Path(__file__).resolve().parent.parent/"tests/upstream"
+SITE=UPSTREAM.parent/"site"
 
 
 def upstream_cases():
@@ -17,6 +18,13 @@ def upstream_cases():
     for i,case in enumerate(json.loads((UPSTREAM/"cases.json").read_text())):
         out.append({"name":f"upstream/{i:02}/{case['path']}::{case['function']}","source":(UPSTREAM/case["path"]).read_text(),"function":case["function"],"args":case["args"],"expected":case["expected"],"accounting":True})
     return out
+
+
+def site_cases():
+    manifest=json.loads((SITE/"sources.json").read_text())
+    for entry in manifest["files"]:
+        assert hashlib.sha256((SITE/entry["path"]).read_bytes()).hexdigest()==entry["sha256"],entry["path"]
+    return [{"name":"site/"+case["path"],"source":(SITE/case["path"]).read_text(),"function":case["function"],"args":case["args"],"expected":case["expected"],"accounting":True} for case in json.loads((SITE/"cases.json").read_text())]
 
 
 def function(body):
@@ -34,6 +42,19 @@ def benchmark_cases():
     add("array_sum", "input.sum", list(range(1000)), 499500)
     add("array_growth", "a=[]\ni=0\nwhile i<input\n a.push(i)\n i+=1\nend\na.sum", 128, 8128)
     add("hash_lookup", "i=0\ntotal=0\nwhile i<1000\n total+=input[\"k31\"]\n i+=1\nend\ntotal", {f"k{i:02}": i for i in range(64)}, 31000)
+    for size in [8, 512, 2048]:
+        obj={f"k{i:05}":i for i in range(size)}
+        key=f"k{size-1:05}"
+        add(f"hash_lookup_{size}",f'i=0\ntotal=0\nwhile i<128\n total+=input["{key}"]\n i+=1\nend\ntotal',obj,128*(size-1))
+        add(f"json_object_{size}","JSON.parse(input)",json.dumps(obj,separators=(",",":")),obj)
+    keys=[f"k{i:05}" for i in range(512)]
+    obj=dict(zip(keys,range(512)))
+    add("hash_build_512",'h={}\ni=0\nwhile i<input.length\n h[input[i]]=i\n i+=1\nend\nh["k00511"]',keys,511)
+    add("hash_replace_512",'h=input\ni=0\nwhile i<128\n h["k00511"]=i\n i+=1\nend\nh["k00511"]',obj,127)
+    add("hash_equal_512","input[0]==input[1]",[obj,dict(reversed(list(obj.items())))],True)
+    duplicates="{"+",".join(json.dumps(k)+":"+str(v) for k,v in [*obj.items(),*((k,1024+i) for i,k in enumerate(reversed(keys)))])+"}"
+    expected={k:1024+511-i for i,k in enumerate(keys)}
+    add("json_duplicates_512","JSON.parse(input)",duplicates,expected)
     for size in [16, 4096, 65536]:
         text=("aBcD9_! "*((size+7)//8))[:size]
         add(f"length_{size}", "input.length", text, len(text))
@@ -58,6 +79,10 @@ def benchmark_cases():
         ("upstream_greeting","examples/basics/functions_and_calls.vibe","decorated_greeting","Ada","[hello Ada]"),
     ]:
         cases.append(dict(name=name,source=(UPSTREAM/path).read_text(),function=function_name,args=[arg],expected=expected))
+    for case in site_cases():
+        filename=Path(case["name"]).stem
+        if filename in ["top_rank_per_group","word_wrap","sieve_of_eratosthenes"]:
+            cases.append({**case,"name":"site_"+filename})
     out=[]
     for case in cases:
         for accounting in [True,False]:
@@ -92,6 +117,10 @@ def conformance_cases():
     add("array_add_branch","a=[1]\nb=a\na=(false || a)+[a[0]]\n[a,b]",[[1,1],[1]])
     add("hash_order_and_alias","h={b:1,a:2}\nx=h\nh[:b]=7\n[h.keys,h.values,x[:b]]",[["b","a"],[7,2],1])
     add("hash_equality",'[{a:1,b:2}=={b:2,a:1},:a=="a",{a:1,a:2}[:a]]',[True,False,2])
+    for size in [15,16,17,24,25,511,512]:
+        obj={f"k{i:05}":i for i in range(size)}
+        add(f"hash_snapshot_{size}",'h=input\nold=h\nh["snapshot"]=h\nh[:k00000]=-1\n[h.length,old[:k00000],h["snapshot"].length,h[:k00000],old["snapshot"]]',[size+1,0,size,-1,None],obj)
+        add(f"hash_byte_keys_{size}",'h=input\nh[""]="empty"\nh["é"]="unicode"\nh["\\xff"]="invalid"\nh[:k00000]=7\n[h[""],h["é"],h["\\xff"],h[:k00000],h.keys[-1]]',["empty","unicode","invalid",7,"\ufffd"],obj)
     add("unicode_index",'[input.length,input.bytesize,input[1],input[-1],input.index("界"),input.rindex("é")]',[4,10,"é","🙂",2,1],"aé界🙂")
     add("invalid_bytes",'s="a\\xff\\xfe"\n[s.length,s.bytesize]',[3,3])
     add("ascii_case_unicode",'input.upcase(:ascii)',"AéΣ🙂Z","aéΣ🙂z")
@@ -111,7 +140,7 @@ def conformance_cases():
     for i in range(30):
         a=rng.randrange(-10000,10000);b=rng.choice([n for n in range(-97,98) if n])
         add(f"arithmetic_{i}",f"[{a}+({b}),{a}-({b}),{a}*({b}),{a}/({b}),{a}%({b})]",[a+b,a-b,a*b,a//b,a%b])
-    return cases+upstream_cases()
+    return cases+upstream_cases()+site_cases()
 
 
 if __name__ == "__main__":

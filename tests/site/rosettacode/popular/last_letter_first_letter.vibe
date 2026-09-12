@@ -1,0 +1,45 @@
+# title: Last letter-first letter
+# source: https://rosettacode.org/wiki/Last_letter-first_letter
+# category: Rosetta Code
+# difficulty: Intermediate
+# summary: Build a word chain where each next word starts with the previous word's last letter.
+# tags: popular, strings, search, arrays
+# vibe: 0.2
+
+def remove_at(values, skip_index)
+  out = []
+  index = 0
+
+  while index < values.size
+    if index != skip_index
+      out = out + [values[index]]
+    end
+    index = index + 1
+  end
+
+  out
+end
+
+def chain_words(current, remaining, chain)
+  if remaining.empty?
+    return chain
+  end
+
+  next_first = current.slice(current.length - 1)
+  index = 0
+  while index < remaining.size
+    candidate = remaining[index]
+    if candidate.slice(0) == next_first
+      return chain_words(candidate, remove_at(remaining, index), chain + [candidate])
+    end
+    index = index + 1
+  end
+
+  chain
+end
+
+def run
+  words = ["audino", "bagon", "nidoking", "goldeen", "nosepass", "seaking"]
+  first = words[0]
+  chain_words(first, remove_at(words, 0), [first])
+end

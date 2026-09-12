@@ -1,0 +1,68 @@
+# title: Magic squares of odd order
+# source: https://rosettacode.org/wiki/Magic_squares_of_odd_order
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Build a 3x3 magic square with the classic Siamese method.
+# tags: popular, matrices, math, algorithms
+# vibe: 0.2
+
+def blank_square(size)
+  rows = []
+  row = 0
+  while row < size
+    current = []
+    column = 0
+    while column < size
+      current = current.push(0)
+      column = column + 1
+    end
+    rows = rows.push(current)
+    row = row + 1
+  end
+  rows
+end
+
+def set_cell(square, row, column, value)
+  current = square[row]
+  current[column] = value
+  square[row] = current
+  square
+end
+
+def magic_square(size)
+  square = blank_square(size)
+  row = 0
+  column = size / 2
+  value = 1
+
+  while value <= size * size
+    square = set_cell(square, row, column, value)
+    next_row = row - 1
+    next_column = column + 1
+
+    if next_row < 0
+      next_row = size - 1
+    end
+    if next_column >= size
+      next_column = 0
+    end
+
+    if square[next_row][next_column] != 0
+      row = row + 1
+      if row >= size
+        row = 0
+      end
+    else
+      row = next_row
+      column = next_column
+    end
+
+    value = value + 1
+  end
+
+  square
+end
+
+def run
+  magic_square(3)
+end

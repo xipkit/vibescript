@@ -1,0 +1,34 @@
+# title: Determine if a string is squeezable
+# source: https://rosettacode.org/wiki/Determine_if_a_string_is_squeezable
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Collapse repeated adjacent characters and compare the squeezed result with a target string.
+# tags: popular, strings, parsing, basics
+# vibe: 0.4
+
+def squeeze(text)
+  result = ""
+  previous = nil
+
+  text.chars.each do |char|
+    if char != previous
+      result = result + char
+      previous = char
+    end
+  end
+
+  result
+end
+
+def squeezable?(text, target)
+  squeeze(text) == target
+end
+
+def run
+  {
+    balloon: squeezable?("baalllloooon", "balon"),
+    mississippi: squeezable?("mississippi", "misisipi"),
+    no_change: squeezable?("vibescript", "vibescript"),
+    mismatch: squeezable?("bookkeeper", "bokeper")
+  }
+end

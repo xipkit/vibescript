@@ -1,0 +1,25 @@
+# title: Catalan numbers
+# source: https://rosettacode.org/wiki/Catalan_numbers
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate the opening Catalan numbers with the standard multiplicative recurrence.
+# tags: popular, math, sequences, combinatorics
+# vibe: 0.2
+
+def catalan_numbers(count)
+  values = [1]
+  index = 0
+
+  while values.length < count
+    current = values[index]
+    next_value = current * 2 * ((2 * index) + 1) / (index + 2)
+    values = values.push(next_value)
+    index = index + 1
+  end
+
+  values
+end
+
+def run
+  catalan_numbers(10)
+end

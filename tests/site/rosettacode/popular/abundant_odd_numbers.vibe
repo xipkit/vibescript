@@ -1,0 +1,42 @@
+# title: Abundant odd numbers
+# source: https://rosettacode.org/wiki/Abundant_odd_numbers
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Check a few well-known odd abundant numbers by comparing them with their proper divisor sums.
+# tags: popular, math, number-theory, divisors
+# vibe: 0.2
+
+def proper_divisor_sum(number)
+  if number == 1
+    return 0
+  end
+
+  total = 1
+  candidate = 2
+
+  while candidate * candidate <= number
+    if number % candidate == 0
+      total = total + candidate
+      other = number / candidate
+      if other != candidate
+        total = total + other
+      end
+    end
+    candidate = candidate + 1
+  end
+
+  total
+end
+
+def abundant?(number)
+  proper_divisor_sum(number) > number
+end
+
+def run
+  [
+    { value: 315, abundant: abundant?(315) },
+    { value: 945, abundant: abundant?(945) },
+    { value: 1575, abundant: abundant?(1575) },
+    { value: 2205, abundant: abundant?(2205) }
+  ]
+end

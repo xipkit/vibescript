@@ -1,0 +1,48 @@
+# title: Numerical integration
+# source: https://rosettacode.org/wiki/Numerical_integration
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Approximate definite integrals with the trapezoidal rule over fixed functions.
+# tags: popular, math, calculus, approximation
+# vibe: 0.2
+
+def square(value)
+  value * value
+end
+
+def line(value)
+  (3 * value) + 2
+end
+
+def trapezoidal_square(start_value, finish_value, steps)
+  width = (finish_value - start_value) / steps
+  total = (square(start_value) + square(finish_value)) / 2
+  step = 1
+
+  while step < steps
+    total = total + square(start_value + (step * width))
+    step = step + 1
+  end
+
+  total * width
+end
+
+def trapezoidal_line(start_value, finish_value, steps)
+  width = (finish_value - start_value) / steps
+  total = (line(start_value) + line(finish_value)) / 2
+  step = 1
+
+  while step < steps
+    total = total + line(start_value + (step * width))
+    step = step + 1
+  end
+
+  total * width
+end
+
+def run
+  {
+    integral_of_x_squared: trapezoidal_square(0.0, 1.0, 50),
+    integral_of_three_x_plus_two: trapezoidal_line(0.0, 5.0, 50)
+  }
+end

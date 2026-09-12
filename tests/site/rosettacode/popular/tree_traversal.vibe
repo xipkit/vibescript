@@ -1,0 +1,97 @@
+# title: Tree traversal
+# source: https://rosettacode.org/wiki/Tree_traversal
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Traverse a small binary tree in preorder, inorder, postorder, and level order.
+# tags: popular, trees, recursion, data-structures
+# vibe: 0.2
+
+def node(value, left = nil, right = nil)
+  {
+    value: value,
+    left: left,
+    right: right
+  }
+end
+
+def sample_tree
+  node(
+    "F",
+    node(
+      "B",
+      node("A"),
+      node(
+        "D",
+        node("C"),
+        node("E")
+      )
+    ),
+    node(
+      "G",
+      nil,
+      node(
+        "I",
+        node("H"),
+        nil
+      )
+    )
+  )
+end
+
+def preorder(node)
+  if node == nil
+    []
+  else
+    [node[:value]] + preorder(node[:left]) + preorder(node[:right])
+  end
+end
+
+def inorder(node)
+  if node == nil
+    []
+  else
+    inorder(node[:left]) + [node[:value]] + inorder(node[:right])
+  end
+end
+
+def postorder(node)
+  if node == nil
+    []
+  else
+    postorder(node[:left]) + postorder(node[:right]) + [node[:value]]
+  end
+end
+
+def level_order(root)
+  if root == nil
+    return []
+  end
+
+  queue = [root]
+  output = []
+  index = 0
+
+  while index < queue.length
+    current = queue[index]
+    output = output.push(current[:value])
+    if current[:left] != nil
+      queue = queue.push(current[:left])
+    end
+    if current[:right] != nil
+      queue = queue.push(current[:right])
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def run
+  tree = sample_tree
+  {
+    preorder: preorder(tree),
+    inorder: inorder(tree),
+    postorder: postorder(tree),
+    level_order: level_order(tree)
+  }
+end

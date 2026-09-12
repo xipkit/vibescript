@@ -1,0 +1,72 @@
+# vibe: 1.0
+
+def normalize(text)
+  text.strip.downcase
+end
+
+def split_tags(input)
+  tags = normalize(input).split(",")
+  tags = tags.map do |tag|
+    tag.strip
+  end
+  tags.select do |tag|
+    tag != ""
+  end
+end
+
+def run
+  sample = "  Vibescript Example  "
+  indexed = "héllo hello"
+  immutable = "  hello  "
+  ids = "ID-12 ID-34"
+  first_id = ids.match("ID-([0-9]+)")
+  {
+    normalized: normalize(sample),
+    bytesize: "hé".bytesize,
+    ord: "hé".ord,
+    chr: "hé".chr,
+    upper: sample.strip.upcase,
+    lower: sample.strip.downcase,
+    capitalize: "hÉLLo wORLD".capitalize,
+    swapcase: "Hello VIBE".swapcase,
+    reverse: "héllo".reverse,
+    sub: "bananas".sub("na", "NA"),
+    gsub: "bananas".gsub("na", "NA"),
+    sub_regex: ids.sub("ID-[0-9]+", "X", regex: true),
+    gsub_regex: ids.gsub("ID-[0-9]+", "X", regex: true),
+    match: [first_id[0], first_id[1]],
+    scan: ids.scan("ID-[0-9]+"),
+    strip_bang: immutable.strip!,
+    strip_bang_nochange: "hello".strip!,
+    squish: "  hello \n\t world  ".squish,
+    squish_bang: "  hello \n\t world  ".squish!,
+    template: "Player {{user.name}} scored {{user.score}}".template({ user: { name: "Alex", score: 42 } }),
+    template_missing: "Hello {{missing}}".template({ name: "Alex" }),
+    immutable_after: immutable,
+    clear: "hello".clear,
+    concat: "he".concat("llo", "!"),
+    concat_noop: "hello".concat,
+    replace: "old".replace("new"),
+    sub_bang: "bananas".sub!("na", "NA"),
+    gsub_bang: "bananas".gsub!("na", "NA"),
+    lstrip: "  hello\t".lstrip,
+    rstrip: "\thello  ".rstrip,
+    chomp_default: "line\n".chomp,
+    chomp_custom: "path///".chomp("/"),
+    delete_prefix: "unhappy".delete_prefix("un"),
+    delete_suffix: "report.csv".delete_suffix(".csv"),
+    split_default: "one two  three".split,
+    split_custom: "a,b,c".split(","),
+    tags: split_tags(" Ruby, Go,  Vibescript  "),
+    empty_true: "".empty?,
+    empty_false: "x".empty?,
+    starts: "vibescript".start_with?("vibe"),
+    ends: "vibescript".end_with?("script"),
+    include: indexed.include?("llo"),
+    index: indexed.index("llo"),
+    rindex: indexed.rindex("llo"),
+    slice_char: indexed.slice(1),
+    slice_range: indexed.slice(1, 4),
+    length: "héllo".length
+  }
+end

@@ -1,0 +1,57 @@
+# title: Zeckendorf number representation
+# source: https://rosettacode.org/wiki/Zeckendorf_number_representation
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Represent integers as sums of non-consecutive Fibonacci numbers using Zeckendorf's theorem.
+# tags: popular, math, fibonacci, decomposition
+# vibe: 0.2
+
+def fibonacci_up_to(limit)
+  fibs = [1, 2]
+  while fibs[fibs.size - 1] < limit
+    next_fib = fibs[fibs.size - 1] + fibs[fibs.size - 2]
+    fibs = fibs.push(next_fib)
+  end
+  fibs
+end
+
+def zeckendorf(n)
+  if n == 0
+    return [0]
+  end
+
+  fibs = fibonacci_up_to(n)
+  remaining = n
+  parts = []
+
+  i = fibs.size - 1
+  while i >= 0
+    if fibs[i] <= remaining
+      parts = parts.push(fibs[i])
+      remaining = remaining - fibs[i]
+    end
+    i = i - 1
+  end
+
+  parts
+end
+
+def run
+  results = []
+  n = 1
+  while n <= 20
+    parts = zeckendorf(n)
+    label = ""
+    j = 0
+    while j < parts.size
+      if j > 0
+        label = label + " + "
+      end
+      label = label + parts[j]
+      j = j + 1
+    end
+    results = results.push({ n: n, zeckendorf: label })
+    n = n + 1
+  end
+  results
+end

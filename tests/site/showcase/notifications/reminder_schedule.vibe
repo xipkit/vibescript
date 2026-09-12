@@ -1,0 +1,47 @@
+# title: Reminder schedule
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Schedule reminders from a channel and lead time.
+# description: Enums name each channel, durations set the lead time, and templates build the subject.
+# tags: notifications, durations, enums, templates
+# featured: true
+# feature_rank: 5
+# vibe: 0.2
+
+enum ReminderChannel
+  Email
+  Sms
+  Push
+end
+
+def lead_time(channel: ReminderChannel) -> duration
+  if channel == ReminderChannel::Email
+    Duration.build(hours: 48)
+  elsif channel == ReminderChannel::Sms
+    Duration.parse("PT6H")
+  else
+    Duration.parse("PT30M")
+  end
+end
+
+def reminder_job(invoice_id: string, due_at: time, channel: ReminderChannel) -> hash
+  delta = lead_time(channel)
+  send_at = delta.ago(due_at)
+
+  {
+    invoice_id: invoice_id,
+    channel: channel.name,
+    lead_time: delta.iso8601,
+    send_at: send_at.format("2006-01-02T15:04:05Z"),
+    subject: "Invoice {{invoice}} is due soon".template({ invoice: invoice_id })
+  }
+end
+
+def run
+  due_at = Time.at(1700600000)
+  {
+    email: reminder_job("inv_2026_0042", due_at, ReminderChannel::Email),
+    sms: reminder_job("inv_2026_0042", due_at, ReminderChannel::Sms),
+    push: reminder_job("inv_2026_0042", due_at, ReminderChannel::Push)
+  }
+end

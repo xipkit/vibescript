@@ -1,0 +1,44 @@
+# title: Trial offer
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Build a trial offer from the account type and trial length.
+# description: An enum names the account type. Durations set the term, and a template builds the onboarding message.
+# tags: policies, durations, enums, templates
+# vibe: 0.2
+
+enum AccountKind
+  Personal
+  Team
+  Enterprise
+end
+
+def trial_length(kind: AccountKind) -> duration
+  if kind == AccountKind::Personal
+    14.days
+  elsif kind == AccountKind::Team
+    21.days
+  else
+    30.days
+  end
+end
+
+def trial_offer(account_id: string, kind: AccountKind, created_at: time) -> hash
+  length = trial_length(kind)
+
+  {
+    account_id: account_id,
+    account_kind: kind.name,
+    trial_length: length.iso8601,
+    expires_at: length.after(created_at).format("2006-01-02T15:04:05Z"),
+    welcome: "{{account}} starts a {{kind}} trial".template({ account: account_id, kind: kind.name })
+  }
+end
+
+def run
+  created_at = Time.at(1700800000)
+
+  {
+    personal: trial_offer("acct_personal_22", AccountKind::Personal, created_at),
+    enterprise: trial_offer("acct_enterprise_09", AccountKind::Enterprise, created_at)
+  }
+end

@@ -1,0 +1,45 @@
+# title: Conditional structures
+# source: https://rosettacode.org/wiki/Conditional_structures
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Classify values with if, elsif, and else branches.
+# tags: popular, basics, control-flow, conditionals
+# vibe: 0.2
+
+def classify_temperature(value)
+  if value < 0
+    "freezing"
+  elsif value < 15
+    "cold"
+  elsif value < 25
+    "mild"
+  else
+    "warm"
+  end
+end
+
+def classify_sign(value)
+  if value < 0
+    "negative"
+  elsif value == 0
+    "zero"
+  else
+    "positive"
+  end
+end
+
+def run
+  {
+    temperatures: [
+      classify_temperature(-4),
+      classify_temperature(8),
+      classify_temperature(20),
+      classify_temperature(31)
+    ],
+    signs: [
+      classify_sign(-7),
+      classify_sign(0),
+      classify_sign(9)
+    ]
+  }
+end

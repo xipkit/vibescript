@@ -1,0 +1,19 @@
+# title: Send an email
+# category: Vibescript Showcase
+# difficulty: Embedding
+# summary: Build a welcome email and send it through a Go email capability.
+# description: The Go adapter returns a message preview. No email is sent.
+# tags: notifications, capabilities, email, embedding
+# featured: true
+# feature_rank: -2
+# uses: email
+
+def welcome(address: string, name: string) -> hash
+  subject = "Welcome, #{name}!"
+  body = "Hi #{name},\n\nYour account is ready. Thanks for joining us."
+  email.send(address, subject, body)
+end
+
+def run
+  welcome("alex@example.com", "Alex")
+end

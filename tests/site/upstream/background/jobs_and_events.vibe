@@ -1,0 +1,36 @@
+# vibe: 1.0
+# uses: jobs, events, db
+# The host owns the queue and performs delayed work after this call returns.
+
+def queue_recalc(player_id)
+  jobs.enqueue(
+    "recalc_player_total",
+    { player_id: player_id },
+    delay: 2.seconds,
+    key: "recalc:" + player_id
+  )
+end
+
+def publish_update(player)
+  events.publish(
+    "players_totals",
+    {
+      id: player[:id],
+      total: player[:raised].format
+    }
+  )
+end
+
+def job_recalc_player_total(payload)
+  player_id = payload[:player_id]
+  total = db.sum("ScoreEntry", :amount, where: { player_id: player_id })
+  db.update("Player", player_id, { raised: total })
+  publish_update({ id: player_id, raised: total })
+end
+
+def run
+  {
+    note: "This example requires jobs, events, and db capabilities which are injected by the host application.",
+    functions: ["queue_recalc", "publish_update", "job_recalc_player_total"]
+  }
+end

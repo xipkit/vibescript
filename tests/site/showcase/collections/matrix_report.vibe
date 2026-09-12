@@ -1,0 +1,28 @@
+# title: Matrix report
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Turn rows of daily metrics into totals for each metric.
+# description: transpose swaps rows and columns. zip pairs each total with its label.
+# tags: collections, arrays, matrix
+# vibe: 0.4
+
+def column_totals(rows)
+  rows.transpose.map { |column| column.sum }
+end
+
+def run
+  labels = ["signups", "errors", "refunds"]
+  daily = [
+    [10, 3, 1],
+    [12, 5, 0],
+    [9, 2, 2]
+  ]
+
+  totals = column_totals(daily)
+
+  {
+    by_metric: labels.zip(totals),
+    daily_totals: daily.map { |row| row.sum },
+    grand_total: totals.sum
+  }
+end

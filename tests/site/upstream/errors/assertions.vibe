@@ -1,0 +1,24 @@
+# vibe: 1.0
+
+def ensure_positive(amount)
+  assert amount > 0, "amount must be positive"
+  amount
+end
+
+def ensure_currency(pledge)
+  assert pledge.currency == "USD", "only USD pledges supported"
+  pledge
+end
+
+def guard_present(value)
+  assert value != nil
+  value
+end
+
+def run
+  {
+    positive: ensure_positive(42),
+    currency: ensure_currency(money("25.00 USD")),
+    present: guard_present("hello")
+  }
+end

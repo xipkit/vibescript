@@ -1,0 +1,60 @@
+# title: Caesar Cipher
+# source: https://rosettacode.org/wiki/Caesar_cipher
+# category: Rosetta Code Popular
+# difficulty: Easy
+# summary: Encode and decode text by rotating alphabetic characters through a fixed shift.
+# tags: popular, strings, crypto, substitution
+# vibe: 0.2
+
+def rotate_index(index, shift)
+  rotated = index + shift
+
+  while rotated >= 26
+    rotated = rotated - 26
+  end
+
+  while rotated < 0
+    rotated = rotated + 26
+  end
+
+  rotated
+end
+
+def rotate_char(char, shift)
+  upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  lower = "abcdefghijklmnopqrstuvwxyz"
+
+  upper_index = upper.index(char)
+  if upper_index != nil
+    return upper.slice(rotate_index(upper_index, shift))
+  end
+
+  lower_index = lower.index(char)
+  if lower_index != nil
+    return lower.slice(rotate_index(lower_index, shift))
+  end
+
+  char
+end
+
+def caesar_cipher(text, shift)
+  output = ""
+  index = 0
+
+  while index < text.length
+    output = output + rotate_char(text.slice(index), shift)
+    index = index + 1
+  end
+
+  output
+end
+
+def run
+  plain = "The quick brown fox jumps over the lazy dog."
+  encoded = caesar_cipher(plain, 3)
+  {
+    plain: plain,
+    encoded: encoded,
+    decoded: caesar_cipher(encoded, 23)
+  }
+end

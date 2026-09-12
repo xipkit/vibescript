@@ -1,0 +1,52 @@
+# title: Happy numbers
+# source: https://rosettacode.org/wiki/Happy_numbers
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Classify happy numbers by iterating the sum-of-squares process and list the first twelve.
+# tags: popular, math, sequences, number-theory
+# vibe: 0.2
+
+def digit_square_sum(value)
+  current = value
+  total = 0
+
+  while current > 0
+    digit = current % 10
+    total = total + (digit * digit)
+    current = current / 10
+  end
+
+  total
+end
+
+def happy?(value)
+  current = value
+
+  while current != 1 && current != 4
+    current = digit_square_sum(current)
+  end
+
+  current == 1
+end
+
+def first_happy_numbers(count)
+  values = []
+  candidate = 1
+
+  while values.length < count
+    if happy?(candidate)
+      values = values.push(candidate)
+    end
+    candidate = candidate + 1
+  end
+
+  values
+end
+
+def run
+  {
+    first_five: first_happy_numbers(5),
+    nineteen: happy?(19),
+    twenty: happy?(20)
+  }
+end

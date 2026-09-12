@@ -1,0 +1,48 @@
+# title: Josephus problem
+# source: https://rosettacode.org/wiki/Josephus_problem
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Find the survivor position in the Josephus problem for n people counting every k-th.
+# tags: popular, math, simulation
+# vibe: 0.2
+
+def josephus(n, k)
+  circle = []
+  i = 0
+  while i < n
+    circle = circle.push(i)
+    i = i + 1
+  end
+
+  order = []
+  index = 0
+
+  while circle.size > 0
+    index = (index + k - 1) % circle.size
+    removed = circle[index]
+    order = order.push(removed)
+
+    new_circle = []
+    j = 0
+    while j < circle.size
+      if j != index
+        new_circle = new_circle.push(circle[j])
+      end
+      j = j + 1
+    end
+    circle = new_circle
+
+    if index >= circle.size
+      index = 0
+    end
+  end
+
+  { survivor: order[order.size - 1], elimination_order: order }
+end
+
+def run
+  {
+    classic: josephus(41, 3),
+    small: josephus(5, 2)
+  }
+end

@@ -1,0 +1,32 @@
+# title: Resilient lookups
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Recover from missing hash keys and check float edge cases.
+# description: rescue supplies a fallback when fetch fails. nan? and finite? identify special float values.
+# tags: reliability, errors, floats
+# vibe: 0.4
+
+def lookup_or(table: hash, key: symbol, fallback)
+  table.fetch(key) rescue fallback
+end
+
+def safe_divide(a: int, b: int)
+  (a / b) rescue nil
+end
+
+def run
+  prices = { small: 5, large: 9 }
+  infinity = 1.0 / 0.0
+  not_a_number = 0.0 / 0.0
+
+  {
+    known: lookup_or(prices, :small, 0),
+    unknown: lookup_or(prices, :huge, 0),
+    divide_ok: safe_divide(100, 4),
+    divide_guarded: safe_divide(100, 0),
+    infinity_label: infinity.to_s,
+    is_finite: (3.0 / 4.0).finite?,
+    nan_detected: not_a_number.nan?,
+    incomparable_is_nil: (1 <=> "a") == nil
+  }
+end

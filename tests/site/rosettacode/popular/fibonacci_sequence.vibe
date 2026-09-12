@@ -1,0 +1,28 @@
+# title: Fibonacci sequence
+# source: https://rosettacode.org/wiki/Fibonacci_sequence
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Produce the opening terms of the Fibonacci sequence iteratively.
+# tags: popular, math, loops, arrays
+
+def fibonacci_terms(count)
+  values = []
+  a = 0
+  b = 1
+  produced = 0
+
+  while produced < count
+    values = values.push(a)
+    next_value = a + b
+    a = b
+    b = next_value
+    produced = produced + 1
+  end
+
+  values
+end
+
+def run
+  fibonacci_terms(15)
+end
+

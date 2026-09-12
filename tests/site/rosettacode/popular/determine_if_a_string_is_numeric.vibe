@@ -1,0 +1,53 @@
+# title: Determine if a string is numeric
+# source: https://rosettacode.org/wiki/Determine_if_a_string_is_numeric
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Recognize simple signed integer and decimal strings.
+# tags: popular, strings, validation, parsing
+# vibe: 0.2
+
+def digit?(char)
+  char >= "0" && char <= "9"
+end
+
+def numeric?(text)
+  if text == ""
+    return false
+  end
+
+  index = 0
+  if text.slice(0) == "+" || text.slice(0) == "-"
+    index = 1
+  end
+
+  if index >= text.length
+    return false
+  end
+
+  seen_digit = false
+  seen_decimal = false
+
+  while index < text.length
+    char = text.slice(index)
+    if digit?(char)
+      seen_digit = true
+    elsif char == "." && !seen_decimal
+      seen_decimal = true
+    else
+      return false
+    end
+    index = index + 1
+  end
+
+  seen_digit
+end
+
+def run
+  [
+    { text: "42", numeric: numeric?("42") },
+    { text: "-17.5", numeric: numeric?("-17.5") },
+    { text: "+.5", numeric: numeric?("+.5") },
+    { text: "12a", numeric: numeric?("12a") },
+    { text: "--3", numeric: numeric?("--3") }
+  ]
+end

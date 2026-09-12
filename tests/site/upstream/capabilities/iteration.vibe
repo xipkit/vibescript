@@ -1,0 +1,17 @@
+# vibe: 1.0
+# uses: db
+
+def total_raised_for_player(player_id)
+  total = money("0.00 USD")
+  db.each("ScoreEntry", where: { player_id: player_id }) do |entry|
+    total = total + entry[:amount]
+  end
+  total
+end
+
+def run
+  {
+    note: "This example requires the db capability which is injected by the host application.",
+    functions: ["total_raised_for_player"]
+  }
+end

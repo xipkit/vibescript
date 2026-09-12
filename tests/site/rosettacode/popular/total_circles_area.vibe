@@ -1,0 +1,31 @@
+# title: Total circles area
+# source: https://rosettacode.org/wiki/Total_circles_area
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Sum the areas of several circles from their radii.
+# tags: popular, math, geometry, floats
+# vibe: 0.2
+
+def area(radius)
+  3.141592653589793 * radius * radius
+end
+
+def total_area(radii)
+  total = 0.0
+  index = 0
+
+  while index < radii.size
+    total = total + area(radii[index])
+    index = index + 1
+  end
+
+  total
+end
+
+def run
+  radii = [1.0, 2.5, 4.0]
+  {
+    radii: radii,
+    total_area: total_area(radii)
+  }
+end

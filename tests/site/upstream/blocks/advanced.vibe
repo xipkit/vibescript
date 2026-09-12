@@ -1,0 +1,56 @@
+# vibe: 1.0
+
+def count_active(players)
+  players.reduce(0) do |count, player|
+    if player[:active]
+      count + 1
+    else
+      count
+    end
+  end
+end
+
+def normalize_donations(donations)
+  donations.map do |donation|
+    {
+      id: donation[:id],
+      cents: donation[:amount].cents,
+      formatted: donation[:amount].format
+    }
+  end
+end
+
+def max_score(scores)
+  scores.reduce(0) do |highest, score|
+    if score > highest
+      score
+    else
+      highest
+    end
+  end
+end
+
+def any_large?(values, threshold)
+  found = false
+  values.each do |value|
+    if value > threshold
+      found = true
+    end
+  end
+  found
+end
+
+def run
+  players = [
+    { active: true },
+    { active: false },
+    { active: true },
+    { active: true }
+  ]
+
+  {
+    active_count: count_active(players),
+    max_score: max_score([10, 45, 23, 67, 12]),
+    any_large: any_large?([1, 2, 3, 100], 50)
+  }
+end

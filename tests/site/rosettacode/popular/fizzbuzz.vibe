@@ -1,0 +1,27 @@
+# title: FizzBuzz
+# source: https://rosettacode.org/wiki/FizzBuzz
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Emit the classic FizzBuzz sequence up to a chosen limit.
+# tags: popular, loops, strings, basics
+
+def fizzbuzz(limit)
+  lines = []
+  for value in 1..limit
+    if value % 15 == 0
+      lines = lines.push("FizzBuzz")
+    elsif value % 3 == 0
+      lines = lines.push("Fizz")
+    elsif value % 5 == 0
+      lines = lines.push("Buzz")
+    else
+      lines = lines.push("" + value)
+    end
+  end
+  lines
+end
+
+def run
+  fizzbuzz(30)
+end
+

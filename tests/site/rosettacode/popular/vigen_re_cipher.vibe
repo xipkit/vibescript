@@ -1,0 +1,51 @@
+# title: Vigenère cipher
+# source: https://rosettacode.org/wiki/Vigen%C3%A8re_cipher
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Encode and decode a short uppercase message with a fixed Vigenère key.
+# tags: popular, strings, ciphers, encoding
+# vibe: 0.2
+
+def alphabet
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+end
+
+def shift_char(char, key_char, direction)
+  char_index = alphabet.index(char)
+  key_index = alphabet.index(key_char)
+
+  if direction == "encode"
+    alphabet.slice((char_index + key_index) % 26)
+  else
+    alphabet.slice((char_index - key_index + 26) % 26)
+  end
+end
+
+def apply_vigenere(text, key, direction)
+  output = ""
+  key_index = 0
+  index = 0
+
+  while index < text.length
+    char = text.slice(index)
+    if char == " "
+      output = output + char
+    else
+      output = output + shift_char(char, key.slice(key_index % key.length), direction)
+      key_index = key_index + 1
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def run
+  plain = "VIBESCRIPT ROCKS"
+  key = "CODE"
+  encoded = apply_vigenere(plain, key, "encode")
+  {
+    encoded: encoded,
+    decoded: apply_vigenere(encoded, key, "decode")
+  }
+end

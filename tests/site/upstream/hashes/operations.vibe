@@ -1,0 +1,92 @@
+# vibe: 1.0
+
+def merge_defaults(player, defaults)
+  defaults.merge(player)
+end
+
+def merge_with_override(base, override)
+  base.merge(override)
+end
+
+def layer_settings(base, environment, request)
+  base.merge(environment, request)
+end
+
+def apply_patch(record, patch)
+  record.merge(patch)
+end
+
+def reset_record(record, replacement)
+  record.replace(replacement)
+end
+
+def to_pairs(record)
+  record.flatten
+end
+
+def index_report_by_id(records)
+  report = {}
+  records.each do |record|
+    report[record[:id]] = {
+      name: record[:name],
+      raised: record[:raised]
+    }
+  end
+  report
+end
+
+def deep_fetch_or(records, player_id)
+  record = records[player_id]
+  if record == nil
+    return {
+      name: "unknown",
+      raised: money("0.00 USD")
+    }
+  end
+  display_name = records.dig(player_id, :meta, :display_name)
+  if display_name == nil
+    display_name = record[:name]
+  end
+  {
+    name: display_name,
+    raised: record[:raised]
+  }
+end
+
+def tally_statuses(players)
+  counts = {}
+  players.each do |player|
+    status = player[:status]
+    counts[status] = counts.fetch(status, 0) + 1
+  end
+  counts
+end
+
+def hash_flags(record)
+  {
+    size: record.size,
+    length: record.length,
+    empty: record.empty?,
+    has_name: record.key?(:name),
+    has_goal: record.has_key?(:goal),
+    includes_raised: record.include?("raised")
+  }
+end
+
+def run
+  defaults = { status: "active", raised: money("0.00 USD"), goal: money("100.00 USD") }
+  player = { name: "Alice", raised: money("75.00 USD") }
+  players = [
+    { id: 1, name: "Alice", raised: money("50.00 USD"), status: "active" },
+    { id: 2, name: "Bob", raised: money("30.00 USD"), status: "complete" }
+  ]
+
+  {
+    merged: merge_defaults(player, defaults),
+    overridden: merge_with_override({ a: 1 }, { a: 2, b: 3 }),
+    tally: tally_statuses([
+      { status: "active" }, { status: "active" }, { status: "complete" }
+    ]),
+    flags: hash_flags({ name: "test", goal: 100 })
+  }
+end

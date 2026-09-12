@@ -1,0 +1,86 @@
+# vibe: 1.0
+
+def rename_keys(record, mapping)
+  record.transform_keys do |key|
+    mapping.fetch(key) do
+      key
+    end
+  end
+end
+
+def compact_hash(record)
+  record.compact
+end
+
+def select_keys(record, keys)
+  result = {}
+  keys.each do |key|
+    value = record[key]
+    if value != nil
+      result[key] = value
+    end
+  end
+  result
+end
+
+def public_fields(record)
+  record.slice(:name, :raised, :goal)
+end
+
+def without_private(record)
+  record.except(:internal, "token")
+end
+
+def normalize_values(record)
+  record.transform_values do |value|
+    if value == nil
+      0
+    else
+      value
+    end
+  end
+end
+
+def active_only(record)
+  record.select do |key, value|
+    value == "active"
+  end
+end
+
+def non_zero(record)
+  record.reject do |key, value|
+    value == 0
+  end
+end
+
+def remap_profile(record)
+  record.remap_keys({ "first_name": :name, "total_raised": :raised })
+end
+
+def deep_transform_profile(record)
+  record.deep_transform_keys do |key|
+    if key == "player_id"
+      :playerId
+    elsif key == "total_raised"
+      :totalRaised
+    elsif key == "amount_cents"
+      :amountCents
+    else
+      key
+    end
+  end
+end
+
+def run
+  record = { name: "Alice", internal: "secret", token: "abc", status: "active", score: 0, goal: 100 }
+  {
+    compact: compact_hash({ a: 1, b: nil, c: 3 }),
+    select_keys: select_keys(record, [:name, :goal]),
+    public: public_fields({ name: "Alice", raised: 500, goal: 1000, token: "x" }),
+    without_private: without_private(record),
+    normalize: normalize_values({ a: 1, b: nil, c: 3 }),
+    active_only: active_only({ a: "active", b: "inactive", c: "active" }),
+    non_zero: non_zero({ x: 0, y: 5, z: 0, w: 3 }),
+    deep_transform: deep_transform_profile({ player_id: 1, total_raised: 500, meta: { amount_cents: 100 } })
+  }
+end

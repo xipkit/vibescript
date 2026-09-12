@@ -1,0 +1,74 @@
+# title: Smith numbers
+# source: https://rosettacode.org/wiki/Smith_numbers
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Detect Smith numbers by comparing the digit sum of a composite integer with the digit sum of its prime factors.
+# tags: popular, math, primes, factorization
+# vibe: 0.2
+
+def digit_sum(value)
+  total = 0
+  current = value.abs
+
+  while current > 0
+    total = total + (current % 10)
+    current = current / 10
+  end
+
+  total
+end
+
+def prime?(number)
+  if number < 2
+    return false
+  end
+
+  candidate = 2
+  while candidate * candidate <= number
+    if number % candidate == 0
+      return false
+    end
+    candidate = candidate + 1
+  end
+
+  true
+end
+
+def factor_digit_sum(number)
+  total = 0
+  remaining = number
+  factor = 2
+
+  while factor * factor <= remaining
+    while remaining % factor == 0
+      total = total + digit_sum(factor)
+      remaining = remaining / factor
+    end
+    factor = factor + 1
+  end
+
+  if remaining > 1
+    total = total + digit_sum(remaining)
+  end
+
+  total
+end
+
+def smith?(number)
+  if prime?(number)
+    return false
+  end
+
+  digit_sum(number) == factor_digit_sum(number)
+end
+
+def run
+  [
+    { value: 4, smith: smith?(4) },
+    { value: 22, smith: smith?(22) },
+    { value: 27, smith: smith?(27) },
+    { value: 58, smith: smith?(58) },
+    { value: 85, smith: smith?(85) },
+    { value: 13, smith: smith?(13) }
+  ]
+end

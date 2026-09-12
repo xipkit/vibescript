@@ -1,0 +1,44 @@
+# title: Look-and-say sequence
+# source: https://rosettacode.org/wiki/Look-and-say_sequence
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Generate terms of the look-and-say sequence where each term describes the digits of the previous one.
+# tags: popular, strings, math, sequences
+# vibe: 0.2
+
+def look_and_say(term)
+  result = ""
+  i = 0
+
+  while i < term.length
+    char = term.slice(i)
+    count = 1
+    while i + count < term.length && term.slice(i + count) == char
+      count = count + 1
+    end
+    result = result + count + char
+    i = i + count
+  end
+
+  result
+end
+
+def sequence(n)
+  terms = ["1"]
+  i = 1
+  while i < n
+    terms = terms.push(look_and_say(terms[i - 1]))
+    i = i + 1
+  end
+  terms
+end
+
+def run
+  {
+    term_1: look_and_say("1"),
+    term_2: look_and_say("11"),
+    term_3: look_and_say("21"),
+    term_4: look_and_say("1211"),
+    term_5: look_and_say("111221")
+  }
+end

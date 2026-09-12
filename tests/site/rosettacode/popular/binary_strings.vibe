@@ -1,0 +1,30 @@
+# title: Binary strings
+# source: https://rosettacode.org/wiki/Binary_strings
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Generate all binary strings of a fixed length with a simple recursive builder.
+# tags: popular, strings, recursion, combinatorics
+# vibe: 0.2
+
+def binary_strings(length)
+  if length == 0
+    [""]
+  else
+    tails = binary_strings(length - 1)
+    output = []
+    index = 0
+    while index < tails.length
+      output = output.push("0" + tails[index])
+      output = output.push("1" + tails[index])
+      index = index + 1
+    end
+    output
+  end
+end
+
+def run
+  {
+    length_three: binary_strings(3),
+    length_four_count: binary_strings(4).length
+  }
+end

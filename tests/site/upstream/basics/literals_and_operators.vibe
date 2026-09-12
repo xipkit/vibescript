@@ -1,0 +1,40 @@
+# vibe: 1.0
+
+def add_numbers(a, b)
+  a + b
+end
+
+def combine_strings(first, second)
+  first + " " + second
+end
+
+def negate(value)
+  -value
+end
+
+def truth_table(flag)
+  if flag
+    true
+  else
+    false
+  end
+end
+
+def mix_literals
+  {
+    answer: 42,
+    ratio: 3.75,
+    quote: "keep going",
+    flags: [true, false, nil]
+  }
+end
+
+def run
+  {
+    add: add_numbers(10, 25),
+    combine: combine_strings("hello", "world"),
+    negate: negate(7),
+    truth: truth_table(true),
+    literals: mix_literals
+  }
+end

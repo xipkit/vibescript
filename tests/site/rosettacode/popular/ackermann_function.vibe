@@ -1,0 +1,25 @@
+# title: Ackermann Function
+# source: https://rosettacode.org/wiki/Ackermann_function
+# category: Rosetta Code Popular
+# difficulty: Intermediate
+# summary: Run the Ackermann function on small inputs to show deep recursion.
+# tags: popular, recursion, math
+# vibe: 0.2
+
+def ackermann(m, n)
+  if m == 0
+    n + 1
+  elsif n == 0
+    ackermann(m - 1, 1)
+  else
+    ackermann(m - 1, ackermann(m, n - 1))
+  end
+end
+
+def run
+  {
+    a_0_0: ackermann(0, 0),
+    a_2_2: ackermann(2, 2),
+    a_3_2: ackermann(3, 2)
+  }
+end

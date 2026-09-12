@@ -1,0 +1,55 @@
+# title: Session expiry
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Set a session expiry time from its risk level.
+# description: An enum names the risk level. Durations set the time to live and refresh window.
+# tags: security, durations, enums, sessions
+# vibe: 0.4
+
+enum SessionRisk
+  Trusted
+  Standard
+  Sensitive
+end
+
+def ttl_for(risk: SessionRisk) -> duration
+  if risk == SessionRisk::Trusted
+    30.days
+  elsif risk == SessionRisk::Standard
+    12.hours
+  else
+    30.minutes
+  end
+end
+
+def refresh_window(risk: SessionRisk) -> duration
+  if risk == SessionRisk::Sensitive
+    10.minutes
+  else
+    2.hours
+  end
+end
+
+def session_snapshot(user_id: string, risk: SessionRisk, issued_at: time, now: time) -> hash
+  age = Duration.build((now - issued_at).to_i)
+  ttl = ttl_for(risk)
+
+  {
+    user_id: user_id,
+    risk: risk.name,
+    age: age.iso8601,
+    ttl: ttl.iso8601,
+    expires_at: ttl.after(issued_at).format("2006-01-02T15:04:05Z"),
+    refreshable: age <= refresh_window(risk)
+  }
+end
+
+def run
+  issued_at = Time.at(1700000000)
+  now = 90.minutes.after(issued_at)
+
+  {
+    trusted: session_snapshot("user_100", SessionRisk::Trusted, issued_at, now),
+    sensitive: session_snapshot("user_200", SessionRisk::Sensitive, issued_at, now)
+  }
+end

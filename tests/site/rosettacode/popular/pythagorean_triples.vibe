@@ -1,0 +1,56 @@
+# title: Pythagorean triples
+# source: https://rosettacode.org/wiki/Pythagorean_triples
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Enumerate small Pythagorean triples with bounded hypotenuse.
+# tags: popular, math, geometry, search
+# vibe: 0.2
+
+def gcd(a, b)
+  left = a.abs
+  right = b.abs
+
+  while right != 0
+    remainder = left % right
+    left = right
+    right = remainder
+  end
+
+  left
+end
+
+def pythagorean_triples(limit)
+  triples = []
+  m = 2
+
+  while (m * m) + 1 <= limit
+    n = 1
+    while n < m
+      if (m - n).odd? && gcd(m, n) == 1
+        a = (m * m) - (n * n)
+        b = 2 * m * n
+        c = (m * m) + (n * n)
+
+        if c <= limit
+          if a < b
+            triples = triples.push([a, b, c])
+          else
+            triples = triples.push([b, a, c])
+          end
+        end
+      end
+      n = n + 1
+    end
+    m = m + 1
+  end
+
+  triples
+end
+
+def run
+  triples = pythagorean_triples(50)
+  {
+    count: triples.length,
+    triples: triples
+  }
+end

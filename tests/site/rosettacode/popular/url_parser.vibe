@@ -1,0 +1,63 @@
+# title: URL parser
+# source: https://rosettacode.org/wiki/URL_parser
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Parse a fixed URL into scheme, host, path, and query parameters.
+# tags: popular, strings, parsing, hashes
+# vibe: 0.2
+
+def parse_query(text)
+  if text == ""
+    return []
+  end
+
+  parts = text.split("&")
+  output = []
+  index = 0
+
+  while index < parts.length
+    entry = parts[index].split("=")
+    output = output.push({
+      key: entry[0],
+      value: entry[1]
+    })
+    index = index + 1
+  end
+
+  output
+end
+
+def parse_url(url)
+  scheme_parts = url.split("://")
+  scheme = scheme_parts[0]
+  remainder = scheme_parts[1]
+
+  slash_index = remainder.index("/")
+  if slash_index == nil
+    return { scheme: scheme, host: remainder, path: "", query: [] }
+  end
+
+  host = remainder.slice(0, slash_index)
+  path_and_query = remainder.slice(slash_index, remainder.length - slash_index)
+  question_index = path_and_query.index("?")
+
+  if question_index == nil
+    {
+      scheme: scheme,
+      host: host,
+      path: path_and_query,
+      query: []
+    }
+  else
+    {
+      scheme: scheme,
+      host: host,
+      path: path_and_query.slice(0, question_index),
+      query: parse_query(path_and_query.slice(question_index + 1, path_and_query.length - question_index - 1))
+    }
+  end
+end
+
+def run
+  parse_url("https://example.com/docs/guide?page=2&lang=en")
+end

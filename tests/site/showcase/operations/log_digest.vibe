@@ -1,0 +1,40 @@
+# title: Log digest
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Parse log lines, group them by level, and count each group.
+# description: each_line splits the log. partition, group_by, and select turn the lines into a short report.
+# tags: operations, strings, collections, logs
+# vibe: 0.4
+
+def digest(text: string) -> array
+  entries = []
+  text.each_line do |line|
+    trimmed = line.strip
+    if !trimmed.empty?
+      parts = trimmed.partition(" ")
+      entries.push({ level: parts[0], message: parts[2] })
+    end
+  end
+  entries
+end
+
+def counts_by_level(entries: array) -> hash
+  counts = {}
+  grouped = entries.group_by { |entry| entry[:level] }
+  grouped.each do |level, items|
+    counts[level] = items.length
+  end
+  counts
+end
+
+def run
+  log = "INFO service started\nWARN disk at 82%\nERROR upstream timeout\nINFO healthy\nWARN memory high"
+  entries = digest(log)
+
+  {
+    entry_count: entries.length,
+    first_message: entries[0][:message],
+    counts_by_level: counts_by_level(entries),
+    warnings: entries.select { |entry| entry[:level] == "WARN" }.map { |entry| entry[:message] }
+  }
+end

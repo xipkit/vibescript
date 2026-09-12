@@ -1,0 +1,83 @@
+# title: Bacon cipher
+# source: https://rosettacode.org/wiki/Bacon_cipher
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Encode and decode short messages with Bacon's five-letter A/B cipher.
+# tags: popular, strings, ciphers, encoding
+# vibe: 0.2
+
+def alphabet
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+end
+
+def digit_to_ab(value)
+  if value == 0
+    "A"
+  else
+    "B"
+  end
+end
+
+def bacon_code(index)
+  digits = ""
+  current = index
+  count = 0
+
+  while count < 5
+    digits = digit_to_ab(current % 2) + digits
+    current = current / 2
+    count = count + 1
+  end
+
+  digits
+end
+
+def encode(text)
+  output = []
+  index = 0
+
+  while index < text.length
+    char = text.slice(index).upcase
+    if char == " "
+      output = output.push("/")
+    else
+      output = output.push(bacon_code(alphabet.index(char)))
+    end
+    index = index + 1
+  end
+
+  output.join(" ")
+end
+
+def decode(text)
+  parts = text.split(" ")
+  output = ""
+  index = 0
+
+  while index < parts.length
+    part = parts[index]
+    if part == "/"
+      output = output + " "
+    else
+      letter_index = 0
+      while letter_index < alphabet.length
+        if bacon_code(letter_index) == part
+          output = output + alphabet.slice(letter_index)
+          break
+        end
+        letter_index = letter_index + 1
+      end
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def run
+  encoded = encode("VIBE CODE")
+  {
+    encoded: encoded,
+    decoded: decode(encoded)
+  }
+end

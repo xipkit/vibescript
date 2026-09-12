@@ -1,0 +1,185 @@
+# vibe: 1.0
+
+def first_two(values)
+  values.first(2)
+end
+
+def last_three(values)
+  values.last(3)
+end
+
+def numeric_sum(values)
+  values.sum
+end
+
+def double_sum(values)
+  values.reduce(0) do |total, value|
+    total + (value * 2)
+  end
+end
+
+def push_and_pop(values, extra)
+  values.push(extra)
+  popped = values.pop
+  {
+    array: values,
+    popped: popped
+  }
+end
+
+def uniq_values(values)
+  values.uniq
+end
+
+def concat_values(first, second)
+  first + second
+end
+
+def subtract_values(first, second)
+  first - second
+end
+
+def shovel_value(values, extra)
+  values << extra
+end
+
+def accumulate_with_shovel(values)
+  result = []
+  for value in values
+    result = result << value
+  end
+  result
+end
+
+def intersect_values(first, second)
+  first & second
+end
+
+def include_value(values, value)
+  values.include?(value)
+end
+
+def first_match(values, threshold)
+  values.find do |value|
+    value > threshold
+  end
+end
+
+def first_match_index(values, threshold)
+  values.find_index do |value|
+    value > threshold
+  end
+end
+
+def count_value(values, value)
+  values.count(value)
+end
+
+def count_large(values, threshold)
+  values.count do |value|
+    value > threshold
+  end
+end
+
+def predicate_snapshot(values)
+  any_large = values.any? do |value|
+    value > 10
+  end
+  all_positive = values.all? do |value|
+    value > 0
+  end
+  none_negative = values.none? do |value|
+    value < 0
+  end
+
+  {
+    any_large: any_large,
+    all_positive: all_positive,
+    none_negative: none_negative
+  }
+end
+
+def sort_values(values)
+  values.sort
+end
+
+def sort_desc(values)
+  values.sort do |a, b|
+    b - a
+  end
+end
+
+def sort_words_by_length(words)
+  words.sort_by do |word|
+    word.length
+  end
+end
+
+def partition_even(values)
+  values.partition do |value|
+    value % 2 == 0
+  end
+end
+
+def group_by_status(players)
+  players.group_by do |player|
+    player[:status]
+  end
+end
+
+def tally_statuses(statuses)
+  statuses.tally
+end
+
+def chunk_values(values, size)
+  values.chunk(size)
+end
+
+def window_values(values, size)
+  values.window(size)
+end
+
+def group_by_stable_status(players)
+  players.group_by_stable do |player|
+    player[:status]
+  end
+end
+
+def run
+  values = [2, 4, 4, 7, 12, 15]
+  words = ["pear", "kiwi", "banana", "fig"]
+  players = [
+    { name: "Ada", status: "active" },
+    { name: "Lin", status: "inactive" },
+    { name: "Sol", status: "active" }
+  ]
+
+  {
+    first_two: first_two(values),
+    last_three: last_three(values),
+    numeric_sum: numeric_sum(values),
+    double_sum: double_sum(values),
+    push_and_pop: push_and_pop(values.dup, 20),
+    uniq_values: uniq_values(values),
+    concat_values: concat_values([1, 2], [3, 4]),
+    subtract_values: subtract_values(values, [4, 15]),
+    shovel_value: shovel_value([1, 2], 3),
+    accumulate_with_shovel: accumulate_with_shovel(values),
+    intersect_values: intersect_values([1, 2, 3, 4], [2, 4, 6]),
+    include_value: include_value(values, 12),
+    first_match: first_match(values, 10),
+    first_match_index: first_match_index(values, 10),
+    count_value: count_value(values, 4),
+    count_large: count_large(values, 5),
+    predicate_snapshot: predicate_snapshot(values),
+    sort_values: sort_values([5, 2, 9, 1]),
+    sort_desc: sort_desc([5, 2, 9, 1]),
+    sort_words_by_length: sort_words_by_length(words),
+    partition_even: partition_even(values),
+    group_by_status: group_by_status(players),
+    tally_statuses: tally_statuses(["active", "active", "inactive"]),
+    chunk_values: chunk_values(values, 2),
+    window_values: window_values(values, 3),
+    group_by_stable_status: group_by_stable_status(players)
+  }
+end

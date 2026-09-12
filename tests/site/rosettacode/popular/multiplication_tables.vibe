@@ -1,0 +1,29 @@
+# title: Multiplication tables
+# source: https://rosettacode.org/wiki/Multiplication_tables
+# category: Rosetta Code
+# difficulty: Intro
+# summary: Build a small multiplication table as nested arrays.
+# tags: popular, math, tables, loops
+# vibe: 0.2
+
+def multiplication_table(limit)
+  rows = []
+  row = 1
+
+  while row <= limit
+    current = []
+    column = 1
+    while column <= limit
+      current = current + [row * column]
+      column = column + 1
+    end
+    rows = rows + [current]
+    row = row + 1
+  end
+
+  rows
+end
+
+def run
+  multiplication_table(6)
+end

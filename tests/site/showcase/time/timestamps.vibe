@@ -1,0 +1,26 @@
+# title: Event timestamps
+# category: Vibescript Showcase
+# difficulty: Showcase
+# summary: Format RFC3339 timestamps with whole or fractional seconds.
+# description: iso8601 and xmlschema format timestamps. Time values can also subtract seconds.
+# tags: time, timestamps, serialization
+# vibe: 0.4
+
+def stamps(base: time) -> hash
+  {
+    iso: base.iso8601,
+    xml: base.xmlschema,
+    millis: base.iso8601(3),
+    one_minute_later: (base + 60).iso8601
+  }
+end
+
+def run
+  base = Time.utc(2024, 1, 1, 9, 30, 0)
+
+  {
+    stamps: stamps(base),
+    epoch: Time.utc(1970, 1, 1).iso8601,
+    year_start: Time.utc(2024).iso8601
+  }
+end

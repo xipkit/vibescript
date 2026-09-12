@@ -1,0 +1,43 @@
+# title: Luhn test of credit card numbers
+# source: https://rosettacode.org/wiki/Luhn_test_of_credit_card_numbers
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Validate account numbers with the Luhn checksum.
+# tags: popular, checksum, strings, math
+# vibe: 0.2
+
+def digit_value(char)
+  "0123456789".index(char)
+end
+
+def luhn_valid?(number)
+  sum = 0
+  offset = 0
+  index = number.length - 1
+
+  while index >= 0
+    digit = digit_value(number.slice(index))
+
+    if offset % 2 == 1
+      digit = digit * 2
+      if digit > 9
+        digit = digit - 9
+      end
+    end
+
+    sum = sum + digit
+    offset = offset + 1
+    index = index - 1
+  end
+
+  sum % 10 == 0
+end
+
+def run
+  {
+    sample_true: luhn_valid?("49927398716"),
+    sample_false: luhn_valid?("49927398717"),
+    visa_true: luhn_valid?("4012888888881881"),
+    visa_false: luhn_valid?("4012888888881882")
+  }
+end

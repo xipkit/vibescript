@@ -1,0 +1,38 @@
+# title: Four bit adder
+# source: https://rosettacode.org/wiki/Four_bit_adder
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Add two four-bit binary values and return the carry with the result bits.
+# tags: popular, bits, arithmetic, arrays
+# vibe: 0.2
+
+def add_four_bits(left, right)
+  carry = 0
+  result = []
+  index = 3
+
+  while index >= 0
+    total = left[index] + right[index] + carry
+    result = [total % 2] + result
+
+    if total >= 2
+      carry = 1
+    else
+      carry = 0
+    end
+
+    index = index - 1
+  end
+
+  {
+    carry: carry,
+    bits: result
+  }
+end
+
+def run
+  {
+    five_plus_six: add_four_bits([0, 1, 0, 1], [0, 1, 1, 0]),
+    fifteen_plus_one: add_four_bits([1, 1, 1, 1], [0, 0, 0, 1])
+  }
+end

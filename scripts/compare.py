@@ -44,6 +44,16 @@ def invoke(variant,fixtures,n,mode,path):
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
+def equal_json(actual,expected):
+    if isinstance(actual,bool) or isinstance(expected,bool):
+        return type(actual) is type(expected) and actual==expected
+    if isinstance(actual,list) and isinstance(expected,list):
+        return len(actual)==len(expected) and all(equal_json(a,b) for a,b in zip(actual,expected))
+    if isinstance(actual,dict) and isinstance(expected,dict):
+        return actual.keys()==expected.keys() and all(equal_json(actual[k],expected[k]) for k in actual)
+    return actual==expected
+
+
 def validate(out):
     expected=conformance_cases()+benchmark_cases()
     path=out/"validation-inputs.json"
@@ -55,7 +65,7 @@ def validate(out):
         assert len(records)==len(reference),(variant,len(records),len(reference))
         for record in records:
             result=json.loads(record["result_json"])
-            assert result==reference[record["name"]],(variant,record["name"],repr(result)[:500],repr(reference[record["name"]])[:500])
+            assert equal_json(result,reference[record["name"]]),(variant,record["name"],repr(result)[:500],repr(reference[record["name"]])[:500])
         digests[variant]={record["name"]:record["digest"] for record in records}
         print(f"{variant}: {len(records)} shared cases match expected results",flush=True)
     for name in [c["name"] for c in benchmark_cases()]:

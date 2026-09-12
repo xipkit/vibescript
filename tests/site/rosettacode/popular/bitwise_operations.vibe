@@ -1,0 +1,256 @@
+# title: Bitwise operations
+# source: https://rosettacode.org/wiki/Bitwise_operations
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Run common bitwise operations with a hand-built 8-bit model.
+# tags: popular, math, bits, arrays
+# vibe: 0.2
+
+def divmod2(value)
+  quotient = 0
+  remainder = value
+
+  while remainder >= 2
+    quotient = quotient + 1
+    remainder = remainder - 2
+  end
+
+  {
+    quotient: quotient,
+    remainder: remainder
+  }
+end
+
+def to_bits(value, width)
+  bits = []
+  current = value
+  index = 0
+
+  while index < width
+    pair = divmod2(current)
+    bits = [pair[:remainder]] + bits
+    current = pair[:quotient]
+    index = index + 1
+  end
+
+  bits
+end
+
+def from_bits(bits)
+  value = 0
+  index = 0
+
+  while index < bits.size
+    value = (value * 2) + bits[index]
+    index = index + 1
+  end
+
+  value
+end
+
+def normalize_rotate(amount, width)
+  shift = amount
+  while shift >= width
+    shift = shift - width
+  end
+  shift
+end
+
+def bitwise_and(left_bits, right_bits)
+  output = []
+  index = 0
+
+  while index < left_bits.size
+    if left_bits[index] == 1 && right_bits[index] == 1
+      output = output.push(1)
+    else
+      output = output.push(0)
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def bitwise_or(left_bits, right_bits)
+  output = []
+  index = 0
+
+  while index < left_bits.size
+    if left_bits[index] == 1 || right_bits[index] == 1
+      output = output.push(1)
+    else
+      output = output.push(0)
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def bitwise_xor(left_bits, right_bits)
+  output = []
+  index = 0
+
+  while index < left_bits.size
+    if left_bits[index] != right_bits[index]
+      output = output.push(1)
+    else
+      output = output.push(0)
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def bitwise_not(bits)
+  output = []
+  index = 0
+
+  while index < bits.size
+    if bits[index] == 1
+      output = output.push(0)
+    else
+      output = output.push(1)
+    end
+    index = index + 1
+  end
+
+  output
+end
+
+def shift_left(bits, amount)
+  output = []
+  index = amount
+
+  while index < bits.size
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  while output.size < bits.size
+    output = output.push(0)
+  end
+
+  output
+end
+
+def shift_right_logical(bits, amount)
+  output = []
+  index = 0
+
+  while index < amount
+    output = output.push(0)
+    index = index + 1
+  end
+
+  limit = bits.size - amount
+  index = 0
+  while index < limit
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  output
+end
+
+def shift_right_arithmetic(bits, amount)
+  output = []
+  sign = bits[0]
+  index = 0
+
+  while index < amount
+    output = output.push(sign)
+    index = index + 1
+  end
+
+  limit = bits.size - amount
+  index = 0
+  while index < limit
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  output
+end
+
+def rotate_left(bits, amount)
+  shift = normalize_rotate(amount, bits.size)
+  output = []
+  index = shift
+
+  while index < bits.size
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  index = 0
+  while index < shift
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  output
+end
+
+def rotate_right(bits, amount)
+  shift = normalize_rotate(amount, bits.size)
+  cut = bits.size - shift
+  output = []
+  index = cut
+
+  while index < bits.size
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  index = 0
+  while index < cut
+    output = output.push(bits[index])
+    index = index + 1
+  end
+
+  output
+end
+
+def to_signed(value, width)
+  sign_bit = 1
+  index = 1
+
+  while index < width
+    sign_bit = sign_bit * 2
+    index = index + 1
+  end
+
+  limit = sign_bit * 2
+  if value >= sign_bit
+    value - limit
+  else
+    value
+  end
+end
+
+def run
+  width = 8
+  x = 177
+  y = 3
+  x_bits = to_bits(x, width)
+  y_bits = to_bits(y, width)
+
+  {
+    model: "manual 8-bit operations",
+    x: x,
+    x_signed: to_signed(x, width),
+    y: y,
+    and: from_bits(bitwise_and(x_bits, y_bits)),
+    or: from_bits(bitwise_or(x_bits, y_bits)),
+    xor: from_bits(bitwise_xor(x_bits, y_bits)),
+    not: from_bits(bitwise_not(x_bits)),
+    shift_left: from_bits(shift_left(x_bits, y)),
+    shift_right: from_bits(shift_right_logical(x_bits, y)),
+    shift_right_arithmetic: to_signed(from_bits(shift_right_arithmetic(x_bits, y)), width),
+    rotate_left: from_bits(rotate_left(x_bits, y)),
+    rotate_right: from_bits(rotate_right(x_bits, y))
+  }
+end

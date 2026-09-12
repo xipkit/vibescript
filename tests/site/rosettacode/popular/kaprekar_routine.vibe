@@ -1,0 +1,90 @@
+# title: Kaprekar routine
+# source: https://rosettacode.org/wiki/Kaprekar_numbers
+# category: Rosetta Code
+# difficulty: Medium
+# summary: Apply the Kaprekar routine to a 4-digit number and watch it converge to 6174.
+# tags: popular, math, sequences, sorting
+# vibe: 0.2
+
+def digits_of(n, pad)
+  d = []
+  remaining = n
+  while remaining > 0
+    d = d.push(remaining % 10)
+    remaining = remaining / 10
+  end
+  while d.size < pad
+    d = d.push(0)
+  end
+  d
+end
+
+def sort_digits(digits)
+  arr = []
+  i = 0
+  while i < digits.size
+    arr = arr.push(digits[i])
+    i = i + 1
+  end
+
+  i = 0
+  while i < arr.size - 1
+    j = i + 1
+    while j < arr.size
+      if arr[j] < arr[i]
+        temp = arr[i]
+        arr[i] = arr[j]
+        arr[j] = temp
+      end
+      j = j + 1
+    end
+    i = i + 1
+  end
+  arr
+end
+
+def from_digits(digits)
+  result = 0
+  i = 0
+  while i < digits.size
+    result = result * 10 + digits[i]
+    i = i + 1
+  end
+  result
+end
+
+def reverse_array(arr)
+  result = []
+  i = arr.size - 1
+  while i >= 0
+    result = result.push(arr[i])
+    i = i - 1
+  end
+  result
+end
+
+def kaprekar_step(n)
+  d = digits_of(n, 4)
+  ascending = sort_digits(d)
+  descending = reverse_array(ascending)
+  from_digits(descending) - from_digits(ascending)
+end
+
+def kaprekar_sequence(start)
+  steps = [start]
+  current = start
+  while current != 6174 && steps.size < 10
+    current = kaprekar_step(current)
+    steps = steps.push(current)
+  end
+  steps
+end
+
+def run
+  {
+    from_3524: kaprekar_sequence(3524),
+    from_1234: kaprekar_sequence(1234),
+    from_9998: kaprekar_sequence(9998),
+    from_1000: kaprekar_sequence(1000)
+  }
+end

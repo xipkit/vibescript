@@ -1,0 +1,20 @@
+# vibe: 1.0
+
+module Scoring
+  BONUS = 10
+
+  def self.with_bonus(score)
+    score + BONUS
+  end
+end
+
+def score_with_bonus(score)
+  Scoring.with_bonus(score)
+end
+
+def run
+  {
+    base: 80,
+    with_bonus: score_with_bonus(80)
+  }
+end

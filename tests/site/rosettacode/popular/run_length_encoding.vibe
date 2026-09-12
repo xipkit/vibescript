@@ -1,0 +1,66 @@
+# title: Run-length encoding
+# source: https://rosettacode.org/wiki/Run-length_encoding
+# category: Rosetta Code
+# difficulty: Easy
+# summary: Encode and decode a short sample string with classic run-length encoding.
+# tags: popular, strings, compression, loops
+# vibe: 0.2
+
+def encode(text)
+  if text == ""
+    return []
+  end
+
+  output = []
+  current = text.slice(0)
+  count = 1
+  index = 1
+
+  while index < text.length
+    char = text.slice(index)
+
+    if char == current
+      count = count + 1
+    else
+      output = output.push({
+        char: current,
+        count: count
+      })
+      current = char
+      count = 1
+    end
+
+    index = index + 1
+  end
+
+  output.push({
+    char: current,
+    count: count
+  })
+end
+
+def decode(runs)
+  output = ""
+  index = 0
+
+  while index < runs.size
+    entry = runs[index]
+    entry[:count].times do
+      output = output + entry[:char]
+    end
+
+    index = index + 1
+  end
+
+  output
+end
+
+def run
+  sample = "AAABBCCCC"
+  encoded = encode(sample)
+  {
+    sample: sample,
+    encoded: encoded,
+    decoded: decode(encoded)
+  }
+end

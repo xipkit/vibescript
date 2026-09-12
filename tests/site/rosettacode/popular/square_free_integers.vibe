@@ -1,0 +1,38 @@
+# title: Square-free integers
+# source: https://rosettacode.org/wiki/Square-free_integers
+# category: Rosetta Code
+# difficulty: Intro
+# summary: List the square-free integers up to thirty.
+# tags: popular, math, factors, search
+# vibe: 0.2
+
+def square_free?(number)
+  factor = 2
+
+  while factor * factor <= number
+    if number % (factor * factor) == 0
+      return false
+    end
+    factor = factor + 1
+  end
+
+  true
+end
+
+def square_free_up_to(limit)
+  values = []
+  number = 1
+
+  while number <= limit
+    if square_free?(number)
+      values = values.push(number)
+    end
+    number = number + 1
+  end
+
+  values
+end
+
+def run
+  square_free_up_to(30)
+end
