@@ -5,9 +5,10 @@ cd "$repo"
 ./scripts/cargo fmt --check
 ./scripts/cargo clippy --all-targets --all-features -- -D warnings
 ./scripts/cargo clippy --all-targets --no-default-features -- -D warnings
-./scripts/cargo test --all-features
-./scripts/cargo test --release --all-features
-./scripts/cargo test --release --no-default-features
+./scripts/cargo test --all-targets --all-features
+./scripts/cargo test --release --all-targets --all-features
+./scripts/cargo test --release --all-targets --no-default-features
+./scripts/cargo test --doc --all-features
 cd benchmarks/go
 test -z "$(gofmt -l main.go)"
 GOEXPERIMENT=simd ../../scripts/go vet ./...
