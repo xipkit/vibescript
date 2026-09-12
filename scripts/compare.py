@@ -82,8 +82,8 @@ def measure(out,rounds,target_ms,expected):
     samples={variant:{case["name"]:[] for case in cases} for variant in VARIANTS}
     order=[]
     for round_index in range(rounds):
-        variants=VARIANTS[round_index%4:]+VARIANTS[:round_index%4]
-        if round_index%2: variants=list(reversed(variants))
+        base=VARIANTS if (round_index//4)%2==0 else list(reversed(VARIANTS))
+        variants=base[round_index%4:]+base[:round_index%4]
         order.append(variants)
         for variant in variants:
             records=invoke(variant,path,0,"timing",out/f"round-{round_index:02}-{variant}.jsonl")
@@ -117,7 +117,7 @@ def main():
     args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=False)
     if args.rounds<4 or args.target_ms<=0: parser.error("use at least four rounds and a positive target time")
     if not args.skip_build: build(out)
-    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":run(["sysctl","-n","machdep.cpu.brand_string"],capture_output=True).stdout.strip(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":run([GO,"version"],capture_output=True).stdout,"go_module":json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout),"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
+    metadata={"platform":platform.platform(),"machine":platform.machine(),"cpu":run(["sysctl","-n","machdep.cpu.brand_string"],capture_output=True).stdout.strip(),"rustc":run(["rustc","-Vv"],capture_output=True).stdout,"go":run([GO,"version"],capture_output=True).stdout,"go_module":json.loads(run([GO,"list","-m","-json","github.com/mgomes/vibescript"],cwd=ROOT/"benchmarks/go",capture_output=True).stdout),"source_revision":run(["git","rev-parse","HEAD"],cwd=ROOT,capture_output=True).stdout.strip(),"dirty":run(["git","status","--porcelain"],cwd=ROOT,capture_output=True).stdout,"binary_sha256":{name:hashlib.sha256((BINS/name).read_bytes()).hexdigest() for name in VARIANTS},"RUSTFLAGS":os.environ.get("RUSTFLAGS",""),"GOFLAGS":os.environ.get("GOFLAGS",""),"GOMAXPROCS":1,"target_ms":args.target_ms,"command":sys.argv}
     (out/"environment.json").write_text(json.dumps(metadata,indent=2)+"\n")
     expected=validate(out)
     if not args.validate_only: measure(out,args.rounds,args.target_ms,expected)

@@ -108,8 +108,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             #[cfg(feature = "allocation-stats")]
             let before = allocations::snapshot();
             let start = Instant::now();
+            let mut last = None;
             for _ in 0..n {
-                black_box(script.call(function, black_box(&input), options.clone())?);
+                last = Some(black_box(script.call(
+                    function,
+                    black_box(&input),
+                    options.clone(),
+                )?));
             }
             let elapsed = start.elapsed();
             #[cfg(feature = "allocation-stats")]
@@ -117,6 +122,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let after = allocations::snapshot();
                 record["alloc_bytes"] = json!((after.0 - before.0) as f64 / n as f64);
                 record["allocations"] = json!((after.1 - before.1) as f64 / n as f64);
+            }
+            let final_output = stringify_json(&last.unwrap().value, codec_options())?;
+            if final_output.value.as_bytes() != Some(output) {
+                return Err(format!("{name}: timed output differs from validation").into());
             }
             record["iterations"] = json!(n);
             record["ns_per_call"] = json!(elapsed.as_nanos() as f64 / n as f64);

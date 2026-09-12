@@ -136,6 +136,13 @@ func run() error {
 				record["alloc_bytes"] = float64(after.TotalAlloc-before.TotalAlloc) / float64(iterations)
 				record["allocations"] = float64(after.Mallocs-before.Mallocs) / float64(iterations)
 			}
+			finalOutput, err := converter.Call(ctx, "encode", []value.Value{sink}, vibes.CallOptions{})
+			if err != nil {
+				return err
+			}
+			if finalOutput.String() != output {
+				return fmt.Errorf("%s: timed output differs from validation", fixture.Name)
+			}
 			record["iterations"] = iterations
 			record["ns_per_call"] = float64(elapsed.Nanoseconds()) / float64(iterations)
 		}
