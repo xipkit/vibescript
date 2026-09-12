@@ -1,0 +1,47 @@
+{
+  "repository": "https://github.com/xipkit/vibescript",
+  "tag": "v0.70.0",
+  "commit": "5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "files": [
+    {
+      "path": "examples/basics/functions_and_calls.vibe",
+      "sha256": "d5f7638287358eeb4cfdca81f738d715d859e6820e11f293665384dddc7a1768"
+    },
+    {
+      "path": "examples/basics/literals_and_operators.vibe",
+      "sha256": "4f247b44c35b03c77762f06a74dbacf236bf4e5a0d2cd044a2192f3b18107015"
+    },
+    {
+      "path": "examples/control_flow/conditionals.vibe",
+      "sha256": "745591b9a3e32846912f4e1d957ca1b76b90c655b3c19cca52f18cd16416c20e"
+    },
+    {
+      "path": "examples/control_flow/loop_control.vibe",
+      "sha256": "f995532aec0e871d9d07a1e60b7b6e786688cd093dadac4639783b1440b207c0"
+    },
+    {
+      "path": "examples/control_flow/recursion.vibe",
+      "sha256": "5ad6ac22645c9ee3e54d5d86c2ecd253f949981d01cd1e6c74c12098cc5ce6a6"
+    },
+    {
+      "path": "examples/control_flow/while_loop.vibe",
+      "sha256": "208a1fde89109c021f345991edeecf6f1fd4fd93dcf5a9bc5e837034d14de09a"
+    },
+    {
+      "path": "examples/control_flow/until_loop.vibe",
+      "sha256": "12b086d8df21558c131dec6c56330e2af7439e660b3124808f82fa67aaa199b7"
+    },
+    {
+      "path": "examples/collections/arrays.vibe",
+      "sha256": "efbb6f1d243163e629f3bd0df0e1e30836d74bdd89ebe18e0d8613b7c66e92b1"
+    },
+    {
+      "path": "examples/collections/hashes.vibe",
+      "sha256": "724cd356af37e17a7b415d33f9a5f080e84d3f21263421c6d1b2d0a6aed4d535"
+    },
+    {
+      "path": "tests/complex/operators.vibe",
+      "sha256": "3739bbfffa47ea21da906ee1c79f9cb83a8e2d71912fdb2670bb8e5b38969d83"
+    }
+  ]
+}

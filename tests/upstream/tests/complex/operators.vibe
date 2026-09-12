@@ -1,0 +1,51 @@
+def run
+  int_arith = 10 + 5 - 3 * 2 / 2
+  float_arith = 10.5 + 2.5 - 1.0
+  mixed = 10 + 2.5
+
+  neg_int = -42
+  neg_float = -3.14
+
+  comparisons = {
+    lt: 1 < 2,
+    le: 2 <= 2,
+    gt: 3 > 2,
+    ge: 3 >= 3,
+    eq_int: 5 == 5,
+    neq_int: 5 != 6,
+    eq_str: "a" == "a",
+    neq_str: "a" != "b",
+    eq_bool: true == true,
+    eq_nil: nil == nil
+  }
+
+  bool_ops = {
+    and_tt: true && true,
+    and_tf: true && false,
+    and_ff: false && false,
+    or_tt: true || true,
+    or_tf: true || false,
+    or_ff: false || false,
+    not_t: !true,
+    not_f: !false
+  }
+
+  modulo = {
+    pos: 10 % 3,
+    neg_dividend: -10 % 3
+  }
+
+  string_concat = "hello" + " " + "world"
+
+  {
+    int_arith: int_arith,
+    float_arith: float_arith,
+    mixed: mixed,
+    neg_int: neg_int,
+    neg_float: neg_float,
+    comparisons: comparisons,
+    bool_ops: bool_ops,
+    modulo: modulo,
+    string_concat: string_concat
+  }
+end

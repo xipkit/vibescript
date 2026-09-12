@@ -1,0 +1,671 @@
+use crate::{Error, Result, Value};
+
+const MAX_DEPTH: usize = 128;
+const MAX_SOURCE: usize = 8 << 20;
+
+#[derive(Clone, Debug, PartialEq)]
+enum Token {
+    Word(String),
+    Int(i64),
+    Float(f64),
+    Bytes(Vec<u8>),
+    P(char),
+    Op(&'static str),
+    EndLine,
+    Eof,
+}
+struct Lexeme {
+    token: Token,
+    offset: usize,
+}
+
+fn lex(source: &str) -> Result<Vec<Lexeme>> {
+    if source.len() > MAX_SOURCE {
+        return Err(Error::syntax(0, "source exceeds 8 MiB"));
+    }
+    let s = source.as_bytes();
+    let mut i = 0;
+    let mut out = Vec::new();
+    while i < s.len() {
+        let start = i;
+        let token = match s[i] {
+            b' ' | b'\t' | b'\r' => {
+                i += 1;
+                continue;
+            }
+            b'#' => {
+                while i < s.len() && s[i] != b'\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            b'\n' | b';' => {
+                i += 1;
+                Token::EndLine
+            }
+            b'\'' | b'"' => {
+                let quote = s[i];
+                i += 1;
+                let mut bytes = Vec::new();
+                let mut closed = false;
+                while i < s.len() {
+                    let b = s[i];
+                    i += 1;
+                    if b == quote {
+                        closed = true;
+                        break;
+                    }
+                    if quote == b'"' && b == b'#' && s.get(i) == Some(&b'{') {
+                        return Err(Error::syntax(
+                            i - 1,
+                            "string interpolation is not implemented",
+                        ));
+                    }
+                    if b != b'\\' {
+                        bytes.push(b);
+                        continue;
+                    }
+                    let Some(&escape) = s.get(i) else {
+                        break;
+                    };
+                    i += 1;
+                    if quote == b'\'' && escape != b'\'' && escape != b'\\' {
+                        bytes.extend_from_slice(&[b'\\', escape]);
+                        continue;
+                    }
+                    match escape {
+                        b'n' => bytes.push(b'\n'),
+                        b'r' => bytes.push(b'\r'),
+                        b't' => bytes.push(b'\t'),
+                        b'0' => bytes.push(0),
+                        b'\\' | b'\'' | b'"' | b'#' => bytes.push(escape),
+                        b'x' => {
+                            let end = i + 2;
+                            if end > s.len() {
+                                return Err(Error::syntax(i, "incomplete hexadecimal escape"));
+                            }
+                            let hex = std::str::from_utf8(&s[i..end])
+                                .map_err(|_| Error::syntax(i, "invalid hexadecimal escape"))?;
+                            bytes.push(
+                                u8::from_str_radix(hex, 16)
+                                    .map_err(|_| Error::syntax(i, "invalid hexadecimal escape"))?,
+                            );
+                            i = end;
+                        }
+                        _ => return Err(Error::syntax(i - 1, "unsupported string escape")),
+                    }
+                }
+                if !closed {
+                    return Err(Error::syntax(start, "unterminated string"));
+                }
+                Token::Bytes(bytes)
+            }
+            b'0'..=b'9' => {
+                i += 1;
+                if s[start] == b'0'
+                    && s.get(i)
+                        .is_some_and(|b| matches!(b, b'x' | b'X' | b'b' | b'B' | b'o' | b'O'))
+                {
+                    let radix = match s[i] {
+                        b'x' | b'X' => 16,
+                        b'b' | b'B' => 2,
+                        _ => 8,
+                    };
+                    i += 1;
+                    let digits = i;
+                    while i < s.len() && (s[i].is_ascii_alphanumeric() || s[i] == b'_') {
+                        i += 1;
+                    }
+                    let text = &source[digits..i];
+                    if text.is_empty()
+                        || text.starts_with('_')
+                        || text.ends_with('_')
+                        || text.contains("__")
+                    {
+                        return Err(Error::syntax(start, "invalid integer literal"));
+                    }
+                    Token::Int(
+                        i64::from_str_radix(&text.replace('_', ""), radix)
+                            .map_err(|_| Error::syntax(start, "invalid or overflowing integer"))?,
+                    )
+                } else {
+                    while i < s.len() && (s[i].is_ascii_digit() || s[i] == b'_') {
+                        i += 1;
+                    }
+                    let mut float = false;
+                    if s.get(i) == Some(&b'.') && s.get(i + 1).is_some_and(u8::is_ascii_digit) {
+                        float = true;
+                        i += 1;
+                        while i < s.len() && (s[i].is_ascii_digit() || s[i] == b'_') {
+                            i += 1;
+                        }
+                    }
+                    if s.get(i).is_some_and(|b| matches!(b, b'e' | b'E')) {
+                        float = true;
+                        i += 1;
+                        if s.get(i).is_some_and(|b| matches!(b, b'+' | b'-')) {
+                            i += 1;
+                        }
+                        while i < s.len() && (s[i].is_ascii_digit() || s[i] == b'_') {
+                            i += 1;
+                        }
+                    }
+                    if s.get(i)
+                        .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
+                    {
+                        return Err(Error::syntax(start, "invalid numeric literal"));
+                    }
+                    let raw = &source[start..i];
+                    for (j, b) in raw.bytes().enumerate() {
+                        if b == b'_'
+                            && (j == 0
+                                || j + 1 == raw.len()
+                                || !raw.as_bytes()[j - 1].is_ascii_digit()
+                                || !raw.as_bytes()[j + 1].is_ascii_digit())
+                        {
+                            return Err(Error::syntax(start, "invalid numeric separator"));
+                        }
+                    }
+                    let text = raw.replace('_', "");
+                    if float {
+                        Token::Float(
+                            text.parse()
+                                .map_err(|_| Error::syntax(start, "invalid float"))?,
+                        )
+                    } else {
+                        Token::Int(text.parse().map_err(|_| {
+                            Error::syntax(start, "integer overflow is not implemented")
+                        })?)
+                    }
+                }
+            }
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
+                i += 1;
+                while i < s.len() && (s[i].is_ascii_alphanumeric() || s[i] == b'_') {
+                    i += 1;
+                }
+                if s.get(i) == Some(&b'?') {
+                    i += 1;
+                }
+                Token::Word(source[start..i].to_owned())
+            }
+            _ => {
+                let mut found = None;
+                for op in [
+                    "**=", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "**",
+                    "<<",
+                ] {
+                    if s[i..].starts_with(op.as_bytes()) {
+                        found = Some(op);
+                        break;
+                    }
+                }
+                if let Some(op) = found {
+                    i += op.len();
+                    Token::Op(op)
+                } else {
+                    i += 1;
+                    match s[start] {
+                        b'+' => Token::Op("+"),
+                        b'-' => Token::Op("-"),
+                        b'*' => Token::Op("*"),
+                        b'/' => Token::Op("/"),
+                        b'%' => Token::Op("%"),
+                        b'=' => Token::Op("="),
+                        b'<' => Token::Op("<"),
+                        b'>' => Token::Op(">"),
+                        b'!' => Token::Op("!"),
+                        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' => {
+                            Token::P(s[start] as char)
+                        }
+                        _ => return Err(Error::syntax(start, "unsupported character")),
+                    }
+                }
+            }
+        };
+        out.push(Lexeme {
+            token,
+            offset: start,
+        });
+    }
+    out.push(Lexeme {
+        token: Token::Eof,
+        offset: s.len(),
+    });
+    Ok(out)
+}
+
+#[derive(Debug)]
+pub(crate) struct Expr {
+    pub node: Node,
+    depth: usize,
+}
+#[derive(Debug)]
+pub(crate) enum Node {
+    Literal(Value),
+    Var(String),
+    Array(Vec<Expr>),
+    Hash(Vec<(Vec<u8>, Expr)>),
+    Unary(&'static str, Box<Expr>),
+    Binary(&'static str, Box<Expr>, Box<Expr>),
+    Call(String, Vec<Expr>),
+    Method(Box<Expr>, String, Vec<Expr>),
+    Index(Box<Expr>, Box<Expr>),
+}
+#[derive(Debug)]
+pub(crate) enum Stmt {
+    Expr(Expr),
+    Assign(Expr, &'static str, Expr),
+    If(Expr, Vec<Stmt>, Vec<Stmt>),
+    While(Expr, Vec<Stmt>),
+    Return(Option<Expr>),
+    Break,
+    Next,
+}
+pub(crate) struct Definition {
+    pub name: String,
+    pub params: Vec<String>,
+    pub body: Vec<Stmt>,
+}
+
+pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
+    let mut p = Parser {
+        tokens: lex(source)?,
+        pos: 0,
+        depth: 0,
+    };
+    let mut defs = Vec::new();
+    let mut top = Vec::new();
+    p.lines();
+    while !matches!(p.token(), Token::Eof) {
+        if p.word("def") {
+            let name = p.name()?;
+            let mut params = Vec::new();
+            if p.take_p('(') {
+                p.lines();
+                if !p.take_p(')') {
+                    loop {
+                        let name = p.name()?;
+                        if params.contains(&name) {
+                            return p.err("duplicate parameter");
+                        }
+                        params.push(name);
+                        p.lines();
+                        if p.take_p(')') {
+                            break;
+                        }
+                        p.expect_p(',')?;
+                        p.lines();
+                    }
+                }
+            } else if !matches!(p.token(), Token::EndLine) {
+                return p.err("expected function parameters or newline");
+            }
+            p.lines();
+            let body = p.block(&["end"])?;
+            p.expect_word("end")?;
+            if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
+                return p.err("duplicate or reserved function name");
+            }
+            defs.push(Definition { name, params, body });
+        } else {
+            top.push(p.statement()?);
+        }
+        if !matches!(p.token(), Token::Eof | Token::EndLine) {
+            return p.err("expected newline or semicolon");
+        }
+        p.lines();
+    }
+    defs.insert(
+        0,
+        Definition {
+            name: "__main__".into(),
+            params: Vec::new(),
+            body: top,
+        },
+    );
+    Ok(defs)
+}
+
+struct Parser {
+    tokens: Vec<Lexeme>,
+    pos: usize,
+    depth: usize,
+}
+impl Parser {
+    fn token(&self) -> &Token {
+        &self.tokens[self.pos].token
+    }
+    fn err<T>(&self, message: &str) -> Result<T> {
+        Err(Error::syntax(self.tokens[self.pos].offset, message))
+    }
+    fn bump(&mut self) -> Token {
+        let t = self.token().clone();
+        if !matches!(t, Token::Eof) {
+            self.pos += 1;
+        }
+        t
+    }
+    fn word(&mut self, w: &str) -> bool {
+        if matches!(self.token(),Token::Word(s) if s==w) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+    fn expect_word(&mut self, w: &str) -> Result<()> {
+        if self.word(w) {
+            Ok(())
+        } else {
+            self.err(&format!("expected {w}"))
+        }
+    }
+    fn take_p(&mut self, c: char) -> bool {
+        if self.token() == &Token::P(c) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+    fn expect_p(&mut self, c: char) -> Result<()> {
+        if self.take_p(c) {
+            Ok(())
+        } else {
+            self.err(&format!("expected {c}"))
+        }
+    }
+    fn lines(&mut self) {
+        while matches!(self.token(), Token::EndLine) {
+            self.pos += 1;
+        }
+    }
+    fn name(&mut self) -> Result<String> {
+        if let Token::Word(w) = self.bump() {
+            if reserved(&w) {
+                return self.err("reserved name");
+            }
+            Ok(w)
+        } else {
+            self.err("expected name")
+        }
+    }
+    fn at_end(&self) -> bool {
+        matches!(self.token(), Token::Eof)
+            || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"))
+    }
+    fn enter(&mut self) -> Result<()> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            self.err("syntax nesting too deep")
+        } else {
+            Ok(())
+        }
+    }
+    fn block(&mut self, stop: &[&str]) -> Result<Vec<Stmt>> {
+        self.enter()?;
+        let mut body = Vec::new();
+        self.lines();
+        while !matches!(self.token(),Token::Word(w) if stop.contains(&w.as_str())) {
+            if matches!(self.token(), Token::Eof) {
+                return self.err("unexpected end of source");
+            }
+            body.push(self.statement()?);
+            if !self.at_end() && !matches!(self.token(), Token::EndLine) {
+                return self.err("expected newline or semicolon");
+            }
+            self.lines();
+        }
+        self.depth -= 1;
+        Ok(body)
+    }
+    fn statement(&mut self) -> Result<Stmt> {
+        if self.word("if") {
+            return self.if_stmt();
+        }
+        let until = self.word("until");
+        if until || self.word("while") {
+            let mut cond = self.expr(0)?;
+            if until {
+                let depth = cond.depth + 1;
+                cond = self.make(Node::Unary("!", Box::new(cond)), depth)?;
+            }
+            self.word("do");
+            self.lines();
+            let body = self.block(&["end"])?;
+            self.expect_word("end")?;
+            return Ok(Stmt::While(cond, body));
+        }
+        if self.word("return") {
+            let value = if self.at_end() || matches!(self.token(), Token::EndLine) {
+                None
+            } else {
+                Some(self.expr(0)?)
+            };
+            return Ok(Stmt::Return(value));
+        }
+        if self.word("break") {
+            return Ok(Stmt::Break);
+        }
+        if self.word("next") {
+            return Ok(Stmt::Next);
+        }
+        if matches!(self.token(),Token::Word(w) if reserved(w)) {
+            return self.err("this language construct is not implemented");
+        }
+        let lhs = self.expr(0)?;
+        if let Token::Op(op @ ("=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=")) = self.token() {
+            let op = *op;
+            self.bump();
+            let rhs = self.expr(0)?;
+            Ok(Stmt::Assign(lhs, op, rhs))
+        } else {
+            Ok(Stmt::Expr(lhs))
+        }
+    }
+    fn if_stmt(&mut self) -> Result<Stmt> {
+        self.enter()?;
+        let cond = self.expr(0)?;
+        self.word("then");
+        self.lines();
+        let yes = self.block(&["else", "elsif", "end"])?;
+        let no = if self.word("elsif") {
+            vec![self.if_stmt()?]
+        } else if self.word("else") {
+            self.lines();
+            let no = self.block(&["end"])?;
+            self.expect_word("end")?;
+            no
+        } else {
+            self.expect_word("end")?;
+            Vec::new()
+        };
+        self.depth -= 1;
+        Ok(Stmt::If(cond, yes, no))
+    }
+    fn make(&self, node: Node, depth: usize) -> Result<Expr> {
+        if depth > MAX_DEPTH {
+            self.err("expression nesting too deep")
+        } else {
+            Ok(Expr { node, depth })
+        }
+    }
+    fn expr(&mut self, min: u8) -> Result<Expr> {
+        self.enter()?;
+        let mut lhs = match self.bump() {
+            Token::Int(n) => self.make(Node::Literal(Value::int(n)), 1)?,
+            Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1)?,
+            Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1)?,
+            Token::Word(w) => match w.as_str() {
+                "nil" => self.make(Node::Literal(Value::nil()), 1)?,
+                "true" => self.make(Node::Literal(Value::boolean(true)), 1)?,
+                "false" => self.make(Node::Literal(Value::boolean(false)), 1)?,
+                _ if reserved(&w) => return self.err("expected expression"),
+                _ => self.make(Node::Var(w), 1)?,
+            },
+            Token::P(':') => {
+                let bytes = match self.bump() {
+                    Token::Word(w) => w.into_bytes(),
+                    Token::Bytes(b) => b,
+                    _ => return self.err("expected symbol"),
+                };
+                self.make(Node::Literal(Value::symbol(bytes)), 1)?
+            }
+            Token::P('(') => {
+                self.lines();
+                let e = self.expr(0)?;
+                self.lines();
+                self.expect_p(')')?;
+                e
+            }
+            Token::P('[') => {
+                let a = self.arguments(']')?;
+                let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
+                self.make(Node::Array(a), d)?
+            }
+            Token::P('{') => {
+                let mut entries = Vec::new();
+                self.lines();
+                if !self.take_p('}') {
+                    loop {
+                        let key = match self.bump() {
+                            Token::Word(w) => w.into_bytes(),
+                            Token::Bytes(b) => b,
+                            _ => return self.err("expected hash label"),
+                        };
+                        self.expect_p(':')?;
+                        self.lines();
+                        entries.push((key, self.expr(0)?));
+                        self.lines();
+                        if self.take_p('}') {
+                            break;
+                        }
+                        self.expect_p(',')?;
+                        self.lines();
+                        if self.take_p('}') {
+                            break;
+                        }
+                    }
+                }
+                let d = 1 + entries.iter().map(|(_, e)| e.depth).max().unwrap_or(0);
+                self.make(Node::Hash(entries), d)?
+            }
+            Token::Op(op @ ("-" | "+" | "!")) => {
+                let e = self.expr(7)?;
+                let d = e.depth + 1;
+                self.make(Node::Unary(op, Box::new(e)), d)?
+            }
+            _ => return self.err("expected expression"),
+        };
+        loop {
+            if self.take_p('(') {
+                let Node::Var(name) = lhs.node else {
+                    return self.err("only named functions are callable");
+                };
+                let args = self.arguments(')')?;
+                let d = 1 + args.iter().map(|e| e.depth).max().unwrap_or(0);
+                lhs = self.make(Node::Call(name, args), d)?;
+                continue;
+            }
+            if self.take_p('.') {
+                let name = self.name()?;
+                let args = if self.take_p('(') {
+                    self.arguments(')')?
+                } else {
+                    Vec::new()
+                };
+                let d = 1 + lhs
+                    .depth
+                    .max(args.iter().map(|e| e.depth).max().unwrap_or(0));
+                lhs = self.make(Node::Method(Box::new(lhs), name, args), d)?;
+                continue;
+            }
+            if self.take_p('[') {
+                self.lines();
+                let index = self.expr(0)?;
+                self.lines();
+                self.expect_p(']')?;
+                let d = 1 + lhs.depth.max(index.depth);
+                lhs = self.make(Node::Index(Box::new(lhs), Box::new(index)), d)?;
+                continue;
+            }
+            let Token::Op(op) = self.token() else {
+                break;
+            };
+            let op = *op;
+            let (left, right) = match op {
+                "||" => (1, 2),
+                "&&" => (2, 3),
+                "==" | "!=" => (3, 4),
+                "<" | "<=" | ">" | ">=" => (4, 5),
+                "+" | "-" | "<<" => (5, 6),
+                "*" | "/" | "%" => (6, 7),
+                "**" => (8, 8),
+                _ => break,
+            };
+            if left < min {
+                break;
+            }
+            self.bump();
+            self.lines();
+            let rhs = self.expr(right)?;
+            let depth = 1 + lhs.depth.max(rhs.depth);
+            lhs = self.make(Node::Binary(op, Box::new(lhs), Box::new(rhs)), depth)?;
+        }
+        self.depth -= 1;
+        Ok(lhs)
+    }
+    fn arguments(&mut self, close: char) -> Result<Vec<Expr>> {
+        let mut args = Vec::new();
+        self.lines();
+        if self.take_p(close) {
+            return Ok(args);
+        }
+        loop {
+            args.push(self.expr(0)?);
+            self.lines();
+            if self.take_p(close) {
+                break;
+            }
+            self.expect_p(',')?;
+            self.lines();
+            if self.take_p(close) {
+                break;
+            }
+        }
+        Ok(args)
+    }
+}
+
+fn reserved(w: &str) -> bool {
+    matches!(
+        w,
+        "class"
+            | "module"
+            | "enum"
+            | "for"
+            | "until"
+            | "begin"
+            | "rescue"
+            | "def"
+            | "unless"
+            | "case"
+            | "yield"
+            | "retry"
+            | "raise"
+            | "end"
+            | "else"
+            | "elsif"
+            | "do"
+            | "then"
+            | "if"
+            | "while"
+            | "return"
+            | "break"
+            | "next"
+    )
+}
+pub(crate) fn unsupported(message: &str) -> Error {
+    Error::new(crate::ErrorKind::Syntax, message)
+}

@@ -1,0 +1,10 @@
+def summarize(input)
+  rows = JSON.parse(input)
+  i = 0
+  total = 0
+  while i < rows.length
+    total += rows[i]["amount"]
+    i += 1
+  end
+  JSON.stringify({count: rows.length, total: total})
+end

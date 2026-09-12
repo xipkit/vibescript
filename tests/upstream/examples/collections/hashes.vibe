@@ -1,0 +1,23 @@
+# vibe: 1.0
+
+def make_player(name, goal)
+  {
+    name: name,
+    goal: goal,
+    raised: 0,
+    status: "active"
+  }
+end
+
+def mark_complete(player)
+  player[:status] = "complete"
+  player
+end
+
+def total_with_bonus(row, bonus)
+  row[:raised] + bonus
+end
+
+def nested_lookup(record)
+  record[:meta][:tag]
+end

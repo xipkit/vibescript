@@ -1,0 +1,15 @@
+# vibe: 1.0
+
+def collect_until(limit)
+  out = []
+  n = 0
+  until n >= limit
+    out = out + [n]
+    n = n + 1
+  end
+  out
+end
+
+def run
+  collect_until(5)
+end

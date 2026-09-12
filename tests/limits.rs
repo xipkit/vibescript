@@ -1,0 +1,225 @@
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
+};
+use vibescript::{CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, parse_json};
+
+#[test]
+fn step_memory_recursion_and_deadline_limits() {
+    let engine = Engine::new();
+    let forever = engine.compile("while true\n 1\nend").unwrap();
+    let options = CallOptions {
+        limits: Limits {
+            steps: Some(100),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(forever.run(options).unwrap_err().kind, ErrorKind::Steps);
+    let options = CallOptions {
+        deadline: Some(Instant::now() - Duration::from_secs(1)),
+        ..CallOptions::default()
+    };
+    assert_eq!(forever.run(options).unwrap_err().kind, ErrorKind::Deadline);
+    let recursive = engine.compile("def f(n)\n f(n+1)\nend\nf(0)").unwrap();
+    let options = CallOptions {
+        limits: Limits {
+            recursion: 32,
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        recursive.run(options).unwrap_err().kind,
+        ErrorKind::Recursion
+    );
+    let options = CallOptions {
+        limits: Limits {
+            memory_bytes: Some(8192),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        engine
+            .compile("\"x\" * 1000000")
+            .unwrap()
+            .run(options)
+            .unwrap_err()
+            .kind,
+        ErrorKind::Memory
+    );
+}
+
+#[test]
+fn cancelled_before_import_never_invokes_host() {
+    let entered = Arc::new(AtomicBool::new(false));
+    let flag = entered.clone();
+    let mut engine = Engine::new();
+    engine.register("host", move |_, _| {
+        flag.store(true, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let script = engine.compile("def run(x)\n host()\nend").unwrap();
+    let token = CancellationToken::new();
+    token.cancel();
+    let options = CallOptions {
+        cancellation: token,
+        limits: Limits {
+            memory_bytes: Some(1),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        script
+            .call("run", &[Value::bytes(vec![b'a'; 100_000])], options)
+            .unwrap_err()
+            .kind,
+        ErrorKind::Cancelled
+    );
+    assert!(!entered.load(Ordering::SeqCst));
+}
+
+#[test]
+fn running_script_observes_cancellation() {
+    let token = CancellationToken::new();
+    let signal = token.clone();
+    let (started, ready) = std::sync::mpsc::channel();
+    let mut engine = Engine::new();
+    engine.register("started", move |_, _| {
+        started.send(()).unwrap();
+        Ok(Value::nil())
+    });
+    let script = engine.compile("started()\nwhile true\n 1\nend").unwrap();
+    let handle = std::thread::spawn(move || {
+        script.run(CallOptions {
+            cancellation: token,
+            limits: Limits {
+                steps: None,
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        })
+    });
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    signal.cancel();
+    assert_eq!(
+        handle.join().unwrap().unwrap_err().kind,
+        ErrorKind::Cancelled
+    );
+}
+
+#[test]
+fn temporary_buffers_and_returned_frames_are_reclaimed() {
+    let script=Engine::new().compile("def temporary(s)\n s.upcase(:ascii)\nend\ndef run(s)\n i=0\n while i<200\n  temporary(s)\n  i+=1\n end\n 7\nend").unwrap();
+    let result = script
+        .call(
+            "run",
+            &[Value::bytes(vec![b'a'; 16384])],
+            CallOptions {
+                limits: Limits {
+                    memory_bytes: Some(80_000),
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(7));
+    assert_eq!(result.stats.retained_memory_bytes, 0);
+    assert!(result.stats.peak_memory_bytes < 80_000);
+}
+
+#[test]
+fn tiny_json_result_does_not_retain_large_source_or_siblings() {
+    let raw = format!("{{\"large\":\"{}\",\"tiny\":\"x\"}}", "a".repeat(200_000));
+    let script = Engine::new()
+        .compile("def run(s)\n JSON.parse(s)[\"tiny\"]\nend")
+        .unwrap();
+    let result = script
+        .call(
+            "run",
+            &[Value::bytes(raw.into_bytes())],
+            CallOptions::default(),
+        )
+        .unwrap();
+    assert_eq!(result.value.as_bytes(), Some(b"x".as_slice()));
+    assert!(result.stats.retained_memory_bytes < 1024);
+    assert!(result.stats.peak_memory_bytes > 200_000);
+}
+
+#[test]
+fn imported_host_arrays_and_deep_constructed_values_are_bounded() {
+    let script = Engine::new().compile("def run(x)\n x\nend").unwrap();
+    let input = Value::array((0..1000).map(Value::int).collect());
+    let options = CallOptions {
+        limits: Limits {
+            memory_bytes: Some(2048),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        script.call("run", &[input], options).unwrap_err().kind,
+        ErrorKind::Memory
+    );
+    let script = Engine::new()
+        .compile("x = []\ni = 0\nwhile i < 200\n x = [x]\n i += 1\nend")
+        .unwrap();
+    assert_eq!(
+        script.run(CallOptions::default()).unwrap_err().kind,
+        ErrorKind::Recursion
+    );
+    let raw = format!("{}0{}", "[".repeat(200), "]".repeat(200));
+    assert_eq!(
+        parse_json(raw.as_bytes(), CallOptions::default())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Recursion
+    );
+}
+
+#[test]
+fn children_do_not_cancel_their_parent() {
+    let parent = CancellationToken::new();
+    let child = parent.child_token();
+    child.cancel();
+    assert!(!parent.is_cancelled());
+    let other = parent.child_token();
+    parent.cancel();
+    assert!(other.is_cancelled());
+}
+
+#[test]
+fn ignored_host_memory_failure_is_not_recoverable() {
+    let entered = Arc::new(AtomicBool::new(false));
+    let flag = entered.clone();
+    let mut engine = Engine::new();
+    engine.register("host", move |ctx, _| {
+        flag.store(true, Ordering::SeqCst);
+        assert_eq!(ctx.bytes(&[0; 8192]).unwrap_err().kind, ErrorKind::Memory);
+        assert_eq!(ctx.bytes(b"x").unwrap_err().kind, ErrorKind::Memory);
+        Ok(Value::int(1))
+    });
+    let options = CallOptions {
+        limits: Limits {
+            memory_bytes: Some(4096),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        engine
+            .compile("host()")
+            .unwrap()
+            .run(options)
+            .unwrap_err()
+            .kind,
+        ErrorKind::Memory
+    );
+    assert!(entered.load(Ordering::SeqCst));
+}
