@@ -1,0 +1,47 @@
+{
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M4",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "go": "go version go1.27.1 darwin/arm64\n",
+  "go_module": {
+    "Path": "github.com/mgomes/vibescript",
+    "Version": "v0.70.0",
+    "Time": "2026-09-11T02:07:28Z",
+    "Dir": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/github.com/mgomes/vibescript@v0.70.0",
+    "GoMod": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/cache/download/github.com/mgomes/vibescript/@v/v0.70.0.mod",
+    "GoVersion": "1.26",
+    "Sum": "h1:cqb56SkwtZ7BPASNBwFcd/aXOYNaylBPS6arxavWjhg=",
+    "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
+  },
+  "source_revision": "6cd9190260ac6e4a2081d289b79c7bd945879bad",
+  "dirty": "",
+  "binary_sha256": {
+    "go-portable": "b56e67c24e2649b5f196676914271e2b31fc8927988fa3e3e14d1a545b643a58",
+    "go-simd": "3713dc3da59c7e69857ad5fd25495228a70eab181e7624a2e3497b9ddddcf67c",
+    "rust-portable": "59d85950ad880601f7e44ea1d39501aa48d8d2fd503d9d71fef516e8bb704297",
+    "rust-simd": "c670255bbd8b22175a9440a0abb5593c146863d9b79f465116a498ee19b4ed76",
+    "rust-before-portable": "f76687fb4d58ddb762d82cf28a1e05415f688d9c88af025205f26e74235720dd",
+    "rust-before-simd": "78dadbe5bed9df35824946dbcb32b1358b138f5f9d2451d556eb759433d69b5e"
+  },
+  "RUSTFLAGS": "",
+  "GOFLAGS": "",
+  "GOMAXPROCS": 1,
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--baseline",
+    ".cache/hash-performance-baseline",
+    "--rounds",
+    "12",
+    "--out",
+    ".cache/hash-final-measurement"
+  ],
+  "baseline_source_revision": "f86f4bcf123005008a3118662ae8b41fc598edf5",
+  "allocation_binary_sha256": {
+    "rust-portable-alloc": "5441a85e701d8314364c2b9467443639c665474ed3a9fe5bb300f37336319bd2",
+    "rust-simd-alloc": "a439185cf85b9f97870ac9f1424635bfe2d31fd60d72400a05499aa7a8f812d2",
+    "rust-before-portable-alloc": "384e1d3a97b3048abad5402010607323f6119897707850623cf67582ebc85e5a",
+    "rust-before-simd-alloc": "418b60d6e3c9062805e61d8765d8aa4a41382ab9347d209b83a38f401ad5eaac"
+  }
+}

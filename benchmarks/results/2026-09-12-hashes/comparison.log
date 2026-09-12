@@ -1,0 +1,20 @@
+Built four timing binaries and two allocation-instrumented Rust binaries
+go-portable: 276 shared cases match expected results
+go-simd: 276 shared cases match expected results
+rust-portable: 276 shared cases match expected results
+rust-simd: 276 shared cases match expected results
+rust-before-portable: 276 shared cases match expected results
+rust-before-simd: 276 shared cases match expected results
+Measured round 1/12
+Measured round 2/12
+Measured round 3/12
+Measured round 4/12
+Measured round 5/12
+Measured round 6/12
+Measured round 7/12
+Measured round 8/12
+Measured round 9/12
+Measured round 10/12
+Measured round 11/12
+Measured round 12/12
+Timing, allocations, and process RSS saved to /Volumes/m2/Work/xipkit/vibescript.rs/.cache/hash-final-measurement

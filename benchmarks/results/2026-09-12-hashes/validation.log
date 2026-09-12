@@ -1,0 +1,336 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+    Checking vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.30s
+   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s
+     Running unittests src/lib.rs (target/debug/deps/vibescript-cb4dd590124692c5)
+
+running 8 tests
+test hash::tests::imported_indexes_have_independent_lifetimes ... ok
+test hash::tests::index_capacity_is_reserved_before_allocation ... ok
+test hash::tests::long_keys_observe_work_limits_and_cancellation ... ok
+test value::tests::shared_bytes_have_independent_budget_lifetimes ... ok
+test scan::tests::case_matches_scalar_including_unaligned_slices ... ok
+test hash::tests::collisions_preserve_keys_and_consume_work ... ok
+test scan::tests::classifiers_match_scalar_at_every_lane ... ok
+test scan::tests::decoder_matches_every_unicode_scalar_and_invalid_prefixes ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running unittests src/main.rs (target/debug/deps/vibes-abd2eb9b3f8eca5c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asynchronous.rs (target/debug/deps/asynchronous-0b01ae792baa7a19)
+
+running 3 tests
+test async_success_and_cancelled_queue ... ok
+test dropped_future_keeps_permit_until_host_returns ... ok
+test dropping_call_cancels_cpu_worker ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/core.rs (target/debug/deps/core-2f8102a47c948fd4)
+
+running 8 tests
+test host_calls_are_isolated_and_exhaustion_is_latched ... ok
+test json_escapes_duplicates_and_depth ... ok
+test strings_preserve_bytes_and_count_runes ... ok
+test precedence_truthiness_and_floor_arithmetic ... ok
+test collections_have_value_semantics ... ok
+test array_updates_preserve_aliases_and_evaluate_arguments_before_writing ... ok
+test syntax_guards_and_overflow_are_errors ... ok
+test functions_loops_and_control_flow ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hashes.rs (target/debug/deps/hashes-e4c5a4a96da02e11)
+
+running 5 tests
+test replacing_deepest_value_updates_depth ... ok
+test updates_preserve_snapshots_including_self_references ... ok
+test ordered_hash_equality_uses_values_and_ignores_order ... ok
+test growth_has_bounded_work_and_memory ... ok
+test duplicates_and_growth_preserve_order_and_lookup ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/limits.rs (target/debug/deps/limits-cce202ce468cec70)
+
+running 12 tests
+test children_do_not_cancel_their_parent ... ok
+test cancelled_before_import_never_invokes_host ... ok
+test ignored_host_memory_failure_is_not_recoverable ... ok
+test shared_inputs_charge_spare_capacity_and_release_it_for_small_results ... ok
+test step_memory_recursion_and_deadline_limits ... ok
+test imported_host_arrays_and_deep_constructed_values_are_bounded ... ok
+test tiny_json_result_does_not_retain_large_source_or_siblings ... ok
+test running_script_observes_cancellation ... ok
+test array_mutation_keeps_depth_limits_accurate ... ok
+test unescaped_json_strings_fit_without_repeated_buffer_growth ... ok
+test unaliased_array_growth_has_bounded_work_and_memory ... ok
+test temporary_buffers_and_returned_frames_are_reclaimed ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/site.rs (target/debug/deps/site-b475b4c224db5593)
+
+running 1 test
+test unchanged_site_examples_match_go_results ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/unicode.rs (target/debug/deps/unicode-1599cf887ca82592)
+
+running 2 tests
+test unicode_bulk_operations_observe_step_limits ... ok
+test unicode_and_invalid_bytes_cross_scan_and_copy_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/upstream.rs (target/debug/deps/upstream-b862dddd85003d64)
+
+running 1 test
+test original_vibescript_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests examples/compare.rs (target/debug/examples/compare-6a110a4ec686a311)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/sms.rs (target/debug/examples/sms-90c40127b8cb834b)
+
+running 1 test
+test tests::sms_preview_checks_arguments_and_respects_cancellation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `release` profile [optimized + debuginfo] target(s) in 13.80s
+     Running unittests src/lib.rs (target/release/deps/vibescript-b80b5f8a994d0eeb)
+
+running 8 tests
+test value::tests::shared_bytes_have_independent_budget_lifetimes ... ok
+test hash::tests::index_capacity_is_reserved_before_allocation ... ok
+test hash::tests::long_keys_observe_work_limits_and_cancellation ... ok
+test hash::tests::imported_indexes_have_independent_lifetimes ... ok
+test scan::tests::case_matches_scalar_including_unaligned_slices ... ok
+test hash::tests::collisions_preserve_keys_and_consume_work ... ok
+test scan::tests::decoder_matches_every_unicode_scalar_and_invalid_prefixes ... ok
+test scan::tests::classifiers_match_scalar_at_every_lane ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/release/deps/vibes-dff3bdc8d93713c7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asynchronous.rs (target/release/deps/asynchronous-5bb083a4b89a93be)
+
+running 3 tests
+test async_success_and_cancelled_queue ... ok
+test dropped_future_keeps_permit_until_host_returns ... ok
+test dropping_call_cancels_cpu_worker ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/core.rs (target/release/deps/core-913c4d4992950af3)
+
+running 8 tests
+test host_calls_are_isolated_and_exhaustion_is_latched ... ok
+test json_escapes_duplicates_and_depth ... ok
+test syntax_guards_and_overflow_are_errors ... ok
+test strings_preserve_bytes_and_count_runes ... ok
+test precedence_truthiness_and_floor_arithmetic ... ok
+test functions_loops_and_control_flow ... ok
+test array_updates_preserve_aliases_and_evaluate_arguments_before_writing ... ok
+test collections_have_value_semantics ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hashes.rs (target/release/deps/hashes-64bd80ed152cb320)
+
+running 5 tests
+test replacing_deepest_value_updates_depth ... ok
+test ordered_hash_equality_uses_values_and_ignores_order ... ok
+test updates_preserve_snapshots_including_self_references ... ok
+test growth_has_bounded_work_and_memory ... ok
+test duplicates_and_growth_preserve_order_and_lookup ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limits.rs (target/release/deps/limits-ceb5838a3695c0ac)
+
+running 12 tests
+test ignored_host_memory_failure_is_not_recoverable ... ok
+test cancelled_before_import_never_invokes_host ... ok
+test shared_inputs_charge_spare_capacity_and_release_it_for_small_results ... ok
+test children_do_not_cancel_their_parent ... ok
+test step_memory_recursion_and_deadline_limits ... ok
+test imported_host_arrays_and_deep_constructed_values_are_bounded ... ok
+test running_script_observes_cancellation ... ok
+test tiny_json_result_does_not_retain_large_source_or_siblings ... ok
+test array_mutation_keeps_depth_limits_accurate ... ok
+test unescaped_json_strings_fit_without_repeated_buffer_growth ... ok
+test temporary_buffers_and_returned_frames_are_reclaimed ... ok
+test unaliased_array_growth_has_bounded_work_and_memory ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/site.rs (target/release/deps/site-a074cd1ca24c878b)
+
+running 1 test
+test unchanged_site_examples_match_go_results ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/unicode.rs (target/release/deps/unicode-e77dfe1d8ec43aa4)
+
+running 2 tests
+test unicode_bulk_operations_observe_step_limits ... ok
+test unicode_and_invalid_bytes_cross_scan_and_copy_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/upstream.rs (target/release/deps/upstream-2dd739fe68f1164d)
+
+running 1 test
+test original_vibescript_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/compare.rs (target/release/examples/compare-36a518f75807ff72)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/sms.rs (target/release/examples/sms-344b8cacc61f169c)
+
+running 1 test
+test tests::sms_preview_checks_arguments_and_respects_cancellation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `release` profile [optimized + debuginfo] target(s) in 17.79s
+     Running unittests src/lib.rs (target/release/deps/vibescript-c4423ebf4246a7dd)
+
+running 8 tests
+test hash::tests::long_keys_observe_work_limits_and_cancellation ... ok
+test value::tests::shared_bytes_have_independent_budget_lifetimes ... ok
+test hash::tests::index_capacity_is_reserved_before_allocation ... ok
+test hash::tests::imported_indexes_have_independent_lifetimes ... ok
+test scan::tests::case_matches_scalar_including_unaligned_slices ... ok
+test hash::tests::collisions_preserve_keys_and_consume_work ... ok
+test scan::tests::decoder_matches_every_unicode_scalar_and_invalid_prefixes ... ok
+test scan::tests::classifiers_match_scalar_at_every_lane ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/main.rs (target/release/deps/vibes-8f7c1f5e275afd8a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asynchronous.rs (target/release/deps/asynchronous-fe87124bb54138f4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/core.rs (target/release/deps/core-efa657dee3908934)
+
+running 8 tests
+test host_calls_are_isolated_and_exhaustion_is_latched ... ok
+test json_escapes_duplicates_and_depth ... ok
+test functions_loops_and_control_flow ... ok
+test precedence_truthiness_and_floor_arithmetic ... ok
+test array_updates_preserve_aliases_and_evaluate_arguments_before_writing ... ok
+test strings_preserve_bytes_and_count_runes ... ok
+test collections_have_value_semantics ... ok
+test syntax_guards_and_overflow_are_errors ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hashes.rs (target/release/deps/hashes-1229027a0014b788)
+
+running 5 tests
+test replacing_deepest_value_updates_depth ... ok
+test ordered_hash_equality_uses_values_and_ignores_order ... ok
+test updates_preserve_snapshots_including_self_references ... ok
+test growth_has_bounded_work_and_memory ... ok
+test duplicates_and_growth_preserve_order_and_lookup ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limits.rs (target/release/deps/limits-251d3b36807aaeaa)
+
+running 12 tests
+test ignored_host_memory_failure_is_not_recoverable ... ok
+test cancelled_before_import_never_invokes_host ... ok
+test children_do_not_cancel_their_parent ... ok
+test shared_inputs_charge_spare_capacity_and_release_it_for_small_results ... ok
+test step_memory_recursion_and_deadline_limits ... ok
+test imported_host_arrays_and_deep_constructed_values_are_bounded ... ok
+test running_script_observes_cancellation ... ok
+test array_mutation_keeps_depth_limits_accurate ... ok
+test tiny_json_result_does_not_retain_large_source_or_siblings ... ok
+test temporary_buffers_and_returned_frames_are_reclaimed ... ok
+test unescaped_json_strings_fit_without_repeated_buffer_growth ... ok
+test unaliased_array_growth_has_bounded_work_and_memory ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/site.rs (target/release/deps/site-8d57c9f64a2914b6)
+
+running 1 test
+test unchanged_site_examples_match_go_results ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/unicode.rs (target/release/deps/unicode-25b232192ab5acc7)
+
+running 2 tests
+test unicode_bulk_operations_observe_step_limits ... ok
+test unicode_and_invalid_bytes_cross_scan_and_copy_boundaries ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/upstream.rs (target/release/deps/upstream-035a2f44085fd249)
+
+running 1 test
+test original_vibescript_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/compare.rs (target/release/examples/compare-b73dd8913dff95c7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests examples/sms.rs (target/release/examples/sms-0f2a4b1a44817fa5)
+
+running 1 test
+test tests::sms_preview_checks_arguments_and_respects_cancellation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+   Doc-tests vibescript
+
+running 1 test
+test src/lib.rs - (line 3) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+all doctests ran in 0.44s; merged doctests compilation took 0.16s
