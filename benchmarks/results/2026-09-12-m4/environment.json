@@ -1,0 +1,36 @@
+{
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "cpu": "Apple M4",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "go": "go version go1.27.1 darwin/arm64\n",
+  "go_module": {
+    "Path": "github.com/mgomes/vibescript",
+    "Version": "v0.70.0",
+    "Time": "2026-09-11T02:07:28Z",
+    "Dir": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/github.com/mgomes/vibescript@v0.70.0",
+    "GoMod": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/cache/download/github.com/mgomes/vibescript/@v/v0.70.0.mod",
+    "GoVersion": "1.26",
+    "Sum": "h1:cqb56SkwtZ7BPASNBwFcd/aXOYNaylBPS6arxavWjhg=",
+    "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
+  },
+  "source_revision": "8403e83c4760cee2601b229cd4a94c97777414a1",
+  "dirty": "?? benchmarks/results/\n",
+  "binary_sha256": {
+    "go-portable": "092f5293935c8f6eb52d502d8b6524f6a3a4b87a20c9c90e7a619ff4128d8386",
+    "go-simd": "a02696576b44d240aac86d63ec5eab8bb69e63f66eb4dd466cc2893feaea8ca3",
+    "rust-portable": "0d8357791a9df24d45c00b444ac29ee0e1d63363bb5229277ecf9134578b401f",
+    "rust-simd": "2f234dc9d9dedd40a7e38b6c686a4603e7a7b8a1f67fb2b8e60e92ac308709ff"
+  },
+  "RUSTFLAGS": "",
+  "GOFLAGS": "",
+  "GOMAXPROCS": 1,
+  "target_ms": 75,
+  "command": [
+    "scripts/compare.py",
+    "--out",
+    "benchmarks/results/2026-09-12-m4",
+    "--rounds",
+    "8"
+  ]
+}

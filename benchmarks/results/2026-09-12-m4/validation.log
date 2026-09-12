@@ -1,0 +1,200 @@
+    Checking vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.31s
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.01s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (target/debug/deps/vibescript-cb4dd590124692c5)
+
+running 2 tests
+test scan::tests::case_matches_scalar_including_unaligned_slices ... ok
+test scan::tests::classifiers_match_scalar_at_every_lane ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running unittests src/main.rs (target/debug/deps/vibes-abd2eb9b3f8eca5c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asynchronous.rs (target/debug/deps/asynchronous-0b01ae792baa7a19)
+
+running 3 tests
+test async_success_and_cancelled_queue ... ok
+test dropped_future_keeps_permit_until_host_returns ... ok
+test dropping_call_cancels_cpu_worker ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/core.rs (target/debug/deps/core-2f8102a47c948fd4)
+
+running 7 tests
+test host_calls_are_isolated_and_exhaustion_is_latched ... ok
+test json_escapes_duplicates_and_depth ... ok
+test precedence_truthiness_and_floor_arithmetic ... ok
+test collections_have_value_semantics ... ok
+test strings_preserve_bytes_and_count_runes ... ok
+test functions_loops_and_control_flow ... ok
+test syntax_guards_and_overflow_are_errors ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limits.rs (target/debug/deps/limits-cce202ce468cec70)
+
+running 8 tests
+test children_do_not_cancel_their_parent ... ok
+test ignored_host_memory_failure_is_not_recoverable ... ok
+test cancelled_before_import_never_invokes_host ... ok
+test step_memory_recursion_and_deadline_limits ... ok
+test running_script_observes_cancellation ... ok
+test imported_host_arrays_and_deep_constructed_values_are_bounded ... ok
+test tiny_json_result_does_not_retain_large_source_or_siblings ... ok
+test temporary_buffers_and_returned_frames_are_reclaimed ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/upstream.rs (target/debug/deps/upstream-b862dddd85003d64)
+
+running 1 test
+test original_vibescript_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vibescript
+
+running 1 test
+test src/lib.rs - (line 3) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.34s; merged doctests compilation took 0.14s
+   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `release` profile [optimized + debuginfo] target(s) in 9.16s
+     Running unittests src/lib.rs (target/release/deps/vibescript-b80b5f8a994d0eeb)
+
+running 2 tests
+test scan::tests::case_matches_scalar_including_unaligned_slices ... ok
+test scan::tests::classifiers_match_scalar_at_every_lane ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/release/deps/vibes-dff3bdc8d93713c7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asynchronous.rs (target/release/deps/asynchronous-5bb083a4b89a93be)
+
+running 3 tests
+test async_success_and_cancelled_queue ... ok
+test dropped_future_keeps_permit_until_host_returns ... ok
+test dropping_call_cancels_cpu_worker ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/core.rs (target/release/deps/core-913c4d4992950af3)
+
+running 7 tests
+test precedence_truthiness_and_floor_arithmetic ... ok
+test host_calls_are_isolated_and_exhaustion_is_latched ... ok
+test functions_loops_and_control_flow ... ok
+test json_escapes_duplicates_and_depth ... ok
+test syntax_guards_and_overflow_are_errors ... ok
+test collections_have_value_semantics ... ok
+test strings_preserve_bytes_and_count_runes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limits.rs (target/release/deps/limits-ceb5838a3695c0ac)
+
+running 8 tests
+test children_do_not_cancel_their_parent ... ok
+test cancelled_before_import_never_invokes_host ... ok
+test ignored_host_memory_failure_is_not_recoverable ... ok
+test running_script_observes_cancellation ... ok
+test tiny_json_result_does_not_retain_large_source_or_siblings ... ok
+test step_memory_recursion_and_deadline_limits ... ok
+test imported_host_arrays_and_deep_constructed_values_are_bounded ... ok
+test temporary_buffers_and_returned_frames_are_reclaimed ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/upstream.rs (target/release/deps/upstream-2dd739fe68f1164d)
+
+running 1 test
+test original_vibescript_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vibescript
+
+running 1 test
+test src/lib.rs - (line 3) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.60s; merged doctests compilation took 0.43s
+   Compiling vibescript v0.1.0 (/Volumes/m2/Work/xipkit/vibescript.rs)
+    Finished `release` profile [optimized + debuginfo] target(s) in 8.09s
+     Running unittests src/lib.rs (target/release/deps/vibescript-c4423ebf4246a7dd)
+
+running 2 tests
+test scan::tests::case_matches_scalar_including_unaligned_slices ... ok
+test scan::tests::classifiers_match_scalar_at_every_lane ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (target/release/deps/vibes-8f7c1f5e275afd8a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asynchronous.rs (target/release/deps/asynchronous-fe87124bb54138f4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/core.rs (target/release/deps/core-efa657dee3908934)
+
+running 7 tests
+test syntax_guards_and_overflow_are_errors ... ok
+test json_escapes_duplicates_and_depth ... ok
+test precedence_truthiness_and_floor_arithmetic ... ok
+test functions_loops_and_control_flow ... ok
+test host_calls_are_isolated_and_exhaustion_is_latched ... ok
+test collections_have_value_semantics ... ok
+test strings_preserve_bytes_and_count_runes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/limits.rs (target/release/deps/limits-251d3b36807aaeaa)
+
+running 8 tests
+test ignored_host_memory_failure_is_not_recoverable ... ok
+test children_do_not_cancel_their_parent ... ok
+test step_memory_recursion_and_deadline_limits ... ok
+test cancelled_before_import_never_invokes_host ... ok
+test imported_host_arrays_and_deep_constructed_values_are_bounded ... ok
+test running_script_observes_cancellation ... ok
+test tiny_json_result_does_not_retain_large_source_or_siblings ... ok
+test temporary_buffers_and_returned_frames_are_reclaimed ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/upstream.rs (target/release/deps/upstream-035a2f44085fd249)
+
+running 1 test
+test original_vibescript_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests vibescript
+
+running 1 test
+test src/lib.rs - (line 3) ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.60s; merged doctests compilation took 0.39s
