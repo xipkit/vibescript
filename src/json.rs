@@ -140,10 +140,13 @@ impl Parser<'_> {
                 return self.err("unterminated JSON string");
             }
             let end = self.input.len().min(self.pos + CHUNK);
-            let n = scan::prefix(&self.input[self.pos..end], Class::JsonParse);
-            if n > 0 {
-                out.extend(self.ctx, &self.input[self.pos..self.pos + n])?;
-                self.pos += n;
+            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+            if span.len > 0 {
+                if span.runes != span.len {
+                    self.ctx.charge(span.steps)?;
+                }
+                out.extend(self.ctx, &self.input[self.pos..self.pos + span.len])?;
+                self.pos += span.len;
                 continue;
             }
             self.ctx.charge(1)?;
@@ -375,10 +378,13 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Buffer<u8>) -> Re
     out.push(ctx, b'"')?;
     let mut i = 0;
     while i < input.len() {
-        let n = scan::prefix(&input[i..input.len().min(i + CHUNK)], Class::JsonStringify);
-        if n > 0 {
-            out.extend(ctx, &input[i..i + n])?;
-            i += n;
+        let span = scan::text_span(&input[i..input.len().min(i + CHUNK)], Class::JsonStringify);
+        if span.len > 0 {
+            if span.runes != span.len {
+                ctx.charge(span.steps)?;
+            }
+            out.extend(ctx, &input[i..i + span.len])?;
+            i += span.len;
             continue;
         }
         ctx.charge(1)?;

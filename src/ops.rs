@@ -447,11 +447,12 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
     let mut valid = true;
     while i < bytes.len() {
         let end = bytes.len().min(i + CHUNK);
-        let n = scan::prefix(&bytes[i..end], Class::Ascii);
-        if n > 0 {
-            ctx.work_bytes(n)?;
-            i += n;
-            count += n;
+        let span = scan::text_span(&bytes[i..end], Class::Ascii);
+        if span.len > 0 {
+            ctx.charge(span.steps)?;
+            ctx.checkpoint()?;
+            i += span.len;
+            count += span.runes;
         } else {
             ctx.charge(1)?;
             let (_, n, ok) = scan::rune(&bytes[i..]);

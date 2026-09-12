@@ -32,6 +32,40 @@ pub(crate) fn prefix(s: &[u8], class: Class) -> usize {
     i
 }
 
+#[derive(Default)]
+pub(crate) struct TextSpan {
+    pub len: usize,
+    pub runes: usize,
+    pub steps: u64,
+}
+
+/// Scans valid UTF-8 until an escape, invalid byte, or incomplete trailing rune.
+pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
+    let mut span = TextSpan::default();
+    while span.len < s.len() {
+        if s[span.len] < 128 {
+            let n = prefix(&s[span.len..], class);
+            if n == 0 {
+                break;
+            }
+            span.len += n;
+            span.runes += n;
+            span.steps += (n as u64).div_ceil(64);
+        } else {
+            let (ch, n, valid) = rune(&s[span.len..]);
+            if !valid
+                || (matches!(class, Class::JsonStringify) && matches!(ch, '\u{2028}' | '\u{2029}'))
+            {
+                break;
+            }
+            span.len += n;
+            span.runes += 1;
+            span.steps += 1;
+        }
+    }
+    span
+}
+
 pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
     #[cfg_attr(
         not(all(feature = "simd", any(target_arch = "aarch64", target_arch = "x86_64"))),
@@ -143,17 +177,70 @@ pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
         0xf0..=0xf4 => 4,
         _ => return ('\u{fffd}', 1, false),
     };
-    if n <= s.len() {
-        if let Ok(text) = std::str::from_utf8(&s[..n]) {
-            return (text.chars().next().unwrap(), n, true);
-        }
+    if s.len() < n {
+        return ('\u{fffd}', 1, false);
     }
-    ('\u{fffd}', 1, false)
+    let second = s[1];
+    if second & 0xc0 != 0x80
+        || (b == 0xe0 && second < 0xa0)
+        || (b == 0xed && second >= 0xa0)
+        || (b == 0xf0 && second < 0x90)
+        || (b == 0xf4 && second >= 0x90)
+    {
+        return ('\u{fffd}', 1, false);
+    }
+    let mut cp = u32::from(b & (0x7f >> n));
+    for &byte in &s[1..n] {
+        if byte & 0xc0 != 0x80 {
+            return ('\u{fffd}', 1, false);
+        }
+        cp = (cp << 6) | u32::from(byte & 0x3f);
+    }
+    (char::from_u32(cp).unwrap(), n, true)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn reference_rune(bytes: &[u8]) -> (char, usize, bool) {
+        let valid = match std::str::from_utf8(bytes) {
+            Ok(text) => text,
+            Err(error) => std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap(),
+        };
+        match valid.chars().next() {
+            Some(ch) => (ch, ch.len_utf8(), true),
+            None => ('\u{fffd}', 1, false),
+        }
+    }
+
+    #[test]
+    fn decoder_matches_every_unicode_scalar_and_invalid_prefixes() {
+        for cp in 0..=0x10ffff {
+            if let Some(ch) = char::from_u32(cp) {
+                let mut buffer = [0; 4];
+                let bytes = ch.encode_utf8(&mut buffer).as_bytes();
+                assert_eq!(rune(bytes), (ch, bytes.len(), true), "U+{cp:04X}");
+                for len in 1..bytes.len() {
+                    assert_eq!(rune(&bytes[..len]), ('\u{fffd}', 1, false));
+                }
+            }
+        }
+        for a in 0..=255 {
+            for b in 0..=255 {
+                for tail in [[0, 0], [0x80, 0x80], [0xbf, 0xbf], [0xff, 0xff]] {
+                    let bytes = [a, b, tail[0], tail[1]];
+                    for len in 1..=bytes.len() {
+                        assert_eq!(
+                            rune(&bytes[..len]),
+                            reference_rune(&bytes[..len]),
+                            "{bytes:02x?}/{len}"
+                        );
+                    }
+                }
+            }
+        }
+    }
     #[test]
     fn classifiers_match_scalar_at_every_lane() {
         for class in [Class::Ascii, Class::JsonParse, Class::JsonStringify] {
