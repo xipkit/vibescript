@@ -101,6 +101,12 @@ def conformance_cases():
     add("json_unicode_escape","JSON.parse(input)",["🙂","�","a\n"],r'["\ud83d\ude42","\ud800","a\n"]')
     add("json_duplicates","JSON.parse(input)",{"a":2,"b":3},'{"a":1,"b":3,"a":2}')
     add("json_html",'JSON.stringify(input)',r'"\u003c\u003e\u0026\u2028\u2029"',"<>&\u2028\u2029")
+    for padding in [15,16,17,4093,4094,4095,4096,4097]:
+        text="a"*padding+"é界🙂\u2028\u2029<>&"
+        encoded=json.dumps(text+"\ufffd"*3,ensure_ascii=False,separators=(",",":"))
+        for char,escape in [("<",r"\u003c"),(">",r"\u003e"),("&",r"\u0026"),("\u2028",r"\u2028"),("\u2029",r"\u2029")]:
+            encoded=encoded.replace(char,escape)
+        add(f"unicode_boundary_{padding}",'input=input+"\\xff\\xc0\\x80"\n[input.length,JSON.stringify(input)]',[len(text)+3,encoded],text)
     rng=random.Random(1309)
     for i in range(30):
         a=rng.randrange(-10000,10000);b=rng.choice([n for n in range(-97,98) if n])
