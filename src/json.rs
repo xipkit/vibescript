@@ -134,7 +134,28 @@ impl Parser<'_> {
     }
     fn string(&mut self) -> Result<Value> {
         self.pos += 1;
-        let mut out = Buffer::empty();
+        let start = self.pos;
+        loop {
+            if self.pos >= self.input.len() {
+                return self.err("unterminated JSON string");
+            }
+            let end = self.input.len().min(self.pos + CHUNK);
+            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
+            if span.len > 0 {
+                self.ctx.charge(span.steps)?;
+                self.ctx.checkpoint()?;
+                self.pos += span.len;
+                continue;
+            }
+            if self.input[self.pos] == b'"' {
+                let value = self.ctx.bytes(&self.input[start..self.pos])?;
+                self.pos += 1;
+                return Ok(value);
+            }
+            break;
+        }
+        let mut out = Buffer::with_capacity(self.ctx, self.pos - start)?;
+        out.extend(self.ctx, &self.input[start..self.pos])?;
         loop {
             if self.pos >= self.input.len() {
                 return self.err("unterminated JSON string");
@@ -375,6 +396,17 @@ fn write_value(
     Ok(())
 }
 fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Buffer<u8>) -> Result<()> {
+    let Some(minimum) = out
+        .data
+        .len()
+        .checked_add(input.len())
+        .and_then(|n| n.checked_add(2))
+    else {
+        return ctx.fail(ErrorKind::Memory, "JSON output size overflow");
+    };
+    if minimum > out.data.capacity() {
+        out.ensure(ctx, minimum.max(out.data.capacity().saturating_mul(2)))?;
+    }
     out.push(ctx, b'"')?;
     let mut i = 0;
     while i < input.len() {

@@ -5,7 +5,9 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use vibescript::{CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, parse_json};
+use vibescript::{
+    CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, parse_json, stringify_json,
+};
 
 #[test]
 fn step_memory_recursion_and_deadline_limits() {
@@ -193,6 +195,32 @@ fn tiny_json_result_does_not_retain_large_source_or_siblings() {
     assert_eq!(result.value.as_bytes(), Some(b"x".as_slice()));
     assert!(result.stats.retained_memory_bytes < 1024);
     assert!(result.stats.peak_memory_bytes > 200_000);
+}
+
+#[test]
+fn unescaped_json_strings_fit_without_repeated_buffer_growth() {
+    let text = "a".repeat(65536);
+    let input = format!("\"{text}\"");
+    let options = CallOptions {
+        limits: Limits {
+            memory_bytes: Some(70000),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let parsed = parse_json(input.as_bytes(), options).unwrap();
+    assert_eq!(parsed.value.as_bytes(), Some(text.as_bytes()));
+    assert!(parsed.stats.peak_memory_bytes < 70000);
+    let options = CallOptions {
+        limits: Limits {
+            memory_bytes: Some(140000),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    let encoded = stringify_json(&Value::bytes(text), options).unwrap();
+    assert_eq!(encoded.value.as_bytes(), Some(input.as_bytes()));
+    assert!(encoded.stats.peak_memory_bytes < 140000);
 }
 
 #[test]
