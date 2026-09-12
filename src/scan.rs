@@ -52,9 +52,14 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
             span.runes += n;
             span.steps += (n as u64).div_ceil(64);
         } else {
-            let (ch, n, valid) = rune(&s[span.len..]);
+            let tail = &s[span.len..];
+            let (n, valid) = rune_width(tail);
             if !valid
-                || (matches!(class, Class::JsonStringify) && matches!(ch, '\u{2028}' | '\u{2029}'))
+                || (matches!(class, Class::JsonStringify)
+                    && n == 3
+                    && tail[0] == 0xe2
+                    && tail[1] == 0x80
+                    && matches!(tail[2], 0xa8 | 0xa9))
             {
                 break;
             }
@@ -64,6 +69,25 @@ pub(crate) fn text_span(s: &[u8], class: Class) -> TextSpan {
         }
     }
     span
+}
+
+/// Counts a run of valid non-ASCII characters without constructing code points.
+pub(crate) fn unicode_span(s: &[u8]) -> TextSpan {
+    let mut len = 0;
+    let mut runes = 0;
+    while len < s.len() && s[len] >= 128 {
+        let (n, valid) = rune_width(&s[len..]);
+        if !valid {
+            break;
+        }
+        len += n;
+        runes += 1;
+    }
+    TextSpan {
+        len,
+        runes,
+        steps: runes as u64,
+    }
 }
 
 pub(crate) fn ascii_case(s: &mut [u8], upper: bool) {
@@ -165,35 +189,59 @@ unsafe fn vector_case(s: &mut [u8], upper: bool) {
     }
 }
 
+// Low bits give sequence width; high bits select the legal second-byte range.
+const UTF8_LEAD: [u8; 256] = {
+    let mut table = [0; 256];
+    let mut b = 0;
+    while b < 256 {
+        table[b] = match b {
+            0..=0x7f => 1,
+            0xc2..=0xdf => 2,
+            0xe0 => 0x13,
+            0xe1..=0xec | 0xee..=0xef => 3,
+            0xed => 0x23,
+            0xf0 => 0x34,
+            0xf1..=0xf3 => 4,
+            0xf4 => 0x44,
+            _ => 0,
+        };
+        b += 1;
+    }
+    table
+};
+
+fn rune_width(s: &[u8]) -> (usize, bool) {
+    let tag = UTF8_LEAD[usize::from(s[0])];
+    let n = usize::from(tag & 7);
+    if n <= 1 {
+        return (1, n == 1);
+    }
+    if s.len() < n {
+        return (1, false);
+    }
+    let range = usize::from(tag >> 4);
+    let low = [0x80u8, 0xa0, 0x80, 0x90, 0x80][range];
+    let high = [0xbfu8, 0xbf, 0x9f, 0xbf, 0x8f][range];
+    if s[1].wrapping_sub(low) > high - low
+        || (n >= 3 && s[2] & 0xc0 != 0x80)
+        || (n == 4 && s[3] & 0xc0 != 0x80)
+    {
+        return (1, false);
+    }
+    (n, true)
+}
+
 /// Decodes one rune, replacing each invalid byte as Go's UTF-8 decoder does.
 pub(crate) fn rune(s: &[u8]) -> (char, usize, bool) {
-    let b = s[0];
-    if b < 128 {
-        return (b as char, 1, true);
+    if s[0] < 128 {
+        return (s[0] as char, 1, true);
     }
-    let n = match b {
-        0xc2..=0xdf => 2,
-        0xe0..=0xef => 3,
-        0xf0..=0xf4 => 4,
-        _ => return ('\u{fffd}', 1, false),
-    };
-    if s.len() < n {
+    let (n, valid) = rune_width(s);
+    if !valid {
         return ('\u{fffd}', 1, false);
     }
-    let second = s[1];
-    if second & 0xc0 != 0x80
-        || (b == 0xe0 && second < 0xa0)
-        || (b == 0xed && second >= 0xa0)
-        || (b == 0xf0 && second < 0x90)
-        || (b == 0xf4 && second >= 0x90)
-    {
-        return ('\u{fffd}', 1, false);
-    }
-    let mut cp = u32::from(b & (0x7f >> n));
+    let mut cp = u32::from(s[0] & (0x7f >> n));
     for &byte in &s[1..n] {
-        if byte & 0xc0 != 0x80 {
-            return ('\u{fffd}', 1, false);
-        }
         cp = (cp << 6) | u32::from(byte & 0x3f);
     }
     (char::from_u32(cp).unwrap(), n, true)
