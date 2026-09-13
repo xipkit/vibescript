@@ -10,5 +10,6 @@ cd "$repo"
 ./scripts/cargo test --release --all-targets --no-default-features
 ./scripts/cargo test --doc --all-features
 cd benchmarks/go
-test -z "$(gofmt -l main.go)"
+test -z "$(gofmt -l main.go ../../scripts/generate-string-casing.go)"
 GOEXPERIMENT=simd ../../scripts/go vet ./...
+../../scripts/go vet ../../scripts/generate-string-casing.go

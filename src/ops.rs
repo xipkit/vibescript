@@ -491,35 +491,6 @@ pub(crate) fn method(
             arity(args, 0)?;
             Ok(Value::int(value.require_bytes()?.len() as i64))
         }
-        Upcase | Downcase => {
-            let bytes = value.require_bytes()?;
-            if !args.is_empty() {
-                arity(args, 1)?;
-                if !matches!(args[0].0, Kind::Symbol(_)) || args[0].require_bytes()? != b"ascii" {
-                    return Err(Error::new(
-                        ErrorKind::Argument,
-                        "only the :ascii case option is implemented",
-                    ));
-                }
-            } else {
-                for bytes in bytes.chunks(CHUNK) {
-                    ctx.work_bytes(bytes.len())?;
-                    if scan::prefix(bytes, Class::Ascii) != bytes.len() {
-                        return Err(Error::new(
-                            ErrorKind::Argument,
-                            "Unicode case conversion is not implemented; use :ascii",
-                        ));
-                    }
-                }
-            }
-            let mut out = Buffer::with_capacity(ctx, bytes.len())?;
-            out.extend(ctx, bytes)?;
-            for bytes in out.data.chunks_mut(CHUNK) {
-                ctx.work_bytes(bytes.len())?;
-                scan::ascii_case(bytes, matches!(method, Upcase));
-            }
-            Value::from_bytes(ctx, out)
-        }
         Include | Index | Rindex => {
             arity(args, 1)?;
             if matches!(method, Include) && matches!(value.0, Kind::Hash(_)) {

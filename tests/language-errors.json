@@ -58233,5 +58233,1065 @@
     "name": "time_parse_descriptor_error_2",
     "body": "Time.parse.call()",
     "go_error": "a method has no member call; call Time.parse(...) directly"
+  },
+  {
+    "name": "string_case_forms_2",
+    "body": "\"\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_8",
+    "body": "\"\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_11",
+    "body": "\"\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_14",
+    "body": "\"\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_20",
+    "body": "\"\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_23",
+    "body": "\"\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_26",
+    "body": "\"abc XYZ\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_32",
+    "body": "\"abc XYZ\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_35",
+    "body": "\"abc XYZ\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_38",
+    "body": "\"abc XYZ\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_44",
+    "body": "\"abc XYZ\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_47",
+    "body": "\"abc XYZ\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_50",
+    "body": "\"Straße ﬁle\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_56",
+    "body": "\"Straße ﬁle\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_59",
+    "body": "\"Straße ﬁle\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_62",
+    "body": "\"Straße ﬁle\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_68",
+    "body": "\"Straße ﬁle\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_71",
+    "body": "\"Straße ﬁle\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_74",
+    "body": "\"ǅǆǄ\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_80",
+    "body": "\"ǅǆǄ\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_83",
+    "body": "\"ǅǆǄ\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_86",
+    "body": "\"ǅǆǄ\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_92",
+    "body": "\"ǅǆǄ\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_95",
+    "body": "\"ǅǆǄ\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_98",
+    "body": "\"ΟΔΟΣ ΣΣςσ\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_104",
+    "body": "\"ΟΔΟΣ ΣΣςσ\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_107",
+    "body": "\"ΟΔΟΣ ΣΣςσ\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_110",
+    "body": "\"ΟΔΟΣ ΣΣςσ\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_116",
+    "body": "\"ΟΔΟΣ ΣΣςσ\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_119",
+    "body": "\"ΟΔΟΣ ΣΣςσ\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_122",
+    "body": "\"İIıi\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_128",
+    "body": "\"İIıi\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_131",
+    "body": "\"İIıi\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_134",
+    "body": "\"İIıi\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_140",
+    "body": "\"İIıi\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_143",
+    "body": "\"İIıi\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_146",
+    "body": "\"ⒶⓐⅠⅰ\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_152",
+    "body": "\"ⒶⓐⅠⅰ\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_155",
+    "body": "\"ⒶⓐⅠⅰ\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_158",
+    "body": "\"ⒶⓐⅠⅰ\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_164",
+    "body": "\"ⒶⓐⅠⅰ\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_167",
+    "body": "\"ⒶⓐⅠⅰ\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_170",
+    "body": "\"i̇́ͅ\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_176",
+    "body": "\"i̇́ͅ\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_179",
+    "body": "\"i̇́ͅ\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_182",
+    "body": "\"i̇́ͅ\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_188",
+    "body": "\"i̇́ͅ\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_191",
+    "body": "\"i̇́ͅ\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_194",
+    "body": "\"ͅαA\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_200",
+    "body": "\"ͅαA\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_203",
+    "body": "\"ͅαA\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_206",
+    "body": "\"ͅαA\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_212",
+    "body": "\"ͅαA\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_215",
+    "body": "\"ͅαA\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_218",
+    "body": "\"\\u0000aB\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_224",
+    "body": "\"\\u0000aB\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_227",
+    "body": "\"\\u0000aB\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_230",
+    "body": "\"\\u0000aB\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_236",
+    "body": "\"\\u0000aB\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_239",
+    "body": "\"\\u0000aB\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_242",
+    "body": "\"界aBC\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_248",
+    "body": "\"界aBC\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_251",
+    "body": "\"界aBC\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_254",
+    "body": "\"界aBC\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_260",
+    "body": "\"界aBC\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_263",
+    "body": "\"界aBC\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_266",
+    "body": "\"𐐀𐐨A\".upcase(:fold)",
+    "go_error": "string.upcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_272",
+    "body": "\"𐐀𐐨A\".capitalize(:fold)",
+    "go_error": "string.capitalize does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_275",
+    "body": "\"𐐀𐐨A\".swapcase(:fold)",
+    "go_error": "string.swapcase does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_278",
+    "body": "\"𐐀𐐨A\".upcase!(:fold)",
+    "go_error": "string.upcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_284",
+    "body": "\"𐐀𐐨A\".capitalize!(:fold)",
+    "go_error": "string.capitalize! does not support the :fold option"
+  },
+  {
+    "name": "string_case_forms_287",
+    "body": "\"𐐀𐐨A\".swapcase!(:fold)",
+    "go_error": "string.swapcase! does not support the :fold option"
+  },
+  {
+    "name": "string_case_options_0",
+    "body": "\"Straße\".upcase(nil)",
+    "go_error": "string.upcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_1",
+    "body": "\"Straße\".upcase(false)",
+    "go_error": "string.upcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_2",
+    "body": "\"Straße\".upcase(1)",
+    "go_error": "string.upcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_3",
+    "body": "\"Straße\".upcase(1.0)",
+    "go_error": "string.upcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_4",
+    "body": "\"Straße\".upcase(\"ascii\")",
+    "go_error": "string.upcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_5",
+    "body": "\"Straße\".upcase(:bad)",
+    "go_error": "string.upcase does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_6",
+    "body": "\"Straße\".upcase(:turkic)",
+    "go_error": "string.upcase does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_7",
+    "body": "\"Straße\".upcase(:ascii,:ascii)",
+    "go_error": "string.upcase accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_8",
+    "body": "\"Straße\".upcase(:ascii,:fold)",
+    "go_error": "string.upcase accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_9",
+    "body": "\"Straße\".upcase(*[nil])",
+    "go_error": "string.upcase option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_0",
+    "body": ":hello.upcase",
+    "go_error": "unknown symbol method upcase"
+  },
+  {
+    "name": "string_case_receivers_1",
+    "body": "1.upcase",
+    "go_error": "unknown int method upcase"
+  },
+  {
+    "name": "string_case_receivers_2",
+    "body": "1.0.upcase",
+    "go_error": "unknown float method upcase"
+  },
+  {
+    "name": "string_case_receivers_3",
+    "body": "nil.upcase",
+    "go_error": "unknown nil method upcase"
+  },
+  {
+    "name": "string_case_receivers_4",
+    "body": "false.upcase",
+    "go_error": "unknown bool method upcase"
+  },
+  {
+    "name": "string_case_receivers_5",
+    "body": "[].upcase",
+    "go_error": "unknown array method upcase"
+  },
+  {
+    "name": "string_case_receivers_6",
+    "body": "{}.upcase",
+    "go_error": "unknown hash method upcase"
+  },
+  {
+    "name": "string_case_options_11",
+    "body": "\"Straße\".downcase(nil)",
+    "go_error": "string.downcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_12",
+    "body": "\"Straße\".downcase(false)",
+    "go_error": "string.downcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_13",
+    "body": "\"Straße\".downcase(1)",
+    "go_error": "string.downcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_14",
+    "body": "\"Straße\".downcase(1.0)",
+    "go_error": "string.downcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_15",
+    "body": "\"Straße\".downcase(\"ascii\")",
+    "go_error": "string.downcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_16",
+    "body": "\"Straße\".downcase(:bad)",
+    "go_error": "string.downcase does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_17",
+    "body": "\"Straße\".downcase(:turkic)",
+    "go_error": "string.downcase does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_18",
+    "body": "\"Straße\".downcase(:ascii,:ascii)",
+    "go_error": "string.downcase accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_19",
+    "body": "\"Straße\".downcase(:ascii,:fold)",
+    "go_error": "string.downcase accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_20",
+    "body": "\"Straße\".downcase(*[nil])",
+    "go_error": "string.downcase option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_7",
+    "body": ":hello.downcase",
+    "go_error": "unknown symbol method downcase"
+  },
+  {
+    "name": "string_case_receivers_8",
+    "body": "1.downcase",
+    "go_error": "unknown int method downcase"
+  },
+  {
+    "name": "string_case_receivers_9",
+    "body": "1.0.downcase",
+    "go_error": "unknown float method downcase"
+  },
+  {
+    "name": "string_case_receivers_10",
+    "body": "nil.downcase",
+    "go_error": "unknown nil method downcase"
+  },
+  {
+    "name": "string_case_receivers_11",
+    "body": "false.downcase",
+    "go_error": "unknown bool method downcase"
+  },
+  {
+    "name": "string_case_receivers_12",
+    "body": "[].downcase",
+    "go_error": "unknown array method downcase"
+  },
+  {
+    "name": "string_case_receivers_13",
+    "body": "{}.downcase",
+    "go_error": "unknown hash method downcase"
+  },
+  {
+    "name": "string_case_options_22",
+    "body": "\"Straße\".capitalize(nil)",
+    "go_error": "string.capitalize option must be a symbol"
+  },
+  {
+    "name": "string_case_options_23",
+    "body": "\"Straße\".capitalize(false)",
+    "go_error": "string.capitalize option must be a symbol"
+  },
+  {
+    "name": "string_case_options_24",
+    "body": "\"Straße\".capitalize(1)",
+    "go_error": "string.capitalize option must be a symbol"
+  },
+  {
+    "name": "string_case_options_25",
+    "body": "\"Straße\".capitalize(1.0)",
+    "go_error": "string.capitalize option must be a symbol"
+  },
+  {
+    "name": "string_case_options_26",
+    "body": "\"Straße\".capitalize(\"ascii\")",
+    "go_error": "string.capitalize option must be a symbol"
+  },
+  {
+    "name": "string_case_options_27",
+    "body": "\"Straße\".capitalize(:bad)",
+    "go_error": "string.capitalize does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_28",
+    "body": "\"Straße\".capitalize(:turkic)",
+    "go_error": "string.capitalize does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_29",
+    "body": "\"Straße\".capitalize(:ascii,:ascii)",
+    "go_error": "string.capitalize accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_30",
+    "body": "\"Straße\".capitalize(:ascii,:fold)",
+    "go_error": "string.capitalize accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_31",
+    "body": "\"Straße\".capitalize(*[nil])",
+    "go_error": "string.capitalize option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_14",
+    "body": ":hello.capitalize",
+    "go_error": "unknown symbol method capitalize"
+  },
+  {
+    "name": "string_case_receivers_15",
+    "body": "1.capitalize",
+    "go_error": "unknown int method capitalize"
+  },
+  {
+    "name": "string_case_receivers_16",
+    "body": "1.0.capitalize",
+    "go_error": "unknown float method capitalize"
+  },
+  {
+    "name": "string_case_receivers_17",
+    "body": "nil.capitalize",
+    "go_error": "unknown nil method capitalize"
+  },
+  {
+    "name": "string_case_receivers_18",
+    "body": "false.capitalize",
+    "go_error": "unknown bool method capitalize"
+  },
+  {
+    "name": "string_case_receivers_19",
+    "body": "[].capitalize",
+    "go_error": "unknown array method capitalize"
+  },
+  {
+    "name": "string_case_receivers_20",
+    "body": "{}.capitalize",
+    "go_error": "unknown hash method capitalize"
+  },
+  {
+    "name": "string_case_options_33",
+    "body": "\"Straße\".swapcase(nil)",
+    "go_error": "string.swapcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_34",
+    "body": "\"Straße\".swapcase(false)",
+    "go_error": "string.swapcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_35",
+    "body": "\"Straße\".swapcase(1)",
+    "go_error": "string.swapcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_36",
+    "body": "\"Straße\".swapcase(1.0)",
+    "go_error": "string.swapcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_37",
+    "body": "\"Straße\".swapcase(\"ascii\")",
+    "go_error": "string.swapcase option must be a symbol"
+  },
+  {
+    "name": "string_case_options_38",
+    "body": "\"Straße\".swapcase(:bad)",
+    "go_error": "string.swapcase does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_39",
+    "body": "\"Straße\".swapcase(:turkic)",
+    "go_error": "string.swapcase does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_40",
+    "body": "\"Straße\".swapcase(:ascii,:ascii)",
+    "go_error": "string.swapcase accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_41",
+    "body": "\"Straße\".swapcase(:ascii,:fold)",
+    "go_error": "string.swapcase accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_42",
+    "body": "\"Straße\".swapcase(*[nil])",
+    "go_error": "string.swapcase option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_21",
+    "body": ":hello.swapcase",
+    "go_error": "unknown symbol method swapcase"
+  },
+  {
+    "name": "string_case_receivers_22",
+    "body": "1.swapcase",
+    "go_error": "unknown int method swapcase"
+  },
+  {
+    "name": "string_case_receivers_23",
+    "body": "1.0.swapcase",
+    "go_error": "unknown float method swapcase"
+  },
+  {
+    "name": "string_case_receivers_24",
+    "body": "nil.swapcase",
+    "go_error": "unknown nil method swapcase"
+  },
+  {
+    "name": "string_case_receivers_25",
+    "body": "false.swapcase",
+    "go_error": "unknown bool method swapcase"
+  },
+  {
+    "name": "string_case_receivers_26",
+    "body": "[].swapcase",
+    "go_error": "unknown array method swapcase"
+  },
+  {
+    "name": "string_case_receivers_27",
+    "body": "{}.swapcase",
+    "go_error": "unknown hash method swapcase"
+  },
+  {
+    "name": "string_case_options_44",
+    "body": "\"Straße\".upcase!(nil)",
+    "go_error": "string.upcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_45",
+    "body": "\"Straße\".upcase!(false)",
+    "go_error": "string.upcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_46",
+    "body": "\"Straße\".upcase!(1)",
+    "go_error": "string.upcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_47",
+    "body": "\"Straße\".upcase!(1.0)",
+    "go_error": "string.upcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_48",
+    "body": "\"Straße\".upcase!(\"ascii\")",
+    "go_error": "string.upcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_49",
+    "body": "\"Straße\".upcase!(:bad)",
+    "go_error": "string.upcase! does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_50",
+    "body": "\"Straße\".upcase!(:turkic)",
+    "go_error": "string.upcase! does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_51",
+    "body": "\"Straße\".upcase!(:ascii,:ascii)",
+    "go_error": "string.upcase! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_52",
+    "body": "\"Straße\".upcase!(:ascii,:fold)",
+    "go_error": "string.upcase! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_53",
+    "body": "\"Straße\".upcase!(*[nil])",
+    "go_error": "string.upcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_28",
+    "body": ":hello.upcase!",
+    "go_error": "unknown symbol method upcase!"
+  },
+  {
+    "name": "string_case_receivers_29",
+    "body": "1.upcase!",
+    "go_error": "unknown int method upcase!"
+  },
+  {
+    "name": "string_case_receivers_30",
+    "body": "1.0.upcase!",
+    "go_error": "unknown float method upcase!"
+  },
+  {
+    "name": "string_case_receivers_31",
+    "body": "nil.upcase!",
+    "go_error": "unknown nil method upcase!"
+  },
+  {
+    "name": "string_case_receivers_32",
+    "body": "false.upcase!",
+    "go_error": "unknown bool method upcase!"
+  },
+  {
+    "name": "string_case_receivers_33",
+    "body": "[].upcase!",
+    "go_error": "unknown array method upcase!"
+  },
+  {
+    "name": "string_case_receivers_34",
+    "body": "{}.upcase!",
+    "go_error": "unknown hash method upcase!"
+  },
+  {
+    "name": "string_case_options_55",
+    "body": "\"Straße\".downcase!(nil)",
+    "go_error": "string.downcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_56",
+    "body": "\"Straße\".downcase!(false)",
+    "go_error": "string.downcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_57",
+    "body": "\"Straße\".downcase!(1)",
+    "go_error": "string.downcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_58",
+    "body": "\"Straße\".downcase!(1.0)",
+    "go_error": "string.downcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_59",
+    "body": "\"Straße\".downcase!(\"ascii\")",
+    "go_error": "string.downcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_60",
+    "body": "\"Straße\".downcase!(:bad)",
+    "go_error": "string.downcase! does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_61",
+    "body": "\"Straße\".downcase!(:turkic)",
+    "go_error": "string.downcase! does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_62",
+    "body": "\"Straße\".downcase!(:ascii,:ascii)",
+    "go_error": "string.downcase! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_63",
+    "body": "\"Straße\".downcase!(:ascii,:fold)",
+    "go_error": "string.downcase! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_64",
+    "body": "\"Straße\".downcase!(*[nil])",
+    "go_error": "string.downcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_35",
+    "body": ":hello.downcase!",
+    "go_error": "unknown symbol method downcase!"
+  },
+  {
+    "name": "string_case_receivers_36",
+    "body": "1.downcase!",
+    "go_error": "unknown int method downcase!"
+  },
+  {
+    "name": "string_case_receivers_37",
+    "body": "1.0.downcase!",
+    "go_error": "unknown float method downcase!"
+  },
+  {
+    "name": "string_case_receivers_38",
+    "body": "nil.downcase!",
+    "go_error": "unknown nil method downcase!"
+  },
+  {
+    "name": "string_case_receivers_39",
+    "body": "false.downcase!",
+    "go_error": "unknown bool method downcase!"
+  },
+  {
+    "name": "string_case_receivers_40",
+    "body": "[].downcase!",
+    "go_error": "unknown array method downcase!"
+  },
+  {
+    "name": "string_case_receivers_41",
+    "body": "{}.downcase!",
+    "go_error": "unknown hash method downcase!"
+  },
+  {
+    "name": "string_case_options_66",
+    "body": "\"Straße\".capitalize!(nil)",
+    "go_error": "string.capitalize! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_67",
+    "body": "\"Straße\".capitalize!(false)",
+    "go_error": "string.capitalize! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_68",
+    "body": "\"Straße\".capitalize!(1)",
+    "go_error": "string.capitalize! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_69",
+    "body": "\"Straße\".capitalize!(1.0)",
+    "go_error": "string.capitalize! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_70",
+    "body": "\"Straße\".capitalize!(\"ascii\")",
+    "go_error": "string.capitalize! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_71",
+    "body": "\"Straße\".capitalize!(:bad)",
+    "go_error": "string.capitalize! does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_72",
+    "body": "\"Straße\".capitalize!(:turkic)",
+    "go_error": "string.capitalize! does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_73",
+    "body": "\"Straße\".capitalize!(:ascii,:ascii)",
+    "go_error": "string.capitalize! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_74",
+    "body": "\"Straße\".capitalize!(:ascii,:fold)",
+    "go_error": "string.capitalize! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_75",
+    "body": "\"Straße\".capitalize!(*[nil])",
+    "go_error": "string.capitalize! option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_42",
+    "body": ":hello.capitalize!",
+    "go_error": "unknown symbol method capitalize!"
+  },
+  {
+    "name": "string_case_receivers_43",
+    "body": "1.capitalize!",
+    "go_error": "unknown int method capitalize!"
+  },
+  {
+    "name": "string_case_receivers_44",
+    "body": "1.0.capitalize!",
+    "go_error": "unknown float method capitalize!"
+  },
+  {
+    "name": "string_case_receivers_45",
+    "body": "nil.capitalize!",
+    "go_error": "unknown nil method capitalize!"
+  },
+  {
+    "name": "string_case_receivers_46",
+    "body": "false.capitalize!",
+    "go_error": "unknown bool method capitalize!"
+  },
+  {
+    "name": "string_case_receivers_47",
+    "body": "[].capitalize!",
+    "go_error": "unknown array method capitalize!"
+  },
+  {
+    "name": "string_case_receivers_48",
+    "body": "{}.capitalize!",
+    "go_error": "unknown hash method capitalize!"
+  },
+  {
+    "name": "string_case_options_77",
+    "body": "\"Straße\".swapcase!(nil)",
+    "go_error": "string.swapcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_78",
+    "body": "\"Straße\".swapcase!(false)",
+    "go_error": "string.swapcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_79",
+    "body": "\"Straße\".swapcase!(1)",
+    "go_error": "string.swapcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_80",
+    "body": "\"Straße\".swapcase!(1.0)",
+    "go_error": "string.swapcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_81",
+    "body": "\"Straße\".swapcase!(\"ascii\")",
+    "go_error": "string.swapcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_options_82",
+    "body": "\"Straße\".swapcase!(:bad)",
+    "go_error": "string.swapcase! does not support the :bad option"
+  },
+  {
+    "name": "string_case_options_83",
+    "body": "\"Straße\".swapcase!(:turkic)",
+    "go_error": "string.swapcase! does not support the :turkic option"
+  },
+  {
+    "name": "string_case_options_84",
+    "body": "\"Straße\".swapcase!(:ascii,:ascii)",
+    "go_error": "string.swapcase! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_85",
+    "body": "\"Straße\".swapcase!(:ascii,:fold)",
+    "go_error": "string.swapcase! accepts at most one case-mapping option"
+  },
+  {
+    "name": "string_case_options_86",
+    "body": "\"Straße\".swapcase!(*[nil])",
+    "go_error": "string.swapcase! option must be a symbol"
+  },
+  {
+    "name": "string_case_receivers_49",
+    "body": ":hello.swapcase!",
+    "go_error": "unknown symbol method swapcase!"
+  },
+  {
+    "name": "string_case_receivers_50",
+    "body": "1.swapcase!",
+    "go_error": "unknown int method swapcase!"
+  },
+  {
+    "name": "string_case_receivers_51",
+    "body": "1.0.swapcase!",
+    "go_error": "unknown float method swapcase!"
+  },
+  {
+    "name": "string_case_receivers_52",
+    "body": "nil.swapcase!",
+    "go_error": "unknown nil method swapcase!"
+  },
+  {
+    "name": "string_case_receivers_53",
+    "body": "false.swapcase!",
+    "go_error": "unknown bool method swapcase!"
+  },
+  {
+    "name": "string_case_receivers_54",
+    "body": "[].swapcase!",
+    "go_error": "unknown array method swapcase!"
+  },
+  {
+    "name": "string_case_receivers_55",
+    "body": "{}.swapcase!",
+    "go_error": "unknown hash method swapcase!"
+  },
+  {
+    "name": "string_case_compare_args_0",
+    "body": "\"A\".casecmp()",
+    "go_error": "string.casecmp expects exactly one string"
+  },
+  {
+    "name": "string_case_compare_args_1",
+    "body": "\"A\".casecmp(\"a\",\"b\")",
+    "go_error": "string.casecmp expects exactly one string"
+  },
+  {
+    "name": "string_case_compare_args_9",
+    "body": "\"A\".casecmp?()",
+    "go_error": "string.casecmp? expects exactly one string"
+  },
+  {
+    "name": "string_case_compare_args_10",
+    "body": "\"A\".casecmp?(\"a\",\"b\")",
+    "go_error": "string.casecmp? expects exactly one string"
   }
 ]

@@ -140,6 +140,9 @@ pub(crate) fn call(
         let result = field_call(ctx, site, value, args, &[], false)?;
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::text::case::call(ctx, name, &receiver, args)? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::numeric::call(ctx, name, &receiver, args)? {
         return Ok((receiver, result));
     }
