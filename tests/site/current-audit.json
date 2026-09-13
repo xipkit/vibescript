@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "7428017d466040e5d1a0acec9a7dc8647d1bbdc7",
-  "dirty": " M README.md\n M docs/compatibility.md\n M docs/language-port.md\n M src/bytecode.rs\n M src/hash.rs\n M src/iteration.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/mutate.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? licenses/math-NOTICE.txt\n?? scripts/generate-float-cases.py\n?? src/builtin.rs\n?? src/conversion.rs\n?? src/math.rs\n?? tests/builtins.rs\n?? tests/float-conversions.json\n",
+  "source_revision": "11836b914b8b6c6198258c9580c64eabc031ce49",
+  "dirty": " M src/builtin.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/value.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/money.rs\n?? tests/money.rs\n",
   "binary_sha256": {
-    "go-simd": "e7ef846dfd69eae06bf68fc0c787bb0d500782c910283a9d7e18d3396e3ab05a",
-    "rust-simd": "64011688de095e49640684880300aa022a108dd8d8936c81c405207036c4d259"
+    "go-simd": "f3f1636a580c863e2c902e485793ca7591e25643424197cc027d4852d1ff15c4",
+    "rust-simd": "564bf2262709108306dde709ff6618f6ba36d9c67eedb8fe68d5fd8562efbc4e"
   },
   "counts": {
     "match": 157,
@@ -7499,7 +7499,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8444,7 +8444,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8943,7 +8943,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -9137,7 +9137,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },

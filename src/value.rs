@@ -99,6 +99,7 @@ pub(crate) enum Kind {
     Int(i64),
     Big(Arc<crate::integer::Big>),
     Float(f64),
+    Money(crate::money::Money),
     Bytes(Arc<Bytes>),
     Symbol(Arc<Bytes>),
     Array(Arc<Heap<Value>>),
@@ -206,6 +207,18 @@ impl Value {
             _ => None,
         }
     }
+    /// Constructs inline money from signed cents and a three-letter ASCII currency.
+    pub fn money(cents: i64, currency: &str) -> Result<Self> {
+        crate::money::Money::new(cents, currency.as_bytes()).map(|money| Self(Kind::Money(money)))
+    }
+    /// Returns a money value's signed cents and uppercase currency code.
+    pub fn as_money(&self) -> Option<(i64, &str)> {
+        if let Kind::Money(money) = &self.0 {
+            Some((money.cents(), money.currency()))
+        } else {
+            None
+        }
+    }
     /// Returns the raw bytes of a string or symbol, including invalid UTF-8.
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match &self.0 {
@@ -241,6 +254,7 @@ impl Value {
             Kind::Bool(_) => "bool",
             Kind::Int(_) | Kind::Big(_) => "int",
             Kind::Float(_) => "float",
+            Kind::Money(_) => "money",
             Kind::Bytes(_) => "string",
             Kind::Symbol(_) => "symbol",
             Kind::Array(_) => "array",
@@ -468,6 +482,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Kind::Nil => f.write_str("nil"),
+            Kind::Money(money) => write!(f, "{money}"),
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),

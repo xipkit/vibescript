@@ -8,6 +8,8 @@ The builtin-iteration audit added nine examples covering block transforms, yield
 
 The remaining 15 are harness gaps: 13 return money or duration values that the harness's JSON encoder cannot represent, and two require SMS/email host capabilities that are not registered in the comparison harness. These are not reported as Go interpreter failures. The Rust [SMS preview](../../examples/sms.rs) separately demonstrates synchronous host registration using the currently supported `sms_send` syntax. Namespaced `sms.send` and native async host calls still need implementation.
 
+Money support retains the same JSON audit counts. The unchanged `upstream/money/operations.vibe` also passes a separate native test in [money.rs](../money.rs), which checks its typed money results through the Rust host API. It remains a JSON harness gap because both interpreters reject money during JSON encoding; it is not added to `cases.json`.
+
 [initial-audit.json](initial-audit.json) preserves the initial errors; [current-audit.json](current-audit.json) records the latest full audit. After building comparison binaries with `scripts/compare.py`, rerun all 203 examples with:
 
 ```sh

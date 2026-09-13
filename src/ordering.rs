@@ -151,6 +151,7 @@ impl Compare {
                 Ok(order)
             }
             (Kind::Nil, Kind::Nil) => Ok(Some(Ordering::Equal)),
+            (Kind::Money(a), Kind::Money(b)) => Ok(a.order(*b)),
             (Kind::Bool(a), Kind::Bool(b)) => Ok(Some(a.cmp(b))),
             (
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_),

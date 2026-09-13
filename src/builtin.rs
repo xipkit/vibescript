@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    Money,
+    MoneyCents,
     ToInt,
     ToFloat,
     JsonParse,
@@ -33,6 +35,8 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Money,
+    MoneyCents,
     ToInt,
     ToFloat,
     Json,
@@ -42,6 +46,8 @@ pub(crate) enum Global {
 impl Global {
     pub fn parse(name: &str) -> Option<Self> {
         match name {
+            "money" => Some(Self::Money),
+            "money_cents" => Some(Self::MoneyCents),
             "to_int" => Some(Self::ToInt),
             "to_float" => Some(Self::ToFloat),
             "JSON" => Some(Self::Json),
@@ -53,6 +59,8 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Money => return Value(Kind::Builtin(Builtin::Money)),
+            Self::MoneyCents => return Value(Kind::Builtin(Builtin::MoneyCents)),
             Self::ToInt => return Value(Kind::Builtin(Builtin::ToInt)),
             Self::ToFloat => return Value(Kind::Builtin(Builtin::ToFloat)),
             Self::Json => vec![
@@ -109,6 +117,8 @@ impl Builtin {
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::Money => "money",
+            Self::MoneyCents => "money_cents",
             Self::ToInt => "to_int",
             Self::ToFloat => "to_float",
             Self::JsonParse => "JSON.parse",
@@ -151,6 +161,33 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        if self == Self::Money {
+            ops::arity(args, 1)?;
+            let Kind::Bytes(bytes) = &args[0].0 else {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "money expects a string literal",
+                ));
+            };
+            return crate::money::parse(ctx, &bytes.data).map(|value| Value(Kind::Money(value)));
+        }
+        if self == Self::MoneyCents {
+            ops::arity(args, 2)?;
+            let cents = crate::sequence::integer(&args[0]).map_err(|_| {
+                Error::new(
+                    ErrorKind::Type,
+                    "money_cents expects finite cents within the signed 64-bit range",
+                )
+            })?;
+            let Kind::Bytes(bytes) = &args[1].0 else {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "money_cents expects a currency string",
+                ));
+            };
+            return crate::money::Money::new(cents, &bytes.data)
+                .map(|value| Value(Kind::Money(value)));
+        }
         if keywords || block {
             return Err(Error::new(
                 ErrorKind::Argument,
@@ -202,7 +239,7 @@ impl Builtin {
                 ErrorKind::Type,
                 "JSON.parse_as requires a type literal; type normalization is not implemented",
             )),
-            Self::Math(_) => unreachable!(),
+            Self::Math(_) | Self::Money | Self::MoneyCents => unreachable!(),
         }
     }
 }

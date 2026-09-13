@@ -416,6 +416,7 @@ fn write_value(
     }
     match &value.0 {
         Kind::Builtin(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a builtin")),
+        Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
         Kind::Range(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a range")),
         Kind::Nil => out.extend(ctx, b"null")?,
         Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,

@@ -13188,5 +13188,2200 @@
     "name": "builtins_math_dense_log10_159",
     "source": "def run(input)\nMath.log10(-3.7865028167867545e+66).to_s\nend",
     "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "money_parse_5",
+    "source": "def run(input)\nmoney(\". USD\").to_s\nend",
+    "go_error": "invalid money amount \". USD\""
+  },
+  {
+    "name": "money_parse_6",
+    "source": "def run(input)\nmoney(\"- USD\").to_s\nend",
+    "go_error": "invalid money amount \"- USD\""
+  },
+  {
+    "name": "money_parse_7",
+    "source": "def run(input)\nmoney(\"+ USD\").to_s\nend",
+    "go_error": "invalid money amount \"+ USD\""
+  },
+  {
+    "name": "money_parse_8",
+    "source": "def run(input)\nmoney(\" USD\").to_s\nend",
+    "go_error": "invalid money literal \" USD\""
+  },
+  {
+    "name": "money_parse_9",
+    "source": "def run(input)\nmoney(\"1\").to_s\nend",
+    "go_error": "invalid money literal \"1\""
+  },
+  {
+    "name": "money_parse_10",
+    "source": "def run(input)\nmoney(\"1 USD x\").to_s\nend",
+    "go_error": "invalid money literal \"1 USD x\""
+  },
+  {
+    "name": "money_parse_13",
+    "source": "def run(input)\nmoney(\"1 US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"US\""
+  },
+  {
+    "name": "money_parse_14",
+    "source": "def run(input)\nmoney(\"1 USDD\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USDD\""
+  },
+  {
+    "name": "money_parse_15",
+    "source": "def run(input)\nmoney(\"1 123\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"123\""
+  },
+  {
+    "name": "money_parse_16",
+    "source": "def run(input)\nmoney(\"1 K\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"K\""
+  },
+  {
+    "name": "money_parse_17",
+    "source": "def run(input)\nmoney(\"1 éA\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"éA\""
+  },
+  {
+    "name": "money_parse_18",
+    "source": "def run(input)\nmoney(\"1 _AA\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"_AA\""
+  },
+  {
+    "name": "money_parse_19",
+    "source": "def run(input)\nmoney(\"1 $US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"$US\""
+  },
+  {
+    "name": "money_parse_21",
+    "source": "def run(input)\nmoney(\"1 U_SD\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"U_SD\""
+  },
+  {
+    "name": "money_parse_22",
+    "source": "def run(input)\nmoney(\"1e2 USD\").to_s\nend",
+    "go_error": "invalid money amount \"1e2 USD\""
+  },
+  {
+    "name": "money_parse_23",
+    "source": "def run(input)\nmoney(\"1_000 USD\").to_s\nend",
+    "go_error": "invalid money amount \"1_000 USD\""
+  },
+  {
+    "name": "money_parse_24",
+    "source": "def run(input)\nmoney(\"1.234 USD\").to_s\nend",
+    "go_error": "money literal supports at most 2 decimal places: \"1.234 USD\""
+  },
+  {
+    "name": "money_parse_27",
+    "source": "def run(input)\nmoney(\"-+1 USD\").to_s\nend",
+    "go_error": "invalid money amount \"-+1 USD\""
+  },
+  {
+    "name": "money_parse_28",
+    "source": "def run(input)\nmoney(\"1..0 USD\").to_s\nend",
+    "go_error": "invalid money amount \"1..0 USD\""
+  },
+  {
+    "name": "money_parse_29",
+    "source": "def run(input)\nmoney(\"0x1 USD\").to_s\nend",
+    "go_error": "invalid money amount \"0x1 USD\""
+  },
+  {
+    "name": "money_parse_32",
+    "source": "def run(input)\nmoney(\"92233720368547758.08 USD\").to_s\nend",
+    "go_error": "invalid money amount \"92233720368547758.08 USD\""
+  },
+  {
+    "name": "money_parse_34",
+    "source": "def run(input)\nmoney(\"-92233720368547758.09 USD\").to_s\nend",
+    "go_error": "invalid money amount \"-92233720368547758.09 USD\""
+  },
+  {
+    "name": "money_parse_35",
+    "source": "def run(input)\nmoney(\"-1.\\u0000 USD\").to_s\nend",
+    "go_error": "invalid money amount \"-1.\\x00 USD\""
+  },
+  {
+    "name": "money_parse_36",
+    "source": "def run(input)\nmoney(\"1\\u0000 USD\").to_s\nend",
+    "go_error": "invalid money amount \"1\\x00 USD\""
+  },
+  {
+    "name": "money_parse_37",
+    "source": "def run(input)\nmoney(\"1 USD\\u0000\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USD\\x00\""
+  },
+  {
+    "name": "money_cents_0_241",
+    "source": "def run(input)\nmoney_cents(0,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_0_242",
+    "source": "def run(input)\nmoney_cents(0,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_0_243",
+    "source": "def run(input)\nmoney_cents(0,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_0_244",
+    "source": "def run(input)\nmoney_cents(0,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_0_245",
+    "source": "def run(input)\nmoney_cents(0,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_1_249",
+    "source": "def run(input)\nmoney_cents(1,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_1_250",
+    "source": "def run(input)\nmoney_cents(1,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_1_251",
+    "source": "def run(input)\nmoney_cents(1,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_1_252",
+    "source": "def run(input)\nmoney_cents(1,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_1_253",
+    "source": "def run(input)\nmoney_cents(1,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_2_257",
+    "source": "def run(input)\nmoney_cents(-1,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_2_258",
+    "source": "def run(input)\nmoney_cents(-1,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_2_259",
+    "source": "def run(input)\nmoney_cents(-1,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_2_260",
+    "source": "def run(input)\nmoney_cents(-1,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_2_261",
+    "source": "def run(input)\nmoney_cents(-1,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_3_265",
+    "source": "def run(input)\nmoney_cents(1.9,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_3_266",
+    "source": "def run(input)\nmoney_cents(1.9,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_3_267",
+    "source": "def run(input)\nmoney_cents(1.9,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_3_268",
+    "source": "def run(input)\nmoney_cents(1.9,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_3_269",
+    "source": "def run(input)\nmoney_cents(1.9,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_4_273",
+    "source": "def run(input)\nmoney_cents(-1.9,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_4_274",
+    "source": "def run(input)\nmoney_cents(-1.9,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_4_275",
+    "source": "def run(input)\nmoney_cents(-1.9,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_4_276",
+    "source": "def run(input)\nmoney_cents(-1.9,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_4_277",
+    "source": "def run(input)\nmoney_cents(-1.9,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_5_281",
+    "source": "def run(input)\nmoney_cents(9223372036854775807,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_5_282",
+    "source": "def run(input)\nmoney_cents(9223372036854775807,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_5_283",
+    "source": "def run(input)\nmoney_cents(9223372036854775807,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_5_284",
+    "source": "def run(input)\nmoney_cents(9223372036854775807,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_5_285",
+    "source": "def run(input)\nmoney_cents(9223372036854775807,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_6_289",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_6_290",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_6_291",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_6_292",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_6_293",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_7_294",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_295",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_296",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_297",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_298",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_299",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_300",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_7_301",
+    "source": "def run(input)\nmoney_cents(9223372036854775808,1).to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_302",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_303",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_304",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_305",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_306",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_307",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_308",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_8_309",
+    "source": "def run(input)\nmoney_cents(-9223372036854775809,1).to_s\nend",
+    "go_error": "money_cents expects integer cents: integer must fit in a 64-bit integer"
+  },
+  {
+    "name": "money_cents_9_310",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_311",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_312",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_313",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_314",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_315",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_316",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_9_317",
+    "source": "def run(input)\nmoney_cents(9223372036854775808.0,1).to_s\nend",
+    "go_error": "money_cents expects integer cents: float 9.223372036854776e+18 is out of integer range"
+  },
+  {
+    "name": "money_cents_10_321",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808.0,\" US\").to_s\nend",
+    "go_error": "currency must be 3 letters, got \" US\""
+  },
+  {
+    "name": "money_cents_10_322",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808.0,\"USA \").to_s\nend",
+    "go_error": "currency must be 3 letters, got \"USA \""
+  },
+  {
+    "name": "money_cents_10_323",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808.0,:USD).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_10_324",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808.0,nil).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_10_325",
+    "source": "def run(input)\nmoney_cents(-9223372036854775808.0,1).to_s\nend",
+    "go_error": "money_cents expects currency string"
+  },
+  {
+    "name": "money_cents_11_326",
+    "source": "def run(input)\nmoney_cents(1e309,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_327",
+    "source": "def run(input)\nmoney_cents(1e309,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_328",
+    "source": "def run(input)\nmoney_cents(1e309,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_329",
+    "source": "def run(input)\nmoney_cents(1e309,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_330",
+    "source": "def run(input)\nmoney_cents(1e309,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_331",
+    "source": "def run(input)\nmoney_cents(1e309,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_332",
+    "source": "def run(input)\nmoney_cents(1e309,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_11_333",
+    "source": "def run(input)\nmoney_cents(1e309,1).to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert Infinity to integer"
+  },
+  {
+    "name": "money_cents_12_334",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_335",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_336",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_337",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_338",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_339",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_340",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_12_341",
+    "source": "def run(input)\nmoney_cents(0.0/0.0,1).to_s\nend",
+    "go_error": "money_cents expects integer cents: cannot convert NaN to integer"
+  },
+  {
+    "name": "money_cents_13_342",
+    "source": "def run(input)\nmoney_cents(\"1\",\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_343",
+    "source": "def run(input)\nmoney_cents(\"1\",\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_344",
+    "source": "def run(input)\nmoney_cents(\"1\",\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_345",
+    "source": "def run(input)\nmoney_cents(\"1\",\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_346",
+    "source": "def run(input)\nmoney_cents(\"1\",\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_347",
+    "source": "def run(input)\nmoney_cents(\"1\",:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_348",
+    "source": "def run(input)\nmoney_cents(\"1\",nil).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_13_349",
+    "source": "def run(input)\nmoney_cents(\"1\",1).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_350",
+    "source": "def run(input)\nmoney_cents(:one,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_351",
+    "source": "def run(input)\nmoney_cents(:one,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_352",
+    "source": "def run(input)\nmoney_cents(:one,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_353",
+    "source": "def run(input)\nmoney_cents(:one,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_354",
+    "source": "def run(input)\nmoney_cents(:one,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_355",
+    "source": "def run(input)\nmoney_cents(:one,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_356",
+    "source": "def run(input)\nmoney_cents(:one,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_14_357",
+    "source": "def run(input)\nmoney_cents(:one,1).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_358",
+    "source": "def run(input)\nmoney_cents(nil,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_359",
+    "source": "def run(input)\nmoney_cents(nil,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_360",
+    "source": "def run(input)\nmoney_cents(nil,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_361",
+    "source": "def run(input)\nmoney_cents(nil,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_362",
+    "source": "def run(input)\nmoney_cents(nil,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_363",
+    "source": "def run(input)\nmoney_cents(nil,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_364",
+    "source": "def run(input)\nmoney_cents(nil,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_15_365",
+    "source": "def run(input)\nmoney_cents(nil,1).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_366",
+    "source": "def run(input)\nmoney_cents(true,\"USD\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_367",
+    "source": "def run(input)\nmoney_cents(true,\"usd\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_368",
+    "source": "def run(input)\nmoney_cents(true,\"abc\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_369",
+    "source": "def run(input)\nmoney_cents(true,\" US\").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_370",
+    "source": "def run(input)\nmoney_cents(true,\"USA \").to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_371",
+    "source": "def run(input)\nmoney_cents(true,:USD).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_372",
+    "source": "def run(input)\nmoney_cents(true,nil).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_cents_16_373",
+    "source": "def run(input)\nmoney_cents(true,1).to_s\nend",
+    "go_error": "money_cents expects integer cents"
+  },
+  {
+    "name": "money_scale_377",
+    "source": "def run(input)\n(money_cents(0,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_485",
+    "source": "def run(input)\n(money_cents(0,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_520",
+    "source": "def run(input)\n(money_cents(1,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_616",
+    "source": "def run(input)\n(money_cents(1,\"USD\") + money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_628",
+    "source": "def run(input)\n(money_cents(1,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_663",
+    "source": "def run(input)\n(money_cents(-1,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_770",
+    "source": "def run(input)\n(money_cents(-1,\"USD\") + money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_772",
+    "source": "def run(input)\n(money_cents(-1,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_806",
+    "source": "def run(input)\n(money_cents(2,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_902",
+    "source": "def run(input)\n(money_cents(2,\"USD\") + money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_904",
+    "source": "def run(input)\n(money_cents(2,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_914",
+    "source": "def run(input)\n(money_cents(2,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_915",
+    "source": "def run(input)\n(money_cents(2,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_926",
+    "source": "def run(input)\n(money_cents(2,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_949",
+    "source": "def run(input)\n(money_cents(-2,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1046",
+    "source": "def run(input)\n(money_cents(-2,\"USD\") - money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1047",
+    "source": "def run(input)\n(money_cents(-2,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1056",
+    "source": "def run(input)\n(money_cents(-2,\"USD\") + money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1058",
+    "source": "def run(input)\n(money_cents(-2,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1080",
+    "source": "def run(input)\n(money_cents(-2,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1092",
+    "source": "def run(input)\n(money_cents(99,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1188",
+    "source": "def run(input)\n(money_cents(99,\"USD\") + money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1190",
+    "source": "def run(input)\n(money_cents(99,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1200",
+    "source": "def run(input)\n(money_cents(99,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1201",
+    "source": "def run(input)\n(money_cents(99,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1212",
+    "source": "def run(input)\n(money_cents(99,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1223",
+    "source": "def run(input)\n(money_cents(99,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1235",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1332",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") - money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1333",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1342",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") + money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1344",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1355",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1366",
+    "source": "def run(input)\n(money_cents(-99,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1378",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1474",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1476",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1486",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1487",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1498",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1509",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1521",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1618",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") - money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1619",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1628",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") + money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1630",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1641",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1652",
+    "source": "def run(input)\n(money_cents(-100,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1664",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1672",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") + money_cents(1,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1684",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") - money_cents(-1,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1694",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") + money_cents(2,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1696",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * 2).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1706",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") - money_cents(-2,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1707",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * -2).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1716",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") + money_cents(99,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1718",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * 99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1728",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") - money_cents(-99,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1729",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * -99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1738",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") + money_cents(100,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1740",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * 100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1750",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") - money_cents(-100,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1751",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * -100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1760",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") + money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1762",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1772",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1773",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1782",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") + money_cents(4611686018427387904,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1784",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1794",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") - money_cents(-4611686018427387904,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1795",
+    "source": "def run(input)\n(money_cents(9223372036854775807,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1807",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_arithmetic_1816",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") - money_cents(1,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1826",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") + money_cents(-1,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1828",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * -1).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1829",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") / -1).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1838",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") - money_cents(2,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1839",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * 2).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1848",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") + money_cents(-2,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1850",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * -2).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1860",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") - money_cents(99,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1861",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * 99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1870",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") + money_cents(-99,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1872",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * -99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1882",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") - money_cents(100,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1883",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * 100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1892",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") + money_cents(-100,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1894",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * -100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1904",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") - money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1905",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1914",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") + money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1916",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1926",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") - money_cents(4611686018427387904,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1927",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_1936",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") + money_cents(-4611686018427387904,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1938",
+    "source": "def run(input)\n(money_cents(-9223372036854775808,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_1950",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_scale_1982",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * 2).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2004",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * 99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2015",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * -99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2026",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * 100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2037",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * -100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_2046",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") + money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2048",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_2058",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") - money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2059",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_2068",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") + money_cents(4611686018427387904,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2070",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_2080",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") - money_cents(-4611686018427387904,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2081",
+    "source": "def run(input)\n(money_cents(4611686018427387904,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2093",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") / 0).cents\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "money_scale_2136",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * -2).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2147",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * 99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2158",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * -99).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2169",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * 100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2180",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * -100).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_2190",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") - money_cents(9223372036854775807,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2191",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * 9223372036854775807).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_arithmetic_2200",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") + money_cents(-9223372036854775808,\"USD\")).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2202",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * -9223372036854775808).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2213",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * 4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_scale_2224",
+    "source": "def run(input)\n(money_cents(-4611686018427387904,\"USD\") * -4611686018427387904).cents\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_currency_2233",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") + money_cents(2,\"EUR\")\nend",
+    "go_error": "money currency mismatch"
+  },
+  {
+    "name": "money_currency_2234",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") - money_cents(2,\"EUR\")\nend",
+    "go_error": "money currency mismatch"
+  },
+  {
+    "name": "money_currency_2235",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") * money_cents(2,\"EUR\")\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_currency_2236",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") / money_cents(2,\"EUR\")\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_currency_2237",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") % money_cents(2,\"EUR\")\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_currency_2240",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") < money_cents(2,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2241",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") <= money_cents(2,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2242",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") > money_cents(2,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2243",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") >= money_cents(2,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2245",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") + money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch"
+  },
+  {
+    "name": "money_currency_2246",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") - money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch"
+  },
+  {
+    "name": "money_currency_2247",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") * money_cents(1,\"EUR\")\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_currency_2248",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") / money_cents(1,\"EUR\")\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_currency_2249",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") % money_cents(1,\"EUR\")\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_currency_2252",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") < money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2253",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") <= money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2254",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") > money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2255",
+    "source": "def run(input)\nmoney_cents(2,\"USD\") >= money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2257",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") + money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch"
+  },
+  {
+    "name": "money_currency_2258",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") - money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch"
+  },
+  {
+    "name": "money_currency_2259",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") * money_cents(1,\"EUR\")\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_currency_2260",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") / money_cents(1,\"EUR\")\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_currency_2261",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") % money_cents(1,\"EUR\")\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_currency_2264",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") < money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2265",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") <= money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2266",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") > money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_currency_2267",
+    "source": "def run(input)\nmoney_cents(1,\"USD\") >= money_cents(1,\"EUR\")\nend",
+    "go_error": "money currency mismatch for comparison"
+  },
+  {
+    "name": "money_types_2269",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + (2.0)).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2270",
+    "source": "def run(input)\n((2.0) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2271",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - (2.0)).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2272",
+    "source": "def run(input)\n((2.0) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2273",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * (2.0)).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2274",
+    "source": "def run(input)\n((2.0) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2275",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / (2.0)).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2276",
+    "source": "def run(input)\n((2.0) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2277",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % (2.0)).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2278",
+    "source": "def run(input)\n((2.0) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2279",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** (2.0)).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2280",
+    "source": "def run(input)\n((2.0) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2281",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + (-1.5)).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2282",
+    "source": "def run(input)\n((-1.5) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2283",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - (-1.5)).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2284",
+    "source": "def run(input)\n((-1.5) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2285",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * (-1.5)).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2286",
+    "source": "def run(input)\n((-1.5) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2287",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / (-1.5)).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2288",
+    "source": "def run(input)\n((-1.5) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2289",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % (-1.5)).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2290",
+    "source": "def run(input)\n((-1.5) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2291",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** (-1.5)).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2292",
+    "source": "def run(input)\n((-1.5) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2293",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + (2**100)).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2294",
+    "source": "def run(input)\n((2**100) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2295",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - (2**100)).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2296",
+    "source": "def run(input)\n((2**100) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2297",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * (2**100)).to_s\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_types_2298",
+    "source": "def run(input)\n((2**100) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_types_2299",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / (2**100)).to_s\nend",
+    "go_error": "money arithmetic overflow"
+  },
+  {
+    "name": "money_types_2300",
+    "source": "def run(input)\n((2**100) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2301",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % (2**100)).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2302",
+    "source": "def run(input)\n((2**100) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2303",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** (2**100)).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2304",
+    "source": "def run(input)\n((2**100) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2305",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + (nil)).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2306",
+    "source": "def run(input)\n((nil) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2307",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - (nil)).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2308",
+    "source": "def run(input)\n((nil) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2309",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * (nil)).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2310",
+    "source": "def run(input)\n((nil) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2311",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / (nil)).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2312",
+    "source": "def run(input)\n((nil) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2313",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % (nil)).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2314",
+    "source": "def run(input)\n((nil) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2315",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** (nil)).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2316",
+    "source": "def run(input)\n((nil) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2317",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + (true)).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2318",
+    "source": "def run(input)\n((true) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2319",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - (true)).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2320",
+    "source": "def run(input)\n((true) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2321",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * (true)).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2322",
+    "source": "def run(input)\n((true) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2323",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / (true)).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2324",
+    "source": "def run(input)\n((true) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2325",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % (true)).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2326",
+    "source": "def run(input)\n((true) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2327",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** (true)).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2328",
+    "source": "def run(input)\n((true) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2329",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + ([])).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2330",
+    "source": "def run(input)\n(([]) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2331",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - ([])).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2332",
+    "source": "def run(input)\n(([]) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2333",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * ([])).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2334",
+    "source": "def run(input)\n(([]) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2335",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / ([])).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2336",
+    "source": "def run(input)\n(([]) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2337",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % ([])).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2338",
+    "source": "def run(input)\n(([]) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2339",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** ([])).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2340",
+    "source": "def run(input)\n(([]) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2341",
+    "source": "def run(input)\n(money_cents(100,\"USD\") + (:USD)).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2342",
+    "source": "def run(input)\n((:USD) + money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "money_types_2343",
+    "source": "def run(input)\n(money_cents(100,\"USD\") - (:USD)).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2344",
+    "source": "def run(input)\n((:USD) - money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "money_types_2345",
+    "source": "def run(input)\n(money_cents(100,\"USD\") * (:USD)).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2346",
+    "source": "def run(input)\n((:USD) * money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "money_types_2347",
+    "source": "def run(input)\n(money_cents(100,\"USD\") / (:USD)).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2348",
+    "source": "def run(input)\n((:USD) / money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "money_types_2349",
+    "source": "def run(input)\n(money_cents(100,\"USD\") % (:USD)).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2350",
+    "source": "def run(input)\n((:USD) % money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "money_types_2351",
+    "source": "def run(input)\n(money_cents(100,\"USD\") ** (:USD)).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_types_2352",
+    "source": "def run(input)\n((:USD) ** money_cents(100,\"USD\")).to_s\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "money_member_2354",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.currency();v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2355",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.currency(1);v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2356",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.currency(x:1);v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2357",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.currency {7};v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2359",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.cents();v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2360",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.cents(1);v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2361",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.cents(x:1);v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2362",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.cents {7};v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2364",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.amount();v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2365",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.amount(1);v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2366",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.amount(x:1);v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2367",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.amount {7};v.to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "money_member_2375",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_s(1);v.to_s\nend",
+    "go_error": "money.to_s does not take arguments"
+  },
+  {
+    "name": "money_member_2376",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_s(x:1);v.to_s\nend",
+    "go_error": "money.to_s does not take keyword arguments"
+  },
+  {
+    "name": "money_member_2377",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_s {7};v.to_s\nend",
+    "go_error": "money.to_s does not take a block"
+  },
+  {
+    "name": "money_member_2380",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.string(1);v.to_s\nend",
+    "go_error": "money.string does not take arguments"
+  },
+  {
+    "name": "money_member_2381",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.string(x:1);v.to_s\nend",
+    "go_error": "money.string does not take keyword arguments"
+  },
+  {
+    "name": "money_member_2382",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.string {7};v.to_s\nend",
+    "go_error": "money.string does not take a block"
+  },
+  {
+    "name": "money_member_2385",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.inspect(1);v.to_s\nend",
+    "go_error": "money.inspect does not take arguments"
+  },
+  {
+    "name": "money_member_2386",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.inspect(x:1);v.to_s\nend",
+    "go_error": "money.inspect does not take keyword arguments"
+  },
+  {
+    "name": "money_member_2387",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.inspect {7};v.to_s\nend",
+    "go_error": "money.inspect does not take a block"
+  },
+  {
+    "name": "money_member_2388",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.between?;v.to_s\nend",
+    "go_error": "money.between? expects min and max"
+  },
+  {
+    "name": "money_member_2389",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.between?();v.to_s\nend",
+    "go_error": "money.between? expects min and max"
+  },
+  {
+    "name": "money_member_2390",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.between?(1);v.to_s\nend",
+    "go_error": "money.between? expects min and max"
+  },
+  {
+    "name": "money_member_2391",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.between?(x:1);v.to_s\nend",
+    "go_error": "money.between? does not take keyword arguments"
+  },
+  {
+    "name": "money_member_2392",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.between? {7};v.to_s\nend",
+    "go_error": "money.between? does not accept a block"
+  },
+  {
+    "name": "money_member_2393",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.eql?;v.to_s\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "money_member_2394",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.eql?();v.to_s\nend",
+    "go_error": "money.eql? expects 1 argument, got 0"
+  },
+  {
+    "name": "money_member_2396",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.eql?(x:1);v.to_s\nend",
+    "go_error": "money.eql? does not accept keyword arguments"
+  },
+  {
+    "name": "money_member_2397",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.eql? {7};v.to_s\nend",
+    "go_error": "money.eql? does not accept a block"
+  },
+  {
+    "name": "money_member_2398",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.equal?;v.to_s\nend",
+    "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)"
+  },
+  {
+    "name": "money_member_2399",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.equal?();v.to_s\nend",
+    "go_error": "money.equal? expects 1 argument, got 0"
+  },
+  {
+    "name": "money_member_2401",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.equal?(x:1);v.to_s\nend",
+    "go_error": "money.equal? does not accept keyword arguments"
+  },
+  {
+    "name": "money_member_2402",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.equal? {7};v.to_s\nend",
+    "go_error": "money.equal? does not accept a block"
+  },
+  {
+    "name": "money_member_2405",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.nil?(1);v.to_s\nend",
+    "go_error": "money.nil? does not take arguments"
+  },
+  {
+    "name": "money_member_2406",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.nil?(x:1);v.to_s\nend",
+    "go_error": "money.nil? does not take keyword arguments"
+  },
+  {
+    "name": "money_member_2407",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.nil? {7};v.to_s\nend",
+    "go_error": "money.nil? does not take a block"
+  },
+  {
+    "name": "money_member_2410",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.itself(1);v.to_s\nend",
+    "go_error": "money.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "money_member_2411",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.itself(x:1);v.to_s\nend",
+    "go_error": "money.itself does not accept keyword arguments"
+  },
+  {
+    "name": "money_member_2412",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.itself {7};v.to_s\nend",
+    "go_error": "money.itself does not accept a block"
+  },
+  {
+    "name": "money_member_2415",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.dup(1);v.to_s\nend",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "money_member_2416",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.dup(x:1);v.to_s\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "money_member_2417",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.dup {7};v.to_s\nend",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "money_member_2418",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_i;v.to_s\nend",
+    "go_error": "unknown money member to_i (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2419",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_i();v.to_s\nend",
+    "go_error": "unknown money member to_i (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2420",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_i(1);v.to_s\nend",
+    "go_error": "unknown money member to_i (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2421",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_i(x:1);v.to_s\nend",
+    "go_error": "unknown money member to_i (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2422",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_i {7};v.to_s\nend",
+    "go_error": "unknown money member to_i (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2423",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_f;v.to_s\nend",
+    "go_error": "unknown money member to_f (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2424",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_f();v.to_s\nend",
+    "go_error": "unknown money member to_f (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2425",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_f(1);v.to_s\nend",
+    "go_error": "unknown money member to_f (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2426",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_f(x:1);v.to_s\nend",
+    "go_error": "unknown money member to_f (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2427",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.to_f {7};v.to_s\nend",
+    "go_error": "unknown money member to_f (did you mean \"to_s\"?)"
+  },
+  {
+    "name": "money_member_2428",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.abs;v.to_s\nend",
+    "go_error": "unknown money member abs"
+  },
+  {
+    "name": "money_member_2429",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.abs();v.to_s\nend",
+    "go_error": "unknown money member abs"
+  },
+  {
+    "name": "money_member_2430",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.abs(1);v.to_s\nend",
+    "go_error": "unknown money member abs"
+  },
+  {
+    "name": "money_member_2431",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.abs(x:1);v.to_s\nend",
+    "go_error": "unknown money member abs"
+  },
+  {
+    "name": "money_member_2432",
+    "source": "def run(input)\nm=money_cents(123,\"USD\");v=m.abs {7};v.to_s\nend",
+    "go_error": "unknown money member abs"
+  },
+  {
+    "name": "money_signature_2433",
+    "source": "def run(input)\n(money).to_s\nend",
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+  },
+  {
+    "name": "money_signature_2438",
+    "source": "def run(input)\n(money(\"1 USD\",3)).to_s\nend",
+    "go_error": "money expects a single string literal"
+  },
+  {
+    "name": "money_signature_2439",
+    "source": "def run(input)\n(money_cents).to_s\nend",
+    "go_error": "money_cents is a method and cannot be used as a value; call it with money_cents(...)"
+  },
+  {
+    "name": "money_signature_2444",
+    "source": "def run(input)\n(money_cents(100,\"USD\",3)).to_s\nend",
+    "go_error": "money_cents expects cents and currency"
+  },
+  {
+    "name": "money_integration_2445",
+    "source": "def run(input)\nm=money(\"1 USD\");m::cents\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "money_integration_2446",
+    "source": "def run(input)\n+money(\"1 USD\")\nend",
+    "go_error": "unsupported unary + operand"
+  },
+  {
+    "name": "money_integration_2447",
+    "source": "def run(input)\n-money(\"1 USD\")\nend",
+    "go_error": "unsupported unary - operand"
+  },
+  {
+    "name": "money_integration_2451",
+    "source": "def run(input)\nJSON.stringify(money(\"1 USD\"))\nend",
+    "go_error": "JSON.stringify unsupported value type money"
+  },
+  {
+    "name": "money_integration_2454",
+    "source": "def run(input)\n[money(\"2 USD\"),money(\"1 EUR\")].sort\nend",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "money_integration_2457",
+    "source": "def run(input)\nmoney(\"1 USD\").between?(money(\"0 USD\"),nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "money_integration_2459",
+    "source": "def run(input)\nmoney(\"1 USD\").between?(money(\"0 USD\"),money(\"2 EUR\"))\nend",
+    "go_error": "money currency mismatch for comparison"
   }
 ]

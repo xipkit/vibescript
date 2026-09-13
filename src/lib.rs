@@ -25,6 +25,7 @@ mod iteration;
 mod json;
 mod math;
 mod members;
+mod money;
 mod mutate;
 mod numeric;
 mod ops;
