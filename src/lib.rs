@@ -17,6 +17,7 @@ mod builtin;
 mod bytecode;
 mod collections;
 mod conversion;
+mod duration;
 mod error;
 mod hash;
 mod hash_blocks;

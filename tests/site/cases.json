@@ -3814,5 +3814,38 @@
       "descending": "5,4,3,2,1",
       "evens": "2,4,6,8,10,12,14,16,18,20"
     }
+  },
+  {
+    "path": "upstream/time/duration.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "parts": {
+        "iso": "P1DT1H1M1S",
+        "parts": {
+          "days": 1,
+          "hours": 1,
+          "minutes": 1,
+          "seconds": 1
+        }
+      },
+      "parse_build": "PT1M30S",
+      "to_i": 88200,
+      "math": {
+        "add": "PT2H4S",
+        "subtract": "PT1H59M56S",
+        "multiply": "PT30S",
+        "multiply_left": "PT30S",
+        "divide": "PT5S",
+        "divide_duration": 2.5,
+        "modulo": "PT2S",
+        "compare": {
+          "lt": true,
+          "eq": true,
+          "gt": true
+        }
+      },
+      "to_i_math": 8
+    }
   }
 ]

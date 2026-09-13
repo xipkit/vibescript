@@ -563,5 +563,50 @@
     "name": "builtins_namespace_716",
     "source": "def run(input)\nMath::PI=7\nend",
     "go_error": "parse error at 2:9: unexpected token \"=\""
+  },
+  {
+    "name": "duration_integration_5487",
+    "source": "def run(input)\nv=(f=Duration::build;f(hours:1,minutes:2).to_i);v.to_s\nend",
+    "go_error": "parse error at 2:5: expected \")\", got \"=\""
+  },
+  {
+    "name": "duration_integration_5488",
+    "source": "def run(input)\nv=(d=Duration;d.parse(\"1h\").seconds);v.to_s\nend",
+    "go_error": "parse error at 2:5: expected \")\", got \"=\""
+  },
+  {
+    "name": "duration_integration_5500",
+    "source": "def run(input)\nv=(Duration=7;Duration);v.to_s\nend",
+    "go_error": "parse error at 2:12: expected \")\", got \"=\""
+  },
+  {
+    "name": "duration_integration_5501",
+    "source": "def run(input)\nv=(if false;Duration=7;end;Duration.build(1).seconds);v.to_s\nend",
+    "go_error": "parse error at 2:21: expected end, got \"=\""
+  },
+  {
+    "name": "duration_integration_5502",
+    "source": "def run(input)\nv=([1].each {Duration=7};Duration.build(1).seconds);v.to_s\nend",
+    "go_error": "parse error at 2:25: expected \")\", got \";\""
+  },
+  {
+    "name": "duration_newline_5793",
+    "source": "def run(input)\nv=-2;**2\nv.to_s\nend",
+    "go_error": "parse error at 2:7: unexpected token \"**\""
+  },
+  {
+    "name": "duration_newline_5794",
+    "source": "def run(input)\nv=(-2;**2)\nv.to_s\nend",
+    "go_error": "parse error at 2:6: expected \")\", got \";\""
+  },
+  {
+    "name": "duration_newline_5797",
+    "source": "def run(input)\nv=-;2.abs\nv.to_s\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "duration_newline_5798",
+    "source": "def run(input)\nv=(-;2.abs)\nv.to_s\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
   }
 ]

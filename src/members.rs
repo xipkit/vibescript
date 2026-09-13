@@ -23,13 +23,24 @@ pub(crate) fn call_keywords(
     )? {
         return Ok((receiver, value));
     }
+    if let Some(value) = crate::duration::member(
+        ctx,
+        site,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = field(ctx, site, name, &receiver)? {
         let result = field_call(
             ctx,
             site,
             value,
             &args.positional.data,
-            !args.keywords.buffer.data.is_empty(),
+            &args.keywords.buffer.data,
             args.block.is_some(),
         )?;
         return Ok((receiver, result));
@@ -108,8 +119,11 @@ pub(crate) fn call(
     if let Some(value) = crate::money::member(ctx, site, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }
+    if let Some(value) = crate::duration::member(ctx, site, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = field(ctx, site, name, &receiver)? {
-        let result = field_call(ctx, site, value, args, false, false)?;
+        let result = field_call(ctx, site, value, args, &[], false)?;
         return Ok((receiver, result));
     }
     if let Some(result) = crate::numeric::call(ctx, name, &receiver, args)? {
@@ -222,7 +236,7 @@ fn field_call(
     site: CallSite,
     value: Value,
     args: &[Value],
-    keywords: bool,
+    keywords: &[(Value, Value)],
     block: bool,
 ) -> Result<Value> {
     if site.auto {

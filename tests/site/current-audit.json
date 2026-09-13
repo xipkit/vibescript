@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "11836b914b8b6c6198258c9580c64eabc031ce49",
-  "dirty": " M src/builtin.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/value.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/money.rs\n?? tests/money.rs\n",
+  "source_revision": "c0690bac818ae1af489ecd1ea843103ef8cdc5c1",
+  "dirty": " M src/builtin.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/syntax.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n M tests/syntax-errors.json\n?? scripts/generate-duration-cases.py\n?? src/duration.rs\n?? src/duration/\n?? tests/duration-float-cases.json\n?? tests/duration.rs\n",
   "binary_sha256": {
-    "go-simd": "f3f1636a580c863e2c902e485793ca7591e25643424197cc027d4852d1ff15c4",
-    "rust-simd": "564bf2262709108306dde709ff6618f6ba36d9c67eedb8fe68d5fd8562efbc4e"
+    "go-simd": "ba5c9bd3edfe2d748e156814fabbef4500fd514dfed086542fcfe80bd69a0463",
+    "rust-simd": "aa0d4f4d611a114e0cc0ce2dd8680fe9defe5dbb76cc76ffcbb166f278a4bc3e"
   },
   "counts": {
-    "match": 157,
-    "rust_gap": 31,
+    "match": 158,
+    "rust_gap": 30,
     "harness_gap": 15
   },
   "examples": [
@@ -8890,7 +8890,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method minutes is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode a duration\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -9339,10 +9339,38 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"undefined variable Duration\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "parts": {
+            "iso": "P1DT1H1M1S",
+            "parts": {
+              "days": 1,
+              "hours": 1,
+              "minutes": 1,
+              "seconds": 1
+            }
+          },
+          "parse_build": "PT1M30S",
+          "to_i": 88200,
+          "math": {
+            "add": "PT2H4S",
+            "subtract": "PT1H59M56S",
+            "multiply": "PT30S",
+            "multiply_left": "PT30S",
+            "divide": "PT5S",
+            "divide_duration": 2.5,
+            "modulo": "PT2S",
+            "compare": {
+              "lt": true,
+              "eq": true,
+              "gt": true
+            }
+          },
+          "to_i_math": 8
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     }
   ]
 }

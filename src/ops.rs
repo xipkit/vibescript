@@ -62,6 +62,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     | Kind::Float(_)
                     | Kind::Bool(_)
                     | Kind::Money(_)
+                    | Kind::Duration(_)
             )
         };
         if !scalar(&a) || !scalar(&b) {
@@ -76,6 +77,9 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
     }
     if matches!(a.0, Kind::Money(_)) || matches!(b.0, Kind::Money(_)) {
         return crate::money::binary(op, &a, &b);
+    }
+    if matches!(a.0, Kind::Duration(_)) || matches!(b.0, Kind::Duration(_)) {
+        return crate::duration::binary(op, &a, &b);
     }
     match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => {
@@ -203,6 +207,7 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
         (Kind::Money(a), Kind::Money(b)) => a.order(*b).map(Some).ok_or_else(|| {
             Error::new(ErrorKind::Type, "cannot compare different money currencies")
         }),
+        (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
         (Kind::Int(a), Kind::Int(b)) => Ok(Some(a.cmp(b))),
         (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => {
             crate::integer::compare(ctx, a, b).map(Some)
@@ -236,6 +241,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
         (Kind::Money(a), Kind::Money(b)) => Ok(a == b),
+        (Kind::Duration(a), Kind::Duration(b)) => Ok(a == b),
         (Kind::Builtin(a), Kind::Builtin(b)) => Ok(a == b),
         (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
         (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
@@ -830,6 +836,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     match &value.0 {
         Kind::Builtin(builtin) => return Err(builtin.value_error()),
         Kind::Money(money) => return money.text(ctx),
+        Kind::Duration(seconds) => return crate::duration::text(ctx, *seconds),
         Kind::Big(_) => {
             let text = crate::integer::format(ctx, value, 10)?;
             return Value::from_bytes(ctx, text);

@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    DurationBuild,
+    DurationParse,
     Money,
     MoneyCents,
     ToInt,
@@ -35,6 +37,7 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Duration,
     Money,
     MoneyCents,
     ToInt,
@@ -46,6 +49,7 @@ pub(crate) enum Global {
 impl Global {
     pub fn parse(name: &str) -> Option<Self> {
         match name {
+            "Duration" => Some(Self::Duration),
             "money" => Some(Self::Money),
             "money_cents" => Some(Self::MoneyCents),
             "to_int" => Some(Self::ToInt),
@@ -59,6 +63,10 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Duration => vec![
+                ("build", Value(Kind::Builtin(DurationBuild))),
+                ("parse", Value(Kind::Builtin(DurationParse))),
+            ],
             Self::Money => return Value(Kind::Builtin(Builtin::Money)),
             Self::MoneyCents => return Value(Kind::Builtin(Builtin::MoneyCents)),
             Self::ToInt => return Value(Kind::Builtin(Builtin::ToInt)),
@@ -117,6 +125,8 @@ impl Builtin {
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::DurationBuild => "Duration.build",
+            Self::DurationParse => "Duration.parse",
             Self::Money => "money",
             Self::MoneyCents => "money_cents",
             Self::ToInt => "to_int",
@@ -157,10 +167,16 @@ impl Builtin {
         self,
         ctx: &mut CallContext,
         args: &[Value],
-        keywords: bool,
+        keywords: &[(Value, Value)],
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        if self == Self::DurationBuild {
+            return crate::duration::build(ctx, args, keywords);
+        }
+        if self == Self::DurationParse {
+            return crate::duration::parse(ctx, args);
+        }
         if self == Self::Money {
             ops::arity(args, 1)?;
             let Kind::Bytes(bytes) = &args[0].0 else {
@@ -188,7 +204,7 @@ impl Builtin {
             return crate::money::Money::new(cents, &bytes.data)
                 .map(|value| Value(Kind::Money(value)));
         }
-        if keywords || block {
+        if !keywords.is_empty() || block {
             return Err(Error::new(
                 ErrorKind::Argument,
                 format!(
@@ -239,7 +255,11 @@ impl Builtin {
                 ErrorKind::Type,
                 "JSON.parse_as requires a type literal; type normalization is not implemented",
             )),
-            Self::Math(_) | Self::Money | Self::MoneyCents => unreachable!(),
+            Self::Math(_)
+            | Self::Money
+            | Self::MoneyCents
+            | Self::DurationBuild
+            | Self::DurationParse => unreachable!(),
         }
     }
 }

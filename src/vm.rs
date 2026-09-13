@@ -814,7 +814,7 @@ pub(crate) fn execute(
                         let value = builtin.call(
                             ctx,
                             &args.positional.data,
-                            !args.keywords.buffer.data.is_empty(),
+                            &args.keywords.buffer.data,
                             args.block.is_some(),
                         )?;
                         stack.push(ctx, value)?;

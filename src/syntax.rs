@@ -869,13 +869,34 @@ impl Parser<'_> {
                 let depth = end.depth + 1;
                 self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)?
             }
-            Token::Op(op @ ("-" | "+" | "!")) => {
-                let e = self.expr(13)?;
-                let d = e.depth + 1;
-                self.make(Node::Unary(op, Box::new(e)), d)?
-            }
+            Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op)?,
             _ => return self.err("expected expression"),
         })
+    }
+    fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
+        let value = if self.negative_literal(op) {
+            self.prefix()?
+        } else {
+            self.line_breaks();
+            self.expr(13)?
+        };
+        let depth = value.depth + 1;
+        self.make(Node::Unary(op, Box::new(value)), depth)
+    }
+    fn negative_literal(&self, op: &str) -> bool {
+        // An adjacent minus belongs to the numeric receiver; power keeps the
+        // outer sign. Keep lookahead off the recursive prefix stack frame.
+        op == "-"
+            && self.tokens[self.pos - 1].end == self.tokens[self.pos].offset
+            && matches!(
+                self.token(),
+                Token::Int(_) | Token::BigInt(..) | Token::Float(_)
+            )
+            && !self
+                .tokens
+                .from(self.pos + 1)
+                .find(|next| next.token != Token::EndLine || next.line == next.end_line)
+                .is_some_and(|next| next.token == Token::Op("**"))
     }
     fn hash_expr(&mut self) -> Result<Expr> {
         self.groups += 1;

@@ -100,6 +100,7 @@ pub(crate) enum Kind {
     Big(Arc<crate::integer::Big>),
     Float(f64),
     Money(crate::money::Money),
+    Duration(i64),
     Bytes(Arc<Bytes>),
     Symbol(Arc<Bytes>),
     Array(Arc<Heap<Value>>),
@@ -207,6 +208,18 @@ impl Value {
             _ => None,
         }
     }
+    /// Constructs an inline duration from a signed number of whole seconds.
+    pub fn duration(seconds: i64) -> Self {
+        Self(Kind::Duration(seconds))
+    }
+    /// Returns a duration's signed whole-second count.
+    pub fn as_duration(&self) -> Option<i64> {
+        if let Kind::Duration(seconds) = self.0 {
+            Some(seconds)
+        } else {
+            None
+        }
+    }
     /// Constructs inline money from signed cents and a three-letter ASCII currency.
     pub fn money(cents: i64, currency: &str) -> Result<Self> {
         crate::money::Money::new(cents, currency.as_bytes()).map(|money| Self(Kind::Money(money)))
@@ -255,6 +268,7 @@ impl Value {
             Kind::Int(_) | Kind::Big(_) => "int",
             Kind::Float(_) => "float",
             Kind::Money(_) => "money",
+            Kind::Duration(_) => "duration",
             Kind::Bytes(_) => "string",
             Kind::Symbol(_) => "symbol",
             Kind::Array(_) => "array",
@@ -483,6 +497,7 @@ impl fmt::Display for Value {
         match &self.0 {
             Kind::Nil => f.write_str("nil"),
             Kind::Money(money) => write!(f, "{money}"),
+            Kind::Duration(seconds) => write!(f, "{seconds}s"),
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),
