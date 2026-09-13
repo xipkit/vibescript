@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "24b68ae7aa5c0b21ce399dad6cbd584dc2d63211",
-  "dirty": " M scripts/generate-unicode.py\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/syntax/unicode.rs\n M src/text.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/enums.rs\n?? tests/enums.rs\n",
+  "source_revision": "2ec0824425e9e905514759bbe1a3f633ac30e421",
+  "dirty": " M scripts/compare.py\n M src/builtin.rs\n M src/bytecode.rs\n M src/enums.rs\n M src/lib.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/text/case.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/syntax/types.rs\n?? src/types.rs\n?? tests/types.rs\n",
   "binary_sha256": {
-    "go-simd": "e585bd35e668acd608e5415a1c620b8016cbc6aba1bdd2d9fb9057eeb3458b8a",
-    "rust-simd": "a1df243b7c9d48d9839220813a9e17527962fae5102384895259145ed607d1db"
+    "go-simd": "c20f92324d472022210b70563e6778c2ef27b7cacc98ca905caa67ddaeb6cdd4",
+    "rust-simd": "9592baf5c88413a8fa9907dfafce87098e1af8641cb5a9487fe9ad6839c1dea5"
   },
   "counts": {
-    "match": 166,
-    "rust_gap": 22,
+    "match": 174,
+    "rust_gap": 14,
     "harness_gap": 15
   },
   "examples": [
@@ -7367,10 +7367,26 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(422) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "sandbox": {
+            "environment": "Sandbox",
+            "starts_at": "2023-11-21T15:53:20Z",
+            "ends_at": "2023-11-21T21:13:20Z",
+            "freeze_at": "2023-11-21T20:23:20Z",
+            "duration": "PT20M"
+          },
+          "production": {
+            "environment": "Production",
+            "starts_at": "2023-11-21T15:53:20Z",
+            "ends_at": "2023-11-21T22:53:20Z",
+            "freeze_at": "2023-11-20T20:53:20Z",
+            "duration": "PT2H"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/automation/retry_backoff.vibe",
@@ -7420,10 +7436,51 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(435) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "fast": [
+            {
+              "attempt": 1,
+              "delay": "PT30S",
+              "at": "2023-11-14T22:13:50Z"
+            },
+            {
+              "attempt": 2,
+              "delay": "PT1M",
+              "at": "2023-11-14T22:14:50Z"
+            },
+            {
+              "attempt": 3,
+              "delay": "PT2M",
+              "at": "2023-11-14T22:16:50Z"
+            },
+            {
+              "attempt": 4,
+              "delay": "PT4M",
+              "at": "2023-11-14T22:20:50Z"
+            }
+          ],
+          "careful": [
+            {
+              "attempt": 1,
+              "delay": "PT5M",
+              "at": "2023-11-14T22:18:20Z"
+            },
+            {
+              "attempt": 2,
+              "delay": "PT10M",
+              "at": "2023-11-14T22:28:20Z"
+            },
+            {
+              "attempt": 3,
+              "delay": "PT20M",
+              "at": "2023-11-14T22:48:20Z"
+            }
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/collections/hash_projection.vibe",
@@ -7460,7 +7517,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(357) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method values_at is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7578,7 +7635,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(381) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7590,7 +7647,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(443) }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7602,7 +7659,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(187) }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7614,7 +7671,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(408) }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7626,7 +7683,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(402) }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7650,7 +7707,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(416) }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7784,7 +7841,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(403) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7796,7 +7853,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(362) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable email\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7831,7 +7888,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(428) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7904,10 +7961,32 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(575) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "permission_bits": {
+            "read": 4,
+            "write": 2,
+            "execute": 1,
+            "read_write": 6
+          },
+          "named_sizes": {
+            "kilobyte": 1000,
+            "megabyte": 1000000,
+            "hex_flags": 65280,
+            "octal_mode": 493
+          },
+          "rounding": {
+            "whole": 3,
+            "cents": 3.14,
+            "down": 3,
+            "up": 4
+          },
+          "is_even": true,
+          "next_id": 42
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/operations/log_digest.vibe",
@@ -7930,7 +8009,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(338) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each_line is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7960,7 +8039,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(405) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7972,7 +8051,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(427) }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8000,7 +8079,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(410) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8022,7 +8101,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(334) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(385) }\n"
       },
       "status": "rust_gap"
     },
@@ -8051,10 +8130,28 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(375) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "trusted": {
+            "user_id": "user_100",
+            "risk": "Trusted",
+            "age": "PT1H30M",
+            "ttl": "P30D",
+            "expires_at": "2023-12-14T22:13:20Z",
+            "refreshable": true
+          },
+          "sensitive": {
+            "user_id": "user_200",
+            "risk": "Sensitive",
+            "age": "PT1H30M",
+            "ttl": "PT30M",
+            "expires_at": "2023-11-14T22:43:20Z",
+            "refreshable": false
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/strings/text_toolkit.vibe",
@@ -8080,10 +8177,27 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(346) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "setting": {
+            "key": "timeout",
+            "assigned": true,
+            "value": "30"
+          },
+          "no_assignment": {
+            "key": "bare-token",
+            "assigned": false,
+            "value": ""
+          },
+          "domain": "vibescript.dev",
+          "banner": "***** ship it ******",
+          "initials": "GBH",
+          "warn_flagged": true,
+          "info_flagged": false
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/strings/word_arrays.vibe",
@@ -8111,10 +8225,29 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(364) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "static_tags": [
+            "alpha",
+            "beta",
+            "gamma"
+          ],
+          "build_targets": [
+            "build-prod",
+            "deploy-prod",
+            "verify-prod"
+          ],
+          "lifecycle_states": [
+            "queued",
+            "running",
+            "done"
+          ],
+          "first_state": "queued",
+          "target_count": 3
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/support/escalation_policy.vibe",
@@ -8142,7 +8275,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(425) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8163,10 +8296,20 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(321) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "stamps": {
+            "iso": "2024-01-01T09:30:00Z",
+            "xml": "2024-01-01T09:30:00Z",
+            "millis": "2024-01-01T09:30:00.000Z",
+            "one_minute_later": "2024-01-01T09:31:00Z"
+          },
+          "epoch": "1970-01-01T00:00:00Z",
+          "year_start": "2024-01-01T00:00:00Z"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/workflows/approval_chain.vibe",
@@ -8213,10 +8356,48 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(409) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "pending": {
+            "change_id": "change_88",
+            "state": "Review",
+            "next_state": "Blocked",
+            "checks_passed": false,
+            "steps": [
+              {
+                "label": "security review",
+                "due_in": "PT4H",
+                "due_at": "2023-11-26T16:00:00Z"
+              },
+              {
+                "label": "ops signoff",
+                "due_in": "PT8H",
+                "due_at": "2023-11-26T20:00:00Z"
+              }
+            ]
+          },
+          "ready": {
+            "change_id": "change_89",
+            "state": "Review",
+            "next_state": "Approved",
+            "checks_passed": true,
+            "steps": [
+              {
+                "label": "security review",
+                "due_in": "PT4H",
+                "due_at": "2023-11-26T16:00:00Z"
+              },
+              {
+                "label": "ops signoff",
+                "due_in": "PT8H",
+                "due_at": "2023-11-26T20:00:00Z"
+              }
+            ]
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/workflows/release_readiness.vibe",
@@ -8244,7 +8425,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(494) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -9239,7 +9420,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected name\", offset: Some(133) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },

@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    Normalize(usize),
     Declaration(usize),
     Global(usize),
     GlobalReceiver(usize, bool),
@@ -109,6 +110,7 @@ pub(crate) struct Parameter {
     pub kind: ParamKind,
     pub default: bool,
     pub slot: usize,
+    pub ty: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -278,12 +280,14 @@ impl Method {
 pub(crate) struct Function {
     pub name: String,
     pub params: Vec<Parameter>,
-    pub defaults: bool,
+    pub binds_parameters: bool,
     pub plain: bool,
     pub locals: usize,
     pub code: Vec<Op>,
     pub captures: Vec<Option<Capture>>,
     pub block_arity: usize,
+    pub local_names: Vec<String>,
+    pub return_type: Option<usize>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -293,6 +297,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub types: Vec<crate::types::Type>,
     pub declarations: Vec<Value>,
     pub declaration_names: HashMap<String, usize>,
     pub globals: Vec<(Global, Value)>,
@@ -323,6 +328,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         declarations.push(crate::enums::compile(name, members)?);
     }
     let mut program = Program {
+        types: Vec::new(),
         declarations,
         declaration_names,
         globals: Vec::new(),
@@ -343,14 +349,21 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             reads: HashSet::new(),
             assigned: HashSet::new(),
         };
-        let defaults = def.params.iter().any(|p| p.default.is_some());
-        let plain = !defaults && def.params.iter().all(|p| p.kind == ParamKind::Positional);
+        let binds_parameters = def
+            .params
+            .iter()
+            .any(|p| p.default.is_some() || p.ty.is_some());
+        let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
         let mut params = Vec::new();
         for (i, param) in def.params.iter().enumerate() {
-            let bind = defaults.then(|| c.emit(Op::Bind(i, 0)));
+            let ty = param.ty.as_ref().map(|ty| c.annotation(ty));
+            let bind = binds_parameters.then(|| c.emit(Op::Bind(i, 0)));
             if let Some(value) = &param.default {
                 c.declare_expr(value);
                 c.expr(value)?;
+                if let Some(ty) = ty {
+                    c.emit(Op::Normalize(ty));
+                }
             }
             let slot = c.slot(&param.name);
             if param.default.is_some() {
@@ -366,27 +379,39 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
                 kind: param.kind,
                 default: param.default.is_some(),
                 slot,
+                ty,
             });
         }
-        if defaults {
+        if binds_parameters {
             c.emit(Op::BindEnd);
         }
         c.declare(&def.body);
         c.block(&def.body)?;
         c.code.push(Op::Finish);
+        let return_type = def.return_type.as_ref().map(|ty| c.annotation(ty));
         let function = Function {
             name: def.name,
             params,
-            defaults,
+            binds_parameters,
             plain,
             locals: c.locals.len(),
+            local_names: local_names(&c.locals),
             code: c.code,
             captures: Vec::new(),
             block_arity: 0,
+            return_type,
         };
         program.functions[index] = function;
     }
     Ok(program)
+}
+
+fn local_names(locals: &HashMap<String, usize>) -> Vec<String> {
+    let mut names = vec![String::new(); locals.len()];
+    for (name, &index) in locals {
+        names[index] = name.clone();
+    }
+    names
 }
 
 fn expanded(args: &[Argument]) -> bool {
@@ -446,6 +471,7 @@ impl Compiler<'_> {
     }
     fn declare_target(&mut self, target: &Target) {
         match target {
+            Target::Typed(target, _) => self.declare_target(target),
             Target::Value(Expr {
                 node: Node::Var(name),
                 ..
@@ -855,6 +881,11 @@ impl Compiler<'_> {
     }
     fn assign_value(&mut self, target: &Target) -> Result<()> {
         match target {
+            Target::Typed(target, ty) => {
+                let ty = self.annotation(ty);
+                self.emit(Op::Normalize(ty));
+                self.assign_value(target)?;
+            }
             Target::Value(Expr {
                 node: Node::Var(name),
                 ..
@@ -1121,6 +1152,11 @@ impl Compiler<'_> {
             scope: false,
         }
     }
+    fn annotation(&mut self, ty: &crate::types::Type) -> usize {
+        let index = self.program.types.len();
+        self.program.types.push(ty.clone());
+        index
+    }
     fn global(&mut self, name: &str) -> Option<usize> {
         if self.program.declaration_names.contains_key(name) {
             return None;
@@ -1337,6 +1373,7 @@ impl Compiler<'_> {
         let function = Function {
             name: "<block>".into(),
             locals: child.locals.len(),
+            local_names: local_names(&child.locals),
             code: child.code,
             captures,
             block_arity,
@@ -1518,6 +1555,7 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
 
 fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
     match target {
+        Target::Typed(target, _) => target_call_names(target, names),
         Target::Value(expr) => call_names(expr, names),
         Target::Tuple(parts) => {
             for (part, _) in parts {
@@ -1562,6 +1600,7 @@ fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
 
 fn target_names<'a>(target: &'a Target, names: &mut Vec<&'a str>) {
     match target {
+        Target::Typed(target, _) => target_names(target, names),
         Target::Value(Expr {
             node: Node::Var(name),
             ..

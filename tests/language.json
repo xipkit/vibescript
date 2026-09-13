@@ -600932,5 +600932,2674 @@
     "name": "enums_unicode_boundary_3702",
     "source": "def run(input)\na𳑹z=7;a𳑹z\nend",
     "expected": 7
+  },
+  {
+    "name": "types_parameters_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_returns_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(nil))\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_parameters_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(true)\nend",
+    "expected": "true"
+  },
+  {
+    "name": "types_returns_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(true))\nend",
+    "expected": "true"
+  },
+  {
+    "name": "types_parameters_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(false)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "types_returns_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(false))\nend",
+    "expected": "false"
+  },
+  {
+    "name": "types_parameters_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(1))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(1.0)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(1.0))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(10**30)\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_returns_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(10**30))\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_parameters_6",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(\"one\")\nend",
+    "expected": "one"
+  },
+  {
+    "name": "types_returns_6",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(\"one\"))\nend",
+    "expected": "one"
+  },
+  {
+    "name": "types_parameters_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "draft"
+  },
+  {
+    "name": "types_returns_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "draft"
+  },
+  {
+    "name": "types_parameters_8",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(:missing)\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_returns_8",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(:missing))\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_parameters_9",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_9",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(Review::Draft)\nend",
+    "expected": "Review::Draft"
+  },
+  {
+    "name": "types_returns_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(Review::Draft))\nend",
+    "expected": "Review::Draft"
+  },
+  {
+    "name": "types_parameters_11",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(Status)\nend",
+    "expected": "<Enum Status>"
+  },
+  {
+    "name": "types_returns_11",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(Status))\nend",
+    "expected": "<Enum Status>"
+  },
+  {
+    "name": "types_parameters_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped([1,2])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed([1,2]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_13",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped([1,2.0])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_13",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed([1,2.0]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_14",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_returns_14",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed([:draft,:done]))\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_parameters_15",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_15",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_returns_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_parameters_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_18",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_18",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_parameters_19",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(1..3)\nend",
+    "expected": "1..3"
+  },
+  {
+    "name": "types_returns_19",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(1..3))\nend",
+    "expected": "1..3"
+  },
+  {
+    "name": "types_parameters_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(1.seconds)\nend",
+    "expected": "1s"
+  },
+  {
+    "name": "types_returns_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(1.seconds))\nend",
+    "expected": "1s"
+  },
+  {
+    "name": "types_parameters_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(money_cents(1,\"USD\"))\nend",
+    "expected": "0.01 USD"
+  },
+  {
+    "name": "types_returns_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(money_cents(1,\"USD\")))\nend",
+    "expected": "0.01 USD"
+  },
+  {
+    "name": "types_parameters_22",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any)\nrender(value)\nend\ndef run(input)\ntyped(Time.utc(2024,1,1))\nend",
+    "expected": "2024-01-01T00:00:00Z"
+  },
+  {
+    "name": "types_returns_22",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any\nvalue\nend\ndef run(input)\nrender(typed(Time.utc(2024,1,1)))\nend",
+    "expected": "2024-01-01T00:00:00Z"
+  },
+  {
+    "name": "types_parameters_26",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_26",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> int\nvalue\nend\ndef run(input)\nrender(typed(1))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_28",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int)\nrender(value)\nend\ndef run(input)\ntyped(10**30)\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_returns_28",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> int\nvalue\nend\ndef run(input)\nrender(typed(10**30))\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_parameters_50",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: float)\nrender(value)\nend\ndef run(input)\ntyped(1.0)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_50",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> float\nvalue\nend\ndef run(input)\nrender(typed(1.0))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_72",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: number)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_72",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> number\nvalue\nend\ndef run(input)\nrender(typed(1))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_73",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: number)\nrender(value)\nend\ndef run(input)\ntyped(1.0)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_73",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> number\nvalue\nend\ndef run(input)\nrender(typed(1.0))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_74",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: number)\nrender(value)\nend\ndef run(input)\ntyped(10**30)\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_returns_74",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> number\nvalue\nend\ndef run(input)\nrender(typed(10**30))\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_parameters_98",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: string)\nrender(value)\nend\ndef run(input)\ntyped(\"one\")\nend",
+    "expected": "one"
+  },
+  {
+    "name": "types_returns_98",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> string\nvalue\nend\ndef run(input)\nrender(typed(\"one\"))\nend",
+    "expected": "one"
+  },
+  {
+    "name": "types_parameters_122",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: symbol)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "draft"
+  },
+  {
+    "name": "types_returns_122",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> symbol\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "draft"
+  },
+  {
+    "name": "types_parameters_123",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: symbol)\nrender(value)\nend\ndef run(input)\ntyped(:missing)\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_returns_123",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> symbol\nvalue\nend\ndef run(input)\nrender(typed(:missing))\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_parameters_139",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: bool)\nrender(value)\nend\ndef run(input)\ntyped(true)\nend",
+    "expected": "true"
+  },
+  {
+    "name": "types_returns_139",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> bool\nvalue\nend\ndef run(input)\nrender(typed(true))\nend",
+    "expected": "true"
+  },
+  {
+    "name": "types_parameters_140",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: bool)\nrender(value)\nend\ndef run(input)\ntyped(false)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "types_returns_140",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> bool\nvalue\nend\ndef run(input)\nrender(typed(false))\nend",
+    "expected": "false"
+  },
+  {
+    "name": "types_parameters_161",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: nil?)\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_returns_161",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> nil?\nvalue\nend\ndef run(input)\nrender(typed(nil))\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_parameters_204",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: duration)\nrender(value)\nend\ndef run(input)\ntyped(1.seconds)\nend",
+    "expected": "1s"
+  },
+  {
+    "name": "types_returns_204",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> duration\nvalue\nend\ndef run(input)\nrender(typed(1.seconds))\nend",
+    "expected": "1s"
+  },
+  {
+    "name": "types_parameters_228",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: money)\nrender(value)\nend\ndef run(input)\ntyped(money_cents(1,\"USD\"))\nend",
+    "expected": "0.01 USD"
+  },
+  {
+    "name": "types_returns_228",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> money\nvalue\nend\ndef run(input)\nrender(typed(money_cents(1,\"USD\")))\nend",
+    "expected": "0.01 USD"
+  },
+  {
+    "name": "types_parameters_252",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: time)\nrender(value)\nend\ndef run(input)\ntyped(Time.utc(2024,1,1))\nend",
+    "expected": "2024-01-01T00:00:00Z"
+  },
+  {
+    "name": "types_returns_252",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> time\nvalue\nend\ndef run(input)\nrender(typed(Time.utc(2024,1,1)))\nend",
+    "expected": "2024-01-01T00:00:00Z"
+  },
+  {
+    "name": "types_parameters_272",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: range)\nrender(value)\nend\ndef run(input)\ntyped(1..3)\nend",
+    "expected": "1..3"
+  },
+  {
+    "name": "types_returns_272",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> range\nvalue\nend\ndef run(input)\nrender(typed(1..3))\nend",
+    "expected": "1..3"
+  },
+  {
+    "name": "types_parameters_288",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array)\nrender(value)\nend\ndef run(input)\ntyped([1,2])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_288",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array\nvalue\nend\ndef run(input)\nrender(typed([1,2]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_289",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array)\nrender(value)\nend\ndef run(input)\ntyped([1,2.0])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_289",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array\nvalue\nend\ndef run(input)\nrender(typed([1,2.0]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_290",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array)\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_returns_290",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array\nvalue\nend\ndef run(input)\nrender(typed([:draft,:done]))\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_parameters_294",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_294",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_parameters_314",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash)\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_314",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_315",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash)\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_returns_315",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_parameters_316",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_316",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_337",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: object)\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_337",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> object\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_338",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: object)\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_returns_338",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> object\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_parameters_339",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: object)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_339",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> object\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_352",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_352",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_354",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_354",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_375",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: status)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_375",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> status\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_377",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: status)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_377",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> status\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_398",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: STATUS)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_398",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> STATUS\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_400",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: STATUS)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_400",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> STATUS\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_414",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status?)\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_returns_414",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status?\nvalue\nend\ndef run(input)\nrender(typed(nil))\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_parameters_421",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status?)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_421",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status?\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_423",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status?)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_423",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status?\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_449",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<int>)\nrender(value)\nend\ndef run(input)\ntyped([1,2])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_449",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<int>\nvalue\nend\ndef run(input)\nrender(typed([1,2]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_455",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<int>)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_455",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<int>\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_parameters_472",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<number>)\nrender(value)\nend\ndef run(input)\ntyped([1,2])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_472",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<number>\nvalue\nend\ndef run(input)\nrender(typed([1,2]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_473",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<number>)\nrender(value)\nend\ndef run(input)\ntyped([1,2.0])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_473",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<number>\nvalue\nend\ndef run(input)\nrender(typed([1,2.0]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_478",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<number>)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_478",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<number>\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_parameters_497",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<Status>)\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_returns_497",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<Status>\nvalue\nend\ndef run(input)\nrender(typed([:draft,:done]))\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_parameters_501",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<Status>)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_501",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<Status>\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_parameters_521",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash<string,int>)\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_521",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash<string,int>\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_523",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash<string,int>)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_523",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash<string,int>\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_545",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash<symbol,Status>)\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: Status::Draft}"
+  },
+  {
+    "name": "types_returns_545",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash<symbol,Status>\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: Status::Draft}"
+  },
+  {
+    "name": "types_parameters_546",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash<symbol,Status>)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_546",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash<symbol,Status>\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_592",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: hash<Status,any>)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_592",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> hash<Status,any>\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_613",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x:int})\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_613",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x:int}\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_637",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x:Status})\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: Status::Draft}"
+  },
+  {
+    "name": "types_returns_637",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x:Status}\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: Status::Draft}"
+  },
+  {
+    "name": "types_parameters_660",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x?:Status})\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: Status::Draft}"
+  },
+  {
+    "name": "types_returns_660",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x?:Status}\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: Status::Draft}"
+  },
+  {
+    "name": "types_parameters_661",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x?:Status})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_661",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x?:Status}\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_682",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x:int,...})\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_682",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x:int,...}\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_705",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x?:int,...})\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_705",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x?:int,...}\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_707",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x?:int,...})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_707",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {x?:int,...}\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_728",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {...})\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_728",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {...}\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_729",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {...})\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_returns_729",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {...}\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_parameters_730",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {...})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_730",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> {...}\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_736",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_returns_736",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(nil))\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_parameters_737",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(true)\nend",
+    "expected": "true"
+  },
+  {
+    "name": "types_returns_737",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(true))\nend",
+    "expected": "true"
+  },
+  {
+    "name": "types_parameters_738",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(false)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "types_returns_738",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(false))\nend",
+    "expected": "false"
+  },
+  {
+    "name": "types_parameters_739",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_739",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(1))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_740",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(1.0)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_740",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(1.0))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_741",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(10**30)\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_returns_741",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(10**30))\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_parameters_742",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(\"one\")\nend",
+    "expected": "one"
+  },
+  {
+    "name": "types_returns_742",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(\"one\"))\nend",
+    "expected": "one"
+  },
+  {
+    "name": "types_parameters_743",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_743",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_744",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(:missing)\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_returns_744",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(:missing))\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_parameters_745",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_745",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_746",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(Review::Draft)\nend",
+    "expected": "Review::Draft"
+  },
+  {
+    "name": "types_returns_746",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(Review::Draft))\nend",
+    "expected": "Review::Draft"
+  },
+  {
+    "name": "types_parameters_747",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(Status)\nend",
+    "expected": "<Enum Status>"
+  },
+  {
+    "name": "types_returns_747",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(Status))\nend",
+    "expected": "<Enum Status>"
+  },
+  {
+    "name": "types_parameters_748",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped([1,2])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_748",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed([1,2]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_749",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped([1,2.0])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_749",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed([1,2.0]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_750",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_returns_750",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed([:draft,:done]))\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_parameters_751",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_returns_751",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed({x:1}))\nend",
+    "expected": "{x: 1}"
+  },
+  {
+    "name": "types_parameters_752",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped({x: :draft})\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_returns_752",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed({x: :draft}))\nend",
+    "expected": "{x: draft}"
+  },
+  {
+    "name": "types_parameters_753",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_returns_753",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_parameters_754",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_754",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_parameters_755",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(1..3)\nend",
+    "expected": "1..3"
+  },
+  {
+    "name": "types_returns_755",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(1..3))\nend",
+    "expected": "1..3"
+  },
+  {
+    "name": "types_parameters_756",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(1.seconds)\nend",
+    "expected": "1s"
+  },
+  {
+    "name": "types_returns_756",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(1.seconds))\nend",
+    "expected": "1s"
+  },
+  {
+    "name": "types_parameters_757",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(money_cents(1,\"USD\"))\nend",
+    "expected": "0.01 USD"
+  },
+  {
+    "name": "types_returns_757",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(money_cents(1,\"USD\")))\nend",
+    "expected": "0.01 USD"
+  },
+  {
+    "name": "types_parameters_758",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status)\nrender(value)\nend\ndef run(input)\ntyped(Time.utc(2024,1,1))\nend",
+    "expected": "2024-01-01T00:00:00Z"
+  },
+  {
+    "name": "types_returns_758",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> any | Status\nvalue\nend\ndef run(input)\nrender(typed(Time.utc(2024,1,1)))\nend",
+    "expected": "2024-01-01T00:00:00Z"
+  },
+  {
+    "name": "types_parameters_766",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status | symbol)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_766",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status | symbol\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_767",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status | symbol)\nrender(value)\nend\ndef run(input)\ntyped(:missing)\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_returns_767",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status | symbol\nvalue\nend\ndef run(input)\nrender(typed(:missing))\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_parameters_768",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status | symbol)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_768",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> Status | symbol\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_789",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: symbol | Status)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "draft"
+  },
+  {
+    "name": "types_returns_789",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> symbol | Status\nvalue\nend\ndef run(input)\nrender(typed(:draft))\nend",
+    "expected": "draft"
+  },
+  {
+    "name": "types_parameters_790",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: symbol | Status)\nrender(value)\nend\ndef run(input)\ntyped(:missing)\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_returns_790",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> symbol | Status\nvalue\nend\ndef run(input)\nrender(typed(:missing))\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "types_parameters_791",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: symbol | Status)\nrender(value)\nend\ndef run(input)\ntyped(Status::Draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_returns_791",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> symbol | Status\nvalue\nend\ndef run(input)\nrender(typed(Status::Draft))\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_parameters_808",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int | float)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_808",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> int | float\nvalue\nend\ndef run(input)\nrender(typed(1))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_809",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int | float)\nrender(value)\nend\ndef run(input)\ntyped(1.0)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_809",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> int | float\nvalue\nend\ndef run(input)\nrender(typed(1.0))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_810",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int | float)\nrender(value)\nend\ndef run(input)\ntyped(10**30)\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_returns_810",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> int | float\nvalue\nend\ndef run(input)\nrender(typed(10**30))\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_parameters_828",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: nil | int)\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_returns_828",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> nil | int\nvalue\nend\ndef run(input)\nrender(typed(nil))\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_parameters_831",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: nil | int)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_returns_831",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> nil | int\nvalue\nend\ndef run(input)\nrender(typed(1))\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_parameters_833",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: nil | int)\nrender(value)\nend\ndef run(input)\ntyped(10**30)\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_returns_833",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> nil | int\nvalue\nend\ndef run(input)\nrender(typed(10**30))\nend",
+    "expected": "1000000000000000000000000000000"
+  },
+  {
+    "name": "types_parameters_863",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<int> | array<Status>)\nrender(value)\nend\ndef run(input)\ntyped([1,2])\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_returns_863",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<int> | array<Status>\nvalue\nend\ndef run(input)\nrender(typed([1,2]))\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_parameters_865",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<int> | array<Status>)\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_returns_865",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<int> | array<Status>\nvalue\nend\ndef run(input)\nrender(typed([:draft,:done]))\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_parameters_869",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<int> | array<Status>)\nrender(value)\nend\ndef run(input)\ntyped([])\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_returns_869",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value) -> array<int> | array<Status>\nvalue\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_defaults_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int = 1)\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int = 1)\nrender(value)\nend\ndef run(input)\ntyped(value: 1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int = 1)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: int = 1\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: int = 1\nrender(value)\nend\ndef run(input)\ntyped(value: 1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: int = 1\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_required_keywords_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: int:)\nrender(value)\nend\ndef run(input)\ntyped(value: 1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_36",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status = :draft)\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_37",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status = :draft)\nrender(value)\nend\ndef run(input)\ntyped(value: :draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_38",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status = :draft)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_39",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: Status = :draft\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_40",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: Status = :draft\nrender(value)\nend\ndef run(input)\ntyped(value: :draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_41",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: Status = :draft\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_required_keywords_6",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status:)\nrender(value)\nend\ndef run(input)\ntyped(value: :draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_60",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = 1)\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_61",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = 1)\nrender(value)\nend\ndef run(input)\ntyped(value: 1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_62",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = 1)\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_63",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = 1\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_64",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = 1\nrender(value)\nend\ndef run(input)\ntyped(value: 1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_65",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = 1\nrender(value)\nend\ndef run(input)\ntyped(1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_required_keywords_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status:)\nrender(value)\nend\ndef run(input)\ntyped(value: 1)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "types_defaults_66",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = :draft)\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_67",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = :draft)\nrender(value)\nend\ndef run(input)\ntyped(value: :draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_68",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = :draft)\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_69",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = :draft\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_70",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = :draft\nrender(value)\nend\ndef run(input)\ntyped(value: :draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_71",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = :draft\nrender(value)\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_required_keywords_11",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status:)\nrender(value)\nend\ndef run(input)\ntyped(value: :draft)\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_defaults_72",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = [:draft,:done])\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_defaults_73",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = [:draft,:done])\nrender(value)\nend\ndef run(input)\ntyped(value: [:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_defaults_74",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = [:draft,:done])\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_defaults_75",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = [:draft,:done]\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_defaults_76",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = [:draft,:done]\nrender(value)\nend\ndef run(input)\ntyped(value: [:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_defaults_77",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = [:draft,:done]\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_required_keywords_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status:)\nrender(value)\nend\ndef run(input)\ntyped(value: [:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_defaults_78",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = {state: :draft})\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_defaults_79",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = {state: :draft})\nrender(value)\nend\ndef run(input)\ntyped(value: {state: :draft})\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_defaults_80",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = {state: :draft})\nrender(value)\nend\ndef run(input)\ntyped({state: :draft})\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_defaults_81",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = {state: :draft}\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_defaults_82",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = {state: :draft}\nrender(value)\nend\ndef run(input)\ntyped(value: {state: :draft})\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_defaults_83",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = {state: :draft}\nrender(value)\nend\ndef run(input)\ntyped({state: :draft})\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_required_keywords_13",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status:)\nrender(value)\nend\ndef run(input)\ntyped(value: {state: :draft})\nend",
+    "expected": "{state: draft}"
+  },
+  {
+    "name": "types_defaults_84",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = nil)\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_defaults_85",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = nil)\nrender(value)\nend\ndef run(input)\ntyped(value: nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_defaults_86",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status = nil)\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_defaults_87",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = nil\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_defaults_88",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = nil\nrender(value)\nend\ndef run(input)\ntyped(value: nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_defaults_89",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: any | Status = nil\nrender(value)\nend\ndef run(input)\ntyped(nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_required_keywords_14",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: any | Status:)\nrender(value)\nend\ndef run(input)\ntyped(value: nil)\nend",
+    "expected": ""
+  },
+  {
+    "name": "types_defaults_102",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<Status> = [:draft,:done])\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_defaults_103",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<Status> = [:draft,:done])\nrender(value)\nend\ndef run(input)\ntyped(value: [:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_defaults_104",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<Status> = [:draft,:done])\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_defaults_105",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: array<Status> = [:draft,:done]\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_defaults_106",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: array<Status> = [:draft,:done]\nrender(value)\nend\ndef run(input)\ntyped(value: [:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_defaults_107",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: array<Status> = [:draft,:done]\nrender(value)\nend\ndef run(input)\ntyped([:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_required_keywords_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: array<Status>:)\nrender(value)\nend\ndef run(input)\ntyped(value: [:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_defaults_138",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {state:Status} = {state: :draft})\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_defaults_139",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {state:Status} = {state: :draft})\nrender(value)\nend\ndef run(input)\ntyped(value: {state: :draft})\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_defaults_140",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {state:Status} = {state: :draft})\nrender(value)\nend\ndef run(input)\ntyped({state: :draft})\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_defaults_141",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: {state:Status} = {state: :draft}\nrender(value)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_defaults_142",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: {state:Status} = {state: :draft}\nrender(value)\nend\ndef run(input)\ntyped(value: {state: :draft})\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_defaults_143",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: {state:Status} = {state: :draft}\nrender(value)\nend\ndef run(input)\ntyped({state: :draft})\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_required_keywords_23",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {state:Status}:)\nrender(value)\nend\ndef run(input)\ntyped(value: {state: :draft})\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_rest_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: array<Status>)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_rest_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: array<Status>)\nrender(values)\nend\ndef run(input)\ntyped(:draft,:done)\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_rest_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: array<Status>)\nrender(values)\nend\ndef run(input)\ntyped(*[:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_rest_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: array<int>)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_rest_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: array<int>)\nrender(values)\nend\ndef run(input)\ntyped(1,2)\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_rest_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: any)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_rest_11",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: any)\nrender(values)\nend\ndef run(input)\ntyped(:draft,:done)\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_rest_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: any)\nrender(values)\nend\ndef run(input)\ntyped(1,2)\nend",
+    "expected": "[1, 2]"
+  },
+  {
+    "name": "types_rest_13",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: any)\nrender(values)\nend\ndef run(input)\ntyped(\"x\")\nend",
+    "expected": "[x]"
+  },
+  {
+    "name": "types_rest_14",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: any)\nrender(values)\nend\ndef run(input)\ntyped(*[:draft,:done])\nend",
+    "expected": "[draft, done]"
+  },
+  {
+    "name": "types_rest_15",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: int | array<Status>)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_rest_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: int | array<Status>)\nrender(values)\nend\ndef run(input)\ntyped(:draft,:done)\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_rest_19",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(*values: int | array<Status>)\nrender(values)\nend\ndef run(input)\ntyped(*[:draft,:done])\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_keyword_rest_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: hash<symbol,Status>)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_keyword_rest_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: hash<symbol,Status>)\nrender(values)\nend\ndef run(input)\ntyped(one: :draft)\nend",
+    "expected": "{one: Status::Draft}"
+  },
+  {
+    "name": "types_keyword_rest_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: hash<symbol,Status>)\nrender(values)\nend\ndef run(input)\ntyped(one: :draft,two: :done)\nend",
+    "expected": "{one: Status::Draft, two: Status::Done}"
+  },
+  {
+    "name": "types_keyword_rest_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: hash<symbol,Status>)\nrender(values)\nend\ndef run(input)\ntyped(other: :draft)\nend",
+    "expected": "{other: Status::Draft}"
+  },
+  {
+    "name": "types_keyword_rest_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: hash<string,int>)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_keyword_rest_8",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: hash<string,int>)\nrender(values)\nend\ndef run(input)\ntyped(one: 1)\nend",
+    "expected": "{one: 1}"
+  },
+  {
+    "name": "types_keyword_rest_11",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: {one:Status,two?:Status})\nrender(values)\nend\ndef run(input)\ntyped(one: :draft)\nend",
+    "expected": "{one: Status::Draft}"
+  },
+  {
+    "name": "types_keyword_rest_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: {one:Status,two?:Status})\nrender(values)\nend\ndef run(input)\ntyped(one: :draft,two: :done)\nend",
+    "expected": "{one: Status::Draft, two: Status::Done}"
+  },
+  {
+    "name": "types_keyword_rest_15",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: {one?:Status,...})\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_keyword_rest_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: {one?:Status,...})\nrender(values)\nend\ndef run(input)\ntyped(one: :draft)\nend",
+    "expected": "{one: Status::Draft}"
+  },
+  {
+    "name": "types_keyword_rest_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: {one?:Status,...})\nrender(values)\nend\ndef run(input)\ntyped(one: :draft,two: :done)\nend",
+    "expected": "{one: Status::Draft, two: done}"
+  },
+  {
+    "name": "types_keyword_rest_19",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: {one?:Status,...})\nrender(values)\nend\ndef run(input)\ntyped(other: :draft)\nend",
+    "expected": "{other: draft}"
+  },
+  {
+    "name": "types_keyword_rest_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: any)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_keyword_rest_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: any)\nrender(values)\nend\ndef run(input)\ntyped(one: :draft)\nend",
+    "expected": "{one: draft}"
+  },
+  {
+    "name": "types_keyword_rest_22",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: any)\nrender(values)\nend\ndef run(input)\ntyped(one: :draft,two: :done)\nend",
+    "expected": "{one: draft, two: done}"
+  },
+  {
+    "name": "types_keyword_rest_23",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: any)\nrender(values)\nend\ndef run(input)\ntyped(one: 1)\nend",
+    "expected": "{one: 1}"
+  },
+  {
+    "name": "types_keyword_rest_24",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: any)\nrender(values)\nend\ndef run(input)\ntyped(other: :draft)\nend",
+    "expected": "{other: draft}"
+  },
+  {
+    "name": "types_keyword_rest_25",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: int | hash)\nrender(values)\nend\ndef run(input)\ntyped()\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_keyword_rest_26",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: int | hash)\nrender(values)\nend\ndef run(input)\ntyped(one: :draft)\nend",
+    "expected": "{one: draft}"
+  },
+  {
+    "name": "types_keyword_rest_27",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: int | hash)\nrender(values)\nend\ndef run(input)\ntyped(one: :draft,two: :done)\nend",
+    "expected": "{one: draft, two: done}"
+  },
+  {
+    "name": "types_keyword_rest_28",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: int | hash)\nrender(values)\nend\ndef run(input)\ntyped(one: 1)\nend",
+    "expected": "{one: 1}"
+  },
+  {
+    "name": "types_keyword_rest_29",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(**values: int | hash)\nrender(values)\nend\ndef run(input)\ntyped(other: :draft)\nend",
+    "expected": "{other: draft}"
+  },
+  {
+    "name": "types_blocks_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[1].map{|value: int|render(value)}\nend",
+    "expected": [
+      "1"
+    ]
+  },
+  {
+    "name": "types_blocks_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[1].map do |value: int|\nrender(value)\nend\nend",
+    "expected": [
+      "1"
+    ]
+  },
+  {
+    "name": "types_blocks_14",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map{|value: Status|render(value)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_15",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map do |value: Status|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map{|value: Status|render(value)}\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map do |value: Status|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_26",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map{|value: Status?|render(value)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_27",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map do |value: Status?|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_28",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map{|value: Status?|render(value)}\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_29",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map do |value: Status?|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_30",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[nil].map{|value: Status?|render(value)}\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_blocks_31",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[nil].map do |value: Status?|\nrender(value)\nend\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_blocks_36",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[1].map{|value: any | Status|render(value)}\nend",
+    "expected": [
+      "1"
+    ]
+  },
+  {
+    "name": "types_blocks_37",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[1].map do |value: any | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "1"
+    ]
+  },
+  {
+    "name": "types_blocks_38",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map{|value: any | Status|render(value)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_39",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map do |value: any | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_40",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map{|value: any | Status|render(value)}\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_41",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map do |value: any | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_42",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[nil].map{|value: any | Status|render(value)}\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_blocks_43",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[nil].map do |value: any | Status|\nrender(value)\nend\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_blocks_44",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,:done]].map{|value: any | Status|render(value)}\nend",
+    "expected": [
+      "[draft, done]"
+    ]
+  },
+  {
+    "name": "types_blocks_45",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,:done]].map do |value: any | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "[draft, done]"
+    ]
+  },
+  {
+    "name": "types_blocks_46",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{x: :draft}].map{|value: any | Status|render(value)}\nend",
+    "expected": [
+      "{x: draft}"
+    ]
+  },
+  {
+    "name": "types_blocks_47",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{x: :draft}].map do |value: any | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "{x: draft}"
+    ]
+  },
+  {
+    "name": "types_blocks_50",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map{|value: symbol | Status|render(value)}\nend",
+    "expected": [
+      "draft"
+    ]
+  },
+  {
+    "name": "types_blocks_51",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map do |value: symbol | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "draft"
+    ]
+  },
+  {
+    "name": "types_blocks_52",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map{|value: symbol | Status|render(value)}\nend",
+    "expected": [
+      "done"
+    ]
+  },
+  {
+    "name": "types_blocks_53",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map do |value: symbol | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "done"
+    ]
+  },
+  {
+    "name": "types_blocks_68",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,:done]].map{|value: array<Status>|render(value)}\nend",
+    "expected": [
+      "[Status::Draft, Status::Done]"
+    ]
+  },
+  {
+    "name": "types_blocks_69",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,:done]].map do |value: array<Status>|\nrender(value)\nend\nend",
+    "expected": [
+      "[Status::Draft, Status::Done]"
+    ]
+  },
+  {
+    "name": "types_blocks_82",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{x: :draft}].map{|value: {x:Status}|render(value)}\nend",
+    "expected": [
+      "{x: Status::Draft}"
+    ]
+  },
+  {
+    "name": "types_blocks_83",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{x: :draft}].map do |value: {x:Status}|\nrender(value)\nend\nend",
+    "expected": [
+      "{x: Status::Draft}"
+    ]
+  },
+  {
+    "name": "types_blocks_86",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map{|value: nil | Status|render(value)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_87",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:draft].map do |value: nil | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_blocks_88",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map{|value: nil | Status|render(value)}\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_89",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[:done].map do |value: nil | Status|\nrender(value)\nend\nend",
+    "expected": [
+      "Status::Done"
+    ]
+  },
+  {
+    "name": "types_blocks_90",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[nil].map{|value: nil | Status|render(value)}\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_blocks_91",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[nil].map do |value: nil | Status|\nrender(value)\nend\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_destructure_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,2]].map{|(state: Status,n:int)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,2]].map{|[state: Status,n:int]|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,:done,:draft]].map{|(state: Status,*rest:array<Status>)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,2]].map{|((state:Status),n:int)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_13",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[[:draft],2]].map{|((state:Status),n:int)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,2]].map{|(state:Status | nil,n:int)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_19",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[nil,2]].map{|(state:Status | nil,n:int)|render(state)}\nend",
+    "expected": [
+      ""
+    ]
+  },
+  {
+    "name": "types_destructure_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,2]].map{|(state:Status,*)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_destructure_22",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[:draft,:done,:draft]].map{|(state:Status,*)|render(state)}\nend",
+    "expected": [
+      "Status::Draft"
+    ]
+  },
+  {
+    "name": "types_control_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\nvalue=:draft;return value\nend\ndef run(input)\ntyped().name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\nvalue=:draft;return value\nend\ndef run(input)\ntyped{v=:draft;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\nvalue=:draft;return value\nend\ndef run(input)\ntyped{v=:missing;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\n[1].map{value=:draft;return value};:done\nend\ndef run(input)\ntyped().name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\n[1].map{value=:draft;return value};:done\nend\ndef run(input)\ntyped{v=:draft;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\n[1].map{value=:draft;return value};:done\nend\ndef run(input)\ntyped{v=:missing;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\nyield\nend\ndef run(input)\ntyped{v=:draft;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_9",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:Status=([1].map{v=:draft;return v})) -> Status\nvalue\nend\ndef run(input)\ntyped().name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:Status=([1].map{v=:draft;return v})) -> Status\nvalue\nend\ndef run(input)\ntyped{v=:draft;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_control_11",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:Status=([1].map{v=:draft;return v})) -> Status\nvalue\nend\ndef run(input)\ntyped{v=:missing;break v}.name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_resolution_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nT=Status;[:draft].map{|x:T|x.name}\nend",
+    "expected": [
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_resolution_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nT=Status;[[Review,:draft]].map{|T,x:T|x.name}\nend",
+    "expected": [
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_resolution_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nT=Status;[1].map{T=Review;[:draft].map{|x:T|x.enum.name}}\nend",
+    "expected": [
+      [
+        "Review"
+      ]
+    ]
+  },
+  {
+    "name": "types_resolution_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nT=Status;[1].map{|t|[:draft].map{|x:T|x.enum.name}}\nend",
+    "expected": [
+      [
+        "Status"
+      ]
+    ]
+  },
+  {
+    "name": "types_resolution_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nStAtUs=Review;[:draft].map{|x:Status|x.enum.name}\nend",
+    "expected": [
+      "Status"
+    ]
+  },
+  {
+    "name": "types_resolution_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nStAtUs=Review;[:draft].map{|x:status|x.enum.name}\nend",
+    "expected": [
+      "Review"
+    ]
+  },
+  {
+    "name": "types_resolution_6",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nA=Status;a=Status;[:draft].map{|x:a|x.enum.name}\nend",
+    "expected": [
+      "Status"
+    ]
+  },
+  {
+    "name": "types_resolution_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nT=Status;t=Review;[:draft].map{|x:t?|x.enum.name}\nend",
+    "expected": [
+      "Review"
+    ]
+  },
+  {
+    "name": "types_resolution_8",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nUnknown=Status;[:draft].map{|x:unknown|x.enum.name}\nend",
+    "expected": [
+      "Status"
+    ]
+  },
+  {
+    "name": "types_resolution_9",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nT=Status;[:draft].map{|x:T|T=Review;x.enum.name}\nend",
+    "expected": [
+      "Status"
+    ]
+  },
+  {
+    "name": "types_resolution_10",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\nenum STATUS\nDraft\nend\ndef typed(x:Status)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status"
+  },
+  {
+    "name": "types_resolution_14",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\nenum ſtatus\nDraft\nend\ndef typed(x:Status)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status"
+  },
+  {
+    "name": "types_resolution_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\nenum ſtatus\nDraft\nend\ndef typed(x:ſtatus)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "ſtatus"
+  },
+  {
+    "name": "types_resolution_18",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:Status)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status"
+  },
+  {
+    "name": "types_resolution_19",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:status)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status"
+  },
+  {
+    "name": "types_resolution_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:sTaTuS)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status"
+  },
+  {
+    "name": "types_resolution_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:ſtatus)\nx.enum.name\nend\ndef run(input)\ntyped(:draft)\nend",
+    "expected": "Status"
+  },
+  {
+    "name": "types_syntax_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {})\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: {}\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:{x:nil})\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value:{x:nil}\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:{x:{}})\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value:{x:{}}\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {x:nil,x:nil})\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_13",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: {x:nil,x:nil}\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value:(Status))\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value:(Status)\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_22",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Status.name)\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_23",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: Status.name\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_24",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: Math.PI)\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_25",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: Math.PI\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_34",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: nil)\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_syntax_35",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed value: nil\n7\nend\ndef run(input)\ntyped()\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_depth_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<int>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_depth_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[]].map{|x:array<int>|7}\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "types_depth_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_depth_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[]].map{|x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>|7}\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "types_depth_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_depth_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[]].map{|x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>|7}\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "types_depth_6",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_depth_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[]].map{|x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>|7}\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "types_depth_9",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[[]].map{|x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>|7}\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "types_oracle_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:Status)->Status\nx\nend\ndef run(input)\ntyped(:draft).name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_oracle_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:any | Status)->Status\nx\nend\ndef run(input)\ntyped(:draft).name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_oracle_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:Status | symbol)->Status\nx\nend\ndef run(input)\ntyped(:draft).name\nend",
+    "expected": "Draft"
+  },
+  {
+    "name": "types_oracle_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:{state:Status,extra?:int,...})->{state:Status,...}\nx\nend\ndef run(input)\na={state: :draft,note:[1]};b=typed(a);b.note.push(2);[a,b,b.state.name]\nend",
+    "expected": [
+      {
+        "state": "draft",
+        "note": [
+          1
+        ]
+      },
+      {
+        "state": "draft",
+        "note": [
+          1,
+          2
+        ]
+      },
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_shape_fields_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name:int,...})\nrender(value)\nend\ndef run(input)\ntyped({name:1})\nend",
+    "expected": "{name: 1}"
+  },
+  {
+    "name": "types_shape_fields_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name:Status,...})\nrender(value)\nend\ndef run(input)\ntyped({name: :draft})\nend",
+    "expected": "{name: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_12",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name:Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({name: :draft})\nend",
+    "expected": "{name: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name:int | nil,...})\nrender(value)\nend\ndef run(input)\ntyped({name:1})\nend",
+    "expected": "{name: 1}"
+  },
+  {
+    "name": "types_shape_fields_20",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int,...})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_shape_fields_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int,...})\nrender(value)\nend\ndef run(input)\ntyped({name:1})\nend",
+    "expected": "{name: 1}"
+  },
+  {
+    "name": "types_shape_fields_23",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: draft}"
+  },
+  {
+    "name": "types_shape_fields_24",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\\xFF\": :draft})\nend",
+    "expected": "{�: draft}"
+  },
+  {
+    "name": "types_shape_fields_25",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status,...})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_shape_fields_27",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status,...})\nrender(value)\nend\ndef run(input)\ntyped({name: :draft})\nend",
+    "expected": "{name: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_28",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: draft}"
+  },
+  {
+    "name": "types_shape_fields_29",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\\xFF\": :draft})\nend",
+    "expected": "{�: draft}"
+  },
+  {
+    "name": "types_shape_fields_30",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_shape_fields_32",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({name: :draft})\nend",
+    "expected": "{name: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_33",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: draft}"
+  },
+  {
+    "name": "types_shape_fields_34",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\\xFF\": :draft})\nend",
+    "expected": "{�: draft}"
+  },
+  {
+    "name": "types_shape_fields_35",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int | nil,...})\nrender(value)\nend\ndef run(input)\ntyped({})\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_shape_fields_36",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int | nil,...})\nrender(value)\nend\ndef run(input)\ntyped({name:1})\nend",
+    "expected": "{name: 1}"
+  },
+  {
+    "name": "types_shape_fields_38",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int | nil,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: draft}"
+  },
+  {
+    "name": "types_shape_fields_39",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {name?:int | nil,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\\xFF\": :draft})\nend",
+    "expected": "{�: draft}"
+  },
+  {
+    "name": "types_shape_fields_48",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {\"name?\":Status,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_53",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {\"name?\":Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_109",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {\"\\xFF\":Status,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\\xFF\": :draft})\nend",
+    "expected": "{�: Status::Draft}"
+  },
+  {
+    "name": "types_shape_fields_114",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {\"\\xFF\":Status?,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\\xFF\": :draft})\nend",
+    "expected": "{�: Status::Draft}"
+  },
+  {
+    "name": "types_qualified_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nAlias=JSON;Alias.Status=Status;[:draft].map{|x:Alias.Status|x.name}\nend",
+    "expected": [
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_qualified_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nAlias=JSON;Alias.Status=Status;[:draft].map{|x:Alias.status|x.name}\nend",
+    "expected": [
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_qualified_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nAlias=JSON;Alias.Status=Status;[:draft].map{|x:Alias.STATUS|x.name}\nend",
+    "expected": [
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_qualified_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nAlias=JSON;Alias.Status=Status;[:draft].map{|x:Alias.Status?|x.name}\nend",
+    "expected": [
+      "Draft"
+    ]
+  },
+  {
+    "name": "types_nested_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<int | string>)->array<int | string>\nx\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_nested_7",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<int | string>>)->array<array<int | string>>\nx\nend\ndef run(input)\nrender(typed([]))\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "types_nested_9",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<int | string>>)->array<array<int | string>>\nx\nend\ndef run(input)\nrender(typed([[1,\"a\"],[]]))\nend",
+    "expected": "[[1, a], []]"
+  },
+  {
+    "name": "types_nested_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:{x:array<Status>,...})->{x:array<Status>,...}\nx\nend\ndef run(input)\nrender(typed({x:[:draft,:done],note:1}))\nend",
+    "expected": "{x: [Status::Draft, Status::Done], note: 1}"
+  },
+  {
+    "name": "types_nested_25",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:{x?:int, y:string})->{x?:int, y:string}\nx\nend\ndef run(input)\nrender(typed({y:\"ok\"}))\nend",
+    "expected": "{y: ok}"
+  },
+  {
+    "name": "types_nested_26",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:{x?:int, y:string})->{x?:int, y:string}\nx\nend\ndef run(input)\nrender(typed({x:1,y:\"ok\"}))\nend",
+    "expected": "{x: 1, y: ok}"
+  },
+  {
+    "name": "types_nested_29",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:hash<symbol | Status, any>)->hash<symbol | Status, any>\nx\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_nested_36",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:hash<string | Status, any>)->hash<string | Status, any>\nx\nend\ndef run(input)\nrender(typed({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "types_nested_38",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:hash<string | Status, any>)->hash<string | Status, any>\nx\nend\ndef run(input)\nrender(typed({x:[:draft,:done],note:1}))\nend",
+    "expected": "{x: [draft, done], note: 1}"
+  },
+  {
+    "name": "types_nested_39",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:hash<string | Status, any>)->hash<string | Status, any>\nx\nend\ndef run(input)\nrender(typed({y:\"ok\"}))\nend",
+    "expected": "{y: ok}"
+  },
+  {
+    "name": "types_nested_40",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:hash<string | Status, any>)->hash<string | Status, any>\nx\nend\ndef run(input)\nrender(typed({x:1,y:\"ok\"}))\nend",
+    "expected": "{x: 1, y: ok}"
+  },
+  {
+    "name": "types_nested_41",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:hash<string | Status, any>)->hash<string | Status, any>\nx\nend\ndef run(input)\nrender(typed({x:1,z:2}))\nend",
+    "expected": "{x: 1, z: 2}"
+  },
+  {
+    "name": "types_union_depth_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_union_depth_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_union_depth_2",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_union_depth_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_union_depth_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(x:array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string> | string>)\n7\nend\ndef run(input)\ntyped([])\nend",
+    "expected": 7
+  },
+  {
+    "name": "types_early_returns_0",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\n[1].map{result=:draft;return result}\nend\ndef run(input)\nrender(typed())\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_early_returns_1",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> Status\nyield\nend\ndef run(input)\nrender(typed{result=:draft;break result})\nend",
+    "expected": "Status::Draft"
+  },
+  {
+    "name": "types_early_returns_16",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> array<Status>\n[1].map{result=[:draft,:done];return result}\nend\ndef run(input)\nrender(typed())\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_early_returns_17",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> array<Status>\nyield\nend\ndef run(input)\nrender(typed{result=[:draft,:done];break result})\nend",
+    "expected": "[Status::Draft, Status::Done]"
+  },
+  {
+    "name": "types_early_returns_30",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> {state:Status}\n[1].map{result={state: :draft};return result}\nend\ndef run(input)\nrender(typed())\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_early_returns_31",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> {state:Status}\nyield\nend\ndef run(input)\nrender(typed{result={state: :draft};break result})\nend",
+    "expected": "{state: Status::Draft}"
+  },
+  {
+    "name": "types_early_returns_46",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> int\n[1].map{result=7;return result}\nend\ndef run(input)\nrender(typed())\nend",
+    "expected": "7"
+  },
+  {
+    "name": "types_early_returns_47",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed -> int\nyield\nend\ndef run(input)\nrender(typed{result=7;break result})\nend",
+    "expected": "7"
+  },
+  {
+    "name": "types_symbol_shapes_3",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name: int,...})\nrender(value)\nend\ndef run(input)\ntyped({name:1})\nend",
+    "expected": "{name: 1}"
+  },
+  {
+    "name": "types_symbol_shapes_4",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value)->{:name: int,...}\nvalue\nend\ndef run(input)\nrender(typed({name:1}))\nend",
+    "expected": "{name: 1}"
+  },
+  {
+    "name": "types_symbol_shapes_5",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{name:1}].map{|x:{:name: int,...}|render(x)}\nend",
+    "expected": [
+      "{name: 1}"
+    ]
+  },
+  {
+    "name": "types_symbol_shapes_21",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:name: Status,...})\nrender(value)\nend\ndef run(input)\ntyped({name: :draft})\nend",
+    "expected": "{name: Status::Draft}"
+  },
+  {
+    "name": "types_symbol_shapes_22",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value)->{:name: Status,...}\nvalue\nend\ndef run(input)\nrender(typed({name: :draft}))\nend",
+    "expected": "{name: Status::Draft}"
+  },
+  {
+    "name": "types_symbol_shapes_23",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{name: :draft}].map{|x:{:name: Status,...}|render(x)}\nend",
+    "expected": [
+      "{name: Status::Draft}"
+    ]
+  },
+  {
+    "name": "types_symbol_shapes_84",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"name?\": Status,...})\nrender(value)\nend\ndef run(input)\ntyped({\"name?\": :draft})\nend",
+    "expected": "{name?: Status::Draft}"
+  },
+  {
+    "name": "types_symbol_shapes_85",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value)->{:\"name?\": Status,...}\nvalue\nend\ndef run(input)\nrender(typed({\"name?\": :draft}))\nend",
+    "expected": "{name?: Status::Draft}"
+  },
+  {
+    "name": "types_symbol_shapes_86",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{\"name?\": :draft}].map{|x:{:\"name?\": Status,...}|render(x)}\nend",
+    "expected": [
+      "{name?: Status::Draft}"
+    ]
+  },
+  {
+    "name": "types_symbol_shapes_162",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value: {:\"\": array<Status>,...})\nrender(value)\nend\ndef run(input)\ntyped({\"\":[:draft]})\nend",
+    "expected": "{: [Status::Draft]}"
+  },
+  {
+    "name": "types_symbol_shapes_163",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\ndef typed(value)->{:\"\": array<Status>,...}\nvalue\nend\ndef run(input)\nrender(typed({\"\":[:draft]}))\nend",
+    "expected": "{: [Status::Draft]}"
+  },
+  {
+    "name": "types_symbol_shapes_164",
+    "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\n[{\"\":[:draft]}].map{|x:{:\"\": array<Status>,...}|render(x)}\nend",
+    "expected": [
+      "{: [Status::Draft]}"
+    ]
   }
 ]

@@ -142,7 +142,7 @@ fn ascii_compare(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<Ordering> 
     Ok(a.len().cmp(&b.len()))
 }
 
-fn equal(ctx: &mut CallContext, mut a: &[u8], mut b: &[u8]) -> Result<bool> {
+pub(crate) fn equal(ctx: &mut CallContext, mut a: &[u8], mut b: &[u8]) -> Result<bool> {
     if !ops::runes(ctx, a)?.1 || !ops::runes(ctx, b)?.1 {
         return Ok(ascii_compare(ctx, a, b)? == Ordering::Equal);
     }

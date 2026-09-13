@@ -51,6 +51,19 @@ pub(crate) enum Global {
 }
 
 impl Global {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Time => "Time",
+            Self::Now => "now",
+            Self::Duration => "Duration",
+            Self::Money => "money",
+            Self::MoneyCents => "money_cents",
+            Self::ToInt => "to_int",
+            Self::ToFloat => "to_float",
+            Self::Json => "JSON",
+            Self::Math => "Math",
+        }
+    }
     pub fn parse(name: &str) -> Option<Self> {
         match name {
             "Time" => Some(Self::Time),

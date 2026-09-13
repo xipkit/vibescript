@@ -4207,5 +4207,226 @@
         ]
       ]
     }
+  },
+  {
+    "path": "showcase/automation/maintenance_window.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "sandbox": {
+        "environment": "Sandbox",
+        "starts_at": "2023-11-21T15:53:20Z",
+        "ends_at": "2023-11-21T21:13:20Z",
+        "freeze_at": "2023-11-21T20:23:20Z",
+        "duration": "PT20M"
+      },
+      "production": {
+        "environment": "Production",
+        "starts_at": "2023-11-21T15:53:20Z",
+        "ends_at": "2023-11-21T22:53:20Z",
+        "freeze_at": "2023-11-20T20:53:20Z",
+        "duration": "PT2H"
+      }
+    }
+  },
+  {
+    "path": "showcase/automation/retry_backoff.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "fast": [
+        {
+          "attempt": 1,
+          "delay": "PT30S",
+          "at": "2023-11-14T22:13:50Z"
+        },
+        {
+          "attempt": 2,
+          "delay": "PT1M",
+          "at": "2023-11-14T22:14:50Z"
+        },
+        {
+          "attempt": 3,
+          "delay": "PT2M",
+          "at": "2023-11-14T22:16:50Z"
+        },
+        {
+          "attempt": 4,
+          "delay": "PT4M",
+          "at": "2023-11-14T22:20:50Z"
+        }
+      ],
+      "careful": [
+        {
+          "attempt": 1,
+          "delay": "PT5M",
+          "at": "2023-11-14T22:18:20Z"
+        },
+        {
+          "attempt": 2,
+          "delay": "PT10M",
+          "at": "2023-11-14T22:28:20Z"
+        },
+        {
+          "attempt": 3,
+          "delay": "PT20M",
+          "at": "2023-11-14T22:48:20Z"
+        }
+      ]
+    }
+  },
+  {
+    "path": "showcase/numbers/literals_and_rounding.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "permission_bits": {
+        "read": 4,
+        "write": 2,
+        "execute": 1,
+        "read_write": 6
+      },
+      "named_sizes": {
+        "kilobyte": 1000,
+        "megabyte": 1000000,
+        "hex_flags": 65280,
+        "octal_mode": 493
+      },
+      "rounding": {
+        "whole": 3,
+        "cents": 3.14,
+        "down": 3,
+        "up": 4
+      },
+      "is_even": true,
+      "next_id": 42
+    }
+  },
+  {
+    "path": "showcase/security/session_expiry.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "trusted": {
+        "user_id": "user_100",
+        "risk": "Trusted",
+        "age": "PT1H30M",
+        "ttl": "P30D",
+        "expires_at": "2023-12-14T22:13:20Z",
+        "refreshable": true
+      },
+      "sensitive": {
+        "user_id": "user_200",
+        "risk": "Sensitive",
+        "age": "PT1H30M",
+        "ttl": "PT30M",
+        "expires_at": "2023-11-14T22:43:20Z",
+        "refreshable": false
+      }
+    }
+  },
+  {
+    "path": "showcase/strings/text_toolkit.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "setting": {
+        "key": "timeout",
+        "assigned": true,
+        "value": "30"
+      },
+      "no_assignment": {
+        "key": "bare-token",
+        "assigned": false,
+        "value": ""
+      },
+      "domain": "vibescript.dev",
+      "banner": "***** ship it ******",
+      "initials": "GBH",
+      "warn_flagged": true,
+      "info_flagged": false
+    }
+  },
+  {
+    "path": "showcase/strings/word_arrays.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "static_tags": [
+        "alpha",
+        "beta",
+        "gamma"
+      ],
+      "build_targets": [
+        "build-prod",
+        "deploy-prod",
+        "verify-prod"
+      ],
+      "lifecycle_states": [
+        "queued",
+        "running",
+        "done"
+      ],
+      "first_state": "queued",
+      "target_count": 3
+    }
+  },
+  {
+    "path": "showcase/time/timestamps.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "stamps": {
+        "iso": "2024-01-01T09:30:00Z",
+        "xml": "2024-01-01T09:30:00Z",
+        "millis": "2024-01-01T09:30:00.000Z",
+        "one_minute_later": "2024-01-01T09:31:00Z"
+      },
+      "epoch": "1970-01-01T00:00:00Z",
+      "year_start": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "path": "showcase/workflows/approval_chain.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "pending": {
+        "change_id": "change_88",
+        "state": "Review",
+        "next_state": "Blocked",
+        "checks_passed": false,
+        "steps": [
+          {
+            "label": "security review",
+            "due_in": "PT4H",
+            "due_at": "2023-11-26T16:00:00Z"
+          },
+          {
+            "label": "ops signoff",
+            "due_in": "PT8H",
+            "due_at": "2023-11-26T20:00:00Z"
+          }
+        ]
+      },
+      "ready": {
+        "change_id": "change_89",
+        "state": "Review",
+        "next_state": "Approved",
+        "checks_passed": true,
+        "steps": [
+          {
+            "label": "security review",
+            "due_in": "PT4H",
+            "due_at": "2023-11-26T16:00:00Z"
+          },
+          {
+            "label": "ops signoff",
+            "due_in": "PT8H",
+            "due_at": "2023-11-26T20:00:00Z"
+          }
+        ]
+      }
+    }
   }
 ]

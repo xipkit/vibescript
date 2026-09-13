@@ -41,6 +41,7 @@ mod sort;
 mod syntax;
 mod text;
 mod time;
+mod types;
 mod value;
 mod vm;
 

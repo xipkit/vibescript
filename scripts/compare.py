@@ -90,7 +90,7 @@ def validate_rejections(out):
             fixture={"name":case["name"],"source":case.get("source") or "def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
             path=out/"rejection-input.json"
             path.write_text(json.dumps([fixture])+"\n")
-            proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,timeout=10)
+            proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,errors="replace",timeout=10)
             assert proc.returncode==1,(variant,case["name"],proc.returncode,proc.stdout,proc.stderr)
             if variant.startswith("go-"):
                 assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)

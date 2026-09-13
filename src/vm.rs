@@ -332,10 +332,23 @@ pub(crate) fn execute(
             }
             Op::Bind(param, next) => {
                 if let Some(value) = frame.binding.data[0].value(ctx, param)? {
-                    let slot = program.functions[frame.function.unwrap()].params[param].slot;
-                    storage.locals.data[frame.local_base + slot] = Some(value);
-                    frame.ip = next;
+                    let param = &program.functions[frame.function.unwrap()].params[param];
+                    let slot = frame.local_base + param.slot;
+                    let ty = param.ty;
+                    let value = if let Some(ty) = ty {
+                        normalize_type(program, ctx, &frames, &mut storage, current, ty, value)?
+                    } else {
+                        value
+                    };
+                    storage.locals.data[slot] = Some(value);
+                    frames.data[current].ip = next;
                 }
+            }
+            Op::Normalize(ty) => {
+                let value = stack.data.pop().unwrap();
+                let value =
+                    normalize_type(program, ctx, &frames, &mut storage, current, ty, value)?;
+                stack.push(ctx, value)?;
             }
             Op::BindEnd => frame.binding = Buffer::empty(),
             Op::Declare(slot) => {
@@ -726,6 +739,8 @@ pub(crate) fn execute(
                     if frames.data[target].block.is_none() {
                         return Err(Error::new(ErrorKind::Argument, "break outside loop"));
                     }
+                    let value =
+                        normalize_return(program, ctx, &frames, &mut storage, target, value)?;
                     unwind(&mut frames, &mut storage, &mut stack, target);
                     if frames.data.is_empty() {
                         ctx.checkpoint()?;
@@ -989,6 +1004,7 @@ pub(crate) fn execute(
                 } else {
                     current
                 };
+                let value = normalize_return(program, ctx, &frames, &mut storage, target, value)?;
                 unwind(&mut frames, &mut storage, &mut stack, target);
                 if frames.data.is_empty() {
                     ctx.checkpoint()?;
@@ -998,6 +1014,172 @@ pub(crate) fn execute(
             }
         }
     }
+}
+
+fn normalize_return(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    frame: usize,
+    value: Value,
+) -> Result<Value> {
+    let Some(function) = frames.data[frame].function else {
+        return Ok(value);
+    };
+    let Some(ty) = program.functions[function].return_type else {
+        return Ok(value);
+    };
+    normalize_type(program, ctx, frames, storage, frame, ty, value)
+}
+
+fn normalize_type(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    frame: usize,
+    ty: usize,
+    value: Value,
+) -> Result<Value> {
+    let lexical = frames.data[frame].parent;
+    crate::types::normalize(ctx, &program.types[ty], value, |ctx, name| {
+        resolve_type(program, ctx, frames, storage, lexical, name)
+    })
+}
+
+fn resolve_type(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    lexical: Option<usize>,
+    name: &str,
+) -> Result<Value> {
+    ctx.work_bytes(name.len())?;
+    let (binding, member) = name
+        .split_once('.')
+        .map_or((name, None), |(a, b)| (a, Some(b)));
+    for fold in [false, true] {
+        if member.is_some() && fold {
+            break;
+        }
+        let mut scope = lexical;
+        while let Some(index) = scope {
+            ctx.charge(1)?;
+            let frame = &frames.data[index];
+            let function = &program.functions[frame.function.unwrap()];
+            let mut found = None;
+            for (slot, candidate) in function.local_names.iter().enumerate() {
+                ctx.charge(1)?;
+                if let Some(value) = &storage.locals.data[frame.local_base + slot] {
+                    if let Some(value) =
+                        type_candidate(ctx, candidate, value, binding, member, fold)?
+                    {
+                        merge_type(&mut found, value)?;
+                    }
+                }
+            }
+            if let Some(value) = found {
+                return Ok(value);
+            }
+            scope = frame.parent;
+        }
+        let mut found = None;
+        let mut declaration = None;
+        for (index, (global, original)) in program.globals.iter().enumerate() {
+            ctx.charge(1)?;
+            let value = storage.locals.data[index].as_ref().unwrap_or(original);
+            if let Some(value) = type_candidate(ctx, global.name(), value, binding, member, fold)? {
+                merge_type(&mut found, value)?;
+            }
+        }
+        for (index, value) in program.declarations.iter().enumerate() {
+            ctx.charge(1)?;
+            let Kind::Enum(enumeration) = &value.0 else {
+                unreachable!()
+            };
+            if let Some(value) = type_candidate(
+                ctx,
+                &enumeration.definition.name,
+                value,
+                binding,
+                member,
+                fold,
+            )? {
+                if found.is_none() {
+                    declaration = Some(index);
+                }
+                merge_type(&mut found, value)?;
+            }
+        }
+        if let Some(value) = found {
+            return if let Some(index) = declaration {
+                declaration_value(program, ctx, storage, index)
+            } else {
+                Ok(value)
+            };
+        }
+    }
+    Err(Error::new(ErrorKind::Type, "unknown named type"))
+}
+
+fn type_candidate(
+    ctx: &mut CallContext,
+    candidate: &str,
+    value: &Value,
+    binding: &str,
+    member: Option<&str>,
+    fold: bool,
+) -> Result<Option<Value>> {
+    let same = if fold {
+        crate::text::case::equal(ctx, candidate.as_bytes(), binding.as_bytes())?
+    } else {
+        crate::enums::compare_names(ctx, candidate.as_bytes(), binding.as_bytes())?
+            == std::cmp::Ordering::Equal
+    };
+    if !same {
+        return Ok(None);
+    }
+    let Some(member) = member else {
+        return Ok(matches!(value.0, Kind::Enum(_)).then(|| value.clone()));
+    };
+    let Kind::Hash(namespace) = &value.0 else {
+        return Ok(None);
+    };
+    if !namespace.object {
+        return Ok(None);
+    }
+    if let Some(index) = namespace.find(ctx, member.as_bytes())? {
+        let value = &namespace.buffer.data[index].1;
+        if matches!(value.0, Kind::Enum(_)) {
+            return Ok(Some(value.clone()));
+        }
+    }
+    let mut found = None;
+    for (key, value) in &namespace.buffer.data {
+        ctx.charge(1)?;
+        if matches!(value.0, Kind::Enum(_))
+            && crate::text::case::equal(ctx, key.require_bytes()?, member.as_bytes())?
+        {
+            merge_type(&mut found, value.clone())?;
+        }
+    }
+    Ok(found)
+}
+
+fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
+    if let Some(Value(Kind::Enum(previous))) = found {
+        let Kind::Enum(next) = &value.0 else {
+            unreachable!()
+        };
+        if !std::sync::Arc::ptr_eq(&previous.definition, &next.definition) {
+            return Err(Error::new(ErrorKind::Type, "ambiguous named type"));
+        }
+    } else {
+        *found = Some(value);
+    }
+    Ok(())
 }
 
 fn value_invocation(value: &Value) -> Invocation {
@@ -1139,7 +1321,7 @@ fn enter_arguments(
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0).then_some(frames.data.len());
     frame.block = block;
-    if fun.defaults {
+    if fun.binds_parameters {
         frame.binding = Buffer::with_capacity(ctx, 1)?;
         frame.binding.data.push(binding);
     } else {

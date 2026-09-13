@@ -139,6 +139,20 @@ impl Enumeration {
         }))
     }
 
+    pub(crate) fn lookup_symbol(
+        &self,
+        ctx: &mut CallContext,
+        symbol: &[u8],
+    ) -> Result<Option<usize>> {
+        for (index, member) in self.definition.members.iter().enumerate() {
+            ctx.charge(1)?;
+            if compare_names(ctx, member.symbol.as_bytes(), symbol)? == Ordering::Equal {
+                return Ok(Some(index));
+            }
+        }
+        Ok(None)
+    }
+
     fn lookup(&self, ctx: &mut CallContext, name: &[u8]) -> Result<Option<usize>> {
         let mut lower = 0;
         let mut upper = self.definition.lookup.len();
@@ -147,17 +161,7 @@ impl Enumeration {
             let middle = lower + (upper - lower) / 2;
             let index = self.definition.lookup[middle];
             let candidate = self.definition.members[index].name.as_bytes();
-            let mut order = Ordering::Equal;
-            for (a, b) in candidate.chunks(CHUNK).zip(name.chunks(CHUNK)) {
-                ctx.work_bytes(a.len().min(b.len()))?;
-                order = a.cmp(b);
-                if order != Ordering::Equal {
-                    break;
-                }
-            }
-            if order == Ordering::Equal {
-                order = candidate.len().cmp(&name.len());
-            }
+            let order = compare_names(ctx, candidate, name)?;
             match order {
                 Ordering::Less => lower = middle + 1,
                 Ordering::Greater => upper = middle,
@@ -169,7 +173,7 @@ impl Enumeration {
 }
 
 impl Member {
-    fn new(
+    pub(crate) fn new(
         ctx: &mut CallContext,
         enumeration: Arc<Enumeration>,
         index: usize,
@@ -193,6 +197,17 @@ impl Member {
     pub fn definition(&self) -> &MemberDefinition {
         &self.enumeration.definition.members[self.index]
     }
+}
+
+pub(crate) fn compare_names(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<Ordering> {
+    for (a, b) in a.chunks(CHUNK).zip(b.chunks(CHUNK)) {
+        ctx.work_bytes(a.len().min(b.len()))?;
+        let order = a.cmp(b);
+        if order != Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    Ok(a.len().cmp(&b.len()))
 }
 
 pub(crate) fn call(

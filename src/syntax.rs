@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 mod lexer;
 mod tokens;
+mod types;
 pub(crate) mod unicode;
 use lexer::{Lexeme, Part, Token, lex};
 use tokens::Tokens;
@@ -57,6 +58,7 @@ pub(crate) struct Parameter {
     pub name: String,
     pub kind: ParamKind,
     pub default: Option<Expr>,
+    pub ty: Option<crate::types::Type>,
 }
 #[derive(Debug)]
 pub(crate) enum ArgumentKind {
@@ -79,10 +81,12 @@ pub(crate) struct When {
 pub(crate) enum Target {
     Value(Expr),
     Tuple(Vec<(Option<Target>, bool)>),
+    Typed(Box<Target>, crate::types::Type),
 }
 impl Target {
     fn is_binding(&self) -> bool {
         match self {
+            Self::Typed(target, _) => target.is_binding(),
             Self::Value(e) => matches!(e.node, Node::Var(_)),
             Self::Tuple(parts) => parts
                 .iter()
@@ -91,6 +95,7 @@ impl Target {
     }
     fn depth(&self) -> usize {
         match self {
+            Self::Typed(target, _) => target.depth(),
             Self::Value(e) => e.depth,
             Self::Tuple(parts) => {
                 1 + parts
@@ -131,6 +136,7 @@ pub(crate) struct Definition {
     pub name: String,
     pub params: Vec<Parameter>,
     pub body: Vec<Stmt>,
+    pub return_type: Option<crate::types::Type>,
 }
 
 pub(crate) struct Declarations {
@@ -153,6 +159,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
         loop_condition: None,
         locals: HashSet::new(),
         declared_it: false,
+        type_structural_error: false,
     };
     let mut defs = Vec::new();
     let mut enums = Vec::new();
@@ -165,6 +172,13 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             let outer_it = std::mem::replace(&mut p.declared_it, false);
             let parenthesized = p.take_p('(');
             let params = p.parameters(parenthesized)?;
+            p.line_breaks();
+            let return_type = if p.token() == &Token::Op("->") {
+                p.bump();
+                Some(p.type_expr(1, false)?)
+            } else {
+                None
+            };
             p.lines();
             let body = p.block(&["end"])?;
             p.expect_word("end")?;
@@ -173,7 +187,12 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
-            defs.push(Definition { name, params, body });
+            defs.push(Definition {
+                name,
+                params,
+                body,
+                return_type,
+            });
         } else if p.word("enum") {
             p.line_breaks();
             let name = p.enum_name()?;
@@ -210,6 +229,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             name: "__main__".into(),
             params: Vec::new(),
             body: top,
+            return_type: None,
         },
     );
     Ok(Declarations {
@@ -232,6 +252,7 @@ struct Parser<'a> {
     loop_condition: Option<usize>,
     locals: HashSet<String>,
     declared_it: bool,
+    type_structural_error: bool,
 }
 impl Parser<'_> {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
@@ -244,7 +265,7 @@ impl Parser<'_> {
             self.lines();
         }
         if (parenthesized && self.take_p(')'))
-            || (!parenthesized && matches!(self.token(), Token::EndLine))
+            || (!parenthesized && matches!(self.token(), Token::EndLine | Token::Op("->")))
         {
             if parenthesized {
                 self.groups -= 1;
@@ -264,27 +285,60 @@ impl Parser<'_> {
                 _ => ParamKind::Positional,
             };
             let name = self.name()?;
+            let mut ty = None;
             let default = if self.take_p(':') {
-                if kind != ParamKind::Positional {
-                    return self.err("capture type annotations are not implemented");
-                }
-                kind = ParamKind::Keyword;
                 if parenthesized {
-                    self.lines();
+                    self.line_breaks();
                 }
-                if matches!(self.token(), Token::P(',' | ')') | Token::EndLine) {
+                if kind == ParamKind::Positional
+                    && matches!(
+                        self.token(),
+                        Token::P(',' | ')') | Token::EndLine | Token::Op("->")
+                    )
+                {
+                    kind = ParamKind::Keyword;
                     None
-                } else {
-                    let grouped = self.token() == &Token::P('(');
-                    let value = if parenthesized {
+                } else if kind == ParamKind::Positional && self.keyword_default(parenthesized) {
+                    kind = ParamKind::Keyword;
+                    Some(if parenthesized {
                         self.expr(0)?
                     } else {
                         self.line_expr(0)?
-                    };
-                    if !grouped && annotation_expression(&value, &params, false) {
-                        return self.err("type annotations are not implemented");
+                    })
+                } else {
+                    let annotation = self.type_expr(1, false)?;
+                    if matches!(kind, ParamKind::Rest | ParamKind::KeywordRest)
+                        && !annotation.captures(kind == ParamKind::KeywordRest)
+                    {
+                        return self.err("capture annotation must accept its collection type");
                     }
-                    Some(value)
+                    ty = Some(annotation);
+                    if kind == ParamKind::Positional && self.take_p(':') {
+                        kind = ParamKind::Keyword;
+                        if !matches!(
+                            self.token(),
+                            Token::P(',' | ')') | Token::EndLine | Token::Op("->")
+                        ) {
+                            return self
+                                .err("typed required keyword must end after trailing colon");
+                        }
+                    }
+                    if self.token() == &Token::Op("=") {
+                        if kind != ParamKind::Positional {
+                            return self.err("capture parameters cannot have defaults");
+                        }
+                        self.bump();
+                        if parenthesized {
+                            self.line_breaks();
+                        }
+                        Some(if parenthesized {
+                            self.expr(0)?
+                        } else {
+                            self.line_expr(0)?
+                        })
+                    } else {
+                        None
+                    }
                 }
             } else if self.token() == &Token::Op("=") {
                 self.bump();
@@ -333,6 +387,7 @@ impl Parser<'_> {
                 name,
                 kind,
                 default,
+                ty,
             });
             if parenthesized {
                 self.lines();
@@ -340,7 +395,7 @@ impl Parser<'_> {
                     self.groups -= 1;
                     break;
                 }
-            } else if matches!(self.token(), Token::EndLine | Token::Eof) {
+            } else if matches!(self.token(), Token::EndLine | Token::Eof | Token::Op("->")) {
                 break;
             }
             self.expect_p(',')?;
@@ -435,6 +490,7 @@ impl Parser<'_> {
     }
     fn declare_target(&mut self, target: &Target) {
         match target {
+            Target::Typed(target, _) => self.declare_target(target),
             Target::Value(Expr {
                 node: Node::Var(name),
                 ..
@@ -537,7 +593,7 @@ impl Parser<'_> {
             }
         }
         if self.assignment_ahead() {
-            let target = self.target(true)?;
+            let target = self.target(true, false)?;
             self.lines();
             let Token::Op(op) = self.bump() else {
                 return self.err("expected assignment operator");
@@ -601,7 +657,7 @@ impl Parser<'_> {
         Ok(Stmt::While(cond, body))
     }
     fn for_stmt(&mut self) -> Result<Stmt> {
-        let target = self.target(false)?;
+        let target = self.target(false, false)?;
         if !target.is_binding() {
             return self.err("invalid for loop target");
         }
@@ -615,7 +671,7 @@ impl Parser<'_> {
         self.expect_word("end")?;
         Ok(Stmt::For(target, iterable, body))
     }
-    fn target(&mut self, first_expression: bool) -> Result<Target> {
+    fn target(&mut self, first_expression: bool, typed: bool) -> Result<Target> {
         self.enter()?;
         let mut parts = Vec::new();
         let mut tuple = false;
@@ -630,7 +686,7 @@ impl Parser<'_> {
                 has_rest = true;
                 tuple = true;
             }
-            let value = if rest
+            let mut value = if rest
                 && (matches!(self.token(), Token::P(',' | ')' | ']') | Token::Op("="))
                     || matches!(self.token(), Token::Word(w) if w=="in"))
             {
@@ -646,7 +702,7 @@ impl Parser<'_> {
                 };
                 if let Some(close) = close {
                     self.lines();
-                    let inner = self.target(false)?;
+                    let inner = self.target(false, typed)?;
                     self.lines();
                     self.expect_p(close)?;
                     Some(match inner {
@@ -654,9 +710,21 @@ impl Parser<'_> {
                         _ => Target::Tuple(vec![(Some(inner), false)]),
                     })
                 } else {
-                    Some(Target::Value(self.line_expr(0)?))
+                    Some(if typed && matches!(self.token(), Token::Word(_)) {
+                        let name = self.name()?;
+                        Target::Value(self.make(Node::Var(name), 1)?)
+                    } else {
+                        Target::Value(self.line_expr(0)?)
+                    })
                 }
             };
+            if typed && value.is_some() && self.take_p(':') {
+                let ty = self.type_expr(1, false)?;
+                if rest && !ty.captures(false) {
+                    return self.err("rest target annotation must accept an array");
+                }
+                value = Some(Target::Typed(Box::new(value.take().unwrap()), ty));
+            }
             parts.push((value, rest));
             if !self.take_p(',') {
                 break;
@@ -1035,6 +1103,7 @@ impl Parser<'_> {
             loop_condition: None,
             locals: std::mem::take(&mut self.locals),
             declared_it: self.declared_it,
+            type_structural_error: false,
         };
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
@@ -1273,7 +1342,7 @@ impl Parser<'_> {
             if !self.take_p('|') {
                 loop {
                     let target = if self.take_p('(') {
-                        let target = self.target(false)?;
+                        let target = self.target(false, true)?;
                         self.lines();
                         self.expect_p(')')?;
                         match target {
@@ -1281,7 +1350,7 @@ impl Parser<'_> {
                             _ => Target::Tuple(vec![(Some(target), false)]),
                         }
                     } else if self.take_p('[') {
-                        let target = self.target(false)?;
+                        let target = self.target(false, true)?;
                         self.lines();
                         self.expect_p(']')?;
                         match target {
@@ -1290,7 +1359,12 @@ impl Parser<'_> {
                         }
                     } else {
                         let name = self.name()?;
-                        Target::Value(self.make(Node::Var(name), 1)?)
+                        let target = Target::Value(self.make(Node::Var(name), 1)?);
+                        if self.take_p(':') {
+                            Target::Typed(Box::new(target), self.type_expr(0, true)?)
+                        } else {
+                            target
+                        }
                     };
                     if !target.is_binding() {
                         return self.err("invalid block parameter");
@@ -1716,20 +1790,6 @@ impl Parser<'_> {
             Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
             _ => false,
         }
-    }
-}
-
-fn annotation_expression(expr: &Expr, params: &[Parameter], shape: bool) -> bool {
-    match &expr.node {
-        Node::Var(name) => !shape || !params.iter().any(|p| p.name == *name),
-        Node::Member(root, _) => annotation_expression(root, params, true),
-        Node::Hash(fields) => {
-            !fields.is_empty()
-                && fields
-                    .iter()
-                    .all(|(_, value)| annotation_expression(value, params, true))
-        }
-        _ => false,
     }
 }
 
