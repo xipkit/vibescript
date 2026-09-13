@@ -4,6 +4,8 @@ The active objective is to implement the remainder of Vibescript, using Go v0.70
 
 The full release source is available locally at `.cache/reference-go-0.70.0` on the external volume. The normative references are its `docs/language_reference.md`, `docs/stdlib_core_utilities.md`, focused language guides, implementation, and tests. The site corpus is useful coverage but is not the complete specification.
 
+When Go v0.70.0 conflicts with Vibescript's documented collection value semantics, the Rust port follows the documentation. Evaluated operands, passed arguments and iteration receivers are logical values; later writes cannot expose shared backing storage. This policy was explicitly selected for the port on 2026-09-13. Nineteen recorded differences have documented expectations and separate regression coverage. Two questions about changed negative-index paths and three control-flow differences remain open; the policy does not settle unrelated behavior. See [the compatibility policy](compatibility.md).
+
 ## Completion requirements
 
 | Area | Required behavior | Current status |

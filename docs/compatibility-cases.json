@@ -30,7 +30,9 @@
           9
         ]
       ]
-    ]
+    ],
+    "policy": "unresolved",
+    "reason": "The documentation does not yet determine publication when a captured negative-index path changes during argument evaluation."
   },
   {
     "name": "compound_collection_side_effect",
@@ -49,7 +51,16 @@
         1,
         2
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        1,
+        2
+      ]
+    ],
+    "reason": "The left operand is an evaluated logical value; later writes do not change it."
   },
   {
     "name": "binary_collection_side_effect",
@@ -76,7 +87,20 @@
         1,
         2
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "reason": "The left operand is an evaluated logical value; later writes do not change it."
   },
   {
     "name": "inclusive_integer_endpoint",
@@ -87,7 +111,9 @@
     ],
     "rust": [
       9223372036854775807
-    ]
+    ],
+    "policy": "unresolved",
+    "reason": "Inclusive-loop overflow is a separate control-flow compatibility question."
   },
   {
     "name": "hash_break_value",
@@ -95,7 +121,9 @@
     "go": {
       "a": 1
     },
-    "rust": 7
+    "rust": 7,
+    "policy": "unresolved",
+    "reason": "Hash-loop break results are a separate control-flow compatibility question."
   },
   {
     "name": "hash_break_nil",
@@ -103,7 +131,9 @@
     "go": {
       "a": 1
     },
-    "rust": null
+    "rust": null,
+    "policy": "unresolved",
+    "reason": "Hash-loop break results are a separate control-flow compatibility question."
   },
   {
     "name": "for_expression_mutation",
@@ -133,7 +163,21 @@
         3,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2,
+        3,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "iteration_array_mutation_each",
@@ -171,7 +215,26 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "iteration_array_mutation_map",
@@ -209,7 +272,26 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "iteration_array_mutation_select",
@@ -247,7 +329,26 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "iteration_array_mutation_each_with_index",
@@ -285,7 +386,26 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "iteration_hash_mutation_each",
@@ -329,7 +449,29 @@
         "a": 1,
         "b": 2
       }
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "mutable_block_fill_changes_tail",
@@ -357,7 +499,21 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        7,
+        2,
+        3
+      ],
+      [
+        7,
+        2,
+        3
+      ]
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
   },
   {
     "name": "mutable_block_filter_changes_tail",
@@ -385,7 +541,21 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        2,
+        9
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
   },
   {
     "name": "mutable_block_filter_changes_tail_removes",
@@ -409,7 +579,19 @@
         1,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
   },
   {
     "name": "mutable_block_hash_filter_changes_noop",
@@ -433,7 +615,19 @@
         "a": 1,
         "b": 2
       }
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ],
+    "reason": "The mutator processes its captured logical receiver; backing-store sharing cannot change its result."
   },
   {
     "name": "mutable_block_fill_negative_parent_growth",
@@ -473,7 +667,9 @@
         7,
         7
       ]
-    ]
+    ],
+    "policy": "unresolved",
+    "reason": "The documentation does not yet determine publication when a captured negative-index path changes during a callback."
   },
   {
     "name": "ordering_sort_by_callback_mutation",
@@ -501,7 +697,21 @@
         2,
         3
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        3,
+        1,
+        9
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "ordering_max_by_callback_mutation",
@@ -521,7 +731,17 @@
         9
       ],
       3
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        3,
+        1,
+        9
+      ],
+      3
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "collection_blocks_slice_when_mutation_0_False",
@@ -575,7 +795,33 @@
           3
         ]
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "collection_blocks_chunk_while_mutation_0_False",
@@ -633,7 +879,37 @@
           3
         ]
       ]
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "collection_blocks_merge_mutates_later_argument",
@@ -657,7 +933,19 @@
         "a": 6,
         "b": 4
       }
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": 9,
+        "b": 4
+      },
+      {
+        "a": 6,
+        "b": 4
+      }
+    ],
+    "reason": "Evaluated arguments remain logical values when a callback changes another binding."
   },
   {
     "name": "collection_blocks_deep_mutation_1_False",
@@ -693,7 +981,25 @@
         ],
         "b": 2
       }
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   },
   {
     "name": "collection_blocks_deep_mutation_3_False",
@@ -725,6 +1031,22 @@
         },
         "b": 2
       }
-    ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "b": 2
+      }
+    ],
+    "reason": "Iteration and transformation read a captured logical collection; callback writes cannot change that snapshot."
   }
 ]

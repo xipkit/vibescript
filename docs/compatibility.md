@@ -1,6 +1,14 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate, verified differences discovered during the language port; they are not included in the matching-case count. The four-build compatibility audit covers all twenty-four recorded cases, and `tests/control.rs` also checks the original loop differences.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: nineteen intentional differences follow the documented collection value semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+
+## Documented value semantics take precedence
+
+The Rust port follows Vibescript's documented collection value semantics when they conflict with Go v0.70.0. This policy was explicitly selected on 2026-09-13. [ADR-006](https://github.com/xipkit/vibescript/blob/v0.70.0/docs/adr/006-slim-language-for-predictable-sandboxing.md) defines arrays and hashes as logical values whose shared storage is not observable. The [standard-library contract](https://github.com/xipkit/vibescript/blob/v0.70.0/docs/stdlib_core_utilities.md) says mutations update the named binding or path while other values remain unchanged.
+
+An evaluated operand or argument retains its value. Iteration and transformation traverse captured values, so callback writes to a surrounding binding cannot change already captured elements. Adding an unused alias cannot change the result. For `a=[1]; x=a+a.push(2); [x,a]`, the selected result is `[[1,1,2],[1,2]]`: the left operand remains `[1]`, the right operand is `[1,2]`, and the local `a` contains `[1,2]`.
+
+[compatibility-cases.json](compatibility-cases.json) records each policy and its reason. Nineteen cases have explicit documented expectations, exercised by [value_semantics.rs](../tests/value_semantics.rs) both with and without an extra alias. They are intentional reference differences, not missing language features. This decision does not by itself settle control flow or publication through a nested path that changes during argument or callback evaluation.
 
 ## Inclusive range endpoints
 
@@ -21,7 +29,7 @@ Go returns `{a: 1}`; Rust returns `7`. With a bare `break`, Go still returns the
 
 ## Mutation during collection iteration
 
-Rust currently captures an immutable collection snapshot for iteration and for the normal result of a `for` expression. Writes to the surrounding local preserve that snapshot.
+Rust captures an immutable collection snapshot for iteration and for the normal result of a `for` expression. Writes to the surrounding local preserve that snapshot.
 
 Go's result can depend on whether another script local aliases the collection. With no alias, this returns `[[1,2,3,3],[1,2,3,3]]` in Go and `[[1,2],[1,2,3,3]]` in Rust:
 
@@ -45,7 +53,7 @@ Key blocks in `sort_by`, `min_by`, and `max_by` also traverse the captured array
 
 Adjacent grouping and recursive hash transforms add five records of the same distinction. `slice_when` and `chunk_while` can observe index writes through Go's captured array, changing later pairs and groups. A `merge` conflict block can change a later hash argument before Go visits it, while Rust retains the evaluated argument. Two `deep_transform_keys` cases show callback writes becoming visible in nested arrays or hashes in Go. Rust traverses the captured snapshots; the corresponding cases with explicit aliases agree and remain in the shared success suite.
 
-Matching this allocation-dependent behavior would require a deliberate compatibility policy. It remains an open item in the full-port checklist; the current Rust behavior is recorded explicitly so ordinary success counts cannot conceal the difference.
+The selected policy preserves these captured logical values. These differences stay visible in the audit as intentional results. The negative-index parent-growth case remains open because the documentation does not specify which changed path should receive the final write.
 
 ## Evaluated collection values
 
@@ -55,19 +63,19 @@ The indexed-write audit found three additional differences, recorded with comple
 - `a = [1]; x = a + a.push(2); [x,a]` has the same distinction for an ordinary binary operand: Go returns `[[1,2,1,2],[1,2]]`; Rust returns `[[1,1,2],[1,2]]`.
 - A pending `a[-1].push(...)` whose argument appends a new array to `a` can still update the previously captured child in Go. Rust currently treats the changed path as a temporary and leaves the original child unchanged.
 
-These are unresolved semantic gaps, not intentional additions to the language. They require further work on evaluated collection views and alias publication. The JSON record also includes the earlier range and loop differences. After rebuilding the comparison binaries, run:
+The first two results follow the selected value semantics: an already evaluated left operand cannot change while its right operand runs. The third remains open because publication through the changed negative-index path needs a separate decision based on the language contract. Together with the block-fill variant and the three control-flow records, that leaves five unresolved differences. After rebuilding the comparison binaries, run:
 
 ```sh
 python3 scripts/audit-compatibility.py --out .cache/compatibility-audit
 ```
 
-The audit returns a failure status while any recorded case differs, preserves complete results for all four builds, and distinguishes a resolved case from a newly changed result. These cases are separate from the matching conformance count.
+The audit accepts intentional results only when Rust matches their documented expectations. It fails on unresolved cases, changed Rust behavior, or changed reference output, and preserves results for all four builds. The nineteen intentional cases remain separate from the matching conformance count.
 
 ## Copy oracle investigation
 
-The reference's `docs/adr/006-slim-language-for-predictable-sandboxing.md` specifies logical collection values and states that sharing is not observable. Its `internal/runtime/collection_values.go` tracks durable script bindings separately from temporary values held by the evaluator. The test-only `VIBES_COW_ALWAYS_COPY` mode forces addressed writes to copy, bypassing the durable-reference optimization. Rust's immutable snapshots remain the working value-semantics policy while the observed Go differences stay open.
+The reference's `internal/runtime/collection_values.go` tracks durable script bindings separately from temporary values held by the evaluator. The test-only `VIBES_COW_ALWAYS_COPY` mode forces addressed writes to copy, bypassing that optimization. This mode helps explain the implementation differences; the documented semantics determine the Rust contract.
 
-The [recorded oracle results](reference-view-results.json) compare both Go modes with the Rust builds. Rust matches Go's copy mode on twenty of twenty-four cases, including all five adjacent-grouping, merge and deep-transform records. The compound indexed assignment produces three different results: normal Go returns `[[1,2,1,2]]`, copying Go returns `[[1,2]]`, and Rust returns `[[1,1,2]]`. Integer endpoint wrapping and hash-loop break results are also unaffected by copy mode. These results characterize the source of the differences; they do not establish full language compatibility or resolve the records.
+The [recorded oracle results](reference-view-results.json) compare both Go modes with the Rust builds. Rust matches Go's copy mode on twenty of twenty-four cases, including all five adjacent-grouping, merge and deep-transform records. The compound indexed assignment produces three different results: normal Go returns `[[1,2,1,2]]`, copying Go returns `[[1,2]]`, and Rust returns the selected `[[1,1,2]]`. Integer endpoint wrapping and hash-loop break results are also unaffected by copy mode. Agreement with either Go mode is evidence about the implementation, not a substitute for the language contract.
 
 After building the comparison binaries, reproduce the investigation with:
 
@@ -75,9 +83,9 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit continues to report twenty-four open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes nineteen intentional cases from five open cases.
 
 
 ## Builtin descriptors
 
-The reference permits a stateless builtin descriptor to be obtained through indexed or scoped namespace access, for example `f = Math::sqrt; f(9)` or `f = Math["sqrt"]; f(9)`. The Rust port preserves that observed behavior. Ordinary reads of a builtin method binding are rejected, and JSON cannot encode a builtin descriptor. These descriptors contain no captured script frame; general script-function values and escaping blocks remain outside the implemented surface. The final ADR-006 boundary audit must account for this reference behavior alongside its stated restrictions on executable values.
+The reference permits a stateless builtin descriptor to be obtained through indexed or scoped namespace access, for example `f = Math::sqrt; f(9)` or `f = Math["sqrt"]; f(9)`. The Rust port currently preserves that observed behavior. Ordinary reads of non-auto-invoking builtin bindings are rejected, and JSON cannot encode a builtin descriptor. These descriptors contain no captured script frame; general script-function values and escaping blocks remain outside the implemented surface. The final ADR-006 boundary audit must account for this reference behavior alongside its stated restrictions on executable values. The collection value-semantics decision does not settle this separate boundary.

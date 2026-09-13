@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep known semantic differences visible until Go and Rust agree."""
+"""Verify documented value semantics and keep unresolved reference differences visible."""
 import argparse
 import hashlib
 import json
@@ -24,20 +24,24 @@ def main():
     for case in cases:
         name = case["name"]
         values = {v: results[v][name] for v in VARIANTS}
+        policy = case["policy"]
+        assert policy in {"documented_value_semantics", "unresolved"}, (name, policy)
         if any(not equal_json(values[v], case["go"]) for v in VARIANTS if v.startswith("go-")):
             status = "reference_changed"
+        elif policy == "documented_value_semantics":
+            status = "intentional" if all(equal_json(values[v], case["expected"]) for v in VARIANTS if v.startswith("rust-")) else "changed"
         elif all(equal_json(values[v], case["go"]) for v in VARIANTS):
             status = "resolved"
         elif all(equal_json(values[v], case["rust"]) for v in VARIANTS if v.startswith("rust-")):
             status = "open"
         else:
             status = "changed"
-        records.append({"name": name, "status": status, "results": values})
+        records.append({"name": name, "status": status, "policy": policy, "reason": case["reason"], "results": values})
     counts = dict(Counter(r["status"] for r in records))
     report = {"counts": counts, "binary_sha256": {v: hashlib.sha256((BINS / v).read_bytes()).hexdigest() for v in VARIANTS}, "cases": records}
     (out / "audit.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(counts))
-    if any(r["status"] != "resolved" for r in records):
+    if any(r["status"] not in {"resolved", "intentional"} for r in records):
         raise SystemExit(1)
 
 
