@@ -140,6 +140,8 @@ def conformance_cases():
     for i in range(30):
         a=rng.randrange(-10000,10000);b=rng.choice([n for n in range(-97,98) if n])
         add(f"arithmetic_{i}",f"[{a}+({b}),{a}-({b}),{a}*({b}),{a}/({b}),{a}%({b})]",[a+b,a-b,a*b,a//b,a%b])
+    for case in json.loads((UPSTREAM.parent/"language.json").read_text()):
+        add("language/"+case["name"],case["body"],case["expected"])
     return cases+upstream_cases()+site_cases()
 
 

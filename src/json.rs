@@ -335,6 +335,7 @@ fn write_value(
         return ctx.fail(ErrorKind::Recursion, "JSON nesting too deep");
     }
     match &value.0 {
+        Kind::Range(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a range")),
         Kind::Nil => out.extend(ctx, b"null")?,
         Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,
         Kind::Int(n) => {

@@ -192,8 +192,8 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
             _ => {
                 let mut found = None;
                 for op in [
-                    "**=", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "**",
-                    "<<",
+                    "...", "..", "**=", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=",
+                    "%=", "**", "<<",
                 ] {
                     if s[i..].starts_with(op.as_bytes()) {
                         found = Some(op);
@@ -215,7 +215,7 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
                         b'<' => Token::Op("<"),
                         b'>' => Token::Op(">"),
                         b'!' => Token::Op("!"),
-                        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' => {
+                        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' | b'?' => {
                             Token::P(s[start] as char)
                         }
                         _ => return Err(Error::syntax(start, "unsupported character")),
@@ -248,9 +248,11 @@ pub(crate) enum Node {
     Hash(Vec<(Vec<u8>, Expr)>),
     Unary(&'static str, Box<Expr>),
     Binary(&'static str, Box<Expr>, Box<Expr>),
+    Range(Option<Box<Expr>>, Option<Box<Expr>>, bool),
+    Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
     Call(String, Vec<Expr>),
     Method(Box<Expr>, String, Vec<Expr>),
-    Index(Box<Expr>, Box<Expr>),
+    Index(Box<Expr>, Vec<Expr>),
 }
 #[derive(Debug)]
 pub(crate) enum Stmt {
@@ -273,6 +275,7 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
         tokens: lex(source)?,
         pos: 0,
         depth: 0,
+        groups: 0,
     };
     let mut defs = Vec::new();
     let mut top = Vec::new();
@@ -331,6 +334,7 @@ struct Parser {
     tokens: Vec<Lexeme>,
     pos: usize,
     depth: usize,
+    groups: usize,
 }
 impl Parser {
     fn token(&self) -> &Token {
@@ -513,10 +517,12 @@ impl Parser {
                 self.make(Node::Literal(Value::symbol(bytes)), 1)?
             }
             Token::P('(') => {
+                self.groups += 1;
                 self.lines();
                 let e = self.expr(0)?;
                 self.lines();
                 self.expect_p(')')?;
+                self.groups -= 1;
                 e
             }
             Token::P('[') => {
@@ -525,6 +531,7 @@ impl Parser {
                 self.make(Node::Array(a), d)?
             }
             Token::P('{') => {
+                self.groups += 1;
                 let mut entries = Vec::new();
                 self.lines();
                 if !self.take_p('}') {
@@ -549,10 +556,19 @@ impl Parser {
                     }
                 }
                 let d = 1 + entries.iter().map(|(_, e)| e.depth).max().unwrap_or(0);
+                self.groups -= 1;
                 self.make(Node::Hash(entries), d)?
             }
+            Token::Op(op @ (".." | "...")) => {
+                if self.groups > 0 {
+                    self.lines();
+                }
+                let end = self.expr(8)?;
+                let depth = end.depth + 1;
+                self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)?
+            }
             Token::Op(op @ ("-" | "+" | "!")) => {
-                let e = self.expr(7)?;
+                let e = self.expr(13)?;
                 let d = e.depth + 1;
                 self.make(Node::Unary(op, Box::new(e)), d)?
             }
@@ -582,12 +598,27 @@ impl Parser {
                 continue;
             }
             if self.take_p('[') {
+                let indexes = self.arguments(']')?;
+                if indexes.is_empty() {
+                    return self.err("expected index");
+                }
+                let d = 1 + lhs
+                    .depth
+                    .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
+                lhs = self.make(Node::Index(Box::new(lhs), indexes), d)?;
+                continue;
+            }
+            if min <= 2 && self.take_p('?') {
                 self.lines();
-                let index = self.expr(0)?;
+                let yes = self.expr(0)?;
+                self.expect_p(':')?;
                 self.lines();
-                self.expect_p(']')?;
-                let d = 1 + lhs.depth.max(index.depth);
-                lhs = self.make(Node::Index(Box::new(lhs), Box::new(index)), d)?;
+                let no = self.expr(2)?;
+                let depth = 1 + lhs.depth.max(yes.depth).max(no.depth);
+                lhs = self.make(
+                    Node::Conditional(Box::new(lhs), Box::new(yes), Box::new(no)),
+                    depth,
+                )?;
                 continue;
             }
             let Token::Op(op) = self.token() else {
@@ -595,19 +626,34 @@ impl Parser {
             };
             let op = *op;
             let (left, right) = match op {
-                "||" => (1, 2),
-                "&&" => (2, 3),
-                "==" | "!=" => (3, 4),
-                "<" | "<=" | ">" | ">=" => (4, 5),
-                "+" | "-" | "<<" => (5, 6),
-                "*" | "/" | "%" => (6, 7),
-                "**" => (8, 8),
+                "||" => (3, 4),
+                "&&" => (4, 5),
+                "==" | "!=" => (5, 6),
+                "<" | "<=" | ">" | ">=" => (6, 7),
+                ".." | "..." => (7, 8),
+                "<<" => (10, 11),
+                "+" | "-" => (11, 12),
+                "*" | "/" | "%" => (12, 13),
+                "**" => (14, 14),
                 _ => break,
             };
             if left < min {
                 break;
             }
             self.bump();
+            if matches!(op, ".." | "...") {
+                if self.groups > 0 {
+                    self.lines();
+                }
+                let end = if self.starts_expression() {
+                    Some(Box::new(self.expr(right)?))
+                } else {
+                    None
+                };
+                let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
+                lhs = self.make(Node::Range(Some(Box::new(lhs)), end, op == "..."), depth)?;
+                continue;
+            }
             self.lines();
             let rhs = self.expr(right)?;
             let depth = 1 + lhs.depth.max(rhs.depth);
@@ -617,9 +663,11 @@ impl Parser {
         Ok(lhs)
     }
     fn arguments(&mut self, close: char) -> Result<Vec<Expr>> {
+        self.groups += 1;
         let mut args = Vec::new();
         self.lines();
         if self.take_p(close) {
+            self.groups -= 1;
             return Ok(args);
         }
         loop {
@@ -634,7 +682,16 @@ impl Parser {
                 break;
             }
         }
+        self.groups -= 1;
         Ok(args)
+    }
+    fn starts_expression(&self) -> bool {
+        match self.token() {
+            Token::Word(w) => !reserved(w),
+            Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,
+            Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
+            _ => false,
+        }
     }
 }
 

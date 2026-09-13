@@ -153,6 +153,9 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
         (Kind::Nil, Kind::Nil) => Ok(true),
         (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
         (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
+        (Kind::Range(a), Kind::Range(b)) => {
+            Ok(a.start == b.start && a.end == b.end && a.exclusive == b.exclusive)
+        }
         (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => {
             Ok(a.as_float() == b.as_float())
         }
@@ -189,9 +192,12 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
 }
 
 pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Result<Value> {
+    if matches!(index.0, Kind::Range(_)) {
+        return crate::sequence::slice(ctx, value, std::slice::from_ref(index), false);
+    }
     match &value.0 {
         Kind::Array(h) => {
-            let n = normalized(index.require_int()?, h.buffer.data.len());
+            let n = normalized(crate::sequence::integer(index)?, h.buffer.data.len());
             Ok(n.and_then(|n| h.buffer.data.get(n))
                 .cloned()
                 .unwrap_or_default())
@@ -204,7 +210,7 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
         }
         Kind::Bytes(h) => {
             let bytes = &h.data;
-            let n = index.require_int()?;
+            let n = crate::sequence::integer(index)?;
             let n = if n < 0 {
                 let (count, _) = runes(ctx, bytes)?;
                 normalized(n, count)
@@ -218,8 +224,12 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
             let mut count = 0;
             while pos < bytes.len() {
                 ctx.charge(1)?;
-                let (_, len, _) = scan::rune(&bytes[pos..]);
+                let (ch, len, valid) = scan::rune(&bytes[pos..]);
                 if count == n {
+                    if !valid {
+                        let mut encoded = [0; 4];
+                        return ctx.bytes(ch.encode_utf8(&mut encoded).as_bytes());
+                    }
                     return ctx.bytes(&bytes[pos..pos + len]);
                 }
                 count += 1;
@@ -268,7 +278,7 @@ pub(crate) fn set_index(
     }
 }
 
-fn arity(args: &[Value], n: usize) -> Result<()> {
+pub(crate) fn arity(args: &[Value], n: usize) -> Result<()> {
     if args.len() == n {
         Ok(())
     } else {
@@ -286,8 +296,15 @@ pub(crate) fn method(
     args: &[Value],
 ) -> Result<Value> {
     use Method::*;
+    if let Kind::Range(range) = &value.0 {
+        return crate::range::method(ctx, method, range, args);
+    }
     match method {
-        Length => {
+        At | Slice | ByteSlice | GetByte | First | Last | ToArray => {
+            crate::sequence::method(ctx, method, value, args)
+        }
+        Cover | ExcludeEnd => Err(type_error()),
+        Length | Size => {
             arity(args, 0)?;
             let n = match &value.0 {
                 Kind::Bytes(h) => runes(ctx, &h.data)?.0,
@@ -500,7 +517,12 @@ fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)> {
     Ok((start, end))
 }
 
-fn find(ctx: &mut CallContext, bytes: &[u8], needle: &[u8], last: bool) -> Result<Option<usize>> {
+pub(crate) fn find(
+    ctx: &mut CallContext,
+    bytes: &[u8],
+    needle: &[u8],
+    last: bool,
+) -> Result<Option<usize>> {
     if needle.is_empty() {
         return Ok(Some(if last { bytes.len() } else { 0 }));
     }

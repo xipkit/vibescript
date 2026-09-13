@@ -76,7 +76,7 @@ fn strings_preserve_bytes_and_count_runes() {
         json(&run(
             "s = \"aé界🙂\\xff\"\n[s.length, s.bytesize, s[1], s[-1], s.upcase(:ascii), s.index(\"界\"), s.rindex(\"é\")]"
         )),
-        "[5,11,\"é\",\"\\ufffd\",\"Aé界🙂\\ufffd\",2,1]"
+        "[5,11,\"é\",\"�\",\"Aé界🙂\\ufffd\",2,1]"
     );
     assert_eq!(
         run("\"a\\xff\".upcase(:ascii)").as_bytes(),

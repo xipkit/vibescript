@@ -109,6 +109,26 @@
     }
   },
   {
+    "path": "rosettacode/popular/bacon_cipher.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "encoded": "BABAB ABAAA AAAAB AABAA / AAABA ABBBA AAABB AABAA",
+      "decoded": "VIBE CODE"
+    }
+  },
+  {
+    "path": "rosettacode/popular/balanced_ternary.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "zero": "0",
+      "positive_ten": "101",
+      "positive_forty_two": "1TTT0",
+      "negative_ten": "T0T"
+    }
+  },
+  {
     "path": "rosettacode/popular/binary_search.vibe",
     "function": "run",
     "args": [],
@@ -363,6 +383,16 @@
     }
   },
   {
+    "path": "rosettacode/popular/caesar_cipher.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "plain": "The quick brown fox jumps over the lazy dog.",
+      "encoded": "Wkh txlfn eurzq ira mxpsv ryhu wkh odcb grj.",
+      "decoded": "The quick brown fox jumps over the lazy dog."
+    }
+  },
+  {
     "path": "rosettacode/popular/call_a_function.vibe",
     "function": "run",
     "args": [],
@@ -525,6 +555,33 @@
       {
         "date": "2000-01-01",
         "weekday": "Saturday"
+      }
+    ]
+  },
+  {
+    "path": "rosettacode/popular/determine_if_a_string_is_numeric.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "text": "42",
+        "numeric": true
+      },
+      {
+        "text": "-17.5",
+        "numeric": true
+      },
+      {
+        "text": "+.5",
+        "numeric": true
+      },
+      {
+        "text": "12a",
+        "numeric": false
+      },
+      {
+        "text": "--3",
+        "numeric": false
       }
     ]
   },
@@ -700,6 +757,17 @@
         "0100101001001010010100100101001001"
       ],
       "final_length": 34
+    }
+  },
+  {
+    "path": "rosettacode/popular/find_words_which_contain_the_most_consonants.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "consonants": 8,
+      "words": [
+        "strengths"
+      ]
     }
   },
   {
@@ -908,6 +976,18 @@
         36
       ],
       "twenty_fifth": 36
+    }
+  },
+  {
+    "path": "rosettacode/popular/i_before_e_except_after_c.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "believe": true,
+      "ceiling": true,
+      "science": false,
+      "weird": false,
+      "ancient": false
     }
   },
   {
@@ -1124,6 +1204,17 @@
     ]
   },
   {
+    "path": "rosettacode/popular/luhn_test_of_credit_card_numbers.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "sample_true": true,
+      "sample_false": false,
+      "visa_true": true,
+      "visa_false": false
+    }
+  },
+  {
     "path": "rosettacode/popular/magic_squares_of_odd_order.vibe",
     "function": "run",
     "args": [],
@@ -1178,6 +1269,15 @@
         "value": 195
       }
     ]
+  },
+  {
+    "path": "rosettacode/popular/morse_code.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "sos": "... --- ...",
+      "vibe": "...- .. -... . / ..--- ----- ..--- -...."
+    }
   },
   {
     "path": "rosettacode/popular/multiplication_tables.vibe",
@@ -1283,6 +1383,78 @@
     }
   },
   {
+    "path": "rosettacode/popular/palindrome_detection.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      [
+        "text",
+        "palindrome"
+      ],
+      [
+        "racecar",
+        true
+      ],
+      [
+        "Able was I ere I saw Elba",
+        true
+      ],
+      [
+        "12321",
+        true
+      ],
+      [
+        "Vibescript",
+        false
+      ]
+    ]
+  },
+  {
+    "path": "rosettacode/popular/pangram_checker.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "fox_pangram": true,
+      "almost_pangram": false,
+      "almost_missing": [
+        "s"
+      ]
+    }
+  },
+  {
+    "path": "rosettacode/popular/parse_an_ip_address.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "localhost": [
+        127,
+        0,
+        0,
+        1
+      ],
+      "docs": [
+        192,
+        168,
+        10,
+        42
+      ],
+      "invalid_range": null,
+      "invalid_shape": null
+    }
+  },
+  {
+    "path": "rosettacode/popular/pig_latin.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "hello": "ellohay",
+      "world": "orldway",
+      "apple": "appleay",
+      "string": "ingstray",
+      "sentence": "ihay erethay"
+    }
+  },
+  {
     "path": "rosettacode/popular/playing_cards.vibe",
     "function": "run",
     "args": [],
@@ -1356,6 +1528,18 @@
     }
   },
   {
+    "path": "rosettacode/popular/roman_numerals_decode.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "i": 1,
+      "iv": 4,
+      "xlii": 42,
+      "xcix": 99,
+      "mmxxiv": 2024
+    }
+  },
+  {
     "path": "rosettacode/popular/roman_numerals_encode.vibe",
     "function": "run",
     "args": [],
@@ -1397,6 +1581,16 @@
         "roman": "MMMCMXCIX"
       }
     ]
+  },
+  {
+    "path": "rosettacode/popular/rot_13.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "plain": "Vibescript keeps Rosetta examples runnable.",
+      "encoded": "Ivorfpevcg xrrcf Ebfrggn rknzcyrf ehaanoyr.",
+      "decoded": "Vibescript keeps Rosetta examples runnable."
+    }
   },
   {
     "path": "rosettacode/popular/selection_sort.vibe",
@@ -1582,6 +1776,48 @@
         "right": "epsilon",
         "result": 1
       }
+    ]
+  },
+  {
+    "path": "rosettacode/popular/string_matching.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "aba_in_ababa": [
+        0,
+        2
+      ],
+      "ana_in_bananas": [
+        1,
+        3
+      ]
+    }
+  },
+  {
+    "path": "rosettacode/popular/substring.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      [
+        "start",
+        "count",
+        "value"
+      ],
+      [
+        0,
+        10,
+        "Vibescript"
+      ],
+      [
+        4,
+        6,
+        "script"
+      ],
+      [
+        11,
+        8,
+        "examples"
+      ]
     ]
   },
   {
@@ -1812,6 +2048,26 @@
     ]
   },
   {
+    "path": "rosettacode/popular/url_parser.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "scheme": "https",
+      "host": "example.com",
+      "path": "/docs/guide",
+      "query": [
+        {
+          "key": "page",
+          "value": "2"
+        },
+        {
+          "key": "lang",
+          "value": "en"
+        }
+      ]
+    }
+  },
+  {
     "path": "rosettacode/popular/utf_8_encode_and_decode.vibe",
     "function": "run",
     "args": [],
@@ -1863,6 +2119,15 @@
         -7,
         28
       ]
+    }
+  },
+  {
+    "path": "rosettacode/popular/vigen_re_cipher.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "encoded": "XWEIUQUMRH USEYV",
+      "decoded": "VIBESCRIPT ROCKS"
     }
   },
   {

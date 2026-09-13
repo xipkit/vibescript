@@ -1,0 +1,369 @@
+[
+  {
+    "name": "range_metadata",
+    "body": "a=1..4\nb=4...1\n[a.first,a.last,a.size,a.exclude_end?,b.first,b.last,b.size,b.exclude_end?]",
+    "expected": [
+      1,
+      4,
+      4,
+      false,
+      4,
+      1,
+      3,
+      true
+    ]
+  },
+  {
+    "name": "range_enumeration",
+    "body": "[(1..4).to_a,(4..1).to_a,(1...4).to_a,(4...1).to_a,(2...2).to_a]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        4
+      ],
+      [
+        4,
+        3,
+        2,
+        1
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        4,
+        3,
+        2
+      ],
+      []
+    ]
+  },
+  {
+    "name": "range_windows",
+    "body": "[(4...1).first(2),(4...1).last(2),(1..3).first(9),(1...1).last(2),(1..).first(3),(1...).first(0),(-2..).first(4),(..5).last]",
+    "expected": [
+      [
+        4,
+        3
+      ],
+      [
+        3,
+        2
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [],
+      [
+        1,
+        2,
+        3
+      ],
+      [],
+      [
+        -2,
+        -1,
+        0,
+        1
+      ],
+      5
+    ]
+  },
+  {
+    "name": "range_membership",
+    "body": "[(1..3).cover?(2.5),(3...1).include?(1),(3..1).include?(1),(1..).member?(999),(..0).cover?(-10),(1...3).include?(3),(1..3).include?(\"2\")]",
+    "expected": [
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  {
+    "name": "range_equality",
+    "body": "[(1..3)==(1..3),(1..3)==(1...3),(1..)==(1..),(..3)==(1..3)]",
+    "expected": [
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  {
+    "name": "range_extreme_windows",
+    "body": "[(9223372036854775806..9223372036854775807).to_a,(-9223372036854775807..-9223372036854775807-1).to_a,(-9223372036854775807-1..9223372036854775807).last(2)]",
+    "expected": [
+      [
+        9223372036854775806,
+        9223372036854775807
+      ],
+      [
+        -9223372036854775807,
+        -9223372036854775808
+      ],
+      [
+        9223372036854775806,
+        9223372036854775807
+      ]
+    ]
+  },
+  {
+    "name": "range_precedence",
+    "body": "[(1+1..2*3).to_a,(1..3)==(1..3),false || (1..2).include?(2)]",
+    "expected": [
+      [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      true,
+      true
+    ]
+  },
+  {
+    "name": "range_newlines",
+    "body": "a=1..\n2\nb=(1..\n3)\n[a.first(2),b.to_a]",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "ternary",
+    "body": "[true ? 1 : (1/0),false ? (1/0) : 2,nil ? 3 : false ? 4 : 5,0 ? :yes : :no,false || true ? 6 : 7]",
+    "expected": [
+      1,
+      2,
+      5,
+      "yes",
+      6
+    ]
+  },
+  {
+    "name": "array_slice_single",
+    "body": "a=[10,20,30]\n[a.at(0),a.at(-1),a.at(3),a.slice(-4),a.slice(1.9),a[-1.9]]",
+    "expected": [
+      10,
+      30,
+      null,
+      null,
+      20,
+      30
+    ]
+  },
+  {
+    "name": "array_slice_windows",
+    "body": "a=[10,20,30]\n[a.slice(1,2),a[-2,9],a.slice(3,1),a[4,0],a.slice(1,-1),a.slice(-4,1),a.slice(0,2.9)]",
+    "expected": [
+      [
+        20,
+        30
+      ],
+      [
+        20,
+        30
+      ],
+      [],
+      null,
+      null,
+      null,
+      [
+        10,
+        20
+      ]
+    ]
+  },
+  {
+    "name": "array_slice_extremes",
+    "body": "a=[10,20,30]\n[a.slice(1,9223372036854775807),a[9223372036854775807,2],a.slice(1..9223372036854775807),a[1...9223372036854775807],a.slice(2..-9223372036854775807-1)]",
+    "expected": [
+      [
+        20,
+        30
+      ],
+      null,
+      [
+        20,
+        30
+      ],
+      [
+        20,
+        30
+      ],
+      []
+    ]
+  },
+  {
+    "name": "array_slice_ranges",
+    "body": "a=[1,2,3,4]\n[a.slice(1..2),a[1...3],a.slice(-3..-1),a[2..1],a[4..6],a[5..6],a.slice(-5..-1),a[..1],a[2..]]",
+    "expected": [
+      [
+        2,
+        3
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        2,
+        3,
+        4
+      ],
+      [],
+      [],
+      null,
+      null,
+      [
+        1,
+        2
+      ],
+      [
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "array_slice_aliases",
+    "body": "a=[1,2,3,4]\nb=a.slice(1,2)\nc=b\nb.push(9)\nb[0]=7\n[a,b,c]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        4
+      ],
+      [
+        7,
+        3,
+        9
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "array_first_last",
+    "body": "a=[1,2,3]\n[a.first,a.last,a.first(2),a.last(2),a.first(0),a.last(9),[].first,[].last]",
+    "expected": [
+      1,
+      3,
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [],
+      [
+        1,
+        2,
+        3
+      ],
+      null,
+      null
+    ]
+  },
+  {
+    "name": "hash_to_array",
+    "body": "{b:2,a:1}.to_a",
+    "expected": [
+      [
+        "b",
+        2
+      ],
+      [
+        "a",
+        1
+      ]
+    ]
+  },
+  {
+    "name": "string_slice_unicode",
+    "body": "s=\"aé界🙂z\"\n[s.slice(1),s[1,3],s.slice(-3,2),s[1..-2],s[..2],s[3...],s.slice(5,9),s[6,0],s.slice(2,-1)]",
+    "expected": [
+      "é",
+      "é界🙂",
+      "界🙂",
+      "é界🙂",
+      "aé界",
+      "🙂z",
+      "",
+      null,
+      null
+    ]
+  },
+  {
+    "name": "byte_access",
+    "body": "s=\"aé界🙂\"\n[s.getbyte(1),s.getbyte(-1),s.getbyte(10),s.getbyte(-11),s.byteslice(1,2),s.byteslice(3..5),s.byteslice(-4,4),s.byteslice(10,1),s.byteslice(11,0)]",
+    "expected": [
+      195,
+      130,
+      null,
+      null,
+      "é",
+      "界",
+      "🙂",
+      "",
+      null
+    ]
+  },
+  {
+    "name": "empty_slices",
+    "body": "[[][0],[][0,0],[][..3],[][-1..2],\"\".slice(0),\"\"[0,0],\"\".byteslice(0,0)]",
+    "expected": [
+      null,
+      [],
+      [],
+      null,
+      null,
+      "",
+      ""
+    ]
+  },
+  {
+    "name": "string_slice_invalid",
+    "body": "s=\"a\\xff\\xc3é\"\n[s[1].bytesize,s.slice(1).bytesize,s[1,2].bytesize,s[1..2].bytesize,s.byteslice(1).bytesize,s.slice(1,3)]",
+    "expected": [
+      3,
+      3,
+      6,
+      6,
+      1,
+      "��é"
+    ]
+  },
+  {
+    "name": "string_slice_substring",
+    "body": "s=\"aé界🙂\"\n[s.slice(\"é界\"),s.slice(\"界\"),s.slice(\"z\"),s.slice(\"\")]",
+    "expected": [
+      "é界",
+      "界",
+      null,
+      ""
+    ]
+  }
+]

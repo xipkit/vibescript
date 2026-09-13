@@ -19,7 +19,8 @@ pub(crate) enum Op {
     AddStore(usize),
     Array(usize),
     Hash(usize),
-    Index,
+    Range(bool, bool, bool),
+    Index(usize),
     SetIndex(usize),
     Call(usize, usize),
     Host(usize, usize),
@@ -35,6 +36,16 @@ pub(crate) enum Op {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Method {
     Length,
+    Size,
+    At,
+    Slice,
+    ByteSlice,
+    GetByte,
+    First,
+    Last,
+    ToArray,
+    Cover,
+    ExcludeEnd,
     ByteSize,
     Upcase,
     Downcase,
@@ -54,7 +65,17 @@ pub(crate) enum Method {
 impl Method {
     fn parse(name: &str) -> Result<Self> {
         Ok(match name {
-            "length" | "size" => Self::Length,
+            "length" => Self::Length,
+            "size" => Self::Size,
+            "at" => Self::At,
+            "slice" => Self::Slice,
+            "byteslice" => Self::ByteSlice,
+            "getbyte" => Self::GetByte,
+            "first" => Self::First,
+            "last" => Self::Last,
+            "to_a" => Self::ToArray,
+            "cover?" | "member?" => Self::Cover,
+            "exclude_end?" => Self::ExcludeEnd,
             "bytesize" => Self::ByteSize,
             "upcase" => Self::Upcase,
             "downcase" => Self::Downcase,
@@ -234,6 +255,9 @@ impl Compiler<'_> {
                         self.emit(Op::Store(slot));
                     }
                     Node::Index(root, index) => {
+                        let [index] = index.as_slice() else {
+                            return Err(syntax::unsupported("slice assignment is not implemented"));
+                        };
                         let Node::Var(name) = &root.node else {
                             return Err(syntax::unsupported(
                                 "nested index assignment is not implemented",
@@ -244,7 +268,7 @@ impl Compiler<'_> {
                         self.expr(index)?;
                         if binary.is_some() {
                             self.emit(Op::Dup2);
-                            self.emit(Op::Index);
+                            self.emit(Op::Index(1));
                         }
                         self.expr(rhs)?;
                         if let Some(op) = binary {
@@ -338,6 +362,24 @@ impl Compiler<'_> {
                 self.expr(v)?;
                 self.emit(Op::Unary(op));
             }
+            Node::Range(start, end, exclusive) => {
+                if let Some(start) = start {
+                    self.expr(start)?;
+                }
+                if let Some(end) = end {
+                    self.expr(end)?;
+                }
+                self.emit(Op::Range(start.is_some(), end.is_some(), *exclusive));
+            }
+            Node::Conditional(cond, yes, no) => {
+                self.expr(cond)?;
+                let branch = self.emit(Op::JumpFalse(0));
+                self.expr(yes)?;
+                let done = self.emit(Op::Jump(0));
+                self.patch(branch, self.code.len());
+                self.expr(no)?;
+                self.patch(done, self.code.len());
+            }
             Node::Binary(op, a, b) => {
                 self.expr(a)?;
                 if matches!(*op, "&&" | "||") {
@@ -400,8 +442,10 @@ impl Compiler<'_> {
             }
             Node::Index(value, index) => {
                 self.expr(value)?;
-                self.expr(index)?;
-                self.emit(Op::Index);
+                for index in index {
+                    self.expr(index)?;
+                }
+                self.emit(Op::Index(index.len()));
             }
         }
         Ok(())

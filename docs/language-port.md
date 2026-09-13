@@ -38,3 +38,9 @@ This sequence can change when dependencies require it. Finishing a stage or maki
 Use `./scripts/check` for formatting, linting, debug/release, portable/SIMD, documentation and optional Tokio tests. Extend `scripts/fixtures.py` with Go-checked conformance cases and run `scripts/compare.py --validate-only`; do not run performance measurements during this language port. Keep `scripts/audit-site.py` reporting all site successes, missing features and harness gaps. Add independent expected-value and limit tests for new semantics, not only comparisons to the Go implementation.
 
 Before completion, replace every partial/pending status above with specific current evidence, audit all documented signatures and rejection boundaries, and verify the full implemented state. Leave the thread goal active while any required behavior is missing, incomplete or unverified.
+
+## Verified progress
+
+Range values, ternary expressions, array/string slicing, raw byte access, and first/last windows are implemented. Character selections normalize invalid UTF-8 as Go does; byteslice preserves raw bytes. Shared language fixtures cover normal values, empty results, negative/fractional indexes, open and descending ranges, extreme 64-bit endpoints, aliases, and substring selectors. Independent tests cover expansion quotas, cancellation, and per-call range storage accounting.
+
+The first full corpus refresh passes 92 unchanged site programs, up from 74; 96 still need language features and 15 still need harness capabilities or encoding support. These are partial milestones. All pending completion requirements above remain in scope.

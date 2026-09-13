@@ -4,6 +4,8 @@ use crate::{
     bytecode::{Op, Program},
     hash::Hash,
     json, ops,
+    range::Range,
+    value::Kind,
 };
 
 struct Frame {
@@ -109,10 +111,30 @@ pub(crate) fn execute(
                 let value = Value::from_hash(ctx, values)?;
                 stack.push(ctx, value)?;
             }
-            Op::Index => {
-                let key = stack.data.pop().unwrap();
-                let root = stack.data.pop().unwrap();
-                let value = ops::index(ctx, &root, &key)?;
+            Op::Range(start, end, exclusive) => {
+                let end = if end {
+                    Some(stack.data.pop().unwrap().require_int()?)
+                } else {
+                    None
+                };
+                let start = if start {
+                    Some(stack.data.pop().unwrap().require_int()?)
+                } else {
+                    None
+                };
+                let value = Value(Kind::Range(Range::new(ctx, start, end, exclusive)?));
+                stack.push(ctx, value)?;
+            }
+            Op::Index(n) => {
+                let base = stack.data.len() - n - 1;
+                let root = &stack.data[base];
+                let args = &stack.data[base + 1..];
+                let value = if n == 1 {
+                    ops::index(ctx, root, &args[0])?
+                } else {
+                    crate::sequence::slice(ctx, root, args, false)?
+                };
+                stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }
             Op::SetIndex(n) => {

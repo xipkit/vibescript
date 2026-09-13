@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result,
     budget::{Buffer, Charge, MAX_VALUE_DEPTH},
     hash::Hash,
+    range::Range,
 };
 use std::{collections::HashMap, fmt, mem::size_of, sync::Arc};
 
@@ -100,6 +101,7 @@ pub(crate) enum Kind {
     Symbol(Arc<Bytes>),
     Array(Arc<Heap<Value>>),
     Hash(Arc<Hash>),
+    Range(Arc<Range>),
 }
 
 /// An immutable Vibescript value. Clones share storage; script updates preserve each clone's value.
@@ -128,6 +130,18 @@ impl Value {
     /// Creates a floating-point value.
     pub const fn float(value: f64) -> Self {
         Self(Kind::Float(value))
+    }
+    /// Creates a caller-owned integer range; a missing endpoint represents an open bound.
+    pub fn range(start: Option<i64>, end: Option<i64>, exclusive: bool) -> Self {
+        Self(Kind::Range(Range::untracked(start, end, exclusive)))
+    }
+    /// Returns a range's start, end, and whether its end is excluded.
+    pub fn as_range(&self) -> Option<(Option<i64>, Option<i64>, bool)> {
+        if let Kind::Range(r) = &self.0 {
+            Some((r.start, r.end, r.exclusive))
+        } else {
+            None
+        }
     }
     /// Creates caller-owned bytes; importing them into a call is accounted separately.
     pub fn bytes(value: impl Into<Vec<u8>>) -> Self {
@@ -212,6 +226,7 @@ impl Value {
             Kind::Symbol(_) => "symbol",
             Kind::Array(_) => "array",
             Kind::Hash(_) => "hash",
+            Kind::Range(_) => "range",
         }
     }
 
@@ -333,6 +348,7 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Range(r) => Ok(Value(Kind::Range(Range::import(self, r)?))),
             Kind::Bytes(h) | Kind::Symbol(h) => {
                 let bytes = Bytes::import(self, h)?;
                 Ok(Value(if matches!(value.0, Kind::Symbol(_)) {
@@ -377,6 +393,7 @@ impl fmt::Display for Value {
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),
             Kind::Float(n) => write!(f, "{n}"),
+            Kind::Range(r) => write!(f, "{r}"),
             Kind::Bytes(h) | Kind::Symbol(h) => {
                 write!(f, "{}", String::from_utf8_lossy(&h.data))
             }
