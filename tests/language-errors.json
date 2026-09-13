@@ -9538,5 +9538,3655 @@
     "name": "numeric_members_block_effect_4789",
     "body": "seen=[];result=1.between?(0,2) { seen.push(1) };[result,seen]",
     "go_error": "block_effect_4789: int.between? does not accept a block"
+  },
+  {
+    "name": "builtins_lookup_5",
+    "source": "def run(input)\nMath.sqrt\nend",
+    "go_error": "sqrt is a method and cannot be used as a value; call it with sqrt(...)"
+  },
+  {
+    "name": "builtins_lookup_8",
+    "source": "def run(input)\nMath.to_s\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "builtins_lookup_9",
+    "source": "def run(input)\nJSON.stringify(Math)\nend",
+    "go_error": "JSON.stringify key \"acos\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_lookup_15",
+    "source": "def run(input)\nMath.PI()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_16",
+    "source": "def run(input)\nMath.PI(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_17",
+    "source": "def run(input)\nMath.PI {7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_21",
+    "source": "def run(input)\nMath={sqrt:7};Math.sqrt(9)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_22",
+    "source": "def run(input)\nf=to_int;f(\"2\")\nend",
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "builtins_lookup_23",
+    "source": "def run(input)\nto_int\nend",
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "builtins_lookup_24",
+    "source": "def run(input)\nto_int.to_s\nend",
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "builtins_lookup_25",
+    "source": "def run(input)\nf=Math.sqrt;f(9)\nend",
+    "go_error": "sqrt is a method and cannot be used as a value; call it with sqrt(...)"
+  },
+  {
+    "name": "builtins_lookup_29",
+    "source": "def run(input)\nJSON.parse\nend",
+    "go_error": "parse is a method and cannot be used as a value; call it with parse(...)"
+  },
+  {
+    "name": "builtins_lookup_31",
+    "source": "def run(input)\nJSON.to_s\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "builtins_lookup_33",
+    "source": "def run(input)\nto_int(1.5)\nend",
+    "go_error": "to_int cannot convert non-integer float"
+  },
+  {
+    "name": "builtins_lookup_37",
+    "source": "def run(input)\nto_float(\"+NaN\")\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_lookup_38",
+    "source": "def value_to_encode(input)\nto_float(1e309)\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify failed: json: unsupported value: Infinity"
+  },
+  {
+    "name": "builtins_lookup_39",
+    "source": "def run(input)\nto_int = 7;to_int(\"2\")\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_43",
+    "source": "def run(input)\nif false;Math=7;end;Math(\"2\")\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_47",
+    "source": "def value_to_encode(input)\nMath ||= 7;Math\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify key \"acos\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_lookup_53",
+    "source": "def read()\nMath\nend\ndef run(input)\nMath=Math[\"sqrt\"];read()\nend",
+    "go_error": "Math is a method and cannot be used as a value; call it with Math(...)"
+  },
+  {
+    "name": "builtins_lookup_54",
+    "source": "def value_to_encode(input)\n[1].each { Math=7 };Math\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify key \"acos\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_lookup_58",
+    "source": "def run(input)\nif false;JSON=7;end;JSON(\"2\")\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_62",
+    "source": "def value_to_encode(input)\nJSON ||= 7;JSON\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify key \"parse\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_lookup_68",
+    "source": "def read()\nJSON\nend\ndef run(input)\nJSON=Math[\"sqrt\"];read()\nend",
+    "go_error": "JSON is a method and cannot be used as a value; call it with JSON(...)"
+  },
+  {
+    "name": "builtins_lookup_69",
+    "source": "def value_to_encode(input)\n[1].each { JSON=7 };JSON\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify key \"parse\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_lookup_77",
+    "source": "def run(input)\nto_int ||= 7;to_int\nend",
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "builtins_lookup_83",
+    "source": "def read()\nto_int\nend\ndef run(input)\nto_int=Math[\"sqrt\"];read()\nend",
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "builtins_lookup_84",
+    "source": "def run(input)\n[1].each { to_int=7 };to_int\nend",
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "builtins_lookup_92",
+    "source": "def run(input)\nto_float ||= 7;to_float\nend",
+    "go_error": "to_float is a method and cannot be used as a value; call it with to_float(...)"
+  },
+  {
+    "name": "builtins_lookup_98",
+    "source": "def read()\nto_float\nend\ndef run(input)\nto_float=Math[\"sqrt\"];read()\nend",
+    "go_error": "to_float is a method and cannot be used as a value; call it with to_float(...)"
+  },
+  {
+    "name": "builtins_lookup_99",
+    "source": "def run(input)\n[1].each { to_float=7 };to_float\nend",
+    "go_error": "to_float is a method and cannot be used as a value; call it with to_float(...)"
+  },
+  {
+    "name": "builtins_lookup_112",
+    "source": "def run(input)\n[1].each {to_int=Math::sqrt;[1].each {to_int=7};to_int(9)}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_lookup_114",
+    "source": "def run(input)\n[1].each {Math=Math;Math.PI}\nend",
+    "go_error": "unknown nil method PI"
+  },
+  {
+    "name": "builtins_lookup_115",
+    "source": "def run(input)\n[1].each {Math ||= 7;Math.PI}\nend",
+    "go_error": "unknown int method PI"
+  },
+  {
+    "name": "builtins_lookup_118",
+    "source": "def run(input)\nMath=7;[1].each {Math+=2;Math}\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "builtins_text_0_to_int",
+    "source": "def run(input)\nto_int(\"\").to_s\nend",
+    "go_error": "to_int expects a numeric string"
+  },
+  {
+    "name": "builtins_text_0_to_float",
+    "source": "def run(input)\nto_float(\"\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_1_to_int",
+    "source": "def run(input)\nto_int(\" \").to_s\nend",
+    "go_error": "to_int expects a numeric string"
+  },
+  {
+    "name": "builtins_text_1_to_float",
+    "source": "def run(input)\nto_float(\" \").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_6_to_int",
+    "source": "def run(input)\nto_int(\"001.\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_7_to_int",
+    "source": "def run(input)\nto_int(\".5\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_8_to_int",
+    "source": "def run(input)\nto_int(\"-.5\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_9_to_int",
+    "source": "def run(input)\nto_int(\"+.5\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_10_to_int",
+    "source": "def run(input)\nto_int(\" 1e2 \").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_11_to_int",
+    "source": "def run(input)\nto_int(\"1.e-2\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_12_to_int",
+    "source": "def run(input)\nto_int(\"1_000\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_13_to_int",
+    "source": "def run(input)\nto_int(\"1__0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_13_to_float",
+    "source": "def run(input)\nto_float(\"1__0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_14_to_int",
+    "source": "def run(input)\nto_int(\"1_.0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_14_to_float",
+    "source": "def run(input)\nto_float(\"1_.0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_15_to_int",
+    "source": "def run(input)\nto_int(\"1._0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_15_to_float",
+    "source": "def run(input)\nto_float(\"1._0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_16_to_int",
+    "source": "def run(input)\nto_int(\"1e_1\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_16_to_float",
+    "source": "def run(input)\nto_float(\"1e_1\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_17_to_int",
+    "source": "def run(input)\nto_int(\"1_e1\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_17_to_float",
+    "source": "def run(input)\nto_float(\"1_e1\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_18_to_int",
+    "source": "def run(input)\nto_int(\"1e+_1\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_18_to_float",
+    "source": "def run(input)\nto_float(\"1e+_1\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_19_to_int",
+    "source": "def run(input)\nto_int(\"1e1_0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_20_to_int",
+    "source": "def run(input)\nto_int(\"1e1__0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_20_to_float",
+    "source": "def run(input)\nto_float(\"1e1__0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_21_to_int",
+    "source": "def run(input)\nto_int(\"1E+03\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_22_to_int",
+    "source": "def run(input)\nto_int(\"Inf\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_22_to_float",
+    "source": "def run(input)\nto_float(\"Inf\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_23_to_int",
+    "source": "def run(input)\nto_int(\"Infinity\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_23_to_float",
+    "source": "def run(input)\nto_float(\"Infinity\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_24_to_int",
+    "source": "def run(input)\nto_int(\"inf\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_24_to_float",
+    "source": "def run(input)\nto_float(\"inf\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_25_to_int",
+    "source": "def run(input)\nto_int(\"nan\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_25_to_float",
+    "source": "def run(input)\nto_float(\"nan\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_26_to_int",
+    "source": "def run(input)\nto_int(\"NaN\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_26_to_float",
+    "source": "def run(input)\nto_float(\"NaN\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_27_to_int",
+    "source": "def run(input)\nto_int(\"+Inf\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_27_to_float",
+    "source": "def run(input)\nto_float(\"+Inf\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_28_to_int",
+    "source": "def run(input)\nto_int(\"-Infinity\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_28_to_float",
+    "source": "def run(input)\nto_float(\"-Infinity\").to_s\nend",
+    "go_error": "to_float expects a finite numeric string"
+  },
+  {
+    "name": "builtins_text_29_to_int",
+    "source": "def run(input)\nto_int(\"0x1p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_30_to_int",
+    "source": "def run(input)\nto_int(\"0X1.P+5\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_31_to_int",
+    "source": "def run(input)\nto_int(\"0x_1p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_32_to_int",
+    "source": "def run(input)\nto_int(\"0x.p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_32_to_float",
+    "source": "def run(input)\nto_float(\"0x.p0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_33_to_int",
+    "source": "def run(input)\nto_int(\"0x1.2\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_33_to_float",
+    "source": "def run(input)\nto_float(\"0x1.2\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_34_to_int",
+    "source": "def run(input)\nto_int(\"0x1.2p3\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_35_to_int",
+    "source": "def run(input)\nto_int(\"0x1e3p-3\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_36_to_int",
+    "source": "def run(input)\nto_int(\"0x_1.fp+2\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_37_to_int",
+    "source": "def run(input)\nto_int(\"0x1.p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_38_to_int",
+    "source": "def run(input)\nto_int(\"0x1._p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_38_to_float",
+    "source": "def run(input)\nto_float(\"0x1._p0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_39_to_int",
+    "source": "def run(input)\nto_int(\"0x1_p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_39_to_float",
+    "source": "def run(input)\nto_float(\"0x1_p0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_40_to_int",
+    "source": "def run(input)\nto_int(\"0x1p_0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_40_to_float",
+    "source": "def run(input)\nto_float(\"0x1p_0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_41_to_int",
+    "source": "def run(input)\nto_int(\"0x1p+_0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_41_to_float",
+    "source": "def run(input)\nto_float(\"0x1p+_0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_42_to_int",
+    "source": "def run(input)\nto_int(\"0x1p0_1\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_43_to_int",
+    "source": "def run(input)\nto_int(\"0x.8p1\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_45_to_int",
+    "source": "def run(input)\nto_int(\"1\\u0000\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_45_to_float",
+    "source": "def run(input)\nto_float(\"1\\u0000\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_46_to_int",
+    "source": "def run(input)\nto_int(\"0b11\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_46_to_float",
+    "source": "def run(input)\nto_float(\"0b11\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_47_to_int",
+    "source": "def run(input)\nto_int(\"0o77\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_47_to_float",
+    "source": "def run(input)\nto_float(\"0o77\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_48_to_int",
+    "source": "def run(input)\nto_int(\"1.2.3\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_48_to_float",
+    "source": "def run(input)\nto_float(\"1.2.3\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_text_49_to_int",
+    "source": "def run(input)\nto_int(\"0x1p0p0\").to_s\nend",
+    "go_error": "to_int expects a base-10 integer string"
+  },
+  {
+    "name": "builtins_text_49_to_float",
+    "source": "def run(input)\nto_float(\"0x1p0p0\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_convert_242",
+    "source": "def run(input)\nto_int(1.5).to_s\nend",
+    "go_error": "to_int cannot convert non-integer float"
+  },
+  {
+    "name": "builtins_convert_244",
+    "source": "def run(input)\nto_int(-1.5).to_s\nend",
+    "go_error": "to_int cannot convert non-integer float"
+  },
+  {
+    "name": "builtins_convert_250",
+    "source": "def run(input)\nto_int(1e309).to_s\nend",
+    "go_error": "to_int result out of int64 range"
+  },
+  {
+    "name": "builtins_convert_252",
+    "source": "def run(input)\nto_int(-1e309).to_s\nend",
+    "go_error": "to_int result out of int64 range"
+  },
+  {
+    "name": "builtins_convert_254",
+    "source": "def run(input)\nto_int(0.0/0.0).to_s\nend",
+    "go_error": "to_int cannot convert non-integer float"
+  },
+  {
+    "name": "builtins_convert_256",
+    "source": "def run(input)\nto_int(:x).to_s\nend",
+    "go_error": "to_int expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_257",
+    "source": "def run(input)\nto_float(:x).to_s\nend",
+    "go_error": "to_float expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_258",
+    "source": "def run(input)\nto_int([]).to_s\nend",
+    "go_error": "to_int expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_259",
+    "source": "def run(input)\nto_float([]).to_s\nend",
+    "go_error": "to_float expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_260",
+    "source": "def run(input)\nto_int({}).to_s\nend",
+    "go_error": "to_int expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_261",
+    "source": "def run(input)\nto_float({}).to_s\nend",
+    "go_error": "to_float expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_262",
+    "source": "def run(input)\nto_int(nil).to_s\nend",
+    "go_error": "to_int expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_263",
+    "source": "def run(input)\nto_float(nil).to_s\nend",
+    "go_error": "to_float expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_264",
+    "source": "def run(input)\nto_int(true).to_s\nend",
+    "go_error": "to_int expects int, float, or string"
+  },
+  {
+    "name": "builtins_convert_265",
+    "source": "def run(input)\nto_float(true).to_s\nend",
+    "go_error": "to_float expects int, float, or string"
+  },
+  {
+    "name": "builtins_hex_0",
+    "source": "def run(input)\nto_float(\"0xac1bb92c57d52.aadd1d9d07b131c09abb29fa4ee7ef11ed047e39046e420ef2d3c5ab556cff84aa3ed21a658fd2f93466f8c39e0d3e1353e4820e739c9ep1131\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_2",
+    "source": "def run(input)\nto_float(\"0x495f888c985fa33c861a468e60616a1977166440883a603465792f6a37ad7b1789cfe50a2be02ff6565f2.bc6d20dd8132f1bafdfea9f6eb4f45479d8ef4ea0a253f0d1f3d0d9p1091\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_4",
+    "source": "def run(input)\nto_float(\"+0xe5369ff0accfcdf15736f6313505dfb203175a2fb71f1f3d033d20fef39e025678b32f9cefe56234e87bfa72794db7.3169dab064a89c1dac3c4b1deb10ce23c7ab0f29e924d7df9a0173951a60p1375\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_8",
+    "source": "def run(input)\nto_float(\"0xfb140983385f1bd89e2adba40acc1f76d5.a0aab02a59e0f34b9f44b7fea20635ad03720b6527adfa731ab26f048aa3a6ebf85eaa262231c9356993907ddcf7659eb50p1102\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_11",
+    "source": "def run(input)\nto_float(\"-0x2de5f70f3681.3827887d01c207db7373e73f365d0f7035p1221\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_15",
+    "source": "def run(input)\nto_float(\"-0xe9dcf1cfad4453cb56fe243fe7038bbde2f002dfbd2a2ca50e4805847f921b7b9b752c094ef2df7883a86bbb0d4d175938c08.12614ep771\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_16",
+    "source": "def run(input)\nto_float(\"+0xac30cea980108b44b39af342feaeefbc2b03a850631156d2710b284085e6e6dcbe0559caa88034b860872e7e010605e48917a4cf24a65a36eb5f2f6ad2b511fafd61de9d77765aab279f7420b49fdbc042.ec55p633\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_19",
+    "source": "def run(input)\nto_float(\"-0xa7c2e796341dcc4b74.28708e54e2c550c24cf645p1267\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_22",
+    "source": "def run(input)\nto_float(\"0xa09dd1c085612d.64dc6d27780a3da02dbbd00bcabcbaabed31623aaec029e4cac27502bc784446b844d9bcb972ab4a428ba5b5721289749d987a0089d65a2c257d9a2b0c6eb1172709p1058\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_24",
+    "source": "def run(input)\nto_float(\"-0xa3b1da32824b0ce9898b0494ca1229192810926bd890554b793406377f47bf19a94ad47c0b2200756c51cc0f6e67a7505.0ef3b62a6cdccc4ad5c3270acbd02b1603b3p929\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_31",
+    "source": "def run(input)\nto_float(\"-0xe6a5769e8a507f4d04c44609f07d2e2ee8b84c88859098b1b5718fdd9fb6923a012594c2aa085fd0a353.dbdf71405a087fc2891af657d46e84eae9bff2050176p845\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_37",
+    "source": "def run(input)\nto_float(\"0xd82d4e3a0b3dc10d7cbb9b9b6238ade4a8561e55232f920a9e109f5b4a0376ada91ccbd75dcd477d2cf850bf0bae0a8.6ed57b5be43060fbd0e9481df812fp1031\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_41",
+    "source": "def run(input)\nto_float(\"0x931cbc66361a026391251e.b902294daff97b8d43f6955902cf0ec89149768bbc4345bca5f34ap1287\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_45",
+    "source": "def run(input)\nto_float(\"+0x65afa06c79d01405dc4772d006519dbecbb160a1a1419.e260a8b460137b8ebe46bc60d0cb3f8f3cf46f4780p1119\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_48",
+    "source": "def run(input)\nto_float(\"-0xef7559f1746d42d90dcc89da962f6dd7b8d6ddf418af1f7.d178e9e3bf82221334bc63d59490174c94cd112dceafbccdd6fe29b0e2d82b7f394c0b404c5f3d7971b7a3aaf9ee78f4238f13c428b4fc542f39c0db29b2p969\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_53",
+    "source": "def run(input)\nto_float(\"-0xedce12a56d925ba7fdc8288fcacd0f39fd505e09cf7b81ad.fd41562caf3c334ef65b111e50f53c6679cf1cbdb0c7af98dp1172\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_60",
+    "source": "def run(input)\nto_float(\"+0xd69205f19373120b964546827634.602c3fa0384d573dfcd21269ee14291303ca3d56d9abeabc53b559000fc8fb4e23a40262c543bf9c38671b7e6975c26e652c479p1347\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_62",
+    "source": "def run(input)\nto_float(\"+0x6a.77873e9ee4edb14e221cd7d264f1497261p1311\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_65",
+    "source": "def run(input)\nto_float(\"-0xefdc5b9fd05a113ca7a2c29a93c469306f4cf8920232d85f52678ec2afa22f48cced7f0c72b90f09cb889b85ab13fb4e2476c51faba582b74.0f4358468ba07878a62e61579f5f8e1d0a272c6b8ebb5c5c8d84ca707927p652\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_73",
+    "source": "def run(input)\nto_float(\"+0x3b2bb88afcf88b9da66737e055e31914ae2b9d41de684212f261752885b67971bddcb1e6245047f4e904eff1432e31af5f7d632fa3a8ddc289c0e5678924b956fc628c31c7c.5add734500c68818d2c460e4521dad271029824376fed4fb985947d36ap1042\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_77",
+    "source": "def run(input)\nto_float(\"0xb5d66ac992496c539e51acd5ae169b.c9fe2d030bb5f3bfcde46d078e2689d14f79de7d977b08adb452ff050f63ecf1030c61c3bb798717c592b96461ce1609884ecb11e71014786c0e5c7d567873d0c9cab66169521dddf4c7p1486\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_81",
+    "source": "def run(input)\nto_float(\"-0x43d28b.7485bde6a5018fb5ad60ae5edd5a567bp1168\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_82",
+    "source": "def run(input)\nto_float(\"-0x15a40c928c63cdf20d09ee2c763333eb29eb5aff.5cc5205a8df5944f52bc9c346f1a89ebd3f10127f7f36583591317bdd75d3226d3ec3ffa4190fdb63ca23cc408160abb05dd6d6806d403ebc83884c99ee14b0051ca3b9d3b4f413951p875\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_83",
+    "source": "def run(input)\nto_float(\"+0xe900e4aef4d74a35d.14ddd70ed4c076b7a76ce46168cf2161f513774353282p1253\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_92",
+    "source": "def run(input)\nto_float(\"+0xd90beb9.2p1483\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_93",
+    "source": "def run(input)\nto_float(\"+0x6d27013f3124ab4f9c1907f647e301d3b34c2c15ae66fd8d833b8947e76bdf4dd9f72fe5818bbedc317b4926271f569c816c3b0d6e6f62496e9b3a4b7518ed8.aff6a48f7ba28924e1ce2a58a93308p610\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_97",
+    "source": "def run(input)\nto_float(\"+0x6.8p1173\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_98",
+    "source": "def run(input)\nto_float(\"-0xe21e8f5244ddd3fe855d155ae3394b7afcd.c54815dp1456\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_101",
+    "source": "def run(input)\nto_float(\"0x7fc219.330b558068p1076\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_103",
+    "source": "def run(input)\nto_float(\"+0xea01a.4fd6f85e73p1464\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_105",
+    "source": "def run(input)\nto_float(\"0x45e8ba5543b.b395bcca7d15350793a3bad68eba61ce59318627907d23af5cp1268\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_106",
+    "source": "def run(input)\nto_float(\"+0x62b4b30ea5361c4ab3f783529a1fbd03fb313c47639c44503726360471b2cf89d94a5cd4af8b451318421bd67cad2.d6e43cada4bb5167e1cb60c155f208788804cf6c7c373240c532390a1ede1fp729\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_108",
+    "source": "def run(input)\nto_float(\"+0xff30706c3bbe26a1e23c2ca4c3ce7d5c5b7b5127d.fa7891db91173e563203baae22e6fcddd0a3a7d9533c0de06ff19938dad2fdec02bdfd80000a6ced8ebdfp1200\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_116",
+    "source": "def run(input)\nto_float(\"-0x54f21d9a2c877c32.80c0e93a5d7f29ee618379b2dab1dde4b3cc21cd19dbde13fe2d6b757876564f17e674701b53d88259a40ce0e6758c6243fe66c9ed50ab022d346e6b6427ceaa1a1beab8f5efbe93d3a2a8e316a22d50cea05p1087\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_122",
+    "source": "def run(input)\nto_float(\"-0xfbc5bc301fffa6931a129cedd4b8355a7239fff0357c7c7d13c105f651f9d938d7158d84199.f5c342be1ccea283a4d69745fce62692cf091146451d8ee937dp756\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_124",
+    "source": "def run(input)\nto_float(\"+0xefdd5872bd60f643c723bfede62351af71e21953d1751daab5835c49926b814d92.1f1cf8ca0aed3c5f86aff0ab52fd8f14a195375b8f97d6041107680d9dc41ff9a2702ed2ed2e0c401971328p1306\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_127",
+    "source": "def run(input)\nto_float(\"-0x997e198a87df52016be5c.550d7acbcf2509c34823e80c162dbbf0dc74a6b312ca679fdca5b62997bf9d45b2909d8e3e751987ec6506898c2p1440\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_133",
+    "source": "def run(input)\nto_float(\"-0x6fb052.p1207\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_137",
+    "source": "def run(input)\nto_float(\"-0x66c38c283d48eb8433e3f020811409f0374f12be042b601f1e999fd3ced46cdb8eeb125af37d471f5df904.c7ep1327\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_142",
+    "source": "def run(input)\nto_float(\"0x92203a6176d1c5022be447c0ab7ac6b0a883fa38fca1656.p1305\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_149",
+    "source": "def run(input)\nto_float(\"0x46f3449414a2d55baa17b40ea56e2d9839e4d05ae605fe00a590f1887c3e4eecdb7defba4b45df7afe23d39b3dbdce25d12e5e59.e98aff0d59b1aee05604a2477362337c8fa48434a4b1318b904e66641848b662785dc00ac033b70e038d615be9d4p1422\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_159",
+    "source": "def run(input)\nto_float(\"0x92be172f555b5725107a877c845417d295b.03a649e4c192e846e84a7dbfa682f319b1097111df9043df797cfb4678538657b00970f1ce58e797e40ad6a0bfd5aac64316a3f675c1bf00f3f0fc9725d09705a510e332be166e65387eafb5bca6549b487p1089\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_165",
+    "source": "def run(input)\nto_float(\"-0x5b24b1825bb8df7d099d4cff42.21c24c301c197f6595b81f95219ff9c025e5499e1d8d99cbb450173e270d033ae4fa9cad374318b8eee438646362f610d6278c32df0968f20ff73c8c0e539863cd16bp1333\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_167",
+    "source": "def run(input)\nto_float(\"-0xdd99d093290fed289f355047.12e68f5eade97p1499\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_169",
+    "source": "def run(input)\nto_float(\"+0x1979b5532786ed62411ff24baaeb86e3e52d645ba04109293f2da24d5bbd527cdf9a215772b8b677ccd7c4b8df23a2ea1589c753a98d717e142649b72f618840be3b4e9b1a2696b5a442745ddd287b8ebd7b.5ap387\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_172",
+    "source": "def run(input)\nto_float(\"0x359657c3040c58d30814cd447c2874784cc2981.69a3p1366\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_174",
+    "source": "def run(input)\nto_float(\"-0x7671e141d5e4fa1be2e6d34245305e21e8dc564495e4055fb5e7e82395137d611dc.f56717ecdc4fdf0014a838ae8e20bc9f46261c1acae4d0p1194\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_181",
+    "source": "def run(input)\nto_float(\"+0x4e12d5cfecd10fb840cd8a35.4ad55a58c08ed5f1a5cee9ce99ccd30dbc83a60d8f31c08fed5bb2d40592197c18154111199ef628513d5cf4464f72e6664b2c109be425bffaf72ec464a55ae92724cff0ae51ff3f7e343bed7827p1083\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_187",
+    "source": "def run(input)\nto_float(\"+0x098cd7.6853e0e61b9bd8abf48f4dbfec4760352a0935p1120\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_191",
+    "source": "def run(input)\nto_float(\"+0x57737a3355eb3db09aafbe627ceec6bd1c913f89d3b1369323c004be1d70408c29e730e9a4bcda4a0ecc96f73b3ed8953092896ae4703afddbd07da8d80999d0e3367b.ece60fc62be71e2d4p784\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_196",
+    "source": "def run(input)\nto_float(\"0xcf01501cb47ac2284a0.8b59ca33b3ac7652982cb7456f558bc66250f34379d86e42b3751636e18a762cc657bfc012fb3415ba862a941d327cb8b5ea89410262ba3de8689b5b66ac4b61e3cd894c674e5f5543f307db45p996\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_198",
+    "source": "def run(input)\nto_float(\"0xa0576cc758f3eaf48722618410f005002f951fdc5027aac0cde2b84059ae5a16f9128029a22b2d1066e3e6b4bb66fcc88b6cb7fec3e87b40de462ec640c365e9d.947045da8p1199\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_200",
+    "source": "def run(input)\nto_float(\"0xd8c01a472e5065d39afb98587.11153935ced684be15315353cff1949b27f8dde89b61c62dc76f8d6308719664173a2d6a096052468027ff4cc726b83bc12d6d3a823f3ba4ebp1090\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_202",
+    "source": "def run(input)\nto_float(\"0x91151d13ea1fbafd8a0d76edb113.9f04774a0a5fa50112cb7a2690345256001b434213a357a776b991854cc963f5322854bb8ee21fde06372506dp1447\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_213",
+    "source": "def run(input)\nto_float(\"-0x24e68a9428b0bd0a4bb650e5da241d0c063c1e497f1e8bc5c803ee22b026f6da11ec2a47be9f15c3bf2473faf8aee1173b171.28f6ace91873c3de8a92c6p846\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_215",
+    "source": "def run(input)\nto_float(\"+0x64adee1bc30a1ca2974c10d1fb0a6d8951641ed4be374.d93bb88e0430d7e181601adb48cd045e3p1028\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_222",
+    "source": "def run(input)\nto_float(\"+0x77ed600e6f931cbab4836ec3f75398a6aa84dbc0bf46c7ba10ddae745c959cac6b3ae38c3928df7710cc7c378cdbc47f5a664f3bf84c88e00c388327fc128285867921964e03.5533bc59b477fb562631662894e0086fee7af4ca5e46dbdfc7cep601\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_243",
+    "source": "def run(input)\nto_float(\"+0xbc8f28ee2352a5b5756e71b71a1670a4e4255ae503b1d34a2027397cce6096201782aebd.cc62a474894p1156\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_252",
+    "source": "def run(input)\nto_float(\"+0x802753ca203a9fbb48b9b7aa82f54144a9b9253a903149af323f78cdf5c4b3024919fe8df.c1e8233de87a902e4e2ec7505eac9f32376036cp912\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_258",
+    "source": "def run(input)\nto_float(\"-0x81d458c21741d63ee581d03c8939abcec7a4.b8a1b803d4c5cafbe7c20f059a1a8ee82ee56271ef5ee71060347dcb2da4635f90a5e7738392168b3cf6deea0784fa165903c27d001cp1283\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_259",
+    "source": "def run(input)\nto_float(\"+0x7fed4e2.89603c3e1efdd2p1489\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_263",
+    "source": "def run(input)\nto_float(\"-0x61419832c9cba1b.dp1053\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_268",
+    "source": "def run(input)\nto_float(\"-0x08ed1f648c5db9cf292c3d35178e43e82fd21ca5f8b1b211c3f205493dcdbbfb10bbfd52f91b4fb43f34cd05534f45b19307454940df211a4739c5.d6f7bbb1bf9p670\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_272",
+    "source": "def run(input)\nto_float(\"+0x567c781152.9e05015212be675a0fb42b61421c26c1200b4e27b263dbabead180b022ad2f87c32a57b8e133adc11b1a08764bac376670e0addafda6197b7fb1ad68f41a96c4fba244cp1068\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_284",
+    "source": "def run(input)\nto_float(\"+0xce9405b3352363d7a5d930dd18af3a3f8ed58d4100b8.6999f3881eaf9333fb34ddd56132cf8774ddcce0d76b75e58fb9af447857ccbd650a78efe4e3b4d9d3282aaaa7c0p1290\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_286",
+    "source": "def run(input)\nto_float(\"+0xe5c50c3630c7080e07e8ad10c85d34d0d0bdad21039cdf66360d5f5422ba.5b4c2901de5365a3c090c58fe2ba2afc38d97113213539p785\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_288",
+    "source": "def run(input)\nto_float(\"+0x7d37519cadb33df63cbed0317be71c71ed70ff57101e10d0f33a3cb804ac9696e746928ad16a6eb32314a8af2a74e5fc3fc700f15e23e4b41f1846c3366b6ae7c34d5f526a94e4fc987a3aa984f6.01f594a3aa0682ec46614086f2635c2318bp1243\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_292",
+    "source": "def run(input)\nto_float(\"0x812d90db07c8c43683bb91dc682938923956aca783ef291e7578ed0152ca5d4b2c8f85eb5f63ea5460c67ae7ce57a5a39262c48.1acffe85f6269d48793812e142ed2ff963127cfe1926552fe736ep1050\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_298",
+    "source": "def run(input)\nto_float(\"-0x6a70c06314fbb856b6fa10bf1d0b777b4bb78628fc5e105f3676ff9a7b75e2ebab4e03af8072997cc0.9322bfc056ac1c504eb13fb37d42cbf07a89fd5660b47fp891\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_305",
+    "source": "def run(input)\nto_float(\"-0xdf563ae7a.cc83fp1009\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_310",
+    "source": "def run(input)\nto_float(\"0xf8821451b527e36ea4ba1cecc20ca8af98ce9e963658b06581a16d094d7f83a49db0eae3ca8887340f68fe3a0285cc43a4be444f977.045b41be0e2d788c80df33aae03f28a4185bef13331efe281fcecadeb1c131df5061p995\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_313",
+    "source": "def run(input)\nto_float(\"-0x8faa120b805a46f32ccaa1a8edde51d2ee61d17f1e72.93f27d220d8185de85d6928edf5f07c2393c3f6d476209374ec1e39b871d0d72849p1160\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_320",
+    "source": "def run(input)\nto_float(\"+0x2e109f4a2756b1df7e591b66.c5910ff6032b5ea40f53a1f849c81201946230dep1214\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_322",
+    "source": "def run(input)\nto_float(\"0xee8001684ddf1d68707cc.6f885e6a2p1225\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_326",
+    "source": "def run(input)\nto_float(\"+0x514f1798fefc7957abc61fd49a8087f3c33.81be4dac9281b40c54ca98ef45794e06ba799abddp1258\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_327",
+    "source": "def run(input)\nto_float(\"-0xf89b98a3ed66f1d.f5cba7ap1158\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_333",
+    "source": "def run(input)\nto_float(\"0x9be10211912735fa20a9a89f8a990fc25f416110f1323a.d3d77812ea8c9bf95eaa14d11767c74c9c62c0f6e60a59p1152\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_334",
+    "source": "def run(input)\nto_float(\"0xfbaf784d23ac4f622e43f59cdf45c5ab8238aa8c63075ec5d96c1aadb761da63bfea52782e64a2c7ec12d135e41ec0ac62a95a354f04e068b82f8abae5bdba30fa35d81877178f.772a135b3p1287\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_338",
+    "source": "def run(input)\nto_float(\"0xee2200bc8efd577eab3ed25898dde0f8ba23d01417603.9c3e91540f3dfdc2f4eb6bcda37p1455\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_346",
+    "source": "def run(input)\nto_float(\"0x50a3f6f7c3231f49d2937f3c372b3dc8656c09933a4d2a3ea9fd6be065c6b80a53ee6b499e8159dceae610fe9a22f70e88365abdb0bee9d61e4e3d6857bdad1fd6a566d.5f9cfcc1814c141de674d17e849d8500c8d4388b1efee98p1316\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_348",
+    "source": "def run(input)\nto_float(\"+0x2d1df12b454625e2d6f4d35d3f4ed21dcfdeb3cf5c5e4c.4bdd94f798f560e8fb78f78ce71341ec2672p1308\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_349",
+    "source": "def run(input)\nto_float(\"-0x76359a1ddeda37ac1664d44cdab3dec512fa8.1e09665d08782f4fd34aa539d5p900\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_352",
+    "source": "def run(input)\nto_float(\"0xa55670261984e26e5cb3c338d877acfa72326d047fb70aacd4c982706d564b5743ab3406edda7c26548492478991a894132483b2679b0abc7bfc024d48720edacce6cab3f53d8b8b09f6735b18f6e75494d5.9c5acd5e35f53ff45813dp1409\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_359",
+    "source": "def run(input)\nto_float(\"0xe501e5e64929df67c0c0ef52f62eb3cedfc671de208e1f9df0a800b4d51801afb.6b9ae7ce1aaa5b7321e4623187ce50e576571b2cd12689b5470bp1266\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_364",
+    "source": "def run(input)\nto_float(\"+0xd46892d6e50e6fec577904ef61e017374c1613c715ae49.5eb5fca1295c44628a99ec39406b0a0p1314\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_368",
+    "source": "def run(input)\nto_float(\"+0x17da05efaee906ad3e9af057e7f730a1a03cb13d81d2d3e174e014e73401f965481c1cf8f4.50d65d83e113582a1f4b243ee5f95a30fac2dc5b1d6bfbbea76e8e4377ef1c57c3e6b7bf1p1432\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_369",
+    "source": "def run(input)\nto_float(\"0xb2ee575af0aa562d6cbb0.4bp1307\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_373",
+    "source": "def run(input)\nto_float(\"0x10f2431690159f43c9233ac876aee4be16a3b5a0aff32d214abeb.fe6c41a4737425834b20b65d297269p975\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_375",
+    "source": "def run(input)\nto_float(\"-0x54.p1257\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_381",
+    "source": "def run(input)\nto_float(\"+0xafec3bb326631a471b88fb0725ec3579f9f5b1e299b2bc24e606e61edbc810c37c978f8a3bba473d53cff65a413387035543d98db098b058663f696e7e88e2eea6b280ea62a91f4a4f5ce8184510737fee2eb7a89b0044ee7b.718f3p944\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_hex_383",
+    "source": "def run(input)\nto_float(\"-0xe67ad6de724748b7b8c7e6659ff46c440f10c5f547d5953fb927d3bd884768a0d6642076bed741b62ad0252f2d16c4affd6b07af1d5f247d37365182795d87f282cb9052042e23bd.be7eac91c286ap1337\").to_s\nend",
+    "go_error": "to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_long_float_8_False",
+    "source": "def run(input)\nto_float(\"0x1.fffffffffffff8p1023\").to_s\nend",
+    "go_error": "long_float_8_False: to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_long_float_8_True",
+    "source": "def run(input)\nto_float(\"-0x1.fffffffffffff8p1023\").to_s\nend",
+    "go_error": "long_float_8_True: to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_long_float_14_True",
+    "source": "def run(input)\nto_float(\"-+0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001e2001\").to_s\nend",
+    "go_error": "long_float_14_True: to_float expects a numeric string"
+  },
+  {
+    "name": "builtins_namespace_708",
+    "source": "def run(input)\nJSON.parse(\"1\") {7}\nend",
+    "go_error": "JSON.parse does not accept blocks"
+  },
+  {
+    "name": "builtins_namespace_709",
+    "source": "def run(input)\nJSON.stringify(1) {7}\nend",
+    "go_error": "JSON.stringify does not accept blocks"
+  },
+  {
+    "name": "builtins_namespace_710",
+    "source": "def run(input)\nJSON.parse_as(\"1\",\"int\")\nend",
+    "go_error": "JSON.parse_as expects a type literal as its second argument"
+  },
+  {
+    "name": "builtins_namespace_711",
+    "source": "def value_to_encode(input)\nMath::sqrt\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_namespace_714",
+    "source": "def run(input)\nMath::sqrt {9}\nend",
+    "go_error": "Math.sqrt does not accept a block"
+  },
+  {
+    "name": "builtins_namespace_715",
+    "source": "def run(input)\nMath::PI()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_namespace_719",
+    "source": "def run(input)\n{a:7}::a\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "builtins_namespace_721",
+    "source": "def run(input)\nMath::size\nend",
+    "go_error": "unknown member size"
+  },
+  {
+    "name": "builtins_namespace_726",
+    "source": "def value_to_encode(input)\n[Math][0][\"sqrt\"]\nend\ndef run(input)\nJSON.stringify(value_to_encode(input))\nend",
+    "go_error": "JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "builtins_namespace_729",
+    "source": "def run(input)\nMath.fetch(\"sqrt\").to_s\nend",
+    "go_error": "a method has no member to_s; call Math.sqrt(...) directly"
+  },
+  {
+    "name": "builtins_namespace_735",
+    "source": "def run(input)\nJSON={parse:3};JSON.parse(\"1\")\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "builtins_namespace_740",
+    "source": "def run(input)\nMath=nil;Math.PI\nend",
+    "go_error": "unknown nil method PI"
+  },
+  {
+    "name": "builtins_signature_743",
+    "source": "def run(input)\nto_int()\nend",
+    "go_error": "to_int expects a single value argument"
+  },
+  {
+    "name": "builtins_signature_745",
+    "source": "def run(input)\nto_int(\"2\",3,4)\nend",
+    "go_error": "to_int expects a single value argument"
+  },
+  {
+    "name": "builtins_signature_746",
+    "source": "def run(input)\nto_int(\"2\",flag:1)\nend",
+    "go_error": "to_int does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_747",
+    "source": "def run(input)\nto_int(\"2\") { 7 }\nend",
+    "go_error": "to_int does not accept blocks"
+  },
+  {
+    "name": "builtins_signature_750",
+    "source": "def run(input)\nto_int(*[\"2\"],**{x:1})\nend",
+    "go_error": "to_int does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_751",
+    "source": "def run(input)\nto_float()\nend",
+    "go_error": "to_float expects a single value argument"
+  },
+  {
+    "name": "builtins_signature_753",
+    "source": "def run(input)\nto_float(\"2.5\",3,4)\nend",
+    "go_error": "to_float expects a single value argument"
+  },
+  {
+    "name": "builtins_signature_754",
+    "source": "def run(input)\nto_float(\"2.5\",flag:1)\nend",
+    "go_error": "to_float does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_755",
+    "source": "def run(input)\nto_float(\"2.5\") { 7 }\nend",
+    "go_error": "to_float does not accept blocks"
+  },
+  {
+    "name": "builtins_signature_758",
+    "source": "def run(input)\nto_float(*[\"2.5\"],**{x:1})\nend",
+    "go_error": "to_float does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_759",
+    "source": "def run(input)\nMath.sqrt()\nend",
+    "go_error": "Math.sqrt expects 1 argument, got 0"
+  },
+  {
+    "name": "builtins_signature_761",
+    "source": "def run(input)\nMath.sqrt(9,3,4)\nend",
+    "go_error": "Math.sqrt expects 1 argument, got 3"
+  },
+  {
+    "name": "builtins_signature_762",
+    "source": "def run(input)\nMath.sqrt(9,flag:1)\nend",
+    "go_error": "Math.sqrt does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_763",
+    "source": "def run(input)\nMath.sqrt(9) { 7 }\nend",
+    "go_error": "Math.sqrt does not accept a block"
+  },
+  {
+    "name": "builtins_signature_766",
+    "source": "def run(input)\nMath.sqrt(*[9],**{x:1})\nend",
+    "go_error": "Math.sqrt does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_767",
+    "source": "def run(input)\nMath::sqrt()\nend",
+    "go_error": "Math.sqrt expects 1 argument, got 0"
+  },
+  {
+    "name": "builtins_signature_769",
+    "source": "def run(input)\nMath::sqrt(9,3,4)\nend",
+    "go_error": "Math.sqrt expects 1 argument, got 3"
+  },
+  {
+    "name": "builtins_signature_770",
+    "source": "def run(input)\nMath::sqrt(9,flag:1)\nend",
+    "go_error": "Math.sqrt does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_771",
+    "source": "def run(input)\nMath::sqrt(9) { 7 }\nend",
+    "go_error": "Math.sqrt does not accept a block"
+  },
+  {
+    "name": "builtins_signature_774",
+    "source": "def run(input)\nMath::sqrt(*[9],**{x:1})\nend",
+    "go_error": "Math.sqrt does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_775",
+    "source": "def run(input)\nMath.atan2()\nend",
+    "go_error": "Math.atan2 expects 2 arguments, got 0"
+  },
+  {
+    "name": "builtins_signature_777",
+    "source": "def run(input)\nMath.atan2(1,2,3,4)\nend",
+    "go_error": "Math.atan2 expects 2 arguments, got 4"
+  },
+  {
+    "name": "builtins_signature_778",
+    "source": "def run(input)\nMath.atan2(1,2,flag:1)\nend",
+    "go_error": "Math.atan2 does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_779",
+    "source": "def run(input)\nMath.atan2(1,2) { 7 }\nend",
+    "go_error": "Math.atan2 does not accept a block"
+  },
+  {
+    "name": "builtins_signature_782",
+    "source": "def run(input)\nMath.atan2(*[1,2],**{x:1})\nend",
+    "go_error": "Math.atan2 does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_783",
+    "source": "def run(input)\nMath.hypot()\nend",
+    "go_error": "Math.hypot expects 2 arguments, got 0"
+  },
+  {
+    "name": "builtins_signature_785",
+    "source": "def run(input)\nMath.hypot(1,2,3,4)\nend",
+    "go_error": "Math.hypot expects 2 arguments, got 4"
+  },
+  {
+    "name": "builtins_signature_786",
+    "source": "def run(input)\nMath.hypot(1,2,flag:1)\nend",
+    "go_error": "Math.hypot does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_787",
+    "source": "def run(input)\nMath.hypot(1,2) { 7 }\nend",
+    "go_error": "Math.hypot does not accept a block"
+  },
+  {
+    "name": "builtins_signature_790",
+    "source": "def run(input)\nMath.hypot(*[1,2],**{x:1})\nend",
+    "go_error": "Math.hypot does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_791",
+    "source": "def run(input)\nMath.log()\nend",
+    "go_error": "Math.log expects 1 or 2 arguments, got 0"
+  },
+  {
+    "name": "builtins_signature_793",
+    "source": "def run(input)\nMath.log(2,3,4)\nend",
+    "go_error": "Math.log expects 1 or 2 arguments, got 3"
+  },
+  {
+    "name": "builtins_signature_794",
+    "source": "def run(input)\nMath.log(2,flag:1)\nend",
+    "go_error": "Math.log does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_signature_795",
+    "source": "def run(input)\nMath.log(2) { 7 }\nend",
+    "go_error": "Math.log does not accept a block"
+  },
+  {
+    "name": "builtins_signature_798",
+    "source": "def run(input)\nMath.log(*[2],**{x:1})\nend",
+    "go_error": "Math.log does not accept keyword arguments"
+  },
+  {
+    "name": "builtins_math_sqrt_3",
+    "source": "def run(input)\nMath.sqrt(-1.0).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_5",
+    "source": "def run(input)\nMath.sqrt(-0.1).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_7",
+    "source": "def run(input)\nMath.sqrt(-0.5).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_17",
+    "source": "def run(input)\nMath.sqrt(-1e309).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_20",
+    "source": "def run(input)\nMath.sqrt(-1.5926786651646642e-209).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_21",
+    "source": "def run(input)\nMath.sqrt(-1.8825881355383636e-55).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_22",
+    "source": "def run(input)\nMath.sqrt(-2.5002207039870428e+235).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_23",
+    "source": "def run(input)\nMath.sqrt(-7.906588573114372e+223).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_24",
+    "source": "def run(input)\nMath.sqrt(-7.723599803754256e-219).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_27",
+    "source": "def run(input)\nMath.sqrt(-6.309908560949291e-34).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_32",
+    "source": "def run(input)\nMath.sqrt(-1.8316237047711265e-163).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_33",
+    "source": "def run(input)\nMath.sqrt(-8.72300124159821e+66).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_34",
+    "source": "def run(input)\nMath.sqrt(-2.2327091619908353e-250).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_sqrt_37",
+    "source": "def run(input)\nMath.sqrt(-1.4190003738740735e-217).to_s\nend",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "builtins_math_asin_8",
+    "source": "def run(input)\nMath.asin(1.1).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_9",
+    "source": "def run(input)\nMath.asin(2).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_10",
+    "source": "def run(input)\nMath.asin(3).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_11",
+    "source": "def run(input)\nMath.asin(27).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_12",
+    "source": "def run(input)\nMath.asin(Math::PI).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_13",
+    "source": "def run(input)\nMath.asin(2**100).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_14",
+    "source": "def run(input)\nMath.asin(1e308).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_16",
+    "source": "def run(input)\nMath.asin(1e309).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_17",
+    "source": "def run(input)\nMath.asin(-1e309).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_19",
+    "source": "def run(input)\nMath.asin(1.660405356235972e+179).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_22",
+    "source": "def run(input)\nMath.asin(-2.5002207039870428e+235).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_23",
+    "source": "def run(input)\nMath.asin(-7.906588573114372e+223).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_33",
+    "source": "def run(input)\nMath.asin(-8.72300124159821e+66).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_35",
+    "source": "def run(input)\nMath.asin(1.2737651641053037e+143).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_36",
+    "source": "def run(input)\nMath.asin(2.4174804138019946e+252).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_asin_38",
+    "source": "def run(input)\nMath.asin(92771472.19409287).to_s\nend",
+    "go_error": "Math.asin out of domain"
+  },
+  {
+    "name": "builtins_math_acos_8",
+    "source": "def run(input)\nMath.acos(1.1).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_9",
+    "source": "def run(input)\nMath.acos(2).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_10",
+    "source": "def run(input)\nMath.acos(3).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_11",
+    "source": "def run(input)\nMath.acos(27).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_12",
+    "source": "def run(input)\nMath.acos(Math::PI).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_13",
+    "source": "def run(input)\nMath.acos(2**100).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_14",
+    "source": "def run(input)\nMath.acos(1e308).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_16",
+    "source": "def run(input)\nMath.acos(1e309).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_17",
+    "source": "def run(input)\nMath.acos(-1e309).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_19",
+    "source": "def run(input)\nMath.acos(1.660405356235972e+179).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_22",
+    "source": "def run(input)\nMath.acos(-2.5002207039870428e+235).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_23",
+    "source": "def run(input)\nMath.acos(-7.906588573114372e+223).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_33",
+    "source": "def run(input)\nMath.acos(-8.72300124159821e+66).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_35",
+    "source": "def run(input)\nMath.acos(1.2737651641053037e+143).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_36",
+    "source": "def run(input)\nMath.acos(2.4174804138019946e+252).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_acos_38",
+    "source": "def run(input)\nMath.acos(92771472.19409287).to_s\nend",
+    "go_error": "Math.acos out of domain"
+  },
+  {
+    "name": "builtins_math_log_3",
+    "source": "def run(input)\nMath.log(-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5",
+    "source": "def run(input)\nMath.log(-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7",
+    "source": "def run(input)\nMath.log(-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17",
+    "source": "def run(input)\nMath.log(-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_20",
+    "source": "def run(input)\nMath.log(-1.5926786651646642e-209).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_21",
+    "source": "def run(input)\nMath.log(-1.8825881355383636e-55).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_22",
+    "source": "def run(input)\nMath.log(-2.5002207039870428e+235).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_23",
+    "source": "def run(input)\nMath.log(-7.906588573114372e+223).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_24",
+    "source": "def run(input)\nMath.log(-7.723599803754256e-219).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_27",
+    "source": "def run(input)\nMath.log(-6.309908560949291e-34).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_32",
+    "source": "def run(input)\nMath.log(-1.8316237047711265e-163).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_33",
+    "source": "def run(input)\nMath.log(-8.72300124159821e+66).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_34",
+    "source": "def run(input)\nMath.log(-2.2327091619908353e-250).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_37",
+    "source": "def run(input)\nMath.log(-1.4190003738740735e-217).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log2_3",
+    "source": "def run(input)\nMath.log2(-1.0).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_5",
+    "source": "def run(input)\nMath.log2(-0.1).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_7",
+    "source": "def run(input)\nMath.log2(-0.5).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_17",
+    "source": "def run(input)\nMath.log2(-1e309).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_20",
+    "source": "def run(input)\nMath.log2(-1.5926786651646642e-209).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_21",
+    "source": "def run(input)\nMath.log2(-1.8825881355383636e-55).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_22",
+    "source": "def run(input)\nMath.log2(-2.5002207039870428e+235).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_23",
+    "source": "def run(input)\nMath.log2(-7.906588573114372e+223).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_24",
+    "source": "def run(input)\nMath.log2(-7.723599803754256e-219).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_27",
+    "source": "def run(input)\nMath.log2(-6.309908560949291e-34).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_32",
+    "source": "def run(input)\nMath.log2(-1.8316237047711265e-163).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_33",
+    "source": "def run(input)\nMath.log2(-8.72300124159821e+66).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_34",
+    "source": "def run(input)\nMath.log2(-2.2327091619908353e-250).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log2_37",
+    "source": "def run(input)\nMath.log2(-1.4190003738740735e-217).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_3",
+    "source": "def run(input)\nMath.log10(-1.0).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_5",
+    "source": "def run(input)\nMath.log10(-0.1).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_7",
+    "source": "def run(input)\nMath.log10(-0.5).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_17",
+    "source": "def run(input)\nMath.log10(-1e309).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_20",
+    "source": "def run(input)\nMath.log10(-1.5926786651646642e-209).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_21",
+    "source": "def run(input)\nMath.log10(-1.8825881355383636e-55).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_22",
+    "source": "def run(input)\nMath.log10(-2.5002207039870428e+235).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_23",
+    "source": "def run(input)\nMath.log10(-7.906588573114372e+223).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_24",
+    "source": "def run(input)\nMath.log10(-7.723599803754256e-219).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_27",
+    "source": "def run(input)\nMath.log10(-6.309908560949291e-34).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_32",
+    "source": "def run(input)\nMath.log10(-1.8316237047711265e-163).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_33",
+    "source": "def run(input)\nMath.log10(-8.72300124159821e+66).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_34",
+    "source": "def run(input)\nMath.log10(-2.2327091619908353e-250).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log10_37",
+    "source": "def run(input)\nMath.log10(-1.4190003738740735e-217).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_log_0_3",
+    "source": "def run(input)\nMath.log(0.0,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_0_5",
+    "source": "def run(input)\nMath.log(0.0,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_0_7",
+    "source": "def run(input)\nMath.log(0.0,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_0_17",
+    "source": "def run(input)\nMath.log(0.0,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_1_3",
+    "source": "def run(input)\nMath.log(-0.0,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_1_5",
+    "source": "def run(input)\nMath.log(-0.0,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_1_7",
+    "source": "def run(input)\nMath.log(-0.0,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_1_17",
+    "source": "def run(input)\nMath.log(-0.0,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_2_3",
+    "source": "def run(input)\nMath.log(1.0,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_2_5",
+    "source": "def run(input)\nMath.log(1.0,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_2_7",
+    "source": "def run(input)\nMath.log(1.0,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_2_17",
+    "source": "def run(input)\nMath.log(1.0,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_0",
+    "source": "def run(input)\nMath.log(-1.0,0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_1",
+    "source": "def run(input)\nMath.log(-1.0,-0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_2",
+    "source": "def run(input)\nMath.log(-1.0,1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_3",
+    "source": "def run(input)\nMath.log(-1.0,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_4",
+    "source": "def run(input)\nMath.log(-1.0,0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_5",
+    "source": "def run(input)\nMath.log(-1.0,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_6",
+    "source": "def run(input)\nMath.log(-1.0,0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_7",
+    "source": "def run(input)\nMath.log(-1.0,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_8",
+    "source": "def run(input)\nMath.log(-1.0,1.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_9",
+    "source": "def run(input)\nMath.log(-1.0,2).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_10",
+    "source": "def run(input)\nMath.log(-1.0,3).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_11",
+    "source": "def run(input)\nMath.log(-1.0,27).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_12",
+    "source": "def run(input)\nMath.log(-1.0,Math::PI).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_13",
+    "source": "def run(input)\nMath.log(-1.0,2**100).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_14",
+    "source": "def run(input)\nMath.log(-1.0,1e308).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_15",
+    "source": "def run(input)\nMath.log(-1.0,5e-324).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_16",
+    "source": "def run(input)\nMath.log(-1.0,1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_17",
+    "source": "def run(input)\nMath.log(-1.0,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_3_18",
+    "source": "def run(input)\nMath.log(-1.0,0.0/0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_4_3",
+    "source": "def run(input)\nMath.log(0.1,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_4_5",
+    "source": "def run(input)\nMath.log(0.1,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_4_7",
+    "source": "def run(input)\nMath.log(0.1,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_4_17",
+    "source": "def run(input)\nMath.log(0.1,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_0",
+    "source": "def run(input)\nMath.log(-0.1,0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_1",
+    "source": "def run(input)\nMath.log(-0.1,-0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_2",
+    "source": "def run(input)\nMath.log(-0.1,1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_3",
+    "source": "def run(input)\nMath.log(-0.1,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_4",
+    "source": "def run(input)\nMath.log(-0.1,0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_5",
+    "source": "def run(input)\nMath.log(-0.1,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_6",
+    "source": "def run(input)\nMath.log(-0.1,0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_7",
+    "source": "def run(input)\nMath.log(-0.1,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_8",
+    "source": "def run(input)\nMath.log(-0.1,1.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_9",
+    "source": "def run(input)\nMath.log(-0.1,2).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_10",
+    "source": "def run(input)\nMath.log(-0.1,3).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_11",
+    "source": "def run(input)\nMath.log(-0.1,27).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_12",
+    "source": "def run(input)\nMath.log(-0.1,Math::PI).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_13",
+    "source": "def run(input)\nMath.log(-0.1,2**100).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_14",
+    "source": "def run(input)\nMath.log(-0.1,1e308).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_15",
+    "source": "def run(input)\nMath.log(-0.1,5e-324).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_16",
+    "source": "def run(input)\nMath.log(-0.1,1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_17",
+    "source": "def run(input)\nMath.log(-0.1,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_5_18",
+    "source": "def run(input)\nMath.log(-0.1,0.0/0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_6_3",
+    "source": "def run(input)\nMath.log(0.5,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_6_5",
+    "source": "def run(input)\nMath.log(0.5,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_6_7",
+    "source": "def run(input)\nMath.log(0.5,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_6_17",
+    "source": "def run(input)\nMath.log(0.5,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_0",
+    "source": "def run(input)\nMath.log(-0.5,0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_1",
+    "source": "def run(input)\nMath.log(-0.5,-0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_2",
+    "source": "def run(input)\nMath.log(-0.5,1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_3",
+    "source": "def run(input)\nMath.log(-0.5,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_4",
+    "source": "def run(input)\nMath.log(-0.5,0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_5",
+    "source": "def run(input)\nMath.log(-0.5,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_6",
+    "source": "def run(input)\nMath.log(-0.5,0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_7",
+    "source": "def run(input)\nMath.log(-0.5,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_8",
+    "source": "def run(input)\nMath.log(-0.5,1.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_9",
+    "source": "def run(input)\nMath.log(-0.5,2).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_10",
+    "source": "def run(input)\nMath.log(-0.5,3).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_11",
+    "source": "def run(input)\nMath.log(-0.5,27).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_12",
+    "source": "def run(input)\nMath.log(-0.5,Math::PI).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_13",
+    "source": "def run(input)\nMath.log(-0.5,2**100).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_14",
+    "source": "def run(input)\nMath.log(-0.5,1e308).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_15",
+    "source": "def run(input)\nMath.log(-0.5,5e-324).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_16",
+    "source": "def run(input)\nMath.log(-0.5,1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_17",
+    "source": "def run(input)\nMath.log(-0.5,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_7_18",
+    "source": "def run(input)\nMath.log(-0.5,0.0/0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_8_3",
+    "source": "def run(input)\nMath.log(1.1,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_8_5",
+    "source": "def run(input)\nMath.log(1.1,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_8_7",
+    "source": "def run(input)\nMath.log(1.1,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_8_17",
+    "source": "def run(input)\nMath.log(1.1,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_9_3",
+    "source": "def run(input)\nMath.log(2,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_9_5",
+    "source": "def run(input)\nMath.log(2,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_9_7",
+    "source": "def run(input)\nMath.log(2,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_9_17",
+    "source": "def run(input)\nMath.log(2,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_10_3",
+    "source": "def run(input)\nMath.log(3,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_10_5",
+    "source": "def run(input)\nMath.log(3,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_10_7",
+    "source": "def run(input)\nMath.log(3,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_10_17",
+    "source": "def run(input)\nMath.log(3,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_11_3",
+    "source": "def run(input)\nMath.log(27,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_11_5",
+    "source": "def run(input)\nMath.log(27,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_11_7",
+    "source": "def run(input)\nMath.log(27,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_11_17",
+    "source": "def run(input)\nMath.log(27,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_12_3",
+    "source": "def run(input)\nMath.log(Math::PI,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_12_5",
+    "source": "def run(input)\nMath.log(Math::PI,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_12_7",
+    "source": "def run(input)\nMath.log(Math::PI,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_12_17",
+    "source": "def run(input)\nMath.log(Math::PI,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_13_3",
+    "source": "def run(input)\nMath.log(2**100,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_13_5",
+    "source": "def run(input)\nMath.log(2**100,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_13_7",
+    "source": "def run(input)\nMath.log(2**100,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_13_17",
+    "source": "def run(input)\nMath.log(2**100,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_14_3",
+    "source": "def run(input)\nMath.log(1e308,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_14_5",
+    "source": "def run(input)\nMath.log(1e308,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_14_7",
+    "source": "def run(input)\nMath.log(1e308,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_14_17",
+    "source": "def run(input)\nMath.log(1e308,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_15_3",
+    "source": "def run(input)\nMath.log(5e-324,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_15_5",
+    "source": "def run(input)\nMath.log(5e-324,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_15_7",
+    "source": "def run(input)\nMath.log(5e-324,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_15_17",
+    "source": "def run(input)\nMath.log(5e-324,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_16_3",
+    "source": "def run(input)\nMath.log(1e309,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_16_5",
+    "source": "def run(input)\nMath.log(1e309,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_16_7",
+    "source": "def run(input)\nMath.log(1e309,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_16_17",
+    "source": "def run(input)\nMath.log(1e309,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_0",
+    "source": "def run(input)\nMath.log(-1e309,0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_1",
+    "source": "def run(input)\nMath.log(-1e309,-0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_2",
+    "source": "def run(input)\nMath.log(-1e309,1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_3",
+    "source": "def run(input)\nMath.log(-1e309,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_4",
+    "source": "def run(input)\nMath.log(-1e309,0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_5",
+    "source": "def run(input)\nMath.log(-1e309,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_6",
+    "source": "def run(input)\nMath.log(-1e309,0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_7",
+    "source": "def run(input)\nMath.log(-1e309,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_8",
+    "source": "def run(input)\nMath.log(-1e309,1.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_9",
+    "source": "def run(input)\nMath.log(-1e309,2).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_10",
+    "source": "def run(input)\nMath.log(-1e309,3).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_11",
+    "source": "def run(input)\nMath.log(-1e309,27).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_12",
+    "source": "def run(input)\nMath.log(-1e309,Math::PI).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_13",
+    "source": "def run(input)\nMath.log(-1e309,2**100).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_14",
+    "source": "def run(input)\nMath.log(-1e309,1e308).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_15",
+    "source": "def run(input)\nMath.log(-1e309,5e-324).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_16",
+    "source": "def run(input)\nMath.log(-1e309,1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_17",
+    "source": "def run(input)\nMath.log(-1e309,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_17_18",
+    "source": "def run(input)\nMath.log(-1e309,0.0/0.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_18_3",
+    "source": "def run(input)\nMath.log(0.0/0.0,-1.0).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_18_5",
+    "source": "def run(input)\nMath.log(0.0/0.0,-0.1).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_18_7",
+    "source": "def run(input)\nMath.log(0.0/0.0,-0.5).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_log_18_17",
+    "source": "def run(input)\nMath.log(0.0/0.0,-1e309).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_1",
+    "source": "def run(input)\nMath.log(-4.1841126310378636e-228).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_1",
+    "source": "def run(input)\nMath.log2(-4.1841126310378636e-228).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_1",
+    "source": "def run(input)\nMath.log10(-4.1841126310378636e-228).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_2",
+    "source": "def run(input)\nMath.log(-5.548525959722297e-11).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_2",
+    "source": "def run(input)\nMath.log2(-5.548525959722297e-11).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_2",
+    "source": "def run(input)\nMath.log10(-5.548525959722297e-11).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_3",
+    "source": "def run(input)\nMath.log(-3.0710900561224484e-295).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_3",
+    "source": "def run(input)\nMath.log2(-3.0710900561224484e-295).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_3",
+    "source": "def run(input)\nMath.log10(-3.0710900561224484e-295).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_4",
+    "source": "def run(input)\nMath.log(-3.422807909056995e-74).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_4",
+    "source": "def run(input)\nMath.log2(-3.422807909056995e-74).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_4",
+    "source": "def run(input)\nMath.log10(-3.422807909056995e-74).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_6",
+    "source": "def run(input)\nMath.log(-1.6896615964523039e-286).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_6",
+    "source": "def run(input)\nMath.log2(-1.6896615964523039e-286).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_6",
+    "source": "def run(input)\nMath.log10(-1.6896615964523039e-286).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_10",
+    "source": "def run(input)\nMath.log(-7.412973129501632e+294).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_10",
+    "source": "def run(input)\nMath.log2(-7.412973129501632e+294).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_10",
+    "source": "def run(input)\nMath.log10(-7.412973129501632e+294).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_11",
+    "source": "def run(input)\nMath.log(-3.2680344739410243e-308).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_11",
+    "source": "def run(input)\nMath.log2(-3.2680344739410243e-308).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_11",
+    "source": "def run(input)\nMath.log10(-3.2680344739410243e-308).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_13",
+    "source": "def run(input)\nMath.log(-1.7008790885586324e+134).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_13",
+    "source": "def run(input)\nMath.log2(-1.7008790885586324e+134).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_13",
+    "source": "def run(input)\nMath.log10(-1.7008790885586324e+134).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_14",
+    "source": "def run(input)\nMath.log(-5.359673365949663e+63).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_14",
+    "source": "def run(input)\nMath.log2(-5.359673365949663e+63).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_14",
+    "source": "def run(input)\nMath.log10(-5.359673365949663e+63).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_15",
+    "source": "def run(input)\nMath.log(-6.866566573979161e+259).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_15",
+    "source": "def run(input)\nMath.log2(-6.866566573979161e+259).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_15",
+    "source": "def run(input)\nMath.log10(-6.866566573979161e+259).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_17",
+    "source": "def run(input)\nMath.log(-6.66587707560352e-97).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_17",
+    "source": "def run(input)\nMath.log2(-6.66587707560352e-97).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_17",
+    "source": "def run(input)\nMath.log10(-6.66587707560352e-97).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_18",
+    "source": "def run(input)\nMath.log(-1.0484272916254183e-57).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_18",
+    "source": "def run(input)\nMath.log2(-1.0484272916254183e-57).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_18",
+    "source": "def run(input)\nMath.log10(-1.0484272916254183e-57).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_25",
+    "source": "def run(input)\nMath.log(-4.662151150543341e-81).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_25",
+    "source": "def run(input)\nMath.log2(-4.662151150543341e-81).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_25",
+    "source": "def run(input)\nMath.log10(-4.662151150543341e-81).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_26",
+    "source": "def run(input)\nMath.log(-2.1824544983335922e+154).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_26",
+    "source": "def run(input)\nMath.log2(-2.1824544983335922e+154).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_26",
+    "source": "def run(input)\nMath.log10(-2.1824544983335922e+154).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_32",
+    "source": "def run(input)\nMath.log(-1.1867100001311181e-71).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_32",
+    "source": "def run(input)\nMath.log2(-1.1867100001311181e-71).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_32",
+    "source": "def run(input)\nMath.log10(-1.1867100001311181e-71).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_33",
+    "source": "def run(input)\nMath.log(-4.897689676460578e+241).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_33",
+    "source": "def run(input)\nMath.log2(-4.897689676460578e+241).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_33",
+    "source": "def run(input)\nMath.log10(-4.897689676460578e+241).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_35",
+    "source": "def run(input)\nMath.log(-2.434201532712985e+194).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_35",
+    "source": "def run(input)\nMath.log2(-2.434201532712985e+194).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_35",
+    "source": "def run(input)\nMath.log10(-2.434201532712985e+194).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_36",
+    "source": "def run(input)\nMath.log(-1.4161609803230258e+235).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_36",
+    "source": "def run(input)\nMath.log2(-1.4161609803230258e+235).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_36",
+    "source": "def run(input)\nMath.log10(-1.4161609803230258e+235).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_38",
+    "source": "def run(input)\nMath.log(-6.800717308974868e-22).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_38",
+    "source": "def run(input)\nMath.log2(-6.800717308974868e-22).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_38",
+    "source": "def run(input)\nMath.log10(-6.800717308974868e-22).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_40",
+    "source": "def run(input)\nMath.log(-2.2920268561283342e-269).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_40",
+    "source": "def run(input)\nMath.log2(-2.2920268561283342e-269).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_40",
+    "source": "def run(input)\nMath.log10(-2.2920268561283342e-269).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_41",
+    "source": "def run(input)\nMath.log(-1.4305873177296882e-300).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_41",
+    "source": "def run(input)\nMath.log2(-1.4305873177296882e-300).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_41",
+    "source": "def run(input)\nMath.log10(-1.4305873177296882e-300).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_42",
+    "source": "def run(input)\nMath.log(-5.168330253024446e-175).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_42",
+    "source": "def run(input)\nMath.log2(-5.168330253024446e-175).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_42",
+    "source": "def run(input)\nMath.log10(-5.168330253024446e-175).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_43",
+    "source": "def run(input)\nMath.log(-4.576999846274877e-92).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_43",
+    "source": "def run(input)\nMath.log2(-4.576999846274877e-92).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_43",
+    "source": "def run(input)\nMath.log10(-4.576999846274877e-92).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_44",
+    "source": "def run(input)\nMath.log(-7.787296760293274e+186).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_44",
+    "source": "def run(input)\nMath.log2(-7.787296760293274e+186).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_44",
+    "source": "def run(input)\nMath.log10(-7.787296760293274e+186).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_45",
+    "source": "def run(input)\nMath.log(-7.415450781092173e-99).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_45",
+    "source": "def run(input)\nMath.log2(-7.415450781092173e-99).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_45",
+    "source": "def run(input)\nMath.log10(-7.415450781092173e-99).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_47",
+    "source": "def run(input)\nMath.log(-1.6767826719680485e+78).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_47",
+    "source": "def run(input)\nMath.log2(-1.6767826719680485e+78).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_47",
+    "source": "def run(input)\nMath.log10(-1.6767826719680485e+78).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_48",
+    "source": "def run(input)\nMath.log(-3.6376327857589033e-12).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_48",
+    "source": "def run(input)\nMath.log2(-3.6376327857589033e-12).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_48",
+    "source": "def run(input)\nMath.log10(-3.6376327857589033e-12).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_50",
+    "source": "def run(input)\nMath.log(-7.671894399013836e+26).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_50",
+    "source": "def run(input)\nMath.log2(-7.671894399013836e+26).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_50",
+    "source": "def run(input)\nMath.log10(-7.671894399013836e+26).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_51",
+    "source": "def run(input)\nMath.log(-1.553538053754054e-159).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_51",
+    "source": "def run(input)\nMath.log2(-1.553538053754054e-159).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_51",
+    "source": "def run(input)\nMath.log10(-1.553538053754054e-159).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_52",
+    "source": "def run(input)\nMath.log(-7.429543605792581e-252).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_52",
+    "source": "def run(input)\nMath.log2(-7.429543605792581e-252).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_52",
+    "source": "def run(input)\nMath.log10(-7.429543605792581e-252).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_54",
+    "source": "def run(input)\nMath.log(-1.090202004115055e-298).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_54",
+    "source": "def run(input)\nMath.log2(-1.090202004115055e-298).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_54",
+    "source": "def run(input)\nMath.log10(-1.090202004115055e-298).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_55",
+    "source": "def run(input)\nMath.log(-5.2682997280030405e+94).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_55",
+    "source": "def run(input)\nMath.log2(-5.2682997280030405e+94).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_55",
+    "source": "def run(input)\nMath.log10(-5.2682997280030405e+94).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_56",
+    "source": "def run(input)\nMath.log(-6.88472963722189e-78).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_56",
+    "source": "def run(input)\nMath.log2(-6.88472963722189e-78).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_56",
+    "source": "def run(input)\nMath.log10(-6.88472963722189e-78).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_57",
+    "source": "def run(input)\nMath.log(-8.965929128333084e-181).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_57",
+    "source": "def run(input)\nMath.log2(-8.965929128333084e-181).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_57",
+    "source": "def run(input)\nMath.log10(-8.965929128333084e-181).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_58",
+    "source": "def run(input)\nMath.log(-4.195256922161622e+109).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_58",
+    "source": "def run(input)\nMath.log2(-4.195256922161622e+109).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_58",
+    "source": "def run(input)\nMath.log10(-4.195256922161622e+109).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_59",
+    "source": "def run(input)\nMath.log(-5.140437548870447e-179).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_59",
+    "source": "def run(input)\nMath.log2(-5.140437548870447e-179).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_59",
+    "source": "def run(input)\nMath.log10(-5.140437548870447e-179).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_65",
+    "source": "def run(input)\nMath.log(-2.0853456801771725e+275).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_65",
+    "source": "def run(input)\nMath.log2(-2.0853456801771725e+275).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_65",
+    "source": "def run(input)\nMath.log10(-2.0853456801771725e+275).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_67",
+    "source": "def run(input)\nMath.log(-1.584856096034043e+278).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_67",
+    "source": "def run(input)\nMath.log2(-1.584856096034043e+278).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_67",
+    "source": "def run(input)\nMath.log10(-1.584856096034043e+278).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_73",
+    "source": "def run(input)\nMath.log(-53.906362387801835).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_73",
+    "source": "def run(input)\nMath.log2(-53.906362387801835).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_73",
+    "source": "def run(input)\nMath.log10(-53.906362387801835).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_81",
+    "source": "def run(input)\nMath.log(-1.4452141998406516e+27).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_81",
+    "source": "def run(input)\nMath.log2(-1.4452141998406516e+27).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_81",
+    "source": "def run(input)\nMath.log10(-1.4452141998406516e+27).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_82",
+    "source": "def run(input)\nMath.log(-6.897056727182382e+177).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_82",
+    "source": "def run(input)\nMath.log2(-6.897056727182382e+177).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_82",
+    "source": "def run(input)\nMath.log10(-6.897056727182382e+177).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_84",
+    "source": "def run(input)\nMath.log(-3.087513e-317).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_84",
+    "source": "def run(input)\nMath.log2(-3.087513e-317).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_84",
+    "source": "def run(input)\nMath.log10(-3.087513e-317).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_87",
+    "source": "def run(input)\nMath.log(-2.0638550742420782e-119).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_87",
+    "source": "def run(input)\nMath.log2(-2.0638550742420782e-119).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_87",
+    "source": "def run(input)\nMath.log10(-2.0638550742420782e-119).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_90",
+    "source": "def run(input)\nMath.log(-2.5372797091847188e-132).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_90",
+    "source": "def run(input)\nMath.log2(-2.5372797091847188e-132).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_90",
+    "source": "def run(input)\nMath.log10(-2.5372797091847188e-132).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_91",
+    "source": "def run(input)\nMath.log(-3.4499145587256377e-149).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_91",
+    "source": "def run(input)\nMath.log2(-3.4499145587256377e-149).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_91",
+    "source": "def run(input)\nMath.log10(-3.4499145587256377e-149).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_92",
+    "source": "def run(input)\nMath.log(-5.466033462403201e+273).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_92",
+    "source": "def run(input)\nMath.log2(-5.466033462403201e+273).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_92",
+    "source": "def run(input)\nMath.log10(-5.466033462403201e+273).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_95",
+    "source": "def run(input)\nMath.log(-1.7089397437645238e+34).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_95",
+    "source": "def run(input)\nMath.log2(-1.7089397437645238e+34).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_95",
+    "source": "def run(input)\nMath.log10(-1.7089397437645238e+34).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_98",
+    "source": "def run(input)\nMath.log(-5.905973054347284e-255).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_98",
+    "source": "def run(input)\nMath.log2(-5.905973054347284e-255).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_98",
+    "source": "def run(input)\nMath.log10(-5.905973054347284e-255).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_99",
+    "source": "def run(input)\nMath.log(-3.2080532108575117e-44).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_99",
+    "source": "def run(input)\nMath.log2(-3.2080532108575117e-44).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_99",
+    "source": "def run(input)\nMath.log10(-3.2080532108575117e-44).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_100",
+    "source": "def run(input)\nMath.log(-6.92072649615448e+132).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_100",
+    "source": "def run(input)\nMath.log2(-6.92072649615448e+132).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_100",
+    "source": "def run(input)\nMath.log10(-6.92072649615448e+132).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_103",
+    "source": "def run(input)\nMath.log(-1.3893841570684554e+250).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_103",
+    "source": "def run(input)\nMath.log2(-1.3893841570684554e+250).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_103",
+    "source": "def run(input)\nMath.log10(-1.3893841570684554e+250).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_104",
+    "source": "def run(input)\nMath.log(-9.318868236646632e+212).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_104",
+    "source": "def run(input)\nMath.log2(-9.318868236646632e+212).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_104",
+    "source": "def run(input)\nMath.log10(-9.318868236646632e+212).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_106",
+    "source": "def run(input)\nMath.log(-2.1597330238690834e+202).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_106",
+    "source": "def run(input)\nMath.log2(-2.1597330238690834e+202).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_106",
+    "source": "def run(input)\nMath.log10(-2.1597330238690834e+202).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_108",
+    "source": "def run(input)\nMath.log(-3.1652412885365053e-307).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_108",
+    "source": "def run(input)\nMath.log2(-3.1652412885365053e-307).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_108",
+    "source": "def run(input)\nMath.log10(-3.1652412885365053e-307).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_110",
+    "source": "def run(input)\nMath.log(-1.7079506155069035e+255).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_110",
+    "source": "def run(input)\nMath.log2(-1.7079506155069035e+255).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_110",
+    "source": "def run(input)\nMath.log10(-1.7079506155069035e+255).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_113",
+    "source": "def run(input)\nMath.log(-1.9005075192249486e+39).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_113",
+    "source": "def run(input)\nMath.log2(-1.9005075192249486e+39).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_113",
+    "source": "def run(input)\nMath.log10(-1.9005075192249486e+39).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_114",
+    "source": "def run(input)\nMath.log(-8.525126525684094e-83).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_114",
+    "source": "def run(input)\nMath.log2(-8.525126525684094e-83).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_114",
+    "source": "def run(input)\nMath.log10(-8.525126525684094e-83).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_115",
+    "source": "def run(input)\nMath.log(-5.402194276989789e-21).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_115",
+    "source": "def run(input)\nMath.log2(-5.402194276989789e-21).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_115",
+    "source": "def run(input)\nMath.log10(-5.402194276989789e-21).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_116",
+    "source": "def run(input)\nMath.log(-2.3597660328690126e-235).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_116",
+    "source": "def run(input)\nMath.log2(-2.3597660328690126e-235).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_116",
+    "source": "def run(input)\nMath.log10(-2.3597660328690126e-235).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_117",
+    "source": "def run(input)\nMath.log(-5.4980003499713936e-129).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_117",
+    "source": "def run(input)\nMath.log2(-5.4980003499713936e-129).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_117",
+    "source": "def run(input)\nMath.log10(-5.4980003499713936e-129).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_118",
+    "source": "def run(input)\nMath.log(-2.8878016985553628e-275).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_118",
+    "source": "def run(input)\nMath.log2(-2.8878016985553628e-275).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_118",
+    "source": "def run(input)\nMath.log10(-2.8878016985553628e-275).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_120",
+    "source": "def run(input)\nMath.log(-1.2254305388947766e+100).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_120",
+    "source": "def run(input)\nMath.log2(-1.2254305388947766e+100).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_120",
+    "source": "def run(input)\nMath.log10(-1.2254305388947766e+100).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_121",
+    "source": "def run(input)\nMath.log(-3.723061303205762e+20).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_121",
+    "source": "def run(input)\nMath.log2(-3.723061303205762e+20).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_121",
+    "source": "def run(input)\nMath.log10(-3.723061303205762e+20).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_123",
+    "source": "def run(input)\nMath.log(-7.472024865989057e+271).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_123",
+    "source": "def run(input)\nMath.log2(-7.472024865989057e+271).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_123",
+    "source": "def run(input)\nMath.log10(-7.472024865989057e+271).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_127",
+    "source": "def run(input)\nMath.log(-2.0695228962439393e-165).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_127",
+    "source": "def run(input)\nMath.log2(-2.0695228962439393e-165).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_127",
+    "source": "def run(input)\nMath.log10(-2.0695228962439393e-165).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_128",
+    "source": "def run(input)\nMath.log(-2.3537838521080526e-34).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_128",
+    "source": "def run(input)\nMath.log2(-2.3537838521080526e-34).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_128",
+    "source": "def run(input)\nMath.log10(-2.3537838521080526e-34).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_131",
+    "source": "def run(input)\nMath.log(-8.78187371432032e+92).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_131",
+    "source": "def run(input)\nMath.log2(-8.78187371432032e+92).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_131",
+    "source": "def run(input)\nMath.log10(-8.78187371432032e+92).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_132",
+    "source": "def run(input)\nMath.log(-40746161.94899008).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_132",
+    "source": "def run(input)\nMath.log2(-40746161.94899008).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_132",
+    "source": "def run(input)\nMath.log10(-40746161.94899008).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_134",
+    "source": "def run(input)\nMath.log(-5.3016168046664715e+128).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_134",
+    "source": "def run(input)\nMath.log2(-5.3016168046664715e+128).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_134",
+    "source": "def run(input)\nMath.log10(-5.3016168046664715e+128).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_136",
+    "source": "def run(input)\nMath.log(-9.889815171416527e+184).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_136",
+    "source": "def run(input)\nMath.log2(-9.889815171416527e+184).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_136",
+    "source": "def run(input)\nMath.log10(-9.889815171416527e+184).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_137",
+    "source": "def run(input)\nMath.log(-2.0280029912521878e+217).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_137",
+    "source": "def run(input)\nMath.log2(-2.0280029912521878e+217).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_137",
+    "source": "def run(input)\nMath.log10(-2.0280029912521878e+217).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_139",
+    "source": "def run(input)\nMath.log(-1.500109154675448e-180).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_139",
+    "source": "def run(input)\nMath.log2(-1.500109154675448e-180).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_139",
+    "source": "def run(input)\nMath.log10(-1.500109154675448e-180).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_145",
+    "source": "def run(input)\nMath.log(-1.0850247005336129e+204).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_145",
+    "source": "def run(input)\nMath.log2(-1.0850247005336129e+204).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_145",
+    "source": "def run(input)\nMath.log10(-1.0850247005336129e+204).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_146",
+    "source": "def run(input)\nMath.log(-6.426307310137677e-12).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_146",
+    "source": "def run(input)\nMath.log2(-6.426307310137677e-12).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_146",
+    "source": "def run(input)\nMath.log10(-6.426307310137677e-12).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_147",
+    "source": "def run(input)\nMath.log(-2.044805585566579e+218).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_147",
+    "source": "def run(input)\nMath.log2(-2.044805585566579e+218).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_147",
+    "source": "def run(input)\nMath.log10(-2.044805585566579e+218).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_149",
+    "source": "def run(input)\nMath.log(-5.606918676493495e-170).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_149",
+    "source": "def run(input)\nMath.log2(-5.606918676493495e-170).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_149",
+    "source": "def run(input)\nMath.log10(-5.606918676493495e-170).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_150",
+    "source": "def run(input)\nMath.log(-7.665817512408104e+305).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_150",
+    "source": "def run(input)\nMath.log2(-7.665817512408104e+305).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_150",
+    "source": "def run(input)\nMath.log10(-7.665817512408104e+305).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_153",
+    "source": "def run(input)\nMath.log(-7.901887513261805e-170).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_153",
+    "source": "def run(input)\nMath.log2(-7.901887513261805e-170).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_153",
+    "source": "def run(input)\nMath.log10(-7.901887513261805e-170).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_154",
+    "source": "def run(input)\nMath.log(-1.9596928809938266e-258).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_154",
+    "source": "def run(input)\nMath.log2(-1.9596928809938266e-258).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_154",
+    "source": "def run(input)\nMath.log10(-1.9596928809938266e-258).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_156",
+    "source": "def run(input)\nMath.log(-1.925094434027749e+263).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_156",
+    "source": "def run(input)\nMath.log2(-1.925094434027749e+263).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_156",
+    "source": "def run(input)\nMath.log10(-1.925094434027749e+263).to_s\nend",
+    "go_error": "Math.log10 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log_159",
+    "source": "def run(input)\nMath.log(-3.7865028167867545e+66).to_s\nend",
+    "go_error": "Math.log out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log2_159",
+    "source": "def run(input)\nMath.log2(-3.7865028167867545e+66).to_s\nend",
+    "go_error": "Math.log2 out of domain"
+  },
+  {
+    "name": "builtins_math_dense_log10_159",
+    "source": "def run(input)\nMath.log10(-3.7865028167867545e+66).to_s\nend",
+    "go_error": "Math.log10 out of domain"
   }
 ]

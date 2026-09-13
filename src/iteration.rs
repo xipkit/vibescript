@@ -994,6 +994,7 @@ fn reduce(
         name: 0,
         method: Method::parse(name),
         auto: false,
+        scope: false,
     };
     members::call(ctx, site, name, accumulator, &[item]).map(|(_, value)| value)
 }

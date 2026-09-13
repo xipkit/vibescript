@@ -533,5 +533,35 @@
     "name": "integers_signatures_14",
     "source": "def run(input)\n0o89\nend",
     "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "builtins_lookup_46",
+    "source": "def run(input)\n[Math=7, Math=9];Math\nend",
+    "go_error": "parse error at 2:6: expected \"]\", got \"=\""
+  },
+  {
+    "name": "builtins_lookup_61",
+    "source": "def run(input)\n[JSON=7, JSON=9];JSON\nend",
+    "go_error": "parse error at 2:6: expected \"]\", got \"=\""
+  },
+  {
+    "name": "builtins_lookup_76",
+    "source": "def run(input)\n[to_int=7, to_int=9];to_int\nend",
+    "go_error": "parse error at 2:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "builtins_lookup_91",
+    "source": "def run(input)\n[to_float=7, to_float=9];to_float\nend",
+    "go_error": "parse error at 2:10: expected \"]\", got \"=\""
+  },
+  {
+    "name": "builtins_lookup_105",
+    "source": "def run(input)\nMath::;PI\nend",
+    "go_error": "parse error at 2:7: expected identifier, got \";\""
+  },
+  {
+    "name": "builtins_namespace_716",
+    "source": "def run(input)\nMath::PI=7\nend",
+    "go_error": "parse error at 2:9: unexpected token \"=\""
   }
 ]

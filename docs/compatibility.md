@@ -76,3 +76,8 @@ python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
 The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit continues to report twenty-four open cases.
+
+
+## Builtin descriptors
+
+The reference permits a stateless builtin descriptor to be obtained through indexed or scoped namespace access, for example `f = Math::sqrt; f(9)` or `f = Math["sqrt"]; f(9)`. The Rust port preserves that observed behavior. Ordinary reads of a builtin method binding are rejected, and JSON cannot encode a builtin descriptor. These descriptors contain no captured script frame; general script-function values and escaping blocks remain outside the implemented surface. The final ADR-006 boundary audit must account for this reference behavior alongside its stated restrictions on executable values.

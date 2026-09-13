@@ -61,6 +61,7 @@ pub(crate) struct Hash {
     index: Option<Arc<Index>>,
     pub header: Option<Charge>,
     pub depth: usize,
+    pub object: bool,
 }
 
 impl Hash {
@@ -70,6 +71,7 @@ impl Hash {
             index: None,
             header: None,
             depth: 1,
+            object: false,
         }
     }
 
@@ -110,6 +112,7 @@ impl Hash {
                 index: hash.index.clone(),
                 header: None,
                 depth: hash.depth,
+                object: hash.object,
             }
             .into_arc(ctx)?;
         }

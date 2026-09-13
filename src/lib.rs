@@ -13,14 +13,17 @@ mod arguments;
 #[cfg(feature = "tokio")]
 pub mod asynchronous;
 mod budget;
+mod builtin;
 mod bytecode;
 mod collections;
+mod conversion;
 mod error;
 mod hash;
 mod hash_blocks;
 mod integer;
 mod iteration;
 mod json;
+mod math;
 mod members;
 mod mutate;
 mod numeric;

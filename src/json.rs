@@ -303,7 +303,7 @@ impl Parser<'_> {
     }
 }
 
-fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
+pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
     const DIGITS: usize = 1100;
     if input.len() <= DIGITS {
         return std::str::from_utf8(input)
@@ -415,6 +415,7 @@ fn write_value(
         return ctx.fail(ErrorKind::Recursion, "JSON nesting too deep");
     }
     match &value.0 {
+        Kind::Builtin(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a builtin")),
         Kind::Range(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a range")),
         Kind::Nil => out.extend(ctx, b"null")?,
         Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,

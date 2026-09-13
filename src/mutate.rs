@@ -72,9 +72,11 @@ pub(crate) fn call(
             let value = Value::from_array(ctx, Buffer::empty())?;
             Ok((value.clone(), value))
         }
-        (Kind::Hash(_), Clear) => {
+        (Kind::Hash(original), Clear) => {
             ops::arity(args, 0)?;
-            let value = Value::from_hash(ctx, Hash::empty())?;
+            let mut hash = Hash::empty();
+            hash.object = original.object;
+            let value = Value::from_hash(ctx, hash)?;
             Ok((value.clone(), value))
         }
         (Kind::Array(array), Delete) => {
@@ -106,12 +108,18 @@ pub(crate) fn call(
             let value = ops::set_index(ctx, receiver, args[0].clone(), args[1].clone())?;
             Ok((value, args[1].clone()))
         }
-        (Kind::Hash(_), Replace) => {
+        (Kind::Hash(original), Replace) => {
             ops::arity(args, 1)?;
             if !matches!(args[0].0, Kind::Hash(_)) {
                 return Err(argument("hash replacement must be a hash"));
             }
-            Ok((args[0].clone(), args[0].clone()))
+            let mut value = args[0].clone();
+            if let Kind::Hash(hash) = &mut value.0 {
+                if hash.object != original.object {
+                    Hash::make_mut(ctx, hash)?.object = original.object;
+                }
+            }
+            Ok((value.clone(), value))
         }
         (Kind::Array(array), Fill) => {
             let Some(value) = args.first() else {

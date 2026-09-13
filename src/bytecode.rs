@@ -1,11 +1,16 @@
 use crate::{
     Result, Value,
+    builtin::{Builtin, Global},
     syntax::{self, Argument, ArgumentKind, Block, Expr, Node, ParamKind, Stmt, Target},
 };
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    Global(usize),
+    StoreGlobal(usize),
+    ResolveGlobalCall(usize),
+    AddressGlobal(usize),
     Integer(usize, u32),
     Constant(usize),
     Nil,
@@ -70,8 +75,6 @@ pub(crate) enum Op {
     BypassEnd(usize),
     Argument(ArgumentOp),
     Invoke(Invocation),
-    JsonParse,
-    JsonStringify,
     Jump(usize),
     JumpFalse(usize),
     JumpTrue(usize),
@@ -89,10 +92,10 @@ pub(crate) enum ArgumentOp {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Invocation {
+    Builtin(Builtin),
     Function(usize),
     Host(usize),
     Member(CallSite, bool),
-    Json(bool),
     NonCallable,
     Resolved,
 }
@@ -110,6 +113,7 @@ pub(crate) struct CallSite {
     pub name: usize,
     pub method: Option<Method>,
     pub auto: bool,
+    pub scope: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -292,6 +296,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub globals: Vec<(Global, Value)>,
     pub functions: Vec<Function>,
     pub constants: Vec<Value>,
     pub names: HashMap<String, usize>,
@@ -307,6 +312,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         .map(|(i, d)| (d.name.clone(), i))
         .collect();
     let mut program = Program {
+        globals: Vec::new(),
         functions: (0..defs.len()).map(|_| Function::default()).collect(),
         constants: Vec::new(),
         names,
@@ -431,7 +437,9 @@ impl Compiler<'_> {
                 node: Node::Var(name),
                 ..
             }) => {
-                self.slot(name);
+                if !self.outer.is_empty() || self.global_binding(name).is_none() {
+                    self.slot(name);
+                }
                 self.assigned.insert(name.clone());
             }
             Target::Value(e) => self.declare_expr(e),
@@ -510,6 +518,12 @@ impl Compiler<'_> {
                     self.declare_expr(&arg.value);
                 }
             }
+            Node::Scope(recv, _, args) => {
+                self.declare_expr(recv);
+                for arg in args.iter().flatten() {
+                    self.declare_expr(&arg.value);
+                }
+            }
             Node::Index(recv, args) => {
                 self.declare_expr(recv);
                 for arg in args {
@@ -560,7 +574,9 @@ impl Compiler<'_> {
             let mut names = Vec::new();
             target_names(target, &mut names);
             for name in names {
-                self.emit(Op::Declare(self.locals[name]));
+                if let Some(&slot) = self.locals.get(name) {
+                    self.emit(Op::Declare(slot));
+                }
             }
         }
         self.statement(stmt, expression)?;
@@ -581,7 +597,9 @@ impl Compiler<'_> {
         let mut seen = HashSet::new();
         let names: Vec<_> = names
             .into_iter()
-            .filter(|name| calls.contains(name) && seen.insert(*name))
+            .filter(|name| {
+                self.locals.contains_key(*name) && calls.contains(name) && seen.insert(*name)
+            })
             .collect();
         for name in &names {
             self.emit(Op::Bypass(self.locals[*name]));
@@ -594,6 +612,16 @@ impl Compiler<'_> {
         }
         Ok(())
     }
+    fn declaration_slot(&self, name: &str) -> Option<usize> {
+        if Global::parse(name).is_some()
+            && !self.program.names.contains_key(name)
+            && !self.program.hosts.iter().any(|host| host == name)
+        {
+            None
+        } else {
+            self.locals.get(name).copied()
+        }
+    }
     fn statement_bindings(&self, body: &[Stmt]) -> Vec<usize> {
         let mut names = Vec::new();
         statement_names(body, &mut names);
@@ -601,7 +629,7 @@ impl Compiler<'_> {
         names
             .into_iter()
             .filter(|name| seen.insert(*name))
-            .map(|name| self.locals[name])
+            .filter_map(|name| self.declaration_slot(name))
             .collect()
     }
     fn loop_body(&mut self, body: &[Stmt]) -> Result<()> {
@@ -631,9 +659,34 @@ impl Compiler<'_> {
                 };
                 match &target.node {
                     Node::Var(name) => {
+                        if let Some(global) = self.global_binding(name) {
+                            if matches!(*op, "||=" | "&&=") {
+                                self.emit(Op::Global(global));
+                                self.emit(Op::Dup);
+                                let skip = self.emit(if *op == "||=" {
+                                    Op::JumpTrue(0)
+                                } else {
+                                    Op::JumpFalse(0)
+                                });
+                                self.emit(Op::Pop);
+                                self.assignment_rhs(binding_target, &[rhs])?;
+                                self.emit(Op::StoreGlobal(global));
+                                self.patch(skip, self.code.len());
+                                return Ok(());
+                            }
+                            if binary.is_some() {
+                                self.emit(Op::Global(global));
+                            }
+                            self.assignment_rhs(binding_target, &[rhs])?;
+                            if let Some(op) = binary {
+                                self.emit(Op::Binary(op));
+                            }
+                            self.emit(Op::StoreGlobal(global));
+                            return Ok(());
+                        }
                         let slot = self.slot(name);
                         if matches!(*op, "||=" | "&&=") {
-                            self.emit(Op::Load(slot));
+                            self.expr(target)?;
                             self.emit(Op::Dup);
                             let skip = self.emit(if *op == "||=" {
                                 Op::JumpTrue(0)
@@ -654,7 +707,7 @@ impl Compiler<'_> {
                             }
                         }
                         if binary.is_some() {
-                            self.emit(Op::Load(slot));
+                            self.expr(target)?;
                         }
                         self.assignment_rhs(binding_target, &[rhs])?;
                         if binary == Some("+") {
@@ -731,7 +784,9 @@ impl Compiler<'_> {
                 let mut names = Vec::new();
                 target_names(target, &mut names);
                 for name in names {
-                    self.emit(Op::Declare(self.locals[name]));
+                    if let Some(&slot) = self.locals.get(name) {
+                        self.emit(Op::Declare(slot));
+                    }
                 }
                 let mark = self.emit(Op::LoopStart {
                     iterable: true,
@@ -786,8 +841,12 @@ impl Compiler<'_> {
                 node: Node::Var(name),
                 ..
             }) => {
-                let slot = self.slot(name);
-                self.emit(Op::Store(slot));
+                if let Some(global) = self.global_binding(name) {
+                    self.emit(Op::StoreGlobal(global));
+                } else {
+                    let slot = self.slot(name);
+                    self.emit(Op::Store(slot));
+                }
             }
             Target::Value(
                 target @ Expr {
@@ -844,6 +903,7 @@ impl Compiler<'_> {
                 self.emit(Op::BlockGiven(false, false));
             }
             Node::Var(name) => {
+                let global = self.global(name);
                 if let Some(&slot) = self.locals.get(name) {
                     if !self.parameters.contains(name) {
                         let name = self.call_site(name, false).name;
@@ -855,6 +915,8 @@ impl Compiler<'_> {
                     self.emit(Op::AutoCall(fun));
                 } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
                     self.emit(Op::HostValue(host));
+                } else if let Some(global) = global {
+                    self.emit(Op::Global(global));
                 } else {
                     let site = self.call_site(name, false);
                     self.emit(Op::Unbound(site.name));
@@ -977,6 +1039,7 @@ impl Compiler<'_> {
             }
             Node::BlockCall(call, block) => self.block_call(call, block)?,
             Node::Call(name, args) => {
+                self.global(name);
                 if let Some(&slot) = self.locals.get(name) {
                     let name = self.call_site(name, false).name;
                     self.emit(Op::ResolveCall(slot, name));
@@ -988,6 +1051,11 @@ impl Compiler<'_> {
                     Invocation::Function(fun)
                 } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
                     Invocation::Host(host)
+                } else if let Some(global) = self.global(name) {
+                    self.emit(Op::ResolveGlobalCall(global));
+                    self.argument_values(args)?;
+                    self.emit(Op::Invoke(Invocation::Resolved));
+                    return Ok(());
                 } else {
                     let site = self.call_site(name, false);
                     self.emit(Op::Unbound(site.name));
@@ -1009,6 +1077,7 @@ impl Compiler<'_> {
                 }
             }
             Node::Member(recv, name) => self.member_call(recv, name, &[], true, None)?,
+            Node::Scope(recv, name, args) => self.scoped_call(recv, name, args.as_deref(), None)?,
             Node::Method(recv, name, args) => self.member_call(recv, name, args, false, None)?,
             Node::Index(value, index) => {
                 self.expr(value)?;
@@ -1027,7 +1096,22 @@ impl Compiler<'_> {
             name: index,
             method: Method::parse(name),
             auto,
+            scope: false,
         }
+    }
+    fn global(&mut self, name: &str) -> Option<usize> {
+        let namespace = Global::parse(name)?;
+        if let Some(index) = self
+            .program
+            .globals
+            .iter()
+            .position(|(kind, _)| *kind == namespace)
+        {
+            return Some(index);
+        }
+        let index = self.program.globals.len();
+        self.program.globals.push((namespace, namespace.value()));
+        Some(index)
     }
     fn member_call(
         &mut self,
@@ -1037,69 +1121,69 @@ impl Compiler<'_> {
         auto: bool,
         block: Option<usize>,
     ) -> Result<()> {
-        if matches!(&receiver.node, Node::Var(v) if v == "JSON") {
-            if expanded(args) || block.is_some() {
-                let parse = match name {
-                    "parse" => true,
-                    "stringify" => false,
-                    _ => return Err(syntax::unsupported("unknown JSON method")),
-                };
-                self.call_arguments(args)?;
-                if let Some(block) = block {
-                    self.emit(Op::Attach(block));
-                }
-                self.emit(Op::Invoke(Invocation::Json(parse)));
-                return Ok(());
-            }
-            if args.len() != 1 {
-                return Err(syntax::unsupported("JSON methods require one argument"));
-            }
-            self.expr(&args[0].value)?;
-            self.emit(match name {
-                "parse" => Op::JsonParse,
-                "stringify" => Op::JsonStringify,
-                _ => return Err(syntax::unsupported("unknown JSON method")),
-            });
+        let mutating = matches!(
+            name,
+            "push"
+                | "append"
+                | "prepend"
+                | "unshift"
+                | "pop"
+                | "shift"
+                | "delete"
+                | "delete_if"
+                | "keep_if"
+                | "insert"
+                | "clear"
+                | "fill"
+                | "store"
+                | "replace"
+        );
+        if mutating {
+            self.address(receiver)?;
         } else {
-            let mutating = matches!(
-                name,
-                "push"
-                    | "append"
-                    | "prepend"
-                    | "unshift"
-                    | "pop"
-                    | "shift"
-                    | "delete"
-                    | "delete_if"
-                    | "keep_if"
-                    | "insert"
-                    | "clear"
-                    | "fill"
-                    | "store"
-                    | "replace"
-            );
-            if mutating {
-                self.address(receiver)?;
-            } else {
-                self.expr(receiver)?;
+            self.expr(receiver)?;
+        }
+        let site = self.call_site(name, auto);
+        if expanded(args) || block.is_some() || crate::iteration::method(name) {
+            self.call_arguments(args)?;
+            if let Some(block) = block {
+                self.emit(Op::Attach(block));
             }
-            let site = self.call_site(name, auto);
-            if expanded(args) || block.is_some() || crate::iteration::method(name) {
-                self.call_arguments(args)?;
-                if let Some(block) = block {
-                    self.emit(Op::Attach(block));
-                }
-                self.emit(Op::Invoke(Invocation::Member(site, mutating)));
-            } else {
-                for arg in args {
-                    self.expr(&arg.value)?;
-                }
-                self.emit(if mutating {
-                    Op::Mutate(site, args.len())
-                } else {
-                    Op::Method(site, args.len())
-                });
+            self.emit(Op::Invoke(Invocation::Member(site, mutating)));
+        } else {
+            for arg in args {
+                self.expr(&arg.value)?;
             }
+            self.emit(if mutating {
+                Op::Mutate(site, args.len())
+            } else {
+                Op::Method(site, args.len())
+            });
+        }
+        Ok(())
+    }
+    fn scoped_call(
+        &mut self,
+        receiver: &Expr,
+        name: &str,
+        args: Option<&[Argument]>,
+        block: Option<usize>,
+    ) -> Result<()> {
+        self.expr(receiver)?;
+        let mut site = self.call_site(name, args.is_none() && block.is_none());
+        site.scope = true;
+        let args = args.unwrap_or(&[]);
+        if expanded(args) || block.is_some() {
+            self.call_arguments(args)?;
+            if let Some(block) = block {
+                self.emit(Op::Attach(block));
+            }
+            self.emit(Op::Invoke(Invocation::Member(site, false)));
+        } else {
+            for arg in args {
+                self.expr(&arg.value)?;
+            }
+            self.emit(Op::Method(site, args.len()));
         }
         Ok(())
     }
@@ -1113,6 +1197,9 @@ impl Compiler<'_> {
             }
             Node::Method(receiver, name, args) => {
                 return self.member_call(receiver, name, args, false, Some(function));
+            }
+            Node::Scope(receiver, name, args) => {
+                return self.scoped_call(receiver, name, args.as_deref(), Some(function));
             }
             _ => {
                 self.expr(call)?;
@@ -1128,6 +1215,9 @@ impl Compiler<'_> {
         let target = if let Some(&slot) = self.locals.get(name) {
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name));
+            Invocation::Resolved
+        } else if let Some(global) = self.global_binding(name) {
+            self.emit(Op::ResolveGlobalCall(global));
             Invocation::Resolved
         } else {
             let target = if let Some(&function) = self.program.names.get(name) {
@@ -1251,6 +1341,23 @@ impl Compiler<'_> {
         }
         Ok(())
     }
+    fn global_binding(&mut self, name: &str) -> Option<usize> {
+        if self.locals.contains_key(name) || self.outer.iter().any(|scope| scope.contains_key(name))
+        {
+            None
+        } else {
+            self.global_fallback(name)
+        }
+    }
+    fn global_fallback(&mut self, name: &str) -> Option<usize> {
+        if self.program.names.contains_key(name)
+            || self.program.hosts.iter().any(|host| host == name)
+        {
+            None
+        } else {
+            self.global(name)
+        }
+    }
     fn address(&mut self, receiver: &Expr) -> Result<()> {
         match &receiver.node {
             Node::Var(name) if self.locals.contains_key(name) => {
@@ -1259,10 +1366,18 @@ impl Compiler<'_> {
                     self.emit(Op::AddressLocal(slot));
                 } else {
                     let bound = self.emit(Op::AddressBound(slot, 0));
-                    self.expr(receiver)?;
-                    self.emit(Op::AddressValue);
+                    if let Some(global) = self.global_fallback(name) {
+                        self.emit(Op::AddressGlobal(global));
+                    } else {
+                        self.expr(receiver)?;
+                        self.emit(Op::AddressValue);
+                    }
                     self.patch(bound, self.code.len());
                 }
+            }
+            Node::Var(name) if self.global_fallback(name).is_some() => {
+                let global = self.global_fallback(name).unwrap();
+                self.emit(Op::AddressGlobal(global));
             }
             Node::Member(root, name) => {
                 self.address(root)?;
@@ -1341,6 +1456,12 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
         Node::Method(receiver, _, args) => {
             call_names(receiver, names);
             for arg in args {
+                call_names(&arg.value, names);
+            }
+        }
+        Node::Scope(receiver, _, args) => {
+            call_names(receiver, names);
+            for arg in args.iter().flatten() {
                 call_names(&arg.value, names);
             }
         }

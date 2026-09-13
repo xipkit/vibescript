@@ -94,6 +94,7 @@ impl Bytes {
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
     Nil,
+    Builtin(crate::builtin::Builtin),
     Bool(bool),
     Int(i64),
     Big(Arc<crate::integer::Big>),
@@ -220,7 +221,7 @@ impl Value {
             None
         }
     }
-    /// Returns insertion-ordered hash entries.
+    /// Returns insertion-ordered hash or namespace entries.
     pub fn as_hash(&self) -> Option<&[(Value, Value)]> {
         if let Kind::Hash(h) = &self.0 {
             Some(&h.buffer.data)
@@ -236,12 +237,14 @@ impl Value {
     pub fn type_name(&self) -> &'static str {
         match self.0 {
             Kind::Nil => "nil",
+            Kind::Builtin(_) => "builtin",
             Kind::Bool(_) => "bool",
             Kind::Int(_) | Kind::Big(_) => "int",
             Kind::Float(_) => "float",
             Kind::Bytes(_) => "string",
             Kind::Symbol(_) => "symbol",
             Kind::Array(_) => "array",
+            Kind::Hash(ref hash) if hash.object => "object",
             Kind::Hash(_) => "hash",
             Kind::Range(_) => "range",
         }
@@ -452,7 +455,8 @@ impl CallContext {
                     let v = self.import_depth(v, depth + 1)?;
                     buf.data.push((k, v));
                 }
-                let hash = Hash::from_entries(self, buf)?;
+                let mut hash = Hash::from_entries(self, buf)?;
+                hash.object = h.object;
                 Value::from_hash(self, hash)
             }
             _ => Ok(value.clone()),
@@ -464,6 +468,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Kind::Nil => f.write_str("nil"),
+            Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),
             Kind::Big(_) => {

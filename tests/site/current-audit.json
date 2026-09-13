@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "27e1a782300d3165054136f676b3f6c52f3f447c",
-  "dirty": " M src/integer.rs\n M src/lib.rs\n M src/members.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/numeric.rs\n?? tests/numeric.rs\n",
+  "source_revision": "7428017d466040e5d1a0acec9a7dc8647d1bbdc7",
+  "dirty": " M README.md\n M docs/compatibility.md\n M docs/language-port.md\n M src/bytecode.rs\n M src/hash.rs\n M src/iteration.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/mutate.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? licenses/math-NOTICE.txt\n?? scripts/generate-float-cases.py\n?? src/builtin.rs\n?? src/conversion.rs\n?? src/math.rs\n?? tests/builtins.rs\n?? tests/float-conversions.json\n",
   "binary_sha256": {
-    "go-simd": "49c84918f502aa0d8875f2e0d1aad64673bb0242a0e97edd353f3b00552c9e4a",
-    "rust-simd": "8bbfa97e7321d8342961f41b064344a5c0a81368276c9b581742d897907a6ce4"
+    "go-simd": "e7ef846dfd69eae06bf68fc0c787bb0d500782c910283a9d7e18d3396e3ab05a",
+    "rust-simd": "64011688de095e49640684880300aa022a108dd8d8936c81c405207036c4d259"
   },
   "counts": {
-    "match": 156,
-    "rust_gap": 32,
+    "match": 157,
+    "rust_gap": 31,
     "harness_gap": 15
   },
   "examples": [
@@ -7610,10 +7610,16 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"undefined variable Math\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "pi_100_digits": "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679",
+          "matching_reference_digits": 102,
+          "terms_used": 9,
+          "digits_per_term": 14.18
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/notifications/digest_schedule.vibe",
@@ -9215,7 +9221,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(840) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable uuid\", offset: None }\n"
       },
       "status": "rust_gap"
     },

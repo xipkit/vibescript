@@ -228,6 +228,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
     }
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
+        (Kind::Builtin(a), Kind::Builtin(b)) => Ok(a == b),
         (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
         (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
         (Kind::Big(_), Kind::Big(_)) => Ok(crate::integer::compare(ctx, a, b)? == Ordering::Equal),
@@ -258,7 +259,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
             Ok(true)
         }
         (Kind::Hash(a), Kind::Hash(b)) => {
-            if a.buffer.data.len() != b.buffer.data.len() {
+            if a.object != b.object || a.buffer.data.len() != b.buffer.data.len() {
                 return Ok(false);
             }
             for (k, v) in &a.buffer.data {
@@ -637,7 +638,7 @@ fn trim_ascii(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)> {
     Ok((start, end))
 }
 
-fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)> {
+pub(crate) fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)> {
     let mut start = 0;
     while start < bytes.len() {
         ctx.charge(1)?;
@@ -819,6 +820,7 @@ fn join_into(
 pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut text = json::Number::new();
     match &value.0 {
+        Kind::Builtin(builtin) => return Err(builtin.value_error()),
         Kind::Big(_) => {
             let text = crate::integer::format(ctx, value, 10)?;
             return Value::from_bytes(ctx, text);

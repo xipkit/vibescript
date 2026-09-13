@@ -34,6 +34,7 @@ pub(crate) enum Node {
     BlockCall(Box<Expr>, Block),
     Yield(Vec<Expr>),
     Member(Box<Expr>, String),
+    Scope(Box<Expr>, String, Option<Vec<Argument>>),
     Method(Box<Expr>, String, Vec<Argument>),
     Index(Box<Expr>, Vec<Expr>),
 }
@@ -1079,6 +1080,23 @@ impl Parser<'_> {
                 lhs = self.make(Node::Call(name, args), d)?;
                 continue;
             }
+            if self.token() == &Token::Op("::") {
+                self.bump();
+                self.line_breaks();
+                let Token::Word(name) = self.bump() else {
+                    return self.err("expected scoped member name");
+                };
+                let args = if self.take_p('(') {
+                    Some(self.call_arguments()?)
+                } else {
+                    None
+                };
+                let depth = 1 + lhs.depth.max(args.as_ref().map_or(0, |args| {
+                    args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
+                }));
+                lhs = self.make(Node::Scope(Box::new(lhs), name, args), depth)?;
+                continue;
+            }
             if self.take_p('.') {
                 let name = match self.bump() {
                     Token::Word(name) => name,
@@ -1288,7 +1306,7 @@ impl Parser<'_> {
         let lexeme = &self.tokens[next];
         let continues = match lexeme.token {
             Token::Word(ref word) if word == "do" => self.can_attach_do(),
-            Token::P('.') => true,
+            Token::P('.') | Token::Op("::") => true,
             Token::P('?') => min <= 2,
             Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
             Token::Op(op) => {

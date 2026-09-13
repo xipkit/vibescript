@@ -3423,6 +3423,17 @@
     }
   },
   {
+    "path": "showcase/math/chudnovsky_pi.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "pi_100_digits": "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679",
+      "matching_reference_digits": 102,
+      "terms_used": 9,
+      "digits_per_term": 14.18
+    }
+  },
+  {
     "path": "showcase/numbers/big_integers.vibe",
     "function": "run",
     "args": [],

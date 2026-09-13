@@ -3,10 +3,11 @@ use crate::{
     address::{self, Address},
     arguments::{Arguments, Binding, Block},
     budget::Buffer,
+    builtin::Global,
     bytecode::{ArgumentOp, Invocation, Op, Program, Selection},
     hash::Hash,
     iteration::{self, Iteration, Progress},
-    json, members, ops,
+    members, ops,
     range::Range,
     value::Kind,
 };
@@ -112,6 +113,8 @@ pub(crate) fn execute(
         addresses: Buffer::empty(),
         bypasses: Buffer::empty(),
     };
+    storage.locals.ensure(ctx, program.globals.len())?;
+    storage.locals.data.resize(program.globals.len(), None);
     let mut input = Arguments::empty();
     input.options_hash = false;
     input.positional = Buffer::with_capacity(ctx, args.len())?;
@@ -216,10 +219,16 @@ pub(crate) fn execute(
             }
             Op::Load(n) => {
                 let v = storage.locals.data[n].clone().unwrap_or_default();
+                if let Kind::Builtin(builtin) = v.0 {
+                    return Err(builtin.value_error());
+                }
                 stack.push(ctx, v)?;
             }
             Op::LoadOptional(slot, name) => {
                 if let Some(value) = &storage.locals.data[slot] {
+                    if let Kind::Builtin(builtin) = value.0 {
+                        return Err(builtin.value_error());
+                    }
                     stack.push(ctx, value.clone())?;
                 } else if let Some(&function) = program.names.get(&program.members[name]) {
                     enter_auto(
@@ -236,6 +245,12 @@ pub(crate) fn execute(
                     .position(|h| h == &program.members[name])
                 {
                     return Err(callable_value_error(&program.hosts[host], "method"));
+                } else if let Some(global) = global_index(program, &program.members[name]) {
+                    let value = global_value(program, ctx, &mut storage, global)?;
+                    if let Kind::Builtin(builtin) = value.0 {
+                        return Err(builtin.value_error());
+                    }
+                    stack.push(ctx, value)?;
                 } else {
                     return Err(Error::new(
                         ErrorKind::Name,
@@ -248,6 +263,28 @@ pub(crate) fn execute(
                     ErrorKind::Name,
                     format!("undefined variable {}", program.members[name]),
                 ));
+            }
+            Op::Global(index) => {
+                let value = global_value(program, ctx, &mut storage, index)?;
+                if let Kind::Builtin(builtin) = value.0 {
+                    return Err(builtin.value_error());
+                }
+                stack.push(ctx, value)?;
+            }
+            Op::StoreGlobal(index) => {
+                storage.locals.data[index] = stack.data.last().cloned();
+            }
+            Op::ResolveGlobalCall(index) => {
+                let value = global_value(program, ctx, &mut storage, index)?;
+                let mut arguments = Arguments::empty();
+                arguments.target = Some(value_invocation(&value));
+                frame.arguments.push(ctx, arguments)?;
+            }
+            Op::AddressGlobal(index) => {
+                let value = global_value(program, ctx, &mut storage, index)?;
+                storage
+                    .addresses
+                    .push(ctx, Address::new(Some(index), value))?;
             }
             Op::NonCallable => {
                 return Err(Error::new(
@@ -729,12 +766,18 @@ pub(crate) fn execute(
             Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
             Op::ResolveCall(slot, name) => {
                 let name = &program.members[name];
-                let target = if storage.locals.data.get(slot).is_some_and(Option::is_some) {
+                let target = if let Some(Some(Value(Kind::Builtin(builtin)))) =
+                    storage.locals.data.get(slot)
+                {
+                    Invocation::Builtin(*builtin)
+                } else if storage.locals.data.get(slot).is_some_and(Option::is_some) {
                     Invocation::NonCallable
                 } else if let Some(&function) = program.names.get(name) {
                     Invocation::Function(function)
                 } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
                     Invocation::Host(host)
+                } else if let Some(global) = global_index(program, name) {
+                    value_invocation(&global_value(program, ctx, &mut storage, global)?)
                 } else {
                     return Err(Error::new(
                         ErrorKind::Name,
@@ -767,6 +810,15 @@ pub(crate) fn execute(
                     target
                 };
                 match target {
+                    Invocation::Builtin(builtin) => {
+                        let value = builtin.call(
+                            ctx,
+                            &args.positional.data,
+                            !args.keywords.buffer.data.is_empty(),
+                            args.block.is_some(),
+                        )?;
+                        stack.push(ctx, value)?;
+                    }
                     Invocation::Function(function) => {
                         enter_arguments(
                             program,
@@ -796,14 +848,19 @@ pub(crate) fn execute(
                         let arity = args
                             .block
                             .map(|block| program.functions[block.function].block_arity);
-                        if let Some(iteration) = iteration::start(
-                            ctx,
-                            name,
-                            receiver,
-                            &args.positional.data,
-                            !args.keywords.buffer.data.is_empty(),
-                            arity,
-                        )? {
+                        let driver = if members::exported(ctx, site, name, receiver)? {
+                            None
+                        } else {
+                            iteration::start(
+                                ctx,
+                                name,
+                                receiver,
+                                &args.positional.data,
+                                !args.keywords.buffer.data.is_empty(),
+                                arity,
+                            )?
+                        };
+                        if let Some(iteration) = driver {
                             if !mutating {
                                 stack.data.pop();
                             }
@@ -840,22 +897,6 @@ pub(crate) fn execute(
                         };
                         stack.push(ctx, value)?;
                     }
-                    Invocation::Json(parse) => {
-                        if !args.keywords.buffer.data.is_empty() {
-                            return Err(Error::new(
-                                ErrorKind::Argument,
-                                "JSON methods do not accept keyword arguments",
-                            ));
-                        }
-                        ops::arity(&args.positional.data, 1)?;
-                        let value = &args.positional.data[0];
-                        let result = if parse {
-                            json::parse(ctx, value.require_bytes()?)?
-                        } else {
-                            json::stringify(ctx, value)?
-                        };
-                        stack.push(ctx, result)?;
-                    }
                     Invocation::NonCallable => {
                         return Err(Error::new(
                             ErrorKind::Type,
@@ -888,16 +929,6 @@ pub(crate) fn execute(
                 stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }
-            Op::JsonParse => {
-                let input = stack.data.pop().unwrap();
-                let value = json::parse(ctx, input.require_bytes()?)?;
-                stack.push(ctx, value)?;
-            }
-            Op::JsonStringify => {
-                let input = stack.data.pop().unwrap();
-                let value = json::stringify(ctx, &input)?;
-                stack.push(ctx, value)?;
-            }
             Op::Jump(target) => frame.ip = target,
             Op::JumpFalse(target) => {
                 if !stack.data.pop().unwrap().truthy() {
@@ -927,6 +958,33 @@ pub(crate) fn execute(
             }
         }
     }
+}
+
+fn value_invocation(value: &Value) -> Invocation {
+    match value.0 {
+        Kind::Builtin(builtin) => Invocation::Builtin(builtin),
+        _ => Invocation::NonCallable,
+    }
+}
+
+fn global_index(program: &Program, name: &str) -> Option<usize> {
+    let namespace = Global::parse(name)?;
+    program
+        .globals
+        .iter()
+        .position(|(kind, _)| *kind == namespace)
+}
+
+fn global_value(
+    program: &Program,
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    index: usize,
+) -> Result<Value> {
+    if storage.locals.data[index].is_none() {
+        storage.locals.data[index] = Some(ctx.import(&program.globals[index].1)?);
+    }
+    Ok(storage.locals.data[index].as_ref().unwrap().clone())
 }
 
 fn callable_value_error(name: &str, kind: &str) -> Error {

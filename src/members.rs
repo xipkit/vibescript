@@ -12,6 +12,17 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if let Some(value) = field(ctx, site, name, &receiver)? {
+        let result = field_call(
+            ctx,
+            site,
+            value,
+            &args.positional.data,
+            !args.keywords.buffer.data.is_empty(),
+            args.block.is_some(),
+        )?;
+        return Ok((receiver, result));
+    }
     let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
     if numeric
         && (matches!(name, "inspect" | "clamp" | "between?")
@@ -83,6 +94,10 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = field(ctx, site, name, &receiver)? {
+        let result = field_call(ctx, site, value, args, false, false)?;
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::numeric::call(ctx, name, &receiver, args)? {
         return Ok((receiver, result));
     }
@@ -138,6 +153,79 @@ pub(crate) fn call(
     }
     let result = ops::method(ctx, method, receiver.clone(), args)?;
     Ok((receiver, result))
+}
+
+pub(crate) fn exported(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: &Value,
+) -> Result<bool> {
+    if site.scope {
+        return Ok(true);
+    }
+    if let Kind::Hash(hash) = &receiver.0 {
+        if hash.object {
+            return Ok(hash.find(ctx, name.as_bytes())?.is_some());
+        }
+    }
+    Ok(false)
+}
+
+fn field(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: &Value,
+) -> Result<Option<Value>> {
+    if let Kind::Builtin(builtin) = receiver.0 {
+        return Err(builtin.value_error());
+    }
+    if site.scope && !matches!(&receiver.0, Kind::Hash(hash) if hash.object) {
+        return Err(Error::new(
+            ErrorKind::Type,
+            "scoped member access requires a namespace",
+        ));
+    }
+    if let Kind::Hash(hash) = &receiver.0 {
+        if hash.object || !hash_builtin(name) {
+            if let Some(index) = hash.find(ctx, name.as_bytes())? {
+                return Ok(Some(hash.buffer.data[index].1.clone()));
+            }
+            if site.scope || !hash_builtin(name) {
+                return Err(Error::new(
+                    ErrorKind::Name,
+                    format!("unknown member {name}"),
+                ));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn field_call(
+    ctx: &mut CallContext,
+    site: CallSite,
+    value: Value,
+    args: &[Value],
+    keywords: bool,
+    block: bool,
+) -> Result<Value> {
+    if site.auto {
+        if let Kind::Builtin(builtin) = value.0 {
+            if !site.scope {
+                return Err(builtin.value_error());
+            }
+        }
+        return Ok(value);
+    }
+    if let Kind::Builtin(builtin) = value.0 {
+        return builtin.call(ctx, args, keywords, block);
+    }
+    Err(Error::new(
+        ErrorKind::Type,
+        "attempted to call non-callable value",
+    ))
 }
 
 fn hash_builtin(name: &str) -> bool {
