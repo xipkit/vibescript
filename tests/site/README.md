@@ -4,7 +4,7 @@ These 203 files are unchanged copies of `internal/catalog/content` from the loca
 
 The initial audit found 74 matching examples. Range, slicing, collection, text, control-flow, destructuring, nested writes, hash fields, mutators, and richer function binding bring the current total to 134 examples whose `run` results match Go Vibescript v0.70.0. [cases.json](cases.json) preserves those Go results for Rust regression tests and the shared comparison harness. These are differential tests against Go, not independently derived mathematical proofs of the programs.
 
-Another 54 examples complete in Go but need Rust features outside the current subset, including blocks, interpolation, typed parameters, bignums, and collection methods. A first error does not enumerate every missing feature in a program.
+The calls-without-parentheses audit retains all 134 matches. Another 54 examples complete in Go but need Rust features outside the current subset, including blocks, interpolation, typed parameters, bignums, and collection methods. A first error does not enumerate every missing feature in a program.
 
 The remaining 15 are harness gaps: 13 return money or duration values that the harness's JSON encoder cannot represent, and two require SMS/email host capabilities that are not registered in the comparison harness. These are not reported as Go interpreter failures. The Rust [SMS preview](../../examples/sms.rs) separately demonstrates synchronous host registration using the currently supported `sms_send` syntax. Namespaced `sms.send`, interpolation, and native async host calls still need implementation.
 

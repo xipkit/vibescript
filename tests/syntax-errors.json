@@ -1,0 +1,152 @@
+[
+  {
+    "name": "command_keyword_shorthand_nested",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\n(pack a:)\nend",
+    "go_error": "parse error at 11:9: unexpected token \")\""
+  },
+  {
+    "name": "command_keyword_order",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack a:1,2\nend",
+    "go_error": "parse error at 11:10: positional arguments cannot follow bare keyword arguments in parenless calls"
+  },
+  {
+    "name": "command_negative_later",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack 1,-2\nend",
+    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_group_later",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack 1,(2+3)\nend",
+    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_hash_later",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack 1,{a:2}\nend",
+    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_trailing_comma",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack 1,\nend",
+    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_comma_newline",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack 1,\n2\nend",
+    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_unbound_index_write",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nmissing [0]=3\nend",
+    "go_error": "parse error at 11:12: unexpected token \"=\""
+  },
+  {
+    "name": "command_default_parenthesized",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef f(a=id 2)\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "parse error at 10:12: expected \")\", got integer"
+  },
+  {
+    "name": "command_default_grouped",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef f(a=(id 2))\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "parse error at 10:13: expected \")\", got integer"
+  },
+  {
+    "name": "command_default_bare_signature_multiple",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef f a=id 2,b=3\n[a,b]\nend\ndef run(input)\nf()\nend",
+    "go_error": "parse error at 10:15: unexpected token \"=\""
+  },
+  {
+    "name": "command_leading_division",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nr=n\n/2\nr\nend",
+    "go_error": "parse error at 12:1: unterminated regex literal"
+  },
+  {
+    "name": "command_multiline_string_comma",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack \"a\nb\",2\nend",
+    "go_error": "parse error at 11:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_keyword_semicolon",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na=1;pack a:;2\nend",
+    "go_error": "parse error at 11:12: unexpected token \";\""
+  },
+  {
+    "name": "command_explicit_trailing_semicolon",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack(1;)\nend",
+    "go_error": "parse error at 11:7: expected \")\", got \";\""
+  },
+  {
+    "name": "command_explicit_empty_semicolon",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack(;)\nend",
+    "go_error": "parse error at 11:6: unexpected token \";\""
+  },
+  {
+    "name": "command_ternary_variable_argument",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\ntrue ? id n : 2\nend",
+    "go_error": "parse error at 12:1: expected \":\", got 'end'"
+  },
+  {
+    "name": "command_symbol_spaced_operand",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nid : a\nend",
+    "go_error": "parse error at 11:4: unexpected token \":\""
+  },
+  {
+    "name": "command_symbol_flush_callee",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nid:a\nend",
+    "go_error": "parse error at 11:3: unexpected token \":\""
+  },
+  {
+    "name": "command_return_comma_newline_before",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nreturn 1\n,2\nend",
+    "go_error": "parse error at 12:1: unexpected token \",\""
+  },
+  {
+    "name": "command_return_multiline_string",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nreturn \"a\nb\",2\nend",
+    "go_error": "parse error at 12:3: unexpected token \",\""
+  },
+  {
+    "name": "command_break_comma",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nwhile true\nbreak 1,2\nend\nend",
+    "go_error": "parse error at 12:8: unexpected token \",\""
+  },
+  {
+    "name": "command_scalar_assignment_comma",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na=1,2\na\nend",
+    "go_error": "parse error at 11:4: unexpected token \",\""
+  },
+  {
+    "name": "command_tuple_target_trailing_comma",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na,=[1]\na\nend",
+    "go_error": "parse error at 11:3: unexpected token \"=\""
+  },
+  {
+    "name": "command_assignment_semicolon",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na;=1\na\nend",
+    "go_error": "parse error at 11:3: unexpected token \"=\""
+  },
+  {
+    "name": "command_leading_splat_split_name",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nh={}\nr=n\n*h.\nx=[1,2]\n[r,h]\nend",
+    "go_error": "parse error at 14:2: unexpected token \"=\""
+  },
+  {
+    "name": "command_leading_splat_spaced_member",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nh={}\nr=n\n* h\n.x=[1,2]\n[r,h]\nend",
+    "go_error": "parse error at 14:3: unexpected token \"=\""
+  },
+  {
+    "name": "command_leading_splat_expression",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na=2;b=3\nr=n\n*a+b\n=4\nr\nend",
+    "go_error": "parse error at 14:1: unexpected token \"=\""
+  },
+  {
+    "name": "command_leading_splat_parenthesized",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na=2;b=3\nr=n\n*(a+b)\n=4\nr\nend",
+    "go_error": "parse error at 13:4: invalid destructuring assignment target"
+  },
+  {
+    "name": "command_slash_unterminated_argument",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nn /2\nend",
+    "go_error": "parse error at 11:3: unterminated regex literal"
+  }
+]

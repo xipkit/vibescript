@@ -1,4 +1,5 @@
 use crate::{Error, Result, Value};
+use std::collections::HashSet;
 
 const MAX_DEPTH: usize = 128;
 const MAX_SOURCE: usize = 8 << 20;
@@ -17,6 +18,9 @@ enum Token {
 struct Lexeme {
     token: Token,
     offset: usize,
+    end: usize,
+    line: usize,
+    end_line: usize,
 }
 
 fn lex(source: &str) -> Result<Vec<Lexeme>> {
@@ -25,6 +29,7 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
     }
     let s = source.as_bytes();
     let mut i = 0;
+    let mut line = 0;
     let mut out = Vec::new();
     while i < s.len() {
         let start = i;
@@ -181,10 +186,9 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
             }
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
                 i += 1;
-                while i < s.len() && (s[i].is_ascii_alphanumeric() || s[i] == b'_') {
-                    i += 1;
-                }
-                if s.get(i) == Some(&b'?') {
+                while i < s.len()
+                    && (s[i].is_ascii_alphanumeric() || matches!(s[i], b'_' | b'?' | b'!'))
+                {
                     i += 1;
                 }
                 Token::Word(source[start..i].to_owned())
@@ -223,14 +227,22 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
                 }
             }
         };
+        let start_line = line;
+        line += s[start..i].iter().filter(|&&b| b == b'\n').count();
         out.push(Lexeme {
             token,
             offset: start,
+            end: i,
+            line: start_line,
+            end_line: line,
         });
     }
     out.push(Lexeme {
         token: Token::Eof,
         offset: s.len(),
+        end: s.len(),
+        line,
+        end_line: line,
     });
     Ok(out)
 }
@@ -351,6 +363,10 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
         pos: 0,
         depth: 0,
         groups: 0,
+        line_exprs: 0,
+        command_depth: 0,
+        ternaries: Vec::new(),
+        locals: HashSet::new(),
     };
     let mut defs = Vec::new();
     let mut top = Vec::new();
@@ -358,20 +374,19 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
     while !matches!(p.token(), Token::Eof) {
         if p.word("def") {
             let name = p.name()?;
+            let outer_locals = std::mem::take(&mut p.locals);
             let parenthesized = p.take_p('(');
             let params = p.parameters(parenthesized)?;
             p.lines();
             let body = p.block(&["end"])?;
             p.expect_word("end")?;
+            p.locals = outer_locals;
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
             defs.push(Definition { name, params, body });
         } else {
             top.push(p.statement()?);
-        }
-        if !matches!(p.token(), Token::Eof | Token::EndLine) {
-            return p.err("expected newline or semicolon");
         }
         p.lines();
     }
@@ -391,6 +406,10 @@ struct Parser {
     pos: usize,
     depth: usize,
     groups: usize,
+    line_exprs: usize,
+    command_depth: usize,
+    ternaries: Vec<usize>,
+    locals: HashSet<String>,
 }
 impl Parser {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
@@ -435,7 +454,11 @@ impl Parser {
                     None
                 } else {
                     let grouped = self.token() == &Token::P('(');
-                    let value = self.expr(0)?;
+                    let value = if parenthesized {
+                        self.expr(0)?
+                    } else {
+                        self.line_expr(0)?
+                    };
                     if !grouped && annotation_expression(&value, &params, false) {
                         return self.err("type annotations are not implemented");
                     }
@@ -449,7 +472,11 @@ impl Parser {
                 if parenthesized {
                     self.lines();
                 }
-                Some(self.expr(0)?)
+                Some(if parenthesized {
+                    self.expr(0)?
+                } else {
+                    self.line_expr(0)?
+                })
             } else {
                 None
             };
@@ -478,6 +505,7 @@ impl Parser {
                 }
                 _ => (),
             }
+            self.locals.insert(name.clone());
             params.push(Parameter {
                 name,
                 kind,
@@ -547,6 +575,13 @@ impl Parser {
             self.pos += 1;
         }
     }
+    fn line_breaks(&mut self) {
+        while self.token() == &Token::EndLine
+            && self.tokens[self.pos].line != self.tokens[self.pos].end_line
+        {
+            self.pos += 1;
+        }
+    }
     fn name(&mut self) -> Result<String> {
         if let Token::Word(w) = self.bump() {
             if reserved(&w) {
@@ -569,6 +604,24 @@ impl Parser {
             Ok(())
         }
     }
+    fn declare_target(&mut self, target: &Target) {
+        match target {
+            Target::Value(Expr {
+                node: Node::Var(name),
+                ..
+            }) => {
+                self.locals.insert(name.clone());
+            }
+            Target::Tuple(parts) => {
+                for (part, _) in parts {
+                    if let Some(part) = part {
+                        self.declare_target(part);
+                    }
+                }
+            }
+            _ => (),
+        }
+    }
     fn block(&mut self, stop: &[&str]) -> Result<Vec<Stmt>> {
         self.enter()?;
         let mut body = Vec::new();
@@ -578,9 +631,6 @@ impl Parser {
                 return self.err("unexpected end of source");
             }
             body.push(self.statement()?);
-            if !self.at_end() && !matches!(self.token(), Token::EndLine) {
-                return self.err("expected newline or semicolon");
-            }
             self.lines();
         }
         self.depth -= 1;
@@ -602,7 +652,7 @@ impl Parser {
                 .err("modifier requires an expression, assignment, or leaf control statement");
         }
         self.bump();
-        let mut condition = self.expr(0)?;
+        let mut condition = self.line_expr(0)?;
         if matches!(modifier.as_str(), "unless" | "until") {
             condition = self.negate(condition)?;
         }
@@ -632,7 +682,12 @@ impl Parser {
             if self.word(flow) {
                 let modifier = matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
                 let value = if !modifier && self.starts_expression() {
-                    Some(self.expr(0)?)
+                    let first = self.line_expr(0)?;
+                    Some(if flow == "return" {
+                        self.return_values(first)?
+                    } else {
+                        first
+                    })
                 } else {
                     None
                 };
@@ -656,12 +711,14 @@ impl Parser {
                 return self.err("compound destructuring assignment is invalid");
             }
             self.lines();
-            let first = self.expr(0)?;
-            let rhs = if self.take_p(',') {
+            let first = self.line_expr(0)?;
+            let rhs = if matches!(target, Target::Tuple(_)) && self.take_p(',') {
                 let mut items = vec![first];
                 loop {
-                    self.lines();
-                    items.push(self.expr(0)?);
+                    if self.at_end() || self.token() == &Token::EndLine {
+                        break;
+                    }
+                    items.push(self.line_expr(0)?);
                     if !self.take_p(',') {
                         break;
                     }
@@ -671,16 +728,30 @@ impl Parser {
             } else {
                 first
             };
+            self.declare_target(&target);
             return Ok(Stmt::Assign(target, op, rhs));
         }
-        Ok(Stmt::Expr(self.expr(0)?))
+        Ok(Stmt::Expr(self.line_expr(0)?))
+    }
+    fn return_values(&mut self, first: Expr) -> Result<Expr> {
+        if self.token() != &Token::P(',') || self.tokens[self.pos].line != self.previous().line {
+            return Ok(first);
+        }
+        let mut items = vec![first];
+        while self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous().line {
+            self.bump();
+            self.line_breaks();
+            items.push(self.line_expr(0)?);
+        }
+        let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
+        self.make(Node::Array(items), depth)
     }
     fn negate(&self, expr: Expr) -> Result<Expr> {
         let depth = expr.depth + 1;
         self.make(Node::Unary("!", Box::new(expr)), depth)
     }
     fn while_stmt(&mut self, until: bool) -> Result<Stmt> {
-        let mut cond = self.expr(0)?;
+        let mut cond = self.line_expr(0)?;
         if until {
             cond = self.negate(cond)?;
         }
@@ -695,8 +766,9 @@ impl Parser {
             return self.err("invalid for loop target");
         }
         self.expect_word("in")?;
-        let iterable = self.expr(0)?;
+        let iterable = self.line_expr(0)?;
         self.word("do");
+        self.declare_target(&target);
         let body = self.block(&["end"])?;
         self.expect_word("end")?;
         Ok(Stmt::For(target, iterable, body))
@@ -740,7 +812,7 @@ impl Parser {
                         _ => Target::Tuple(vec![(Some(inner), false)]),
                     })
                 } else {
-                    Some(Target::Value(self.expr(0)?))
+                    Some(Target::Value(self.line_expr(0)?))
                 }
             };
             parts.push((value, rest));
@@ -749,11 +821,6 @@ impl Parser {
             }
             tuple = true;
             self.lines();
-            if matches!(self.token(), Token::P(')' | ']') | Token::Op("="))
-                || matches!(self.token(), Token::Word(w) if w=="in")
-            {
-                break;
-            }
         }
         self.depth -= 1;
         let target = if tuple {
@@ -780,11 +847,17 @@ impl Parser {
                 }
                 Token::Op(op) if nesting == 0 && assignment(op) => return true,
                 Token::EndLine if nesting == 0 => {
+                    if lexeme.line == lexeme.end_line {
+                        return false;
+                    }
                     let next = self.tokens[self.pos + i + 1..]
                         .iter()
                         .find(|l| !matches!(l.token, Token::EndLine));
                     if !comma
-                        && !next.is_some_and(|l| matches!(l.token, Token::Op(op) if assignment(op)))
+                        && !next.is_some_and(|l| {
+                            l.token == Token::P('.')
+                                || matches!(l.token, Token::Op(op) if assignment(op))
+                        })
                     {
                         return false;
                     }
@@ -807,7 +880,7 @@ impl Parser {
     }
     fn if_stmt(&mut self, unless: bool) -> Result<Stmt> {
         self.enter()?;
-        let mut cond = self.expr(0)?;
+        let mut cond = self.line_expr(0)?;
         if unless {
             cond = self.negate(cond)?;
         }
@@ -833,7 +906,7 @@ impl Parser {
     }
     fn if_expr(&mut self, unless: bool) -> Result<Expr> {
         self.enter()?;
-        let mut cond = self.expr(0)?;
+        let mut cond = self.line_expr(0)?;
         if unless {
             cond = self.negate(cond)?;
         }
@@ -868,7 +941,7 @@ impl Parser {
         let target = if matches!(self.token(), Token::Word(w) if w=="when") {
             None
         } else {
-            Some(Box::new(self.expr(0)?))
+            Some(Box::new(self.line_expr(0)?))
         };
         self.lines();
         let mut clauses = Vec::new();
@@ -879,7 +952,7 @@ impl Parser {
                 if splat {
                     self.bump();
                 }
-                values.push((self.expr(0)?, splat));
+                values.push((self.line_expr(0)?, splat));
                 if !self.take_p(',') {
                     break;
                 }
@@ -933,6 +1006,12 @@ impl Parser {
         self.depth -= 1;
         result
     }
+    fn line_expr(&mut self, min: u8) -> Result<Expr> {
+        self.line_exprs += 1;
+        let result = self.expr(min);
+        self.line_exprs -= 1;
+        result
+    }
     // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
     fn prefix(&mut self) -> Result<Expr> {
         Ok(match self.bump() {
@@ -958,6 +1037,9 @@ impl Parser {
                 _ => self.make(Node::Var(w), 1)?,
             },
             Token::P(':') => {
+                if !self.symbol_start(self.pos - 1) {
+                    return self.err("expected symbol");
+                }
                 let bytes = match self.bump() {
                     Token::Word(w) => w.into_bytes(),
                     Token::Bytes(b) => b,
@@ -1026,6 +1108,27 @@ impl Parser {
     }
     fn expr_tail(&mut self, mut lhs: Expr, min: u8) -> Result<Expr> {
         loop {
+            if let Some(next) = self.continuation_position(min) {
+                self.pos = next;
+            }
+            if self.command_start(&lhs, min) {
+                self.command_depth += 1;
+                if self.command_depth > 64 {
+                    return self.err("parenless call nesting too deep");
+                }
+                let args = self.command_arguments()?;
+                self.command_depth -= 1;
+                let depth = 1 + lhs
+                    .depth
+                    .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
+                let node = match lhs.node {
+                    Node::Var(name) => Node::Call(name, args),
+                    Node::Member(receiver, name) => Node::Method(receiver, name, args),
+                    _ => unreachable!(),
+                };
+                lhs = self.make(node, depth)?;
+                continue;
+            }
             if self.take_p('(') {
                 let Node::Var(name) = lhs.node else {
                     return self.err("only named functions are callable");
@@ -1064,7 +1167,9 @@ impl Parser {
             }
             if min <= 2 && self.take_p('?') {
                 self.lines();
+                self.ternaries.push(self.groups);
                 let yes = self.expr(0)?;
+                self.ternaries.pop();
                 self.expect_p(':')?;
                 self.lines();
                 let no = self.expr(2)?;
@@ -1079,17 +1184,8 @@ impl Parser {
                 break;
             };
             let op = *op;
-            let (left, right) = match op {
-                "||" => (3, 4),
-                "&&" => (4, 5),
-                "==" | "!=" | "===" => (5, 6),
-                "<" | "<=" | ">" | ">=" => (6, 7),
-                ".." | "..." => (7, 8),
-                "<<" => (10, 11),
-                "+" | "-" => (11, 12),
-                "*" | "/" | "%" => (12, 13),
-                "**" => (14, 14),
-                _ => break,
+            let Some((left, right)) = binding_power(op) else {
+                break;
             };
             if left < min {
                 break;
@@ -1114,6 +1210,212 @@ impl Parser {
             lhs = self.make(Node::Binary(op, Box::new(lhs), Box::new(rhs)), depth)?;
         }
         Ok(lhs)
+    }
+    fn previous(&self) -> &Lexeme {
+        self.tokens[..self.pos]
+            .iter()
+            .rev()
+            .find(|t| t.token != Token::EndLine)
+            .unwrap()
+    }
+    fn continuation_position(&self, min: u8) -> Option<usize> {
+        if self.token() != &Token::EndLine {
+            return None;
+        }
+        let mut next = self.pos;
+        while self.tokens[next].token == Token::EndLine {
+            if self.tokens[next].line == self.tokens[next].end_line {
+                return None;
+            }
+            next += 1;
+        }
+        let lexeme = &self.tokens[next];
+        let continues = match lexeme.token {
+            Token::P('.') => true,
+            Token::P('?') => min <= 2,
+            Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
+            Token::Op(op) => {
+                let (left, _) = binding_power(op)?;
+                if left < min {
+                    return None;
+                }
+                if self.line_exprs == 0 {
+                    if op == "/" {
+                        return None;
+                    }
+                    return (self.groups > 0).then_some(next);
+                }
+                match op {
+                    "+" | "-" => self.tokens[next + 1..]
+                        .iter()
+                        .find(|t| t.token != Token::EndLine || t.line == t.end_line)
+                        .is_some_and(|operand| {
+                            !matches!(operand.token, Token::Eof | Token::EndLine)
+                                && (operand.line > lexeme.end_line || operand.offset > lexeme.end)
+                        }),
+                    "*" => !self.splat_assignment_ahead(next),
+                    "/" => false,
+                    _ => true,
+                }
+            }
+            _ => false,
+        };
+        continues.then_some(next)
+    }
+    fn splat_assignment_ahead(&self, start: usize) -> bool {
+        let mut groups = 0usize;
+        let mut previous = &self.tokens[start];
+        let operand = &self.tokens[start + 1];
+        let shaped = matches!(operand.token, Token::P(',') | Token::Op("="))
+            || operand.offset == previous.end;
+        let mut comma = false;
+        for token in &self.tokens[start + 1..] {
+            if token.line > self.tokens[start].line + 64 {
+                return false;
+            }
+            if token.token == Token::EndLine {
+                if token.line == token.end_line {
+                    return false;
+                }
+                continue;
+            }
+            if token.line > previous.end_line
+                && groups == 0
+                && previous.token != Token::P(',')
+                && !((shaped || comma)
+                    && (token.token == Token::Op("=")
+                        || (token.token == Token::P('.')
+                            && matches!(previous.token, Token::Word(_) | Token::P(')' | ']')))))
+            {
+                return false;
+            }
+            if groups == 0 && token.token != Token::Op("=") {
+                let allowed = if previous.token == Token::P('.') {
+                    matches!(token.token, Token::Word(_))
+                } else {
+                    match &token.token {
+                        Token::Word(w) => !reserved(w),
+                        Token::P(',' | '.' | '(' | ')' | '[' | ']') | Token::Op("*") => true,
+                        _ => false,
+                    }
+                };
+                if !allowed {
+                    return false;
+                }
+            }
+            match token.token {
+                Token::P('(' | '[') => groups += 1,
+                Token::P(')' | ']') => {
+                    let Some(next) = groups.checked_sub(1) else {
+                        return false;
+                    };
+                    groups = next;
+                }
+                Token::Op("=") if groups == 0 => return true,
+                Token::P(',') if groups == 0 => comma = true,
+                Token::Eof => return false,
+                _ => (),
+            }
+            previous = token;
+        }
+        false
+    }
+    fn keyword_label(&self, pos: usize) -> bool {
+        matches!(self.tokens[pos].token, Token::Word(_))
+            && self
+                .tokens
+                .get(pos + 1)
+                .is_some_and(|t| t.token == Token::P(':'))
+    }
+    fn command_start(&self, lhs: &Expr, min: u8) -> bool {
+        if self.line_exprs == 0 || min > 14 || !matches!(lhs.node, Node::Var(_) | Node::Member(..))
+        {
+            return false;
+        }
+        let local = match &lhs.node {
+            Node::Var(name) if name == "self" => return false,
+            Node::Var(name) => self.locals.contains(name),
+            _ => false,
+        };
+        let previous = self.previous();
+        let next = &self.tokens[self.pos];
+        if next.line != previous.end_line {
+            return false;
+        }
+        if self.keyword_label(self.pos) {
+            return true;
+        }
+        match next.token {
+            Token::P(':')
+                if self.ternaries.last() == Some(&self.groups)
+                    && matches!(self.tokens[self.pos + 1].token, Token::Bytes(_)) =>
+            {
+                false
+            }
+            Token::P('[') => !local && previous.end != next.offset,
+            Token::Op(op @ ("*" | "**" | "/")) => {
+                // Go v0.70.0 locates a power token at its second star.
+                let start = next.offset + usize::from(op == "**");
+                !local
+                    && previous.end != start
+                    && self
+                        .tokens
+                        .get(self.pos + 1)
+                        .is_some_and(|t| t.line == next.end_line && t.offset == next.end)
+            }
+            _ => self.command_argument_start(self.pos, false),
+        }
+    }
+    fn command_argument_start(&self, pos: usize, after_comma: bool) -> bool {
+        if self.keyword_label(pos) {
+            return true;
+        }
+        match &self.tokens[pos].token {
+            Token::Word(w) => !reserved(w) || matches!(w.as_str(), "case" | "for"),
+            Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,
+            Token::P(':') => self.symbol_start(pos),
+            Token::Op("!") => true,
+            Token::P('[') | Token::Op("*" | "**") => after_comma,
+            _ => false,
+        }
+    }
+    fn symbol_start(&self, pos: usize) -> bool {
+        let colon = &self.tokens[pos];
+        if pos > 0
+            && matches!(self.tokens[pos - 1].token, Token::Word(_))
+            && self.tokens[pos - 1].end == colon.offset
+        {
+            return false;
+        }
+        self.tokens.get(pos + 1).is_some_and(|t| {
+            t.offset == colon.end && matches!(t.token, Token::Word(_) | Token::Bytes(_))
+        })
+    }
+    fn command_arguments(&mut self) -> Result<Vec<Argument>> {
+        let mut args = Vec::new();
+        let mut keywords = false;
+        loop {
+            let argument = self.call_argument(false)?;
+            let keyword = matches!(
+                argument.kind,
+                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
+            );
+            if keywords && !keyword {
+                return self.err("positional arguments cannot follow keywords");
+            }
+            keywords |= keyword;
+            args.push(argument);
+            let last = self.previous();
+            if self.token() != &Token::P(',')
+                || self.tokens[self.pos].line != last.line
+                || self.tokens[self.pos + 1].line != last.line
+                || !self.command_argument_start(self.pos + 1, true)
+            {
+                break;
+            }
+            self.bump();
+        }
+        Ok(args)
     }
     fn arguments(&mut self, close: char) -> Result<Vec<Expr>> {
         self.groups += 1;
@@ -1142,60 +1444,71 @@ impl Parser {
         self.groups += 1;
         let mut args = Vec::new();
         let mut keywords = false;
-        self.lines();
+        self.line_breaks();
         if self.take_p(')') {
             self.groups -= 1;
             return Ok(args);
         }
         loop {
-            let kind = if self.token() == &Token::Op("**") {
-                self.bump();
-                ArgumentKind::KeywordSplat
-            } else if matches!(self.token(), Token::Word(_))
-                && self
-                    .tokens
-                    .get(self.pos + 1)
-                    .is_some_and(|t| t.token == Token::P(':'))
-            {
-                let Token::Word(name) = self.bump() else {
-                    unreachable!()
-                };
-                self.bump();
-                ArgumentKind::Keyword(name)
-            } else if self.token() == &Token::Op("*") {
-                self.bump();
-                ArgumentKind::Splat
-            } else {
-                ArgumentKind::Positional
-            };
-            let keyword = matches!(kind, ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat);
+            let argument = self.call_argument(true)?;
+            let keyword = matches!(
+                argument.kind,
+                ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat
+            );
             if keywords && !keyword {
                 return self.err("positional arguments cannot follow keywords");
             }
             keywords |= keyword;
-            self.lines();
-            let value = if let ArgumentKind::Keyword(name) = &kind {
-                if matches!(self.token(), Token::P(',' | ')')) {
-                    self.make(Node::Var(name.clone()), 1)?
-                } else {
-                    self.expr(0)?
-                }
-            } else {
-                self.expr(0)?
-            };
-            args.push(Argument { kind, value });
-            self.lines();
+            args.push(argument);
+            self.line_breaks();
             if self.take_p(')') {
                 break;
             }
             self.expect_p(',')?;
-            self.lines();
+            self.line_breaks();
             if self.take_p(')') {
                 break;
             }
         }
         self.groups -= 1;
         Ok(args)
+    }
+    fn call_argument(&mut self, parenthesized: bool) -> Result<Argument> {
+        let kind = if self.token() == &Token::Op("**") {
+            self.bump();
+            ArgumentKind::KeywordSplat
+        } else if self.keyword_label(self.pos) {
+            let Token::Word(name) = self.bump() else {
+                unreachable!()
+            };
+            self.bump();
+            ArgumentKind::Keyword(name)
+        } else if self.token() == &Token::Op("*") {
+            self.bump();
+            ArgumentKind::Splat
+        } else {
+            ArgumentKind::Positional
+        };
+        if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
+            self.line_breaks();
+        }
+        let value = if let ArgumentKind::Keyword(name) = &kind {
+            let shorthand = self.token() == &Token::P(',')
+                || (parenthesized && self.token() == &Token::P(')'))
+                || (!parenthesized
+                    && (self.token() == &Token::Eof
+                        || (self.token() == &Token::EndLine
+                            && self.tokens[self.pos].line != self.tokens[self.pos].end_line)
+                        || self.tokens[self.pos].line != self.tokens[self.pos - 1].end_line));
+            if shorthand {
+                self.make(Node::Var(name.clone()), 1)?
+            } else {
+                self.expr(0)?
+            }
+        } else {
+            self.expr(0)?
+        };
+        Ok(Argument { kind, value })
     }
     fn starts_expression(&self) -> bool {
         match self.token() {
@@ -1232,6 +1545,21 @@ fn assignment(op: &str) -> bool {
         op,
         "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "||=" | "&&="
     )
+}
+
+fn binding_power(op: &str) -> Option<(u8, u8)> {
+    Some(match op {
+        "||" => (3, 4),
+        "&&" => (4, 5),
+        "==" | "!=" | "===" => (5, 6),
+        "<" | "<=" | ">" | ">=" => (6, 7),
+        ".." | "..." => (7, 8),
+        "<<" => (10, 11),
+        "+" | "-" => (11, 12),
+        "*" | "/" | "%" => (12, 13),
+        "**" => (14, 14),
+        _ => return None,
+    })
 }
 
 fn reserved(w: &str) -> bool {

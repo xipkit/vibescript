@@ -81,7 +81,9 @@ def validate(out):
 
 
 def validate_rejections(out):
-    cases=json.loads((ROOT/"tests/language-errors.json").read_text())
+    cases=[]
+    for filename,phase in [("language-errors.json","runtime"),("syntax-errors.json","syntax")]:
+        cases += [{**case,"phase":phase} for case in json.loads((ROOT/"tests"/filename).read_text())]
     records=[]
     for variant in VARIANTS:
         for case in cases:
@@ -93,9 +95,11 @@ def validate_rejections(out):
             if variant.startswith("go-"):
                 assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)
             else:
-                assert "Error { kind:" in proc.stderr and "kind: Syntax" not in proc.stderr,(variant,case["name"],proc.stderr)
-            records.append({"variant":variant,"name":case["name"],"stderr":proc.stderr})
-        print(f"{variant}: {len(cases)} invalid calls rejected",flush=True)
+                assert "Error { kind:" in proc.stderr,(variant,case["name"],proc.stderr)
+                assert ("kind: Syntax" in proc.stderr)==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)
+            records.append({"variant":variant,"name":case["name"],"phase":case["phase"],"stderr":proc.stderr})
+        counts={phase:sum(c["phase"]==phase for c in cases) for phase in ["runtime","syntax"]}
+        print(f"{variant}: {counts['runtime']} runtime errors and {counts['syntax']} syntax errors rejected",flush=True)
     (out/"validation-rejections.json").write_text(json.dumps(records,indent=2)+"\n")
 
 

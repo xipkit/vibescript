@@ -42,7 +42,7 @@ The [SMS preview example](examples/sms.rs) captures a Rust client in a registere
 
 ## Implemented subset
 
-- Named functions with positional/default/keyword/rest/keyword-rest parameters, argument splats and keyword shorthand, implicit returns, explicit `return`, and top-level statements. Source calls preserve Go's trailing options-hash binding rules. Defaults execute in order after argument validation and use the call's limits.
+- Named functions with positional/default/keyword/rest/keyword-rest parameters, calls with or without parentheses, argument splats and keyword shorthand, implicit returns, explicit `return` of single or multiple values, and top-level statements. Source calls preserve Go's trailing options-hash binding rules. Defaults execute in order after argument validation and use the call's limits.
 - Local names become available as statements execute, including declarations after skipped branches and loop control transfers. Zero-parameter script functions can auto-invoke in value positions; other function references and registered host callbacks require explicit calls. Unknown names fail when executed, so unused branches and defaults can compile.
 - Signed 64-bit integers, floats, booleans, nil, byte strings, symbols, arrays, insertion-ordered hashes, and integer ranges.
 - Arithmetic, floor integer division/modulo, comparisons, short-circuit `&&` and `||`, ternary expressions, assignment and compound assignment, `if`/`elsif`/`else`/`unless`, expression-valued conditionals, `case`/`when`, and statement modifiers.
@@ -57,7 +57,7 @@ The [SMS preview example](examples/sms.rs) captures a Rust client in a registere
 - String `prepend`, character-position `insert`, `replace`, and `clear` return new strings while preserving the receiver's binding.
 - Explicitly registered synchronous host functions.
 
-Not implemented: classes, modules, imports, enums, blocks/iterators, general calls without parentheses, interpolation, regex, arbitrary-precision integers, type annotations/checking, full standard-library coverage, or async host functions. Integer overflow is an error. JSON numbers are limited to i64/finite f64 and 1,024 digits; float JSON spelling can differ from Go. Indexed array assignment past the end is an error; `insert` and `fill` can expand an array. Compilation is bounded by 8 MiB of source and 128 levels of syntax nesting; runtime value nesting is also bounded at 128. [Known reference differences](docs/compatibility.md) cover integer-boundary loops, hash-loop break results, and collection evaluation during mutation.
+Not implemented: classes, modules, imports, enums, blocks/iterators, interpolation, regex, arbitrary-precision integers, type annotations/checking, full standard-library coverage, or async host functions. Integer overflow is an error. JSON numbers are limited to i64/finite f64 and 1,024 digits; float JSON spelling can differ from Go. Indexed array assignment past the end is an error; `insert` and `fill` can expand an array. Compilation is bounded by 8 MiB of source, 128 levels of syntax nesting, and 64 nested calls without parentheses; runtime value nesting is also bounded at 128. [Known reference differences](docs/compatibility.md) cover integer-boundary loops, hash-loop break results, and collection evaluation during mutation.
 
 ## Accounting and cancellation
 

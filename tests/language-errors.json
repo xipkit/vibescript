@@ -1088,5 +1088,50 @@
     "name": "call_scope_destructure_target_no_bypass",
     "source": "def x()\n0\nend\ndef run(input)\na=[1]\nx,a[x()]=[3,9]\n[a,x]\nend",
     "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "command_nested_arguments",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack id 2,3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "command_member_array",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\n[1,2].first [0]\nend",
+    "go_error": "array.first expects non-negative integer"
+  },
+  {
+    "name": "command_array_flush",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nid[1]\nend",
+    "go_error": "id is a function and cannot be used as a value; call it with id(...)"
+  },
+  {
+    "name": "command_power_flush",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nn**2\nend",
+    "go_error": "keyword splat argument must be a hash, got int"
+  },
+  {
+    "name": "command_star_argument",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nn *2\nend",
+    "go_error": "splat argument must be an array, got int"
+  },
+  {
+    "name": "command_power_argument",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nn **2\nend",
+    "go_error": "keyword splat argument must be a hash, got int"
+  },
+  {
+    "name": "command_keyword_empty_value",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\npack a:\n2\nend",
+    "go_error": "undefined variable a (did you mean \"n\" or \"p\"?)"
+  },
+  {
+    "name": "command_identifier_embedded_bang",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nid!false\nend",
+    "go_error": "undefined variable id!false"
+  },
+  {
+    "name": "command_identifier_embedded_question",
+    "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nid?false\nend",
+    "go_error": "undefined variable id?false"
   }
 ]
