@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "387d62dc6de4943bbf6fb94d0e1f0bed9dd779c5",
-  "dirty": " M scripts/fixtures.py\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/ops.rs\n M src/syntax.rs\n M src/value.rs\n M src/vm.rs\n M tests/core.rs\n?? src/range.rs\n?? src/sequence.rs\n?? tests/language.json\n?? tests/language.rs\n",
+  "source_revision": "337c509ad22fe838e682daa62f4f1a93aaf46b04",
+  "dirty": " M scripts/compare.py\n M src/bytecode.rs\n M src/lib.rs\n M src/ops.rs\n M src/range.rs\n M tests/language.json\n M tests/language.rs\n?? src/collections.rs\n?? src/text.rs\n?? tests/language-errors.json\n",
   "binary_sha256": {
-    "go-simd": "a2a76ba209314d08484854ea47a01cc25912de4aa0043b0627cb377a0d7b657a",
-    "rust-simd": "17c087ea7935ec3e2f5d3a589769f04a0b27192a6ffd172321b68a04093d216a"
+    "go-simd": "4b18246753083ef03789620db0009d0e53e55da57d482209bfca38815fd08059",
+    "rust-simd": "20019d63273568daa2ae15fcda283dbd70c0e3f556fb25286c73b7028ee2b6a7"
   },
   "counts": {
-    "rust_gap": 96,
-    "match": 92,
+    "rust_gap": 68,
+    "match": 120,
     "harness_gap": 15
   },
   "examples": [
@@ -167,10 +167,53 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method empty? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "abbreviations": [
+            {
+              "command": "add",
+              "abbreviation": "ad"
+            },
+            {
+              "command": "append",
+              "abbreviation": "ap"
+            },
+            {
+              "command": "commit",
+              "abbreviation": "com"
+            },
+            {
+              "command": "copy",
+              "abbreviation": "cop"
+            },
+            {
+              "command": "delete",
+              "abbreviation": "d"
+            },
+            {
+              "command": "insert",
+              "abbreviation": "i"
+            },
+            {
+              "command": "move",
+              "abbreviation": "m"
+            },
+            {
+              "command": "print",
+              "abbreviation": "p"
+            },
+            {
+              "command": "quit",
+              "abbreviation": "q"
+            }
+          ],
+          "resolve_app": "append",
+          "resolve_pr": "print",
+          "resolve_c": "ambiguous"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/abbreviations_simple.vibe",
@@ -186,10 +229,17 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method empty? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "add": "add",
+          "append": "append",
+          "ambiguous": "ambiguous",
+          "delete": "delete",
+          "unknown": "unknown"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/abc_problem.vibe",
@@ -207,10 +257,19 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method start_with? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "a": true,
+          "bark": true,
+          "book": false,
+          "treat": true,
+          "common": false,
+          "squad": true,
+          "confuse": true
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/abundant_deficient_and_perfect_number_classifications.vibe",
@@ -630,10 +689,28 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": 0,
+            "binary": "0"
+          },
+          {
+            "value": 5,
+            "binary": "101"
+          },
+          {
+            "value": 42,
+            "binary": "101010"
+          },
+          {
+            "value": 255,
+            "binary": "11111111"
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/binary_search.vibe",
@@ -1777,10 +1854,15 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method odd? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "seventeen_thirty_four": 578,
+          "twenty_seven_eighty_two": 2214,
+          "three_digit_pair": 5535
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/factorial.vibe",
@@ -1880,10 +1962,26 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "order_five": [
+            "0/1",
+            "1/5",
+            "1/4",
+            "1/3",
+            "2/5",
+            "1/2",
+            "3/5",
+            "2/3",
+            "3/4",
+            "4/5",
+            "1/1"
+          ],
+          "order_seven_count": 19
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/fibonacci_n_step_number_sequences.vibe",
@@ -2324,10 +2422,42 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method abs is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "original": [
+              42,
+              56
+            ],
+            "reduced": {
+              "numerator": 3,
+              "denominator": 4
+            }
+          },
+          {
+            "original": [
+              13,
+              39
+            ],
+            "reduced": {
+              "numerator": 1,
+              "denominator": 3
+            }
+          },
+          {
+            "original": [
+              -150,
+              100
+            ],
+            "reduced": {
+              "numerator": -3,
+              "denominator": 2
+            }
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/gray_code.vibe",
@@ -2394,10 +2524,20 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method abs is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "zero_zero": 0,
+          "zero_ten": 10,
+          "zero_negative_ten": 10,
+          "nine_six": 3,
+          "six_nine": 3,
+          "negative_six_nine": 3,
+          "eight_forty_five": 1,
+          "large_pair": 6
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/greedy_algorithm_for_egyptian_fractions.vibe",
@@ -2465,10 +2605,37 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method even? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "length": 112,
+          "first_ten": [
+            27,
+            82,
+            41,
+            124,
+            62,
+            31,
+            94,
+            47,
+            142,
+            71
+          ],
+          "last_ten": [
+            80,
+            40,
+            20,
+            10,
+            5,
+            16,
+            8,
+            4,
+            2,
+            1
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/hamming_numbers.vibe",
@@ -3093,10 +3260,40 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": 1,
+            "kaprekar": true
+          },
+          {
+            "value": 45,
+            "kaprekar": true
+          },
+          {
+            "value": 55,
+            "kaprekar": true
+          },
+          {
+            "value": 99,
+            "kaprekar": true
+          },
+          {
+            "value": 297,
+            "kaprekar": true
+          },
+          {
+            "value": 703,
+            "kaprekar": true
+          },
+          {
+            "value": 10,
+            "kaprekar": false
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/kaprekar_routine.vibe",
@@ -3180,10 +3377,13 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method empty? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "audino"
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/leap_year.vibe",
@@ -3291,10 +3491,29 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method fetch is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "v": 1,
+          "i": 2,
+          "b": 1,
+          "e": 8,
+          "s": 5,
+          "c": 4,
+          "r": 3,
+          "p": 1,
+          "t": 5,
+          "m": 1,
+          "a": 3,
+          "k": 2,
+          "o": 3,
+          "d": 1,
+          "f": 1,
+          "l": 1,
+          "n": 1
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/levenshtein_distance.vibe",
@@ -3308,10 +3527,15 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method reverse is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "kitten_sitting": 3,
+          "rosettacode_raisethysword": 8,
+          "reverse_invariant": true
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/long_multiplication.vibe",
@@ -3329,10 +3553,19 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "multiplicand": 123,
+          "multiplier": 45,
+          "partials": [
+            615,
+            4920
+          ],
+          "product": 5535
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/look_and_say_sequence.vibe",
@@ -3348,10 +3581,17 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "term_1": "11",
+          "term_2": "21",
+          "term_3": "1211",
+          "term_4": "111221",
+          "term_5": "312211"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/luhn_test_of_credit_card_numbers.vibe",
@@ -3399,7 +3639,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method reverse is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -3519,10 +3759,41 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method transpose is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "square": [
+            [
+              1,
+              4,
+              7
+            ],
+            [
+              2,
+              5,
+              8
+            ],
+            [
+              3,
+              6,
+              9
+            ]
+          ],
+          "rectangular": [
+            [
+              1,
+              3,
+              5
+            ],
+            [
+              2,
+              4,
+              6
+            ]
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/middle_three_digits.vibe",
@@ -3565,10 +3836,44 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method abs is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          [
+            "input",
+            "middle_three"
+          ],
+          [
+            123,
+            "123"
+          ],
+          [
+            12345,
+            "234"
+          ],
+          [
+            1234567,
+            "345"
+          ],
+          [
+            10001,
+            "000"
+          ],
+          [
+            -10001,
+            "000"
+          ],
+          [
+            1,
+            "too short"
+          ],
+          [
+            2002,
+            "even digit count"
+          ]
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/minimum_multiple_of_m_where_digital_sum_equals_m.vibe",
@@ -3968,10 +4273,22 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method reverse is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          121,
+          242,
+          363,
+          484,
+          1001,
+          1111,
+          1221,
+          1331,
+          1441,
+          1551
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/pangram_checker.vibe",
@@ -4094,10 +4411,54 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method empty? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          [
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            2,
+            1
+          ],
+          [
+            1,
+            3,
+            3,
+            1
+          ],
+          [
+            1,
+            4,
+            6,
+            4,
+            1
+          ],
+          [
+            1,
+            5,
+            10,
+            10,
+            5,
+            1
+          ],
+          [
+            1,
+            6,
+            15,
+            20,
+            15,
+            6,
+            1
+          ]
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/permutations.vibe",
@@ -4141,10 +4502,45 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method empty? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "count": 6,
+          "permutations": [
+            [
+              "A",
+              "B",
+              "C"
+            ],
+            [
+              "A",
+              "C",
+              "B"
+            ],
+            [
+              "B",
+              "A",
+              "C"
+            ],
+            [
+              "B",
+              "C",
+              "A"
+            ],
+            [
+              "C",
+              "A",
+              "B"
+            ],
+            [
+              "C",
+              "B",
+              "A"
+            ]
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/pig_latin.vibe",
@@ -4405,10 +4801,50 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method abs is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "count": 7,
+          "triples": [
+            [
+              3,
+              4,
+              5
+            ],
+            [
+              5,
+              12,
+              13
+            ],
+            [
+              8,
+              15,
+              17
+            ],
+            [
+              7,
+              24,
+              25
+            ],
+            [
+              20,
+              21,
+              29
+            ],
+            [
+              9,
+              40,
+              41
+            ],
+            [
+              12,
+              35,
+              37
+            ]
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/range_extraction.vibe",
@@ -4832,10 +5268,72 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method ord is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "code": 32,
+            "character": " ",
+            "printable": false
+          },
+          {
+            "code": 33,
+            "character": "!",
+            "printable": true
+          },
+          {
+            "code": 34,
+            "character": "\"",
+            "printable": true
+          },
+          {
+            "code": 35,
+            "character": "#",
+            "printable": true
+          },
+          {
+            "code": 36,
+            "character": "$",
+            "printable": true
+          },
+          {
+            "code": 37,
+            "character": "%",
+            "printable": true
+          },
+          {
+            "code": 38,
+            "character": "&",
+            "printable": true
+          },
+          {
+            "code": 39,
+            "character": "'",
+            "printable": true
+          },
+          {
+            "code": 40,
+            "character": "(",
+            "printable": true
+          },
+          {
+            "code": 41,
+            "character": ")",
+            "printable": true
+          },
+          {
+            "code": 42,
+            "character": "*",
+            "printable": true
+          },
+          {
+            "code": 43,
+            "character": "+",
+            "printable": true
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/sieve_of_eratosthenes.vibe",
@@ -4924,10 +5422,36 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method abs is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": 4,
+            "smith": true
+          },
+          {
+            "value": 22,
+            "smith": true
+          },
+          {
+            "value": 27,
+            "smith": true
+          },
+          {
+            "value": 58,
+            "smith": true
+          },
+          {
+            "value": 85,
+            "smith": true
+          },
+          {
+            "value": 13,
+            "smith": false
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/spiral_matrix.vibe",
@@ -5818,10 +6342,24 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method even? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "code": "036000291452",
+            "valid": true
+          },
+          {
+            "code": "042100005264",
+            "valid": true
+          },
+          {
+            "code": "123456789999",
+            "valid": true
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/url_parser.vibe",
@@ -5962,10 +6500,16 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "count": 5,
+          "label": "EXAMPLES",
+          "total": 21,
+          "sentence": "5 EXAMPLES ready"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/vector_products.vibe",
@@ -6040,10 +6584,28 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method fetch is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "word": "to",
+            "count": 3
+          },
+          {
+            "word": "be",
+            "count": 3
+          },
+          {
+            "word": "not",
+            "count": 2
+          },
+          {
+            "word": "question",
+            "count": 1
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/word_wrap.vibe",
@@ -6184,10 +6746,92 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "n": 1,
+            "zeckendorf": "1"
+          },
+          {
+            "n": 2,
+            "zeckendorf": "2"
+          },
+          {
+            "n": 3,
+            "zeckendorf": "3"
+          },
+          {
+            "n": 4,
+            "zeckendorf": "3 + 1"
+          },
+          {
+            "n": 5,
+            "zeckendorf": "5"
+          },
+          {
+            "n": 6,
+            "zeckendorf": "5 + 1"
+          },
+          {
+            "n": 7,
+            "zeckendorf": "5 + 2"
+          },
+          {
+            "n": 8,
+            "zeckendorf": "8"
+          },
+          {
+            "n": 9,
+            "zeckendorf": "8 + 1"
+          },
+          {
+            "n": 10,
+            "zeckendorf": "8 + 2"
+          },
+          {
+            "n": 11,
+            "zeckendorf": "8 + 3"
+          },
+          {
+            "n": 12,
+            "zeckendorf": "8 + 3 + 1"
+          },
+          {
+            "n": 13,
+            "zeckendorf": "13"
+          },
+          {
+            "n": 14,
+            "zeckendorf": "13 + 1"
+          },
+          {
+            "n": 15,
+            "zeckendorf": "13 + 2"
+          },
+          {
+            "n": 16,
+            "zeckendorf": "13 + 3"
+          },
+          {
+            "n": 17,
+            "zeckendorf": "13 + 3 + 1"
+          },
+          {
+            "n": 18,
+            "zeckendorf": "13 + 5"
+          },
+          {
+            "n": 19,
+            "zeckendorf": "13 + 5 + 1"
+          },
+          {
+            "n": 20,
+            "zeckendorf": "13 + 5 + 2"
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/zig_zag_matrix.vibe",
@@ -6233,10 +6877,47 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method even? is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          [
+            0,
+            1,
+            5,
+            6,
+            14
+          ],
+          [
+            2,
+            4,
+            7,
+            13,
+            15
+          ],
+          [
+            3,
+            8,
+            12,
+            16,
+            21
+          ],
+          [
+            9,
+            11,
+            17,
+            20,
+            22
+          ],
+          [
+            10,
+            18,
+            19,
+            23,
+            24
+          ]
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/automation/maintenance_window.vibe",

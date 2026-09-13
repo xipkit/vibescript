@@ -50,6 +50,23 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
             return a.push(ctx, values);
         }
     }
+    if op == "+" && (matches!(a.0, Kind::Bytes(_)) || matches!(b.0, Kind::Bytes(_))) {
+        let scalar = |v: &Value| {
+            matches!(
+                v.0,
+                Kind::Bytes(_) | Kind::Symbol(_) | Kind::Int(_) | Kind::Float(_) | Kind::Bool(_)
+            )
+        };
+        if !scalar(&a) || !scalar(&b) {
+            return Err(type_error());
+        }
+        let a = to_string(ctx, &a)?;
+        let b = to_string(ctx, &b)?;
+        let mut out = Buffer::empty();
+        out.extend(ctx, a.require_bytes()?)?;
+        out.extend(ctx, b.require_bytes()?)?;
+        return Value::from_bytes(ctx, out);
+    }
     match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => {
             let n = match op {
@@ -96,12 +113,6 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 "**" => a.powf(b),
                 _ => return Err(type_error()),
             }))
-        }
-        (Kind::Bytes(a), Kind::Bytes(b)) if op == "+" => {
-            let mut out = Buffer::empty();
-            out.extend(ctx, &a.data)?;
-            out.extend(ctx, &b.data)?;
-            Value::from_bytes(ctx, out)
         }
         (Kind::Bytes(s), Kind::Int(n)) if op == "*" => {
             let n = usize::try_from(*n)
@@ -296,10 +307,65 @@ pub(crate) fn method(
     args: &[Value],
 ) -> Result<Value> {
     use Method::*;
+    match method {
+        IsNil => {
+            arity(args, 0)?;
+            return Ok(Value::boolean(matches!(value.0, Kind::Nil)));
+        }
+        Itself => {
+            arity(args, 0)?;
+            return Ok(value);
+        }
+        ToString => {
+            arity(args, 0)?;
+            if matches!(value.0, Kind::Hash(_)) {
+                return Err(type_error());
+            }
+            return to_string(ctx, &value);
+        }
+        _ => (),
+    }
     if let Kind::Range(range) = &value.0 {
         return crate::range::method(ctx, method, range, args);
     }
     match method {
+        IsNil | Itself | ToString => unreachable!(),
+        Empty => {
+            arity(args, 0)?;
+            Ok(Value::boolean(match &value.0 {
+                Kind::Bytes(h) => h.data.is_empty(),
+                Kind::Array(h) => h.buffer.data.is_empty(),
+                Kind::Hash(h) => h.buffer.data.is_empty(),
+                _ => return Err(type_error()),
+            }))
+        }
+        Abs => {
+            arity(args, 0)?;
+            match value.0 {
+                Kind::Int(n) => Ok(Value::int(n.checked_abs().ok_or_else(overflow)?)),
+                Kind::Float(n) => Ok(Value::float(n.abs())),
+                _ => Err(type_error()),
+            }
+        }
+        Even | Odd => {
+            arity(args, 0)?;
+            Ok(Value::boolean(
+                (value.require_int()? % 2 == 0) == matches!(method, Even),
+            ))
+        }
+        Reverse if matches!(value.0, Kind::Bytes(_)) => {
+            crate::text::method(ctx, method, value, args)
+        }
+        Ord | Chr | Bytes | Chars | Codepoints | StartWith | EndWith => {
+            crate::text::method(ctx, method, value, args)
+        }
+        Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose
+        | ToHash | Fetch | Dig | Key | HasValue | Member => {
+            crate::collections::method(ctx, method, value, args)
+        }
+        Slice if matches!(value.0, Kind::Hash(_)) => {
+            crate::collections::method(ctx, method, value, args)
+        }
         At | Slice | ByteSlice | GetByte | First | Last | ToArray => {
             crate::sequence::method(ctx, method, value, args)
         }
@@ -349,6 +415,9 @@ pub(crate) fn method(
         }
         Include | Index | Rindex => {
             arity(args, 1)?;
+            if matches!(method, Include) && matches!(value.0, Kind::Hash(_)) {
+                return crate::collections::method(ctx, Key, value, args);
+            }
             let found = if let Some(array) = value.as_array() {
                 let mut found = None;
                 for (i, item) in array.iter().enumerate() {
@@ -390,11 +459,19 @@ pub(crate) fn method(
         Join => join(ctx, &value, args),
         Push => value.push(ctx, args),
         Sum => {
-            arity(args, 0)?;
+            if args.len() > 1 {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "sum accepts at most an initial value",
+                ));
+            }
             let array = value.as_array().ok_or_else(type_error)?;
-            let mut sum = Value::int(0);
+            let mut sum = args.first().cloned().unwrap_or_else(|| Value::int(0));
             for item in array {
                 ctx.charge(1)?;
+                if matches!(sum.0, Kind::Bytes(_)) != matches!(item.0, Kind::Bytes(_)) {
+                    return Err(type_error());
+                }
                 sum = binary(ctx, "+", sum, item.clone())?;
             }
             Ok(sum)
@@ -412,10 +489,6 @@ pub(crate) fn method(
                 });
             }
             Value::from_array(ctx, out)
-        }
-        ToString => {
-            arity(args, 0)?;
-            to_string(ctx, &value)
         }
         ToInt => {
             arity(args, 0)?;
@@ -638,18 +711,36 @@ fn join(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
     };
     let array = value.as_array().ok_or_else(type_error)?;
     let mut out = Buffer::empty();
+    join_into(ctx, array, sep, &mut out, 0)?;
+    Value::from_bytes(ctx, out)
+}
+
+fn join_into(
+    ctx: &mut CallContext,
+    array: &[Value],
+    sep: &[u8],
+    out: &mut Buffer<u8>,
+    depth: usize,
+) -> Result<()> {
+    if depth > MAX_VALUE_DEPTH {
+        return ctx.fail(ErrorKind::Recursion, "join nesting too deep");
+    }
     for (i, v) in array.iter().enumerate() {
         ctx.charge(1)?;
         if i > 0 {
             out.extend(ctx, sep)?;
         }
-        let v = to_string(ctx, v)?;
-        out.extend(ctx, v.require_bytes()?)?;
+        if let Some(nested) = v.as_array() {
+            join_into(ctx, nested, sep, out, depth + 1)?;
+        } else {
+            let v = to_string(ctx, v)?;
+            out.extend(ctx, v.require_bytes()?)?;
+        }
     }
-    Value::from_bytes(ctx, out)
+    Ok(())
 }
 
-fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
+pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut text = json::Number::new();
     match &value.0 {
         Kind::Bytes(_) => return Ok(value.clone()),
@@ -658,12 +749,7 @@ fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
         Kind::Bool(v) => return ctx.bytes(if *v { b"true" } else { b"false" }),
         Kind::Int(n) => write!(text, "{n}").unwrap(),
         Kind::Float(n) => write!(text, "{n}").unwrap(),
-        _ => {
-            return Err(Error::new(
-                ErrorKind::Type,
-                "collection to_s is not implemented",
-            ));
-        }
+        _ => return crate::text::display(ctx, value),
     }
     ctx.bytes(text.bytes())
 }

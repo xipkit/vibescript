@@ -1,0 +1,137 @@
+[
+  {
+    "name": "concat_nil",
+    "body": "\"x\"+nil",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "concat_container",
+    "body": "[1]+\"x\"",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "sum_mixed",
+    "body": "[1,\"2\"].sum",
+    "go_error": "array.sum cannot add incompatible values"
+  },
+  {
+    "name": "sum_string_number",
+    "body": "[1].sum(\"\")",
+    "go_error": "array.sum cannot add incompatible values"
+  },
+  {
+    "name": "empty_scalar",
+    "body": "nil.empty?",
+    "go_error": "unknown nil method empty?"
+  },
+  {
+    "name": "affix_arity",
+    "body": "\"x\".start_with?",
+    "go_error": "string.start_with? expects at least one prefix"
+  },
+  {
+    "name": "affix_wrong_type",
+    "body": "\"x\".end_with?(nil)",
+    "go_error": "string.end_with? suffix must be string"
+  },
+  {
+    "name": "empty_ord",
+    "body": "\"\".ord",
+    "go_error": "string.ord requires non-empty string"
+  },
+  {
+    "name": "integer_chr",
+    "body": "97.chr",
+    "go_error": "unknown int method chr"
+  },
+  {
+    "name": "hash_to_s",
+    "body": "{}.to_s",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "array_to_a",
+    "body": "[].to_a",
+    "go_error": "unknown array method to_a (did you mean \"to_h\" or \"to_s\"?)"
+  },
+  {
+    "name": "range_at",
+    "body": "[1].at(1..2)",
+    "go_error": "array.at index must be integer"
+  },
+  {
+    "name": "string_bracket_selector",
+    "body": "\"abc\"[\"a\"]",
+    "go_error": "index must be integer"
+  },
+  {
+    "name": "negative_take",
+    "body": "[1].take(-1)",
+    "go_error": "array.take attempted with negative size"
+  },
+  {
+    "name": "invalid_chunk",
+    "body": "[1].chunk(1.5)",
+    "go_error": "array.chunk size must be a positive integer"
+  },
+  {
+    "name": "zero_window",
+    "body": "[1].window(0)",
+    "go_error": "array.window size must be a positive integer"
+  },
+  {
+    "name": "flatten_type",
+    "body": "[1].flatten(\"1\")",
+    "go_error": "array.flatten depth must be an integer"
+  },
+  {
+    "name": "zip_type",
+    "body": "[1].zip(2)",
+    "go_error": "array.zip arguments must be arrays"
+  },
+  {
+    "name": "transpose_jagged",
+    "body": "[[1],[2,3]].transpose",
+    "go_error": "array.transpose requires equal-length rows, but element at index 1 has length 2 (expected 1)"
+  },
+  {
+    "name": "transpose_scalar",
+    "body": "[1].transpose",
+    "go_error": "array.transpose requires arrays as elements, but element at index 0 is a int"
+  },
+  {
+    "name": "to_h_pair",
+    "body": "[[1]].to_h",
+    "go_error": "array.to_h pair must have exactly two elements"
+  },
+  {
+    "name": "to_h_key",
+    "body": "[[1,2]].to_h",
+    "go_error": "array.to_h pair key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "fetch_fraction",
+    "body": "[1,2].fetch(0.5)",
+    "go_error": "array.fetch index must be integer"
+  },
+  {
+    "name": "fetch_missing",
+    "body": "{}.fetch(:a)",
+    "go_error": "hash.fetch key not found: :a"
+  },
+  {
+    "name": "dig_missing_path",
+    "body": "[1].dig",
+    "go_error": "array.dig expects at least one index"
+  },
+  {
+    "name": "dig_fraction",
+    "body": "[1].dig(0.5)",
+    "go_error": "array.dig array index must be integer"
+  },
+  {
+    "name": "hash_key_type",
+    "body": "{}.key?(1)",
+    "go_error": "hash.key? key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  }
+]

@@ -164,7 +164,7 @@ pub(crate) fn method(
 ) -> Result<Value> {
     use Method::*;
     match method {
-        Include | Cover => {
+        Include | Cover | Member => {
             crate::ops::arity(args, 1)?;
             Ok(Value::boolean(range.contains(&args[0])))
         }

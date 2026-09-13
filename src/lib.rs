@@ -12,6 +12,7 @@
 pub mod asynchronous;
 mod budget;
 mod bytecode;
+mod collections;
 mod error;
 mod hash;
 mod json;
@@ -20,6 +21,7 @@ mod range;
 mod scan;
 mod sequence;
 mod syntax;
+mod text;
 mod value;
 mod vm;
 

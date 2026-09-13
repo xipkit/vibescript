@@ -94,3 +94,52 @@ fn byte_slices_preserve_partial_and_invalid_utf8() {
         .unwrap();
     assert_eq!(result.value.as_bytes(), Some([0xff, 0xc3].as_slice()));
 }
+
+#[test]
+fn language_runtime_rejections() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("language-errors.json")).unwrap();
+    for case in cases.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let source = case["body"].as_str().unwrap();
+        let script = Engine::new()
+            .compile(source)
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(script.run(CallOptions::default()).is_err(), "{name}");
+    }
+}
+
+#[test]
+fn collection_expansion_and_temporary_storage_are_accounted() {
+    for source in [
+        "a=(1..100).to_a\na.window(50)",
+        "a=(1..100).to_a\na.zip(a,a,a,a,a,a,a,a,a)",
+        "s=\"a\"*4096\ns.reverse",
+        "s=\"a\"*4096\ns.chars",
+        "a=[1]\ni=0\nwhile i<20\na=[a,a]\ni+=1\nend\na.flatten",
+        "a=[1]\ni=0\nwhile i<20\na=[a,a]\ni+=1\nend\na.to_s",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let options = CallOptions {
+            limits: Limits {
+                memory_bytes: Some(12000),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        };
+        assert_eq!(
+            script.run(options).unwrap_err().kind,
+            ErrorKind::Memory,
+            "{source}"
+        );
+    }
+    let script = Engine::new().compile("(1..400).to_a.uniq").unwrap();
+    let options = CallOptions {
+        limits: Limits {
+            steps: Some(4000),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Steps);
+}

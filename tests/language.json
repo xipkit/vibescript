@@ -365,5 +365,436 @@
       null,
       ""
     ]
+  },
+  {
+    "name": "scalar_string_concat",
+    "body": "[\"total: \"+5,5+\"x\",\"a\"+1.5,\"a\"+:sym,\"a\"+true,false+\"x\"]",
+    "expected": [
+      "total: 5",
+      "5x",
+      "a1.5",
+      "asym",
+      "atrue",
+      "falsex"
+    ]
+  },
+  {
+    "name": "sum_initial",
+    "body": "[[1,2,3].sum(10),[].sum(nil),[\"a\",\"b\"].sum(\"\"),[[1],[2]].sum([])]",
+    "expected": [
+      16,
+      null,
+      "ab",
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "nested_join",
+    "body": "[[1,[2,[3,4]],5].join(\"-\"),[1,[],2].join(\"-\"),[1,[nil,2],3].join(\"-\"),[{a:1},:x].join(\"|\")]",
+    "expected": [
+      "1-2-3-4-5",
+      "1--2",
+      "1--2-3",
+      "{a: 1}|x"
+    ]
+  },
+  {
+    "name": "value_display",
+    "body": "[[1,\"x\",nil].to_s,[1,\"x\",nil].string,(1...3).to_s,(..4).string,(2..).to_s,nil.to_s]",
+    "expected": [
+      "[1, x, ]",
+      "[1, x, ]",
+      "1...3",
+      "..4",
+      "2..",
+      ""
+    ]
+  },
+  {
+    "name": "empty_and_identity",
+    "body": "[\"\".empty?,\"x\".empty?,[].empty?,[nil].empty?,{}.empty?,{a:nil}.empty?,nil.nil?,false.nil?,(1..3).itself.to_a]",
+    "expected": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "numeric_helpers",
+    "body": "[(-6).abs,(-1.5).abs,0.even?,(-3).odd?,(-4).even?,7.odd?]",
+    "expected": [
+      6,
+      1.5,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  {
+    "name": "array_reverse_alias",
+    "body": "a=[1,2,3]\nb=a.reverse\nb[0]=9\n[a,b]",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        9,
+        2,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "string_reverse_chars",
+    "body": "s=\"aé界🙂\"\n[s.reverse,s.chars,s.codepoints,s.bytes,s.ord,s.chr,\"\".chr]",
+    "expected": [
+      "🙂界éa",
+      [
+        "a",
+        "é",
+        "界",
+        "🙂"
+      ],
+      [
+        97,
+        233,
+        30028,
+        128578
+      ],
+      [
+        97,
+        195,
+        169,
+        231,
+        149,
+        140,
+        240,
+        159,
+        153,
+        130
+      ],
+      97,
+      "a",
+      ""
+    ]
+  },
+  {
+    "name": "invalid_character_helpers",
+    "body": "s=\"\\xffé\"\n[s.reverse,s.chars,s.codepoints,s.bytes,s.ord,s.chr.bytesize]",
+    "expected": [
+      "é�",
+      [
+        "�",
+        "é"
+      ],
+      [
+        65533,
+        233
+      ],
+      [
+        255,
+        195,
+        169
+      ],
+      65533,
+      3
+    ]
+  },
+  {
+    "name": "string_affixes",
+    "body": "s=\"hello\"\n[s.start_with?(\"he\",3),s.end_with?(\"lo\",nil),s.start_with?(\"no\",\"hello\"),s.end_with?(\"\"),s.end_with?(\"hello!\")]",
+    "expected": [
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  {
+    "name": "array_take_drop",
+    "body": "a=[1,2,3]\n[a.take(2),a.drop(2),a.take(9),a.drop(9),a.take(-0.5),a.drop(1.9)]",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [],
+      [],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "compact_collections",
+    "body": "[[1,nil,false,2,nil].compact,{a:nil,b:2,c:false}.compact]",
+    "expected": [
+      [
+        1,
+        false,
+        2
+      ],
+      {
+        "b": 2,
+        "c": false
+      }
+    ]
+  },
+  {
+    "name": "array_uniq",
+    "body": "[1,1.0,2,2.0,[1],[1.0],{a:1},{a:1},nil,nil,:a,\"a\"].uniq",
+    "expected": [
+      1,
+      1,
+      2,
+      2,
+      [
+        1
+      ],
+      {
+        "a": 1
+      },
+      null,
+      "a",
+      "a"
+    ]
+  },
+  {
+    "name": "array_flatten_depth",
+    "body": "a=[1,[2,[3]],nil]\n[a.flatten,a.flatten(nil),a.flatten(-2),a.flatten(0),a.flatten(1),a.flatten(1.9)]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        null
+      ],
+      [
+        1,
+        2,
+        3,
+        null
+      ],
+      [
+        1,
+        2,
+        3,
+        null
+      ],
+      [
+        1,
+        [
+          2,
+          [
+            3
+          ]
+        ],
+        null
+      ],
+      [
+        1,
+        2,
+        [
+          3
+        ],
+        null
+      ],
+      [
+        1,
+        2,
+        [
+          3
+        ],
+        null
+      ]
+    ]
+  },
+  {
+    "name": "array_windows",
+    "body": "a=[1,2,3,4,5]\n[a.chunk(2),a.window(3),a.window(9),a.chunk(9223372036854775807),[].chunk(1)]",
+    "expected": [
+      [
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          5
+        ]
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          2,
+          3,
+          4
+        ],
+        [
+          3,
+          4,
+          5
+        ]
+      ],
+      [],
+      [
+        [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "array_zip",
+    "body": "[[1,2,3].zip([4,5],[6,7,8,9]),[1,2].zip, [].zip([1])]",
+    "expected": [
+      [
+        [
+          1,
+          4,
+          6
+        ],
+        [
+          2,
+          5,
+          7
+        ],
+        [
+          3,
+          null,
+          8
+        ]
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "array_transpose",
+    "body": "[[[1,2,3],[4,5,6]].transpose,[[],[]].transpose,[].transpose]",
+    "expected": [
+      [
+        [
+          1,
+          4
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          3,
+          6
+        ]
+      ],
+      [],
+      []
+    ]
+  },
+  {
+    "name": "array_to_hash",
+    "body": "[[:b,2],[\"a\",1],[\"b\",3]].to_h",
+    "expected": {
+      "b": 3,
+      "a": 1
+    }
+  },
+  {
+    "name": "fetch_presence",
+    "body": "[[nil,2].fetch(0,9),[1,2].fetch(-1),[1,2].fetch(9,false),{a:nil}.fetch(:a,9),{}.fetch(\"x\",7),[1,2].fetch(1.0)]",
+    "expected": [
+      null,
+      2,
+      false,
+      null,
+      7,
+      2
+    ]
+  },
+  {
+    "name": "mixed_dig",
+    "body": "x={users:[{name:\"Ada\"},nil]}\n[x.dig(:users,0,:name),x.dig(\"missing\",0),x.dig(:users,1,:name),[x].dig(0,:users,-2,:name)]",
+    "expected": [
+      "Ada",
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "hash_queries",
+    "body": "h={a:nil,b:2}\n[h.key?(:a),h.has_key?(\"b\"),h.member?(:b),h.include?(:a),h.value?(nil),h.has_value?(3),h.slice(:b,:missing,:a,:b).keys]",
+    "expected": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "uniq_preserves_numeric_kinds",
+    "body": "a=[1,1.0,2,2.0].uniq\n[a[0]/2,a[1]/2,a[2]/4,a[3]/4]",
+    "expected": [
+      0,
+      0.5,
+      0,
+      0.5
+    ]
+  },
+  {
+    "name": "dig_scalar_miss",
+    "body": "{a:1}.dig(:a,:b)",
+    "expected": null
   }
 ]

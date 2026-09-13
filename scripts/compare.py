@@ -76,7 +76,27 @@ def validate(out):
         records=[json.loads(line) for line in (out/f"validation-{variant}.jsonl").read_text().splitlines()]
         rust.append({r["name"]:tuple(r[k] for k in ["steps","tracked_peak_bytes","tracked_retained_bytes"]) for r in records})
     assert rust[0]==rust[1],"Rust accounting differs between portable and SIMD"
+    validate_rejections(out)
     return digests["go-portable"]
+
+
+def validate_rejections(out):
+    cases=json.loads((ROOT/"tests/language-errors.json").read_text())
+    records=[]
+    for variant in VARIANTS:
+        for case in cases:
+            fixture={"name":case["name"],"source":"def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
+            path=out/"rejection-input.json"
+            path.write_text(json.dumps([fixture])+"\n")
+            proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,timeout=10)
+            assert proc.returncode==1,(variant,case["name"],proc.returncode,proc.stdout,proc.stderr)
+            if variant.startswith("go-"):
+                assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)
+            else:
+                assert "Error { kind:" in proc.stderr and "kind: Syntax" not in proc.stderr,(variant,case["name"],proc.stderr)
+            records.append({"variant":variant,"name":case["name"],"stderr":proc.stderr})
+        print(f"{variant}: {len(cases)} invalid calls rejected",flush=True)
+    (out/"validation-rejections.json").write_text(json.dumps(records,indent=2)+"\n")
 
 
 def measure(out,rounds,target_ms,expected):
