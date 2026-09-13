@@ -10,10 +10,8 @@ pub(crate) enum Op {
     Nil,
     Load(usize),
     Store(usize),
-    ReleaseLocal(usize),
     Pop,
     Dup,
-    Dup2,
     Unary(&'static str),
     Binary(&'static str),
     AddStore(usize),
@@ -21,9 +19,13 @@ pub(crate) enum Op {
     Hash(usize),
     Range(bool, bool, bool),
     Index(usize),
-    SetIndex(usize),
-    SetIndexFromValue(usize),
-    IndexResult,
+    AddressLocal(usize),
+    AddressValue,
+    AddressIndex(usize),
+    AddressTarget(usize, bool),
+    AddressStore,
+    AddressDrop,
+    Mutate(Method, usize),
     Extract(Selection),
     CaseCompare(bool, bool),
     LoopStart {
@@ -435,45 +437,33 @@ impl Compiler<'_> {
                         }
                         self.emit(Op::Store(slot));
                     }
-                    Node::Index(root, index) => {
-                        let [index] = index.as_slice() else {
-                            return Err(syntax::unsupported("slice assignment is not implemented"));
-                        };
-                        let Node::Var(name) = &root.node else {
-                            return Err(syntax::unsupported(
-                                "nested index assignment is not implemented",
-                            ));
-                        };
-                        let slot = self.slot(name);
-                        self.emit(Op::Load(slot));
-                        self.expr(index)?;
-                        if matches!(*op, "||=" | "&&=") {
-                            self.emit(Op::Dup2);
-                            self.emit(Op::Index(1));
-                            self.emit(Op::Dup);
-                            let skip = self.emit(if *op == "||=" {
-                                Op::JumpTrue(0)
-                            } else {
-                                Op::JumpFalse(0)
-                            });
-                            self.emit(Op::Pop);
+                    Node::Index(..) => {
+                        if binary.is_none() && !matches!(*op, "||=" | "&&=") {
                             self.expr(rhs)?;
-                            self.emit(Op::SetIndex(slot));
-                            let end = self.emit(Op::Jump(0));
-                            self.patch(skip, self.code.len());
-                            self.emit(Op::IndexResult);
-                            self.patch(end, self.code.len());
-                            return Ok(());
+                            self.address_target(target, false)?;
+                            self.emit(Op::AddressStore);
+                        } else {
+                            self.address_target(target, true)?;
+                            if matches!(*op, "||=" | "&&=") {
+                                self.emit(Op::Dup);
+                                let skip = self.emit(if *op == "||=" {
+                                    Op::JumpTrue(0)
+                                } else {
+                                    Op::JumpFalse(0)
+                                });
+                                self.emit(Op::Pop);
+                                self.expr(rhs)?;
+                                self.emit(Op::AddressStore);
+                                let end = self.emit(Op::Jump(0));
+                                self.patch(skip, self.code.len());
+                                self.emit(Op::AddressDrop);
+                                self.patch(end, self.code.len());
+                            } else {
+                                self.expr(rhs)?;
+                                self.emit(Op::Binary(binary.unwrap()));
+                                self.emit(Op::AddressStore);
+                            }
                         }
-                        if binary.is_some() {
-                            self.emit(Op::Dup2);
-                            self.emit(Op::Index(1));
-                        }
-                        self.expr(rhs)?;
-                        if let Some(op) = binary {
-                            self.emit(Op::Binary(op));
-                        }
-                        self.emit(Op::SetIndex(slot));
                     }
                     _ => return Err(syntax::unsupported("invalid assignment target")),
                 }
@@ -560,22 +550,14 @@ impl Compiler<'_> {
                 let slot = self.slot(name);
                 self.emit(Op::Store(slot));
             }
-            Target::Value(Expr {
-                node: Node::Index(root, indices),
-                ..
-            }) => {
-                let Node::Var(name) = &root.node else {
-                    return Err(syntax::unsupported(
-                        "nested index assignment is not implemented",
-                    ));
-                };
-                let [index] = indices.as_slice() else {
-                    return Err(syntax::unsupported("slice assignment is not implemented"));
-                };
-                let slot = self.slot(name);
-                self.emit(Op::Load(slot));
-                self.expr(index)?;
-                self.emit(Op::SetIndexFromValue(slot));
+            Target::Value(
+                target @ Expr {
+                    node: Node::Index(..),
+                    ..
+                },
+            ) => {
+                self.address_target(target, false)?;
+                self.emit(Op::AddressStore);
             }
             Target::Tuple(parts) => {
                 let rest = parts.iter().position(|(_, rest)| *rest);
@@ -690,6 +672,11 @@ impl Compiler<'_> {
                     self.patch(completed, self.code.len());
                 }
             }
+            Node::Binary("<<", a, b) => {
+                self.address(a)?;
+                self.expr(b)?;
+                self.emit(Op::Mutate(Method::Push, 1));
+            }
             Node::Binary(op, a, b) => {
                 self.expr(a)?;
                 if matches!(*op, "&&" | "||") {
@@ -704,13 +691,7 @@ impl Compiler<'_> {
                     self.patch(jump, self.code.len());
                 } else {
                     self.expr(b)?;
-                    if *op == "<<" {
-                        self.release_receiver(a);
-                    }
                     self.emit(Op::Binary(op));
-                    if *op == "<<" {
-                        self.write_receiver(a)?;
-                    }
                 }
             }
             Node::Call(name, args) => {
@@ -737,17 +718,20 @@ impl Compiler<'_> {
                         _ => return Err(syntax::unsupported("unknown JSON method")),
                     });
                 } else {
-                    self.expr(recv)?;
+                    if name == "push" {
+                        self.address(recv)?;
+                    } else {
+                        self.expr(recv)?;
+                    }
                     for a in args {
                         self.expr(a)?;
                     }
-                    if name == "push" {
-                        self.release_receiver(recv);
-                    }
-                    self.emit(Op::Method(Method::parse(name)?, args.len()));
-                    if name == "push" {
-                        self.write_receiver(recv)?;
-                    }
+                    let method = Method::parse(name)?;
+                    self.emit(if name == "push" {
+                        Op::Mutate(method, args.len())
+                    } else {
+                        Op::Method(method, args.len())
+                    });
                 }
             }
             Node::Index(value, index) => {
@@ -760,24 +744,33 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn release_receiver(&mut self, recv: &Expr) {
-        if let Node::Var(name) = &recv.node {
-            let slot = self.slot(name);
-            self.emit(Op::ReleaseLocal(slot));
+    fn address_target(&mut self, target: &Expr, read: bool) -> Result<()> {
+        let Node::Index(receiver, indices) = &target.node else {
+            return Err(syntax::unsupported("invalid assignment target"));
+        };
+        self.address(receiver)?;
+        for index in indices {
+            self.expr(index)?;
         }
+        self.emit(Op::AddressTarget(indices.len(), read));
+        Ok(())
     }
-    fn write_receiver(&mut self, recv: &Expr) -> Result<()> {
-        match &recv.node {
-            Node::Var(name) => {
-                let slot = self.slot(name);
-                self.emit(Op::Store(slot));
+    fn address(&mut self, receiver: &Expr) -> Result<()> {
+        match &receiver.node {
+            Node::Var(name) if self.locals.contains_key(name) => {
+                self.emit(Op::AddressLocal(self.locals[name]));
             }
-            Node::Index(_, _) => {
-                return Err(syntax::unsupported(
-                    "nested collection mutation is not implemented",
-                ));
+            Node::Index(root, indices) => {
+                self.address(root)?;
+                for index in indices {
+                    self.expr(index)?;
+                }
+                self.emit(Op::AddressIndex(indices.len()));
             }
-            _ => (),
+            _ => {
+                self.expr(receiver)?;
+                self.emit(Op::AddressValue);
+            }
         }
         Ok(())
     }

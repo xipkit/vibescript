@@ -1,5 +1,6 @@
 use crate::{
     CallContext, Error, ErrorKind, HostFunction, Result, Value,
+    address::{self, Address},
     budget::Buffer,
     bytecode::{Op, Program, Selection},
     hash::Hash,
@@ -14,10 +15,12 @@ struct Frame {
     base: usize,
     locals: Buffer<Option<Value>>,
     loops: Buffer<LoopState>,
+    addresses: Buffer<Address>,
 }
 
 struct LoopState {
     base: usize,
+    address_base: usize,
     next: usize,
     end: usize,
     expression: bool,
@@ -100,11 +103,9 @@ pub(crate) fn execute(
                 stack.push(ctx, v)?;
             }
             Op::Store(n) => {
-                frame.locals.data[n] = Some(stack.data.last().unwrap().clone());
-            }
-            Op::ReleaseLocal(n) => {
-                // Arguments have finished evaluating; the operand stack now owns the receiver.
-                frame.locals.data[n] = None;
+                let value = stack.data.last().unwrap();
+                address::refresh(ctx, n, value, &mut frame.addresses.data, &[])?;
+                frame.locals.data[n] = Some(value.clone());
             }
             Op::Pop => {
                 stack.data.pop().unwrap();
@@ -112,13 +113,6 @@ pub(crate) fn execute(
             Op::Dup => {
                 let v = stack.data.last().unwrap().clone();
                 stack.push(ctx, v)?;
-            }
-            Op::Dup2 => {
-                let len = stack.data.len();
-                let a = stack.data[len - 2].clone();
-                let b = stack.data[len - 1].clone();
-                stack.push(ctx, a)?;
-                stack.push(ctx, b)?;
             }
             Op::Unary(op) => {
                 let value = stack.data.pop().unwrap();
@@ -136,6 +130,7 @@ pub(crate) fn execute(
                 let a = stack.data.pop().unwrap();
                 frame.locals.data[n] = None;
                 let value = ops::binary(ctx, "+", a, b)?;
+                address::refresh(ctx, n, &value, &mut frame.addresses.data, &[])?;
                 frame.locals.data[n] = Some(value.clone());
                 stack.push(ctx, value)?;
             }
@@ -188,28 +183,64 @@ pub(crate) fn execute(
                 stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }
-            Op::SetIndex(n) => {
+            Op::AddressLocal(n) => {
+                let value = frame.locals.data[n].clone().unwrap_or_default();
+                frame.addresses.push(ctx, Address::new(Some(n), value))?;
+            }
+            Op::AddressValue => {
                 let value = stack.data.pop().unwrap();
-                let key = stack.data.pop().unwrap();
-                let root = stack.data.pop().unwrap();
-                frame.locals.data[n] = None;
-                let new = ops::set_index(ctx, root, key, value.clone())?;
-                frame.locals.data[n] = Some(new);
+                frame.addresses.push(ctx, Address::new(None, value))?;
+            }
+            Op::AddressIndex(n) => {
+                let base = stack.data.len() - n;
+                frame
+                    .addresses
+                    .data
+                    .last_mut()
+                    .unwrap()
+                    .index(ctx, &stack.data[base..])?;
+                stack.data.truncate(base);
+            }
+            Op::AddressTarget(n, read) => {
+                let base = stack.data.len() - n;
+                let address = frame.addresses.data.last_mut().unwrap();
+                address.selectors.ensure(ctx, n)?;
+                for value in stack.data.drain(base..) {
+                    ctx.charge(1)?;
+                    address.selectors.data.push(value);
+                }
+                if read {
+                    let value = address.read_target(ctx)?;
+                    stack.push(ctx, value)?;
+                }
+            }
+            Op::AddressStore => {
+                let address = frame.addresses.data.pop().unwrap();
+                let value = stack.data.pop().unwrap();
+                let value = address.assign(
+                    ctx,
+                    &mut frame.locals.data,
+                    &mut frame.addresses.data,
+                    value,
+                )?;
                 stack.push(ctx, value)?;
             }
-            Op::SetIndexFromValue(n) => {
-                let key = stack.data.pop().unwrap();
-                let root = stack.data.pop().unwrap();
-                let value = stack.data.pop().unwrap();
-                frame.locals.data[n] = None;
-                let new = ops::set_index(ctx, root, key, value.clone())?;
-                frame.locals.data[n] = Some(new);
-                stack.push(ctx, value)?;
+            Op::AddressDrop => {
+                frame.addresses.data.pop().unwrap();
             }
-            Op::IndexResult => {
-                let value = stack.data.pop().unwrap();
-                stack.data.pop().unwrap();
-                stack.data.pop().unwrap();
+            Op::Mutate(method, n) => {
+                let base = stack.data.len() - n;
+                let address = frame.addresses.data.pop().unwrap();
+                let value = address.apply(
+                    ctx,
+                    &mut frame.locals.data,
+                    &mut frame.addresses.data,
+                    |ctx, receiver| {
+                        let value = ops::method(ctx, method, receiver, &stack.data[base..])?;
+                        Ok((value.clone(), value))
+                    },
+                )?;
+                stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }
             Op::Extract(selection) => {
@@ -274,6 +305,7 @@ pub(crate) fn execute(
                     ctx,
                     LoopState {
                         base: stack.data.len(),
+                        address_base: frame.addresses.data.len(),
                         next,
                         end,
                         expression,
@@ -303,11 +335,13 @@ pub(crate) fn execute(
                 let state = frame.loops.data.last_mut().unwrap();
                 state.last = stack.data.pop().unwrap();
                 stack.data.truncate(state.base);
+                frame.addresses.data.truncate(state.address_base);
                 frame.ip = state.next;
             }
             Op::LoopEnd => {
                 let state = frame.loops.data.pop().unwrap();
                 stack.data.truncate(state.base);
+                frame.addresses.data.truncate(state.address_base);
                 stack.push(ctx, state.result())?;
             }
             Op::Break(has_value) => {
@@ -323,6 +357,7 @@ pub(crate) fn execute(
                     None
                 };
                 stack.data.truncate(state.base);
+                frame.addresses.data.truncate(state.address_base);
                 frame.ip = state.end;
             }
             Op::Next => {
@@ -332,6 +367,7 @@ pub(crate) fn execute(
                     .last()
                     .ok_or_else(|| Error::new(ErrorKind::Argument, "next outside loop"))?;
                 stack.data.truncate(state.base);
+                frame.addresses.data.truncate(state.address_base);
                 frame.ip = state.next;
             }
             Op::Call(function, n) => {
@@ -439,6 +475,7 @@ fn enter(
             base,
             locals,
             loops: Buffer::empty(),
+            addresses: Buffer::empty(),
         },
     )
 }

@@ -302,7 +302,7 @@ pub(crate) fn set_index(
 ) -> Result<Value> {
     match &root.0 {
         Kind::Array(h) => {
-            let n = normalized(key.require_int()?, h.buffer.data.len())
+            let n = normalized(crate::sequence::integer(&key)?, h.buffer.data.len())
                 .ok_or_else(|| Error::new(ErrorKind::Argument, "array index too small"))?;
             let len = h.buffer.data.len();
             if n >= len {

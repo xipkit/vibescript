@@ -38,3 +38,19 @@ Adding `b = a` before the loop makes Go return the original snapshot for `x` too
 Go array iteration can also observe index writes through its captured backing, and a preceding append can change that behavior by replacing the backing. Hash entries are captured before iteration, but the hash returned by a normal loop expression can include writes performed during the loop. Rust's captured values remain unchanged in both cases.
 
 Matching this allocation-dependent behavior would require a deliberate compatibility policy. It remains an open item in the full-port checklist; the current Rust behavior is recorded explicitly so ordinary success counts cannot conceal the difference.
+
+## Evaluated collection values
+
+The indexed-write audit found three additional differences, recorded with complete source and observed outputs in [compatibility-cases.json](compatibility-cases.json):
+
+- `a = [[1]]; a[0] += a[0].push(2); a` returns `[[1,2,1,2]]` in Go and `[[1,1,2]]` in Rust. Go can expose the mutation through the already-evaluated left operand.
+- `a = [1]; x = a + a.push(2); [x,a]` has the same distinction for an ordinary binary operand: Go returns `[[1,2,1,2],[1,2]]`; Rust returns `[[1,1,2],[1,2]]`.
+- A pending `a[-1].push(...)` whose argument appends a new array to `a` can still update the previously captured child in Go. Rust currently treats the changed path as a temporary and leaves the original child unchanged.
+
+These are unresolved semantic gaps, not intentional additions to the language. They require further work on evaluated collection views and alias publication. The JSON record also includes the earlier range and loop differences. After rebuilding the comparison binaries, run:
+
+```sh
+python3 scripts/audit-compatibility.py --out .cache/compatibility-audit
+```
+
+The audit returns a failure status while any recorded case differs, preserves complete results for all four builds, and distinguishes a resolved case from a newly changed result. These cases are separate from the matching conformance count.

@@ -185,7 +185,6 @@ fn syntax_guards_and_overflow_are_errors() {
         "1e+",
         "1__2",
         "\"unterminated",
-        "a = 1\na[0][0] = 2",
     ] {
         assert!(Engine::new().compile(source).is_err(), "{source}");
     }

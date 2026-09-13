@@ -8,6 +8,7 @@
 //! # Ok::<(), vibescript::Error>(())
 //! ```
 
+mod address;
 #[cfg(feature = "tokio")]
 pub mod asynchronous;
 mod budget;

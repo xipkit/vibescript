@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "5af8d0ad5e7777ba89bd70614c3fd7aab1826d0c",
-  "dirty": " M scripts/compare.py\n M scripts/fixtures.py\n M src/bytecode.rs\n M src/ops.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/language.rs\n?? tests/control.rs\n",
+  "source_revision": "e4d42c4b3d46d8a875373597686a2acd332a1d7e",
+  "dirty": " M src/bytecode.rs\n M src/lib.rs\n M src/ops.rs\n M src/vm.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/compatibility-cases.json\n?? src/address.rs\n?? tests/address.rs\n",
   "binary_sha256": {
-    "go-simd": "d87711db7616f668bd03f1c2626e005bf0385374e28634f19209a56b6b467f4f",
-    "rust-simd": "9b09cf4b0771fdf67456d2ef81bf1fddcd7dadd467f8cea0a8c1d8707289e408"
+    "go-simd": "61a30b405192526f22a51024a7dc2bdabc85c71695a9a04634bfa6ff3a553b82",
+    "rust-simd": "4191085bb1fb03dcee990c6d4075c0d82fa34bbf383d2d13a8047c27857eca63"
   },
   "counts": {
-    "match": 125,
-    "rust_gap": 63,
+    "match": 126,
+    "rust_gap": 62,
     "harness_gap": 15
   },
   "examples": [
@@ -5655,7 +5655,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"nested collection mutation is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"method pop is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -6102,10 +6102,17 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"nested collection mutation is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "shop",
+          "cook",
+          "eat",
+          "clean",
+          "sleep"
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/total_circles_area.vibe",

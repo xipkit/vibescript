@@ -1,0 +1,138 @@
+[
+  {
+    "name": "negative_receiver_growth",
+    "body": "a=[[1]]\nx=a[-1].push((while true\na.push([9])\nbreak 2\nend))\n[x,a]",
+    "go": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9
+        ]
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1
+        ],
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "compound_collection_side_effect",
+    "body": "a=[[1]]\na[0]+=a[0].push(2)\na",
+    "go": [
+      [
+        1,
+        2,
+        1,
+        2
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "binary_collection_side_effect",
+    "body": "a=[1]\nx=a+a.push(2)\n[x,a]",
+    "go": [
+      [
+        1,
+        2,
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "inclusive_integer_endpoint",
+    "body": "max=9223372036854775807\na=[]\nfor n in max..max\na.push(n)\nbreak if n<0\nend\na",
+    "go": [
+      9223372036854775807,
+      -9223372036854775808
+    ],
+    "rust": [
+      9223372036854775807
+    ]
+  },
+  {
+    "name": "hash_break_value",
+    "body": "x=for k,v in {a:1}\nbreak 7\nend\nx",
+    "go": {
+      "a": 1
+    },
+    "rust": 7
+  },
+  {
+    "name": "hash_break_nil",
+    "body": "x=for k,v in {a:1}\nbreak\nend\nx",
+    "go": {
+      "a": 1
+    },
+    "rust": null
+  },
+  {
+    "name": "for_expression_mutation",
+    "body": "a=[1,2]\nx=for n in a\na.push(3)\nend\n[x,a]",
+    "go": [
+      [
+        1,
+        2,
+        3,
+        3
+      ],
+      [
+        1,
+        2,
+        3,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2,
+        3,
+        3
+      ]
+    ]
+  }
+]

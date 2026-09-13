@@ -178,5 +178,35 @@
     "name": "control_next_call_boundary",
     "go_error": "next cannot cross call boundary",
     "source": "def bad()\nnext\nend\ndef run(input)\nwhile true\nbad()\nbreak\nend\nend"
+  },
+  {
+    "name": "address_nested_scalar_receiver",
+    "body": "a=1\na[0][0]=2",
+    "go_error": "cannot index int"
+  },
+  {
+    "name": "address_nested_missing_receiver",
+    "body": "a={}\na[:missing][0]=2",
+    "go_error": "cannot index nil"
+  },
+  {
+    "name": "address_index_slice_write",
+    "body": "a=[1,2]\na[0,1]=[3]",
+    "go_error": "array index assignment expects a single index"
+  },
+  {
+    "name": "address_index_range_write",
+    "body": "a=[1,2]\na[0..1]=[3]",
+    "go_error": "index must be integer"
+  },
+  {
+    "name": "address_index_string_write",
+    "body": "a=\"ab\"\na[0]=\"x\"",
+    "go_error": "cannot index string"
+  },
+  {
+    "name": "address_nested_out_of_bounds",
+    "body": "a=[[1]]\na[0][3]=7",
+    "go_error": "array index out of bounds"
   }
 ]

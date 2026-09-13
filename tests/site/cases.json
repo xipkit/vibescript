@@ -2644,6 +2644,18 @@
     ]
   },
   {
+    "path": "rosettacode/popular/topological_sort.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      "shop",
+      "cook",
+      "eat",
+      "clean",
+      "sleep"
+    ]
+  },
+  {
     "path": "rosettacode/popular/total_circles_area.vibe",
     "function": "run",
     "args": [],

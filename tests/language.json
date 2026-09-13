@@ -1299,5 +1299,388 @@
     "name": "control_return_inside_case",
     "expected": 8,
     "source": "def f()\ncase [1]\nwhen (while true\nreturn 8\nend) then 2\nelse 3\nend\nend\ndef run(input)\nf()\nend"
+  },
+  {
+    "name": "address_nested_array_write",
+    "body": "a=[[1,2],[3]]\nb=a\na[0][1]=9\n[a,b]",
+    "expected": [
+      [
+        [
+          1,
+          9
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_nested_hash_write",
+    "body": "h={a:{b:[1,2]}}\nb=h\nh[:a][:b][0]=9\n[h,b]",
+    "expected": [
+      {
+        "a": {
+          "b": [
+            9,
+            2
+          ]
+        }
+      },
+      {
+        "a": {
+          "b": [
+            1,
+            2
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "address_nested_push",
+    "body": "a=[[1]]\nb=a\nx=a[0].push(2)\n[a,b,x]",
+    "expected": [
+      [
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        [
+          1
+        ]
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "address_nested_append",
+    "body": "a={items:[1]}\nb=a\nx=a[:items]<<2\n[a,b,x]",
+    "expected": [
+      {
+        "items": [
+          1,
+          2
+        ]
+      },
+      {
+        "items": [
+          1
+        ]
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "address_nested_compound",
+    "body": "a=[[1,2]]\nb=a\na[0][1]+=7\n[a,b]",
+    "expected": [
+      [
+        [
+          1,
+          9
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_nested_logical",
+    "body": "a={items:[nil,false,0]}\na[:items][0]||=3\na[:items][1]&&=1/0\na[:items][2]||=1/0\na",
+    "expected": {
+      "items": [
+        3,
+        false,
+        0
+      ]
+    }
+  },
+  {
+    "name": "address_plain_value_first",
+    "body": "a=[0,0]\ntrace=[]\na[trace.push(1).length-1]=trace.push(2).last\n[a,trace]",
+    "expected": [
+      [
+        0,
+        2
+      ],
+      [
+        2,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "address_compound_target_first",
+    "body": "a=[0,0]\ntrace=[]\na[trace.push(1).length-1]+=trace.push(2).last\n[a,trace]",
+    "expected": [
+      [
+        2,
+        0
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "address_nested_selector_once",
+    "body": "a=[[0,0],[0,0]]\ntrace=[]\na[trace.push(0).last][trace.push(1).last]=trace.push(9).last\n[a,trace]",
+    "expected": [
+      [
+        [
+          0,
+          9
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      [
+        9,
+        0,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "address_write_after_rhs_growth",
+    "body": "a=[nil,0]\na[0]=a.push(3).length\na",
+    "expected": [
+      3,
+      0,
+      3
+    ]
+  },
+  {
+    "name": "address_logical_after_rhs_growth",
+    "body": "a=[nil,0]\na[0]||=a.push(3).length\na",
+    "expected": [
+      3,
+      0,
+      3
+    ]
+  },
+  {
+    "name": "address_push_after_nested_push",
+    "body": "a=[1]\nx=a.push(a.push(2).length)\n[x,a]",
+    "expected": [
+      [
+        1,
+        2,
+        2
+      ],
+      [
+        1,
+        2,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "address_push_after_nested_child",
+    "body": "a=[[1]]\nb=a\nx=a[0].push(a[0].push(2).length)\n[x,a,b]",
+    "expected": [
+      [
+        1,
+        2,
+        2
+      ],
+      [
+        [
+          1,
+          2,
+          2
+        ]
+      ],
+      [
+        [
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_pending_root_replacement",
+    "body": "a=[1]\nx=a.push((while true\na=[9]\nbreak 2\nend))\n[x,a]",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "name": "address_pending_child_replacement",
+    "body": "a=[[1],[2]]\nx=a[0].push((while true\na[0]=[9]\nbreak 3\nend))\n[x,a]",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        [
+          9
+        ],
+        [
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_pending_other_child_write",
+    "body": "a=[[1],[2]]\nx=a[0].push((while true\na[1][0]=9\nbreak 3\nend))\n[x,a]",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        [
+          1,
+          3
+        ],
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_pending_compound_root_replacement",
+    "body": "a=[1]\na[0]+=(while true\na=[9]\nbreak 2\nend)\na",
+    "expected": [
+      9
+    ]
+  },
+  {
+    "name": "address_pending_compound_child_replacement",
+    "body": "a=[[1]]\na[0][0]+=(while true\na[0]=[9]\nbreak 2\nend)\na",
+    "expected": [
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "name": "address_pending_selector_root_replacement",
+    "body": "a=[1]\na[(while true\na=[9]\nbreak 0\nend)]=3\na",
+    "expected": [
+      9
+    ]
+  },
+  {
+    "name": "address_pending_selector_root_growth",
+    "body": "a=[1]\na[a.push(2).length-1]=3\na",
+    "expected": [
+      1,
+      3
+    ]
+  },
+  {
+    "name": "address_temporary_method",
+    "body": "a=[[1]]\nx=a.first.push(2)\n[x,a]",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_temporary_itself",
+    "body": "a=[1]\nx=a.push(a.itself.push(2))\n[x,a]",
+    "expected": [
+      [
+        1,
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        1,
+        [
+          1,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_temporary_range",
+    "body": "a=[[1],[2]]\nx=a[0..0][0].push(3)\n[x,a]",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "address_nested_alias_siblings",
+    "body": "x=[1]\na=[x,x]\na[0].push(2)\n[a,x]",
+    "expected": [
+      [
+        [
+          1,
+          2
+        ],
+        [
+          1
+        ]
+      ],
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "address_float_index_write",
+    "body": "a=[1,2]\na[0.9]=3\na[-1.8]+=4\na",
+    "expected": [
+      3,
+      6
+    ]
   }
 ]
