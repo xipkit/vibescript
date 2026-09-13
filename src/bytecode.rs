@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    Declaration(usize),
     Global(usize),
     GlobalReceiver(usize, bool),
     StoreGlobal(usize),
@@ -292,6 +293,8 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub declarations: Vec<Value>,
+    pub declaration_names: HashMap<String, usize>,
     pub globals: Vec<(Global, Value)>,
     pub functions: Vec<Function>,
     pub constants: Vec<Value>,
@@ -301,13 +304,27 @@ pub(crate) struct Program {
 }
 
 pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
-    let defs = syntax::parse(source)?;
-    let names = defs
+    let parsed = syntax::parse(source)?;
+    let defs = parsed.functions;
+    let names: HashMap<_, _> = defs
         .iter()
         .enumerate()
         .map(|(i, d)| (d.name.clone(), i))
         .collect();
+    let mut declarations = Vec::new();
+    let mut declaration_names = HashMap::new();
+    for (name, members) in parsed.enums {
+        if declaration_names.contains_key(&name)
+            || names.get(&name).is_some_and(|&index| index != 0)
+        {
+            return Err(syntax::unsupported("duplicate top-level declaration"));
+        }
+        declaration_names.insert(name.clone(), declarations.len());
+        declarations.push(crate::enums::compile(name, members)?);
+    }
     let mut program = Program {
+        declarations,
+        declaration_names,
         globals: Vec::new(),
         functions: (0..defs.len()).map(|_| Function::default()).collect(),
         constants: Vec::new(),
@@ -571,6 +588,9 @@ impl Compiler<'_> {
             let mut names = Vec::new();
             target_names(target, &mut names);
             for name in names {
+                if self.program.declaration_names.contains_key(name) {
+                    continue;
+                }
                 if let Some(&slot) = self.locals.get(name) {
                     self.emit(Op::Declare(slot));
                 }
@@ -610,9 +630,10 @@ impl Compiler<'_> {
         Ok(())
     }
     fn declaration_slot(&self, name: &str) -> Option<usize> {
-        if Global::parse(name).is_some()
-            && !self.program.names.contains_key(name)
-            && !self.program.hosts.iter().any(|host| host == name)
+        if self.program.declaration_names.contains_key(name)
+            || (Global::parse(name).is_some()
+                && !self.program.names.contains_key(name)
+                && !self.program.hosts.iter().any(|host| host == name))
         {
             None
         } else {
@@ -908,6 +929,8 @@ impl Compiler<'_> {
                     } else {
                         self.emit(Op::Load(slot));
                     }
+                } else if let Some(&index) = self.program.declaration_names.get(name) {
+                    self.emit(Op::Declaration(index));
                 } else if let Some(&fun) = self.program.names.get(name) {
                     self.emit(Op::AutoCall(fun));
                 } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
@@ -1044,7 +1067,9 @@ impl Compiler<'_> {
                     self.emit(Op::Invoke(Invocation::Resolved));
                     return Ok(());
                 }
-                let target = if let Some(&fun) = self.program.names.get(name) {
+                let target = if self.program.declaration_names.contains_key(name) {
+                    Invocation::NonCallable
+                } else if let Some(&fun) = self.program.names.get(name) {
                     Invocation::Function(fun)
                 } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
                     Invocation::Host(host)
@@ -1097,6 +1122,9 @@ impl Compiler<'_> {
         }
     }
     fn global(&mut self, name: &str) -> Option<usize> {
+        if self.program.declaration_names.contains_key(name) {
+            return None;
+        }
         let namespace = Global::parse(name)?;
         if let Some(index) = self
             .program
@@ -1232,7 +1260,9 @@ impl Compiler<'_> {
             self.emit(Op::ResolveGlobalCall(global));
             Invocation::Resolved
         } else {
-            let target = if let Some(&function) = self.program.names.get(name) {
+            let target = if self.program.declaration_names.contains_key(name) {
+                Invocation::NonCallable
+            } else if let Some(&function) = self.program.names.get(name) {
                 Invocation::Function(function)
             } else if let Some(host) = self.program.hosts.iter().position(|host| host == name) {
                 Invocation::Host(host)

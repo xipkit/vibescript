@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 mod lexer;
 mod tokens;
-mod unicode;
+pub(crate) mod unicode;
 use lexer::{Lexeme, Part, Token, lex};
 use tokens::Tokens;
 
@@ -133,7 +133,12 @@ pub(crate) struct Definition {
     pub body: Vec<Stmt>,
 }
 
-pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
+pub(crate) struct Declarations {
+    pub functions: Vec<Definition>,
+    pub enums: Vec<(String, Vec<String>)>,
+}
+
+pub(crate) fn parse(source: &str) -> Result<Declarations> {
     let mut p = Parser {
         source,
         lex_depth: 0,
@@ -150,6 +155,7 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
         declared_it: false,
     };
     let mut defs = Vec::new();
+    let mut enums = Vec::new();
     let mut top = Vec::new();
     p.lines();
     while !matches!(p.token(), Token::Eof) {
@@ -168,6 +174,31 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
                 return p.err("duplicate or reserved function name");
             }
             defs.push(Definition { name, params, body });
+        } else if p.word("enum") {
+            p.line_breaks();
+            let name = p.enum_name()?;
+            let mut members = Vec::new();
+            let mut seen = HashSet::new();
+            p.lines();
+            while !matches!(p.token(), Token::Eof)
+                && !matches!(p.token(), Token::Word(w) if w == "end")
+            {
+                let member = if p.word("enum") {
+                    "enum".to_owned()
+                } else {
+                    p.enum_name()?
+                };
+                if !seen.insert(member.clone()) {
+                    return p.err("duplicate enum member");
+                }
+                members.push(member);
+                p.lines();
+            }
+            if members.is_empty() {
+                return p.err("enum must define at least one member");
+            }
+            p.expect_word("end")?;
+            enums.push((name, members));
         } else {
             top.push(p.statement()?);
         }
@@ -181,7 +212,10 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
             body: top,
         },
     );
-    Ok(defs)
+    Ok(Declarations {
+        functions: defs,
+        enums,
+    })
 }
 
 struct Parser<'a> {
@@ -381,6 +415,12 @@ impl Parser<'_> {
             self.err("expected name")
         }
     }
+    fn enum_name(&mut self) -> Result<String> {
+        match self.bump() {
+            Token::Word(name) if !keyword(&name) => Ok(name),
+            _ => self.err("expected enum identifier"),
+        }
+    }
     fn at_end(&self) -> bool {
         matches!(self.token(), Token::Eof)
             || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"|"when"))
@@ -455,6 +495,12 @@ impl Parser<'_> {
         })
     }
     fn plain_statement(&mut self) -> Result<Stmt> {
+        if matches!(self.token(), Token::Word(w) if w == "module")
+            && matches!(&self.tokens[self.pos + 1].token, Token::Word(w) if !keyword(w))
+            && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
+        {
+            return self.err("source module declarations are not implemented");
+        }
         if self.word("if") {
             return self.if_stmt(false);
         }
@@ -1714,7 +1760,6 @@ fn reserved(w: &str) -> bool {
     matches!(
         w,
         "class"
-            | "module"
             | "enum"
             | "for"
             | "in"
@@ -1739,6 +1784,22 @@ fn reserved(w: &str) -> bool {
             | "break"
             | "next"
     )
+}
+fn keyword(w: &str) -> bool {
+    reserved(w)
+        || matches!(
+            w,
+            "export"
+                | "self"
+                | "private"
+                | "property"
+                | "getter"
+                | "setter"
+                | "ensure"
+                | "true"
+                | "false"
+                | "nil"
+        )
 }
 pub(crate) fn unsupported(message: &str) -> Error {
     Error::new(crate::ErrorKind::Syntax, message)

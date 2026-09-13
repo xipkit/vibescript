@@ -65793,5 +65793,1665 @@
     "name": "hash_shorthand_lookup_13",
     "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[1].map{|x|{x:,it:}}\nend",
     "go_error": "undefined variable it"
+  },
+  {
+    "name": "enums_members_2",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.to_s(1)\nend",
+    "go_error": "enum.to_s does not take arguments"
+  },
+  {
+    "name": "enums_members_3",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.to_s(bad:1)\nend",
+    "go_error": "enum.to_s does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_4",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.to_s{1/0}\nend",
+    "go_error": "enum.to_s does not take a block"
+  },
+  {
+    "name": "enums_members_5",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.to_s(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_10",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.string(1)\nend",
+    "go_error": "enum.string does not take arguments"
+  },
+  {
+    "name": "enums_members_11",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.string(bad:1)\nend",
+    "go_error": "enum.string does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_12",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.string{1/0}\nend",
+    "go_error": "enum.string does not take a block"
+  },
+  {
+    "name": "enums_members_13",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.string(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_18",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.inspect(1)\nend",
+    "go_error": "enum.inspect does not take arguments"
+  },
+  {
+    "name": "enums_members_19",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.inspect(bad:1)\nend",
+    "go_error": "enum.inspect does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_20",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.inspect{1/0}\nend",
+    "go_error": "enum.inspect does not take a block"
+  },
+  {
+    "name": "enums_members_21",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.inspect(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_25",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_26",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_27",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name(bad:1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_28",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name{1/0}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_29",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_30",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name(*[])\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_31",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name(**{})\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_32",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_33",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol()\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_34",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol(1)\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_35",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol(bad:1)\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_36",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol{1/0}\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_37",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol(1/0)\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_38",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol(*[])\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_39",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.symbol(**{})\nend",
+    "go_error": "unknown enum property symbol"
+  },
+  {
+    "name": "enums_members_40",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_41",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum()).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_42",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum(1)).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_43",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum(bad:1)).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_44",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum{1/0}).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_45",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum(1/0)).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_46",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum(*[])).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_47",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.enum(**{})).to_s\nend",
+    "go_error": "unknown enum property enum"
+  },
+  {
+    "name": "enums_members_48",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_49",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft()\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_50",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft(1)\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_51",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft(bad:1)\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_52",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft{1/0}\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_53",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft(1/0)\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_54",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft(*[])\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_55",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Draft(**{})\nend",
+    "go_error": "unknown enum property Draft"
+  },
+  {
+    "name": "enums_members_56",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_57",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done()\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_58",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done(1)\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_59",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done(bad:1)\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_60",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done{1/0}\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_61",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done(1/0)\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_62",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done(*[])\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_63",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.Done(**{})\nend",
+    "go_error": "unknown enum property Done"
+  },
+  {
+    "name": "enums_members_64",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_65",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing()\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_66",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing(1)\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_67",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing(bad:1)\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_68",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing{1/0}\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_69",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing(1/0)\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_70",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing(*[])\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_71",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.missing(**{})\nend",
+    "go_error": "unknown enum property missing"
+  },
+  {
+    "name": "enums_members_74",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.nil?(1)\nend",
+    "go_error": "enum.nil? does not take arguments"
+  },
+  {
+    "name": "enums_members_75",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.nil?(bad:1)\nend",
+    "go_error": "enum.nil? does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_76",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.nil?{1/0}\nend",
+    "go_error": "enum.nil? does not take a block"
+  },
+  {
+    "name": "enums_members_77",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.nil?(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_82",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.itself(1)).to_s\nend",
+    "go_error": "enum.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "enums_members_83",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.itself(bad:1)).to_s\nend",
+    "go_error": "enum.itself does not accept keyword arguments"
+  },
+  {
+    "name": "enums_members_84",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.itself{1/0}).to_s\nend",
+    "go_error": "enum.itself does not accept a block"
+  },
+  {
+    "name": "enums_members_85",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.itself(1/0)).to_s\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_90",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.dup(1)).to_s\nend",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "enums_members_91",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.dup(bad:1)).to_s\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_92",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.dup{1/0}).to_s\nend",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "enums_members_93",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status.dup(1/0)).to_s\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_operators_32",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_33",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_34",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_35",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_36",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_37",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_38",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_39",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status < nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_40",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_41",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_42",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_43",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_44",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_45",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_46",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_47",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status <= nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_48",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_49",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_50",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_51",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_52",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_53",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_54",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_55",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status > nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_56",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_57",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_58",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_59",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_60",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_61",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_62",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_63",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status >= nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_64",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + Status)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_65",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + Status::Draft)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_66",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + Status::Done)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_67",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + Review::Draft)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_68",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + :draft)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_69",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + \"draft\")\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_70",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + 1)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_71",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status + nil)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_72",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - Status)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_73",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - Status::Draft)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_74",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - Status::Done)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_75",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - Review::Draft)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_76",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - :draft)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_77",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - \"draft\")\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_78",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - 1)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_79",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status - nil)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_80",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * Status)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_81",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * Status::Draft)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_82",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * Status::Done)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_83",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * Review::Draft)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_84",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * :draft)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_85",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * \"draft\")\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_86",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * 1)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_87",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status * nil)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_88",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / Status)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_89",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / Status::Draft)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_90",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / Status::Done)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_91",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / Review::Draft)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_92",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / :draft)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_93",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / \"draft\")\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_94",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / 1)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_95",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status / nil)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_96",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & Status)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_97",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & Status::Draft)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_98",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & Status::Done)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_99",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & Review::Draft)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_100",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & :draft)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_101",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & \"draft\")\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_102",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & 1)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_103",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status & nil)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_members_98",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.to_s(1)\nend",
+    "go_error": "enum value.to_s does not take arguments"
+  },
+  {
+    "name": "enums_members_99",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.to_s(bad:1)\nend",
+    "go_error": "enum value.to_s does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_100",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.to_s{1/0}\nend",
+    "go_error": "enum value.to_s does not take a block"
+  },
+  {
+    "name": "enums_members_101",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.to_s(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_106",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.string(1)\nend",
+    "go_error": "enum value.string does not take arguments"
+  },
+  {
+    "name": "enums_members_107",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.string(bad:1)\nend",
+    "go_error": "enum value.string does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_108",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.string{1/0}\nend",
+    "go_error": "enum value.string does not take a block"
+  },
+  {
+    "name": "enums_members_109",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.string(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_114",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.inspect(1)\nend",
+    "go_error": "enum value.inspect does not take arguments"
+  },
+  {
+    "name": "enums_members_115",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.inspect(bad:1)\nend",
+    "go_error": "enum value.inspect does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_116",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.inspect{1/0}\nend",
+    "go_error": "enum value.inspect does not take a block"
+  },
+  {
+    "name": "enums_members_117",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.inspect(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_121",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_122",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_123",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name(bad:1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_124",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name{1/0}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_125",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_126",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name(*[])\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_127",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name(**{})\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_129",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_130",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_131",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol(bad:1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_132",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol{1/0}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_133",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_134",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol(*[])\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_135",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol(**{})\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_137",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum()).to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_138",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum(1)).to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_139",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum(bad:1)).to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_140",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum{1/0}).to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_141",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum(1/0)).to_s\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_142",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum(*[])).to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_143",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\n(Status::Draft.enum(**{})).to_s\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_members_144",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_145",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft()\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_146",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft(1)\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_147",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft(bad:1)\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_148",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft{1/0}\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_149",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft(1/0)\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_150",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft(*[])\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_151",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Draft(**{})\nend",
+    "go_error": "unknown enum member property Draft"
+  },
+  {
+    "name": "enums_members_152",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_153",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done()\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_154",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done(1)\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_155",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done(bad:1)\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_156",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done{1/0}\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_157",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done(1/0)\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_158",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done(*[])\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_159",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.Done(**{})\nend",
+    "go_error": "unknown enum member property Done"
+  },
+  {
+    "name": "enums_members_160",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_161",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing()\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_162",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing(1)\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_163",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing(bad:1)\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_164",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing{1/0}\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_165",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing(1/0)\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_166",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing(*[])\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_167",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.missing(**{})\nend",
+    "go_error": "unknown enum member property missing"
+  },
+  {
+    "name": "enums_members_170",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.nil?(1)\nend",
+    "go_error": "enum value.nil? does not take arguments"
+  },
+  {
+    "name": "enums_members_171",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.nil?(bad:1)\nend",
+    "go_error": "enum value.nil? does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_172",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.nil?{1/0}\nend",
+    "go_error": "enum value.nil? does not take a block"
+  },
+  {
+    "name": "enums_members_173",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.nil?(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_178",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.itself(1)\nend",
+    "go_error": "enum value.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "enums_members_179",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.itself(bad:1)\nend",
+    "go_error": "enum value.itself does not accept keyword arguments"
+  },
+  {
+    "name": "enums_members_180",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.itself{1/0}\nend",
+    "go_error": "enum value.itself does not accept a block"
+  },
+  {
+    "name": "enums_members_181",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.itself(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_members_186",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.dup(1)\nend",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "enums_members_187",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.dup(bad:1)\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "enums_members_188",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.dup{1/0}\nend",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "enums_members_189",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.dup(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_operators_136",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_137",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_138",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_139",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_140",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_141",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_142",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_143",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft < nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_144",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_145",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_146",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_147",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_148",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_149",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_150",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_151",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft <= nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_152",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_153",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_154",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_155",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_156",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_157",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_158",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_159",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft > nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_160",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= Status)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_161",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= Status::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_162",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= Status::Done)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_163",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= Review::Draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_164",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= :draft)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_165",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= \"draft\")\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_166",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= 1)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_167",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft >= nil)\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "enums_operators_168",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + Status)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_169",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + Status::Draft)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_170",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + Status::Done)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_171",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + Review::Draft)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_172",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + :draft)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_174",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + 1)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_175",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft + nil)\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "enums_operators_176",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - Status)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_177",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - Status::Draft)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_178",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - Status::Done)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_179",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - Review::Draft)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_180",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - :draft)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_181",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - \"draft\")\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_182",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - 1)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_183",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft - nil)\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "enums_operators_184",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * Status)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_185",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * Status::Draft)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_186",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * Status::Done)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_187",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * Review::Draft)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_188",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * :draft)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_189",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * \"draft\")\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_190",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * 1)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_191",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft * nil)\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "enums_operators_192",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / Status)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_193",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / Status::Draft)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_194",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / Status::Done)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_195",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / Review::Draft)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_196",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / :draft)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_197",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / \"draft\")\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_198",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / 1)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_199",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft / nil)\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "enums_operators_200",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & Status)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_201",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & Status::Draft)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_202",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & Status::Done)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_203",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & Review::Draft)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_204",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & :draft)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_205",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & \"draft\")\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_206",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & 1)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_operators_207",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nJSON.stringify(Status::Draft & nil)\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "enums_call_2",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_3",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_4",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_5",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_6",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_7",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing()\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_8",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name()\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_9",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name()\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_10",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_11",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_12",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing(1)\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_13",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name(1)\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_14",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name(1)\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_15",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus(bad:1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_16",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft(bad:1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_17",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing(bad:1)\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_18",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name(bad:1)\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_19",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name(bad:1)\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_20",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus{1/0}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_21",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft{1/0}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_22",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing{1/0}\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_23",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name{1/0}\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_24",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name{1/0}\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_25",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_call_26",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_call_27",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing(1/0)\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_28",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name(1/0)\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_29",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name(1/0)\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_30",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus(1/0){0}\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_call_31",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft(1/0){0}\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_call_32",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing(1/0){0}\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_33",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name(1/0){0}\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_34",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name(1/0){0}\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_35",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus(*[])\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_36",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft(*[])\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_37",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing(*[])\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_38",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name(*[])\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_39",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name(*[])\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_call_40",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus(**{})\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_41",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft(**{})\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "enums_call_42",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::missing(**{})\nend",
+    "go_error": "unknown enum member Status::missing"
+  },
+  {
+    "name": "enums_call_43",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::name(**{})\nend",
+    "go_error": "unknown enum member Status::name"
+  },
+  {
+    "name": "enums_call_44",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft::name(**{})\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_binding_2",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nfor Status in [];1;end;Status::Draft\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "enums_binding_8",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nif false;Status=1;end;Status(1/0)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "enums_binding_14",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.name=3\nend",
+    "go_error": "cannot assign to enum value"
+  },
+  {
+    "name": "enums_binding_15",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.symbol=3\nend",
+    "go_error": "cannot assign to enum value"
+  },
+  {
+    "name": "enums_binding_16",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus::Draft.enum=3\nend",
+    "go_error": "cannot assign to enum value"
+  },
+  {
+    "name": "enums_binding_17",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nDone\nend\ndef run(input)\nStatus.name=3\nend",
+    "go_error": "cannot assign to enum"
   }
 ]

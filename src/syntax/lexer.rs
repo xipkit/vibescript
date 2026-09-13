@@ -136,6 +136,17 @@ impl Lexer<'_> {
                 _ => (),
             }
             let scanned = (|| -> Result<Token> {
+                let initial = source[i..self.limit].chars().next().unwrap();
+                if initial == '_' || super::unicode::letter(initial) {
+                    i += initial.len_utf8();
+                    while let Some(c) = source[i..self.limit].chars().next() {
+                        if !matches!(c, '_' | '?' | '!') && !super::unicode::letter_or_digit(c) {
+                            break;
+                        }
+                        i += c.len_utf8();
+                    }
+                    return Ok(Token::Word(source[start..i].to_owned()));
+                }
                 Ok(match s[i] {
                     b'\n' | b';' => {
                         i += 1;
@@ -204,6 +215,13 @@ impl Lexer<'_> {
                             while i < self.limit && (s[i].is_ascii_alphanumeric() || s[i] == b'_') {
                                 i += 1;
                             }
+                            if source[i..self.limit]
+                                .chars()
+                                .next()
+                                .is_some_and(super::unicode::letter)
+                            {
+                                return Err(Error::syntax(start, "invalid integer literal"));
+                            }
                             let text = &source[digits..i];
                             if text.is_empty()
                                 || text.starts_with('_')
@@ -237,8 +255,10 @@ impl Lexer<'_> {
                                     i += 1;
                                 }
                             }
-                            if s.get(i)
-                                .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
+                            if source[i..self.limit]
+                                .chars()
+                                .next()
+                                .is_some_and(|c| super::unicode::letter(c) || c == '_')
                             {
                                 return Err(Error::syntax(start, "invalid numeric literal"));
                             }
@@ -263,15 +283,6 @@ impl Lexer<'_> {
                                 integer(text, 10, start, 0)?
                             }
                         }
-                    }
-                    b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
-                        i += 1;
-                        while i < self.limit
-                            && (s[i].is_ascii_alphanumeric() || matches!(s[i], b'_' | b'?' | b'!'))
-                        {
-                            i += 1;
-                        }
-                        Token::Word(source[start..i].to_owned())
                     }
                     _ => {
                         let mut found = None;

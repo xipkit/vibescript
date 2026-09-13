@@ -32,6 +32,7 @@ struct Frame {
 }
 
 struct Storage {
+    declarations: Buffer<(usize, Value)>,
     texts: Buffer<Buffer<u8>>,
     iterations: Buffer<Iteration>,
     locals: Buffer<Option<Value>>,
@@ -107,6 +108,7 @@ pub(crate) fn execute(
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
     let mut storage = Storage {
+        declarations: Buffer::empty(),
         texts: Buffer::empty(),
         iterations: Buffer::empty(),
         locals: Buffer::empty(),
@@ -233,6 +235,9 @@ pub(crate) fn execute(
                         value.clone()
                     };
                     stack.push(ctx, value)?;
+                } else if let Some(&index) = program.declaration_names.get(&program.members[name]) {
+                    let value = declaration_value(program, ctx, &mut storage, index)?;
+                    stack.push(ctx, value)?;
                 } else if let Some(&function) = program.names.get(&program.members[name]) {
                     enter_auto(
                         program,
@@ -272,6 +277,10 @@ pub(crate) fn execute(
                     ErrorKind::Name,
                     format!("undefined variable {}", program.members[name]),
                 ));
+            }
+            Op::Declaration(index) => {
+                let value = declaration_value(program, ctx, &mut storage, index)?;
+                stack.push(ctx, value)?;
             }
             Op::Global(index) => {
                 let mut value = global_value(program, ctx, &mut storage, index)?;
@@ -799,7 +808,9 @@ pub(crate) fn execute(
                     storage.locals.data.get(slot)
                 {
                     Invocation::Builtin(*builtin)
-                } else if storage.locals.data.get(slot).is_some_and(Option::is_some) {
+                } else if storage.locals.data.get(slot).is_some_and(Option::is_some)
+                    || program.declaration_names.contains_key(name)
+                {
                     Invocation::NonCallable
                 } else if let Some(&function) = program.names.get(name) {
                     Invocation::Function(function)
@@ -997,11 +1008,31 @@ fn value_invocation(value: &Value) -> Invocation {
 }
 
 fn global_index(program: &Program, name: &str) -> Option<usize> {
+    if program.declaration_names.contains_key(name) {
+        return None;
+    }
     let namespace = Global::parse(name)?;
     program
         .globals
         .iter()
         .position(|(kind, _)| *kind == namespace)
+}
+
+fn declaration_value(
+    program: &Program,
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    index: usize,
+) -> Result<Value> {
+    for (cached, value) in &storage.declarations.data {
+        ctx.charge(1)?;
+        if *cached == index {
+            return Ok(value.clone());
+        }
+    }
+    let value = ctx.import(&program.declarations[index])?;
+    storage.declarations.push(ctx, (index, value.clone()))?;
+    Ok(value)
 }
 
 fn global_value(

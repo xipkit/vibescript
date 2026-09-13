@@ -416,6 +416,8 @@ fn write_value(
     }
     match &value.0 {
         Kind::Builtin(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a builtin")),
+        Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),
+        Kind::EnumMember(m) => write_string(ctx, m.definition().symbol.as_bytes(), out)?,
         Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
         Kind::Duration(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a duration")),
         Kind::Time(_) | Kind::Zoned(_) => {

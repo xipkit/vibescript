@@ -24,6 +24,7 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, depth: usi
         return ctx.fail(ErrorKind::Recursion, "string conversion nesting too deep");
     }
     match &value.0 {
+        Kind::Enum(_) | Kind::EnumMember(_) => crate::enums::append(ctx, value, out)?,
         Kind::Array(h) => {
             out.push(ctx, b'[')?;
             for (i, v) in h.buffer.data.iter().enumerate() {

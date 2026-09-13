@@ -95,6 +95,8 @@ impl Bytes {
 pub(crate) enum Kind {
     Nil,
     Builtin(crate::builtin::Builtin),
+    Enum(Arc<crate::enums::Enumeration>),
+    EnumMember(Arc<crate::enums::Member>),
     Bool(bool),
     Int(i64),
     Big(Arc<crate::integer::Big>),
@@ -251,6 +253,29 @@ impl Value {
             None
         }
     }
+    /// Returns an enum type's declared name.
+    pub fn as_enum_type(&self) -> Option<&str> {
+        if let Kind::Enum(value) = &self.0 {
+            Some(&value.definition.name)
+        } else {
+            None
+        }
+    }
+    /// Returns an enum member's type name, declared name, and normalized symbol.
+    ///
+    /// Equal names from separately compiled scripts still represent distinct types.
+    pub fn as_enum_member(&self) -> Option<(&str, &str, &str)> {
+        if let Kind::EnumMember(value) = &self.0 {
+            let definition = value.definition();
+            Some((
+                &value.enumeration.definition.name,
+                &definition.name,
+                &definition.symbol,
+            ))
+        } else {
+            None
+        }
+    }
     /// Returns the raw bytes of a string or symbol, including invalid UTF-8.
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match &self.0 {
@@ -283,6 +308,8 @@ impl Value {
         match self.0 {
             Kind::Nil => "nil",
             Kind::Builtin(_) => "builtin",
+            Kind::Enum(_) => "enum",
+            Kind::EnumMember(_) => "enum value",
             Kind::Bool(_) => "bool",
             Kind::Int(_) | Kind::Big(_) => "int",
             Kind::Float(_) => "float",
@@ -472,6 +499,12 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Enum(e) => Ok(Value(Kind::Enum(crate::enums::Enumeration::import(
+                self, e,
+            )?))),
+            Kind::EnumMember(m) => Ok(Value(Kind::EnumMember(crate::enums::Member::import(
+                self, m,
+            )?))),
             Kind::Zoned(time) => Ok(Value(Kind::Zoned(crate::time::Zoned::import(self, time)?))),
             Kind::Big(n) => Ok(Value(Kind::Big(crate::integer::Big::import(self, n)?))),
             Kind::Range(r) => Ok(Value(Kind::Range(Range::import(self, r)?))),
@@ -525,6 +558,13 @@ impl fmt::Display for Value {
                 f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
             }
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
+            Kind::Enum(e) => write!(f, "<Enum {}>", e.definition.name),
+            Kind::EnumMember(m) => write!(
+                f,
+                "{}::{}",
+                m.enumeration.definition.name,
+                m.definition().name
+            ),
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),
             Kind::Big(_) => {

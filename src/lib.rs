@@ -19,6 +19,7 @@ mod casing;
 mod collections;
 mod conversion;
 mod duration;
+mod enums;
 mod error;
 mod hash;
 mod hash_blocks;

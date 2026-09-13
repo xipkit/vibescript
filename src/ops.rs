@@ -68,6 +68,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     | Kind::Duration(_)
                     | Kind::Time(_)
                     | Kind::Zoned(_)
+                    | Kind::EnumMember(_)
             )
         };
         if !scalar(&a) || !scalar(&b) {
@@ -253,6 +254,9 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
     }
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
+        (Kind::Enum(a), Kind::Enum(b)) => Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition)),
+        (Kind::EnumMember(a), Kind::EnumMember(b)) => Ok(a.index == b.index
+            && std::sync::Arc::ptr_eq(&a.enumeration.definition, &b.enumeration.definition)),
         (Kind::Money(a), Kind::Money(b)) => Ok(a == b),
         (Kind::Duration(a), Kind::Duration(b)) => Ok(a == b),
         (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => {
@@ -798,6 +802,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut text = json::Number::new();
     match &value.0 {
         Kind::Builtin(builtin) => return Err(builtin.value_error()),
+        Kind::Enum(_) | Kind::EnumMember(_) => return crate::enums::text(ctx, value),
         Kind::Money(money) => return money.text(ctx),
         Kind::Duration(seconds) => return crate::duration::text(ctx, *seconds),
         Kind::Time(_) | Kind::Zoned(_) => return crate::time::text(ctx, value, None),

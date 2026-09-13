@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "7a6a3c27a7a12bae4188bcfb80dc23163e326a35",
-  "dirty": " M src/syntax.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? tests/hash_shorthand.rs\n",
+  "source_revision": "24b68ae7aa5c0b21ce399dad6cbd584dc2d63211",
+  "dirty": " M scripts/generate-unicode.py\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/syntax/unicode.rs\n M src/text.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/enums.rs\n?? tests/enums.rs\n",
   "binary_sha256": {
-    "go-simd": "815aa367396b1cc3371214a7d4430cc21eba411ed9d942f9dae9dbd128c615bc",
-    "rust-simd": "af7250d61915deb2979527398a6311753c70ab009a828793d69322d47521ae5c"
+    "go-simd": "e585bd35e668acd608e5415a1c620b8016cbc6aba1bdd2d9fb9057eeb3458b8a",
+    "rust-simd": "a1df243b7c9d48d9839220813a9e17527962fae5102384895259145ed607d1db"
   },
   "counts": {
     "match": 166,
@@ -7368,7 +7368,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(340) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(422) }\n"
       },
       "status": "rust_gap"
     },
@@ -7421,7 +7421,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(364) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(435) }\n"
       },
       "status": "rust_gap"
     },
@@ -7578,7 +7578,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(299) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(381) }\n"
       },
       "status": "harness_gap"
     },
@@ -7590,7 +7590,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(356) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(443) }\n"
       },
       "status": "harness_gap"
     },
@@ -7614,7 +7614,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(322) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(408) }\n"
       },
       "status": "harness_gap"
     },
@@ -7626,7 +7626,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(313) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(402) }\n"
       },
       "status": "harness_gap"
     },
@@ -7650,7 +7650,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(348) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(416) }\n"
       },
       "status": "harness_gap"
     },
@@ -7784,7 +7784,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(317) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(403) }\n"
       },
       "status": "rust_gap"
     },
@@ -7831,7 +7831,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(348) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(428) }\n"
       },
       "status": "rust_gap"
     },
@@ -7960,7 +7960,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(315) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(405) }\n"
       },
       "status": "rust_gap"
     },
@@ -7972,7 +7972,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(348) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(427) }\n"
       },
       "status": "harness_gap"
     },
@@ -8000,7 +8000,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(328) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(410) }\n"
       },
       "status": "rust_gap"
     },
@@ -8052,7 +8052,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(296) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(375) }\n"
       },
       "status": "rust_gap"
     },
@@ -8142,7 +8142,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(337) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(425) }\n"
       },
       "status": "rust_gap"
     },
@@ -8214,7 +8214,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(317) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(409) }\n"
       },
       "status": "rust_gap"
     },
@@ -8244,7 +8244,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(400) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(494) }\n"
       },
       "status": "rust_gap"
     },
@@ -8730,7 +8730,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(20) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"source module declarations are not implemented\", offset: Some(13) }\n"
       },
       "status": "rust_gap"
     },
@@ -9239,7 +9239,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(32) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected name\", offset: Some(133) }\n"
       },
       "status": "rust_gap"
     },

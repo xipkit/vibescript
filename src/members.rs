@@ -12,6 +12,17 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if let Some(value) = crate::enums::call(
+        ctx,
+        site,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = crate::time::member(
         ctx,
         site,
@@ -155,6 +166,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = crate::enums::call(ctx, site, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = crate::time::member(ctx, site, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }
