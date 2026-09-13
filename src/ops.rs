@@ -29,6 +29,9 @@ pub(crate) fn unary(op: &str, value: Value) -> Result<Value> {
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
+    if op == "===" {
+        return Ok(Value::boolean(case_matches(ctx, Some(&b), &a, false)?));
+    }
     if matches!(op, "==" | "!=") {
         let same = equal(ctx, &a, &b, 0)?;
         return Ok(Value::boolean(if op == "==" { same } else { !same }));
@@ -133,6 +136,37 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         }
         _ => Err(type_error()),
     }
+}
+
+pub(crate) fn case_matches(
+    ctx: &mut CallContext,
+    target: Option<&Value>,
+    candidate: &Value,
+    splat: bool,
+) -> Result<bool> {
+    let candidates = if splat {
+        candidate
+            .as_array()
+            .ok_or_else(|| Error::new(ErrorKind::Type, "case when splat value must be an array"))?
+    } else {
+        std::slice::from_ref(candidate)
+    };
+    for candidate in candidates {
+        ctx.charge(1)?;
+        let matched = if let Some(target) = target {
+            if let Kind::Range(range) = &candidate.0 {
+                range.contains(target)
+            } else {
+                equal(ctx, candidate, target, 0)?
+            }
+        } else {
+            candidate.truthy()
+        };
+        if matched {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {

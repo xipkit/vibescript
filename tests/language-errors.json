@@ -133,5 +133,50 @@
     "name": "hash_key_type",
     "body": "{}.key?(1)",
     "go_error": "hash.key? key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "control_break_outside",
+    "go_error": "break used outside of loop",
+    "body": "break"
+  },
+  {
+    "name": "control_next_outside",
+    "go_error": "next used outside of loop",
+    "body": "next"
+  },
+  {
+    "name": "control_for_scalar",
+    "go_error": "cannot iterate over int",
+    "body": "for n in 3\nn\nend"
+  },
+  {
+    "name": "control_for_string",
+    "go_error": "cannot iterate over string",
+    "body": "for n in \"ab\"\nn\nend"
+  },
+  {
+    "name": "control_for_endless",
+    "go_error": "cannot iterate an endless range",
+    "body": "for n in 1..\nbreak\nend"
+  },
+  {
+    "name": "control_for_beginless",
+    "go_error": "cannot iterate a beginless range",
+    "body": "for n in ..3\nbreak\nend"
+  },
+  {
+    "name": "control_case_splat_type",
+    "go_error": "splat",
+    "body": "case 1\nwhen *nil then 7\nend"
+  },
+  {
+    "name": "control_break_call_boundary",
+    "go_error": "break cannot cross call boundary",
+    "source": "def bad()\nbreak\nend\ndef run(input)\nfor n in [1]\nbad()\nend\nend"
+  },
+  {
+    "name": "control_next_call_boundary",
+    "go_error": "next cannot cross call boundary",
+    "source": "def bad()\nnext\nend\ndef run(input)\nwhile true\nbad()\nbreak\nend\nend"
   }
 ]

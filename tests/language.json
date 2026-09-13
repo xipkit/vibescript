@@ -796,5 +796,508 @@
     "name": "dig_scalar_miss",
     "body": "{a:1}.dig(:a,:b)",
     "expected": null
+  },
+  {
+    "name": "control_parallel_swap",
+    "expected": [
+      2,
+      1
+    ],
+    "body": "a=1\nb=2\na,b=b,a\n[a,b]"
+  },
+  {
+    "name": "control_parallel_value",
+    "expected": [
+      1,
+      2
+    ],
+    "body": "a,b=1,2"
+  },
+  {
+    "name": "control_parallel_short",
+    "expected": [
+      1,
+      null,
+      null
+    ],
+    "body": "a,b,c=[1]\n[a,b,c]"
+  },
+  {
+    "name": "control_parallel_scalar",
+    "expected": [
+      9,
+      null
+    ],
+    "body": "a,b=9\n[a,b]"
+  },
+  {
+    "name": "control_parallel_rest",
+    "expected": [
+      1,
+      [
+        2,
+        3
+      ],
+      4,
+      5
+    ],
+    "body": "a,*middle,b,c=[1,2,3,4,5]\n[a,middle,b,c]"
+  },
+  {
+    "name": "control_parallel_short_rest",
+    "expected": [
+      1,
+      [],
+      2,
+      null
+    ],
+    "body": "a,*middle,b,c=[1,2]\n[a,middle,b,c]"
+  },
+  {
+    "name": "control_parallel_rest_nil",
+    "expected": [
+      null
+    ],
+    "body": "*a=nil\na"
+  },
+  {
+    "name": "control_parallel_anonymous",
+    "expected": [
+      1,
+      4
+    ],
+    "body": "a,*,b=[1,2,3,4]\n[a,b]"
+  },
+  {
+    "name": "control_parallel_nested",
+    "expected": [
+      1,
+      2,
+      [
+        3,
+        4
+      ],
+      5
+    ],
+    "body": "head,(a,(b,*c)),d=[0,[1,[2,3,4]],5]\n[a,b,c,d]"
+  },
+  {
+    "name": "control_parallel_alias",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      1,
+      [
+        2,
+        3
+      ]
+    ],
+    "body": "a=[1,2]\nx,*y=a\ny.push(3)\n[a,x,y]"
+  },
+  {
+    "name": "control_parallel_index_order",
+    "expected": [
+      [
+        0,
+        9,
+        0
+      ],
+      1
+    ],
+    "body": "a=[0,0,0]\ni,a[i]=1,9\n[a,i]"
+  },
+  {
+    "name": "control_parallel_overwrite",
+    "expected": [
+      9,
+      4
+    ],
+    "body": "a=[0,0]\na,a[0]=[3,4],9\na"
+  },
+  {
+    "name": "control_parallel_repeat",
+    "expected": [
+      2,
+      3
+    ],
+    "body": "a,*a=[1,2,3]\na"
+  },
+  {
+    "name": "control_if_expression",
+    "expected": [
+      2,
+      4,
+      null
+    ],
+    "body": "x=if false then 1 elsif 0 then 2 else 3 end\ny=unless nil then 4 else 5 end\n[x,y,(if false then 1 end)]"
+  },
+  {
+    "name": "control_unless_statement",
+    "expected": 7,
+    "body": "x=0\nunless false\nx=3\nx+=4\nelse\nx=99\nend\nx"
+  },
+  {
+    "name": "control_modifier_truthiness",
+    "expected": [
+      1,
+      2
+    ],
+    "body": "a=[]\na.push(1) if 0\na.push(2) unless false\na.push(3) if nil\na.push(4) unless true\na"
+  },
+  {
+    "name": "control_modifier_loops",
+    "expected": 5,
+    "body": "i=0\ni+=1 while i<3\ni+=1 until i>=5\ni"
+  },
+  {
+    "name": "control_modifier_precondition",
+    "expected": 1,
+    "body": "n=1\nn=9 while false\nn=8 until true\nn"
+  },
+  {
+    "name": "control_modifier_declares",
+    "expected": [
+      null,
+      null,
+      null
+    ],
+    "body": "x=1 if false\ny=1 while false\nz=2 until true\n[x,y,z]"
+  },
+  {
+    "name": "control_bare_return_modifier",
+    "expected": null,
+    "body": "return if true\n9"
+  },
+  {
+    "name": "control_return_modifier",
+    "expected": 7,
+    "body": "return 7 unless false\n9"
+  },
+  {
+    "name": "control_while_statement",
+    "expected": 3,
+    "body": "i=0\nwhile i<3\ni+=1\nend"
+  },
+  {
+    "name": "control_while_expression",
+    "expected": [
+      null,
+      3
+    ],
+    "body": "i=0\nx=while i<3 do\ni+=1\nend\n[x,i]"
+  },
+  {
+    "name": "control_until_expression",
+    "expected": [
+      null,
+      3
+    ],
+    "body": "i=0\nx=until i==3\ni+=1\nend\n[x,i]"
+  },
+  {
+    "name": "control_break_statement",
+    "expected": 10,
+    "body": "i=0\nwhile i<3\ni+=1\nbreak if i==2\ni*10\nend"
+  },
+  {
+    "name": "control_break_expression",
+    "expected": 7,
+    "body": "x=while true\nbreak 7\nend\nx"
+  },
+  {
+    "name": "control_break_expression_nil",
+    "expected": null,
+    "body": "x=while true\nbreak\nend\nx"
+  },
+  {
+    "name": "control_next_value",
+    "expected": [
+      1,
+      2,
+      3
+    ],
+    "body": "a=[]\ni=0\nwhile i<3\ni+=1\nnext a.push(i)\nend\na"
+  },
+  {
+    "name": "control_for_array",
+    "expected": [
+      6,
+      2,
+      4
+    ],
+    "body": "out=[]\nfor n in [3,1,2] do\nout.push(n*2)\nend\nout"
+  },
+  {
+    "name": "control_for_ranges",
+    "expected": [
+      1,
+      2,
+      3,
+      3,
+      2
+    ],
+    "body": "a=[]\nfor n in 1..3\na.push(n)\nend\nfor n in 3...1\na.push(n)\nend\nfor n in 2...2\na.push(99)\nend\na"
+  },
+  {
+    "name": "control_for_hash",
+    "expected": [
+      [
+        "b",
+        2
+      ],
+      [
+        "a",
+        1
+      ]
+    ],
+    "body": "out=[]\nfor k,v in {b:2,a:1}\nout.push([k,v])\nend\nout"
+  },
+  {
+    "name": "control_for_empty",
+    "expected": [
+      null,
+      null,
+      9
+    ],
+    "body": "old=9\nfor n in []\nx=3\nend\nfor old in []\nold=2\nend\n[n,x,old]"
+  },
+  {
+    "name": "control_for_destructure",
+    "expected": [
+      [
+        1,
+        [
+          2
+        ],
+        3
+      ],
+      [
+        4,
+        [],
+        null
+      ],
+      [
+        null,
+        [],
+        null
+      ]
+    ],
+    "body": "out=[]\nfor a,*b,c in [[1,2,3],[4],nil]\nout.push([a,b,c])\nend\nout"
+  },
+  {
+    "name": "control_for_nested_target",
+    "expected": [
+      [
+        1,
+        2,
+        [
+          3
+        ]
+      ],
+      [
+        4,
+        5,
+        [
+          6
+        ]
+      ]
+    ],
+    "body": "out=[]\nfor tag,(a),[b,*c] in [[0,[1],[2,3]],[0,[4],[5,6]]]\nout.push([a,b,c])\nend\nout"
+  },
+  {
+    "name": "control_for_expression",
+    "expected": [
+      [
+        2,
+        4
+      ],
+      4
+    ],
+    "body": "x=for n in [2,4]\nn*10\nend\n[x,n]"
+  },
+  {
+    "name": "control_for_expression_hash",
+    "expected": {
+      "b": 2,
+      "a": 1
+    },
+    "body": "x=for k,v in {b:2,a:1}\nv*10\nend\nx"
+  },
+  {
+    "name": "control_for_statement",
+    "expected": 40,
+    "body": "for n in [2,4]\nn*10\nend"
+  },
+  {
+    "name": "control_for_break_value",
+    "expected": 20,
+    "body": "x=for n in [1,2,3]\nbreak n*10 if n==2\nend\nx"
+  },
+  {
+    "name": "control_for_break_nil",
+    "expected": null,
+    "body": "x=for n in [1,2,3]\nbreak\nend\nx"
+  },
+  {
+    "name": "control_for_next",
+    "expected": [
+      1,
+      3,
+      5
+    ],
+    "body": "a=[]\nfor n in 1..5\nnext if n.even?\na.push(n)\nend\na"
+  },
+  {
+    "name": "control_nested_loops",
+    "expected": [
+      12,
+      22,
+      32
+    ],
+    "body": "a=[]\nfor i in 1..3\nfor j in 1..3\nnext if j==1\nbreak if j==3\na.push(i*10+j)\nend\nend\na"
+  },
+  {
+    "name": "control_for_reassignment_snapshot",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        9
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "body": "a=[1,2]\nout=[]\nx=for v in a\nout.push(v)\na=[9]\nend\n[x,a,out]"
+  },
+  {
+    "name": "control_hash_entry_snapshot",
+    "expected": [
+      [
+        "a",
+        1
+      ],
+      [
+        "b",
+        2
+      ]
+    ],
+    "body": "h={a:1,b:2}\nout=[]\nfor k,v in h\nout.push([k,v])\nh[:b]=9\nh[:c]=3\nend\nout"
+  },
+  {
+    "name": "control_case_scalar",
+    "expected": 20,
+    "body": "case 2\nwhen 1 then 10\nwhen 2,3 then 20\nelse 30\nend"
+  },
+  {
+    "name": "control_case_range",
+    "expected": 20,
+    "body": "case 3.5\nwhen 1...3 then 10\nwhen 4..3 then 20\nelse 30\nend"
+  },
+  {
+    "name": "control_case_splat",
+    "expected": 7,
+    "body": "case 3\nwhen *[1,2],3..4 then 7\nelse 9\nend"
+  },
+  {
+    "name": "control_case_targetless",
+    "expected": 2,
+    "body": "case\nwhen nil,false then 1\nwhen *[false,0] then 2\nelse 3\nend"
+  },
+  {
+    "name": "control_case_no_match",
+    "expected": null,
+    "body": "case :a\nwhen \"a\" then 1\nend"
+  },
+  {
+    "name": "control_case_short_circuit",
+    "expected": 7,
+    "body": "case 3\nwhen 3,*nil then 7\nwhen 1/0 then 8\nend"
+  },
+  {
+    "name": "control_case_evaluation",
+    "expected": [
+      20,
+      [
+        1,
+        2,
+        1
+      ]
+    ],
+    "body": "a=[]\nx=case a.push(1).length\nwhen a.push(2).last then 10\nwhen a.push(1).last then 20\nwhen a.push(99).last then 30\nend\n[x,a]"
+  },
+  {
+    "name": "control_case_array_equality",
+    "expected": 7,
+    "body": "case [1,{a:2}]\nwhen [1.0,{a:2.0}] then 7\nend"
+  },
+  {
+    "name": "control_case_operator",
+    "expected": [
+      true,
+      false,
+      true,
+      true,
+      false
+    ],
+    "body": "[(1...3)===2,(1...3)===3,(3..1)===2.5,[1]===[1.0],:a===\"a\"]"
+  },
+  {
+    "name": "control_logical_assignment",
+    "expected": [
+      4,
+      null
+    ],
+    "body": "x||=3\nx||=1/0\ny&&=1/0\nx&&=4\n[x,y]"
+  },
+  {
+    "name": "control_logical_index",
+    "expected": [
+      1,
+      false,
+      3
+    ],
+    "body": "a=[nil,false,0]\na[0]||=1\na[1]&&=1/0\na[2]||=1/0\na[2]&&=3\na"
+  },
+  {
+    "name": "control_logical_hash",
+    "expected": {
+      "x": 3
+    },
+    "body": "h={}\nh[:x]||=3\nh[:x]||=1/0\nh[:y]&&=1/0\nh"
+  },
+  {
+    "name": "control_conditional_nested_loop",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      3
+    ],
+    "body": "i=0\nx=if true then (for n in [1,2]\ni+=n\nend) else nil end\n[x,i]"
+  },
+  {
+    "name": "control_return_inside_expression",
+    "expected": 7,
+    "source": "def f()\n[99,(for n in [1,2]\nreturn 7\nend),100]\nend\ndef run(input)\nf()\nend"
+  },
+  {
+    "name": "control_called_function_own_loop",
+    "expected": [
+      7,
+      7
+    ],
+    "source": "def f()\nfor n in [1,2]\nbreak 7\nend\nend\ndef run(input)\na=[]\nfor n in [1,2]\na.push(f())\nend\na\nend"
+  },
+  {
+    "name": "control_return_inside_case",
+    "expected": 8,
+    "source": "def f()\ncase [1]\nwhen (while true\nreturn 8\nend) then 2\nelse 3\nend\nend\ndef run(input)\nf()\nend"
   }
 ]

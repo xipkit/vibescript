@@ -192,8 +192,8 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
             _ => {
                 let mut found = None;
                 for op in [
-                    "...", "..", "**=", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=",
-                    "%=", "**", "<<",
+                    "...", "..", "===", "||=", "&&=", "**=", "==", "!=", "<=", ">=", "&&", "||",
+                    "+=", "-=", "*=", "/=", "%=", "**", "<<",
                 ] {
                     if s[i..].starts_with(op.as_bytes()) {
                         found = Some(op);
@@ -250,19 +250,68 @@ pub(crate) enum Node {
     Binary(&'static str, Box<Expr>, Box<Expr>),
     Range(Option<Box<Expr>>, Option<Box<Expr>>, bool),
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
+    Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
+    Loop(Box<Stmt>),
     Call(String, Vec<Expr>),
     Method(Box<Expr>, String, Vec<Expr>),
     Index(Box<Expr>, Vec<Expr>),
 }
 #[derive(Debug)]
+pub(crate) struct When {
+    pub values: Vec<(Expr, bool)>,
+    pub result: Expr,
+}
+#[derive(Debug)]
+pub(crate) enum Target {
+    Value(Expr),
+    Tuple(Vec<(Option<Target>, bool)>),
+}
+impl Target {
+    fn is_binding(&self) -> bool {
+        match self {
+            Self::Value(e) => matches!(e.node, Node::Var(_)),
+            Self::Tuple(parts) => parts
+                .iter()
+                .all(|(target, _)| target.as_ref().is_none_or(Self::is_binding)),
+        }
+    }
+    fn depth(&self) -> usize {
+        match self {
+            Self::Value(e) => e.depth,
+            Self::Tuple(parts) => {
+                1 + parts
+                    .iter()
+                    .filter_map(|(t, _)| t.as_ref())
+                    .map(Self::depth)
+                    .max()
+                    .unwrap_or(0)
+            }
+        }
+    }
+}
+#[derive(Debug)]
 pub(crate) enum Stmt {
     Expr(Expr),
-    Assign(Expr, &'static str, Expr),
+    Assign(Target, &'static str, Expr),
     If(Expr, Vec<Stmt>, Vec<Stmt>),
     While(Expr, Vec<Stmt>),
+    For(Target, Expr, Vec<Stmt>),
     Return(Option<Expr>),
-    Break,
-    Next,
+    Break(Option<Expr>),
+    Next(Option<Expr>),
+}
+impl Stmt {
+    fn depth(&self) -> usize {
+        let body = |s: &[Stmt]| s.iter().map(Self::depth).max().unwrap_or(0);
+        1 + match self {
+            Self::Expr(e) => e.depth,
+            Self::Assign(t, _, e) => t.depth().max(e.depth),
+            Self::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
+            Self::While(e, b) => e.depth.max(body(b)),
+            Self::For(t, e, b) => t.depth().max(e.depth).max(body(b)),
+            Self::Return(e) | Self::Break(e) | Self::Next(e) => e.as_ref().map_or(0, |e| e.depth),
+        }
+    }
 }
 pub(crate) struct Definition {
     pub name: String,
@@ -397,7 +446,7 @@ impl Parser {
     }
     fn at_end(&self) -> bool {
         matches!(self.token(), Token::Eof)
-            || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"))
+            || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"|"when"))
     }
     fn enter(&mut self) -> Result<()> {
         self.depth += 1;
@@ -425,57 +474,232 @@ impl Parser {
         Ok(body)
     }
     fn statement(&mut self) -> Result<Stmt> {
-        if self.word("if") {
-            return self.if_stmt();
-        }
-        let until = self.word("until");
-        if until || self.word("while") {
-            let mut cond = self.expr(0)?;
-            if until {
-                let depth = cond.depth + 1;
-                cond = self.make(Node::Unary("!", Box::new(cond)), depth)?;
+        let stmt = self.plain_statement()?;
+        let modifier = match self.token() {
+            Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => {
+                w.clone()
             }
-            self.word("do");
-            self.lines();
-            let body = self.block(&["end"])?;
-            self.expect_word("end")?;
-            return Ok(Stmt::While(cond, body));
+            _ => return Ok(stmt),
+        };
+        if !matches!(
+            stmt,
+            Stmt::Expr(_) | Stmt::Assign(..) | Stmt::Return(_) | Stmt::Break(_) | Stmt::Next(_)
+        ) {
+            return self
+                .err("modifier requires an expression, assignment, or leaf control statement");
         }
-        if self.word("return") {
-            let value = if self.at_end() || matches!(self.token(), Token::EndLine) {
+        self.bump();
+        let mut condition = self.expr(0)?;
+        if matches!(modifier.as_str(), "unless" | "until") {
+            condition = self.negate(condition)?;
+        }
+        Ok(if matches!(modifier.as_str(), "while" | "until") {
+            Stmt::While(condition, vec![stmt])
+        } else {
+            Stmt::If(condition, vec![stmt], Vec::new())
+        })
+    }
+    fn plain_statement(&mut self) -> Result<Stmt> {
+        if self.word("if") {
+            return self.if_stmt(false);
+        }
+        if self.word("unless") {
+            return self.if_stmt(true);
+        }
+        if self.word("while") {
+            return self.while_stmt(false);
+        }
+        if self.word("until") {
+            return self.while_stmt(true);
+        }
+        if self.word("for") {
+            return self.for_stmt();
+        }
+        for flow in ["return", "break", "next"] {
+            if self.word(flow) {
+                let modifier = matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
+                let value = if !modifier && self.starts_expression() {
+                    Some(self.expr(0)?)
+                } else {
+                    None
+                };
+                return Ok(match flow {
+                    "return" => Stmt::Return(value),
+                    "break" => Stmt::Break(value),
+                    _ => Stmt::Next(value),
+                });
+            }
+        }
+        if self.assignment_ahead() {
+            let target = self.target(true)?;
+            self.lines();
+            let Token::Op(op) = self.bump() else {
+                return self.err("expected assignment operator");
+            };
+            if !assignment(op) {
+                return self.err("expected assignment operator");
+            }
+            if op != "=" && matches!(target, Target::Tuple(_)) {
+                return self.err("compound destructuring assignment is invalid");
+            }
+            self.lines();
+            let first = self.expr(0)?;
+            let rhs = if self.take_p(',') {
+                let mut items = vec![first];
+                loop {
+                    self.lines();
+                    items.push(self.expr(0)?);
+                    if !self.take_p(',') {
+                        break;
+                    }
+                }
+                let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
+                self.make(Node::Array(items), depth)?
+            } else {
+                first
+            };
+            return Ok(Stmt::Assign(target, op, rhs));
+        }
+        Ok(Stmt::Expr(self.expr(0)?))
+    }
+    fn negate(&self, expr: Expr) -> Result<Expr> {
+        let depth = expr.depth + 1;
+        self.make(Node::Unary("!", Box::new(expr)), depth)
+    }
+    fn while_stmt(&mut self, until: bool) -> Result<Stmt> {
+        let mut cond = self.expr(0)?;
+        if until {
+            cond = self.negate(cond)?;
+        }
+        self.word("do");
+        let body = self.block(&["end"])?;
+        self.expect_word("end")?;
+        Ok(Stmt::While(cond, body))
+    }
+    fn for_stmt(&mut self) -> Result<Stmt> {
+        let target = self.target(false)?;
+        if !target.is_binding() {
+            return self.err("invalid for loop target");
+        }
+        self.expect_word("in")?;
+        let iterable = self.expr(0)?;
+        self.word("do");
+        let body = self.block(&["end"])?;
+        self.expect_word("end")?;
+        Ok(Stmt::For(target, iterable, body))
+    }
+    fn target(&mut self, first_expression: bool) -> Result<Target> {
+        self.enter()?;
+        let mut parts = Vec::new();
+        let mut tuple = false;
+        let mut has_rest = false;
+        loop {
+            let rest = self.token() == &Token::Op("*");
+            if rest {
+                self.bump();
+                if has_rest {
+                    return self.err("duplicate rest target");
+                }
+                has_rest = true;
+                tuple = true;
+            }
+            let value = if rest
+                && (matches!(self.token(), Token::P(',' | ')' | ']') | Token::Op("="))
+                    || matches!(self.token(), Token::Word(w) if w=="in"))
+            {
                 None
             } else {
-                Some(self.expr(0)?)
+                let grouped = !first_expression || !parts.is_empty() || rest;
+                let close = if grouped && self.take_p('(') {
+                    Some(')')
+                } else if grouped && self.take_p('[') {
+                    Some(']')
+                } else {
+                    None
+                };
+                if let Some(close) = close {
+                    self.lines();
+                    let inner = self.target(false)?;
+                    self.lines();
+                    self.expect_p(close)?;
+                    Some(match inner {
+                        Target::Tuple(_) => inner,
+                        _ => Target::Tuple(vec![(Some(inner), false)]),
+                    })
+                } else {
+                    Some(Target::Value(self.expr(0)?))
+                }
             };
-            return Ok(Stmt::Return(value));
+            parts.push((value, rest));
+            if !self.take_p(',') {
+                break;
+            }
+            tuple = true;
+            self.lines();
+            if matches!(self.token(), Token::P(')' | ']') | Token::Op("="))
+                || matches!(self.token(), Token::Word(w) if w=="in")
+            {
+                break;
+            }
         }
-        if self.word("break") {
-            return Ok(Stmt::Break);
-        }
-        if self.word("next") {
-            return Ok(Stmt::Next);
-        }
-        if matches!(self.token(),Token::Word(w) if reserved(w)) {
-            return self.err("this language construct is not implemented");
-        }
-        let lhs = self.expr(0)?;
-        if let Token::Op(op @ ("=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=")) = self.token() {
-            let op = *op;
-            self.bump();
-            let rhs = self.expr(0)?;
-            Ok(Stmt::Assign(lhs, op, rhs))
+        self.depth -= 1;
+        let target = if tuple {
+            Target::Tuple(parts)
         } else {
-            Ok(Stmt::Expr(lhs))
+            parts.pop().unwrap().0.unwrap()
+        };
+        if target.depth() > MAX_DEPTH {
+            return self.err("assignment nesting too deep");
         }
+        Ok(target)
     }
-    fn if_stmt(&mut self) -> Result<Stmt> {
+    fn assignment_ahead(&self) -> bool {
+        let mut nesting = 0usize;
+        let mut comma = false;
+        for (i, lexeme) in self.tokens[self.pos..].iter().enumerate() {
+            match &lexeme.token {
+                Token::P('(' | '[' | '{') => nesting += 1,
+                Token::P(')' | ']' | '}') => {
+                    if nesting == 0 {
+                        return false;
+                    }
+                    nesting -= 1;
+                }
+                Token::Op(op) if nesting == 0 && assignment(op) => return true,
+                Token::EndLine if nesting == 0 => {
+                    let next = self.tokens[self.pos + i + 1..]
+                        .iter()
+                        .find(|l| !matches!(l.token, Token::EndLine));
+                    if !comma
+                        && !next.is_some_and(|l| matches!(l.token, Token::Op(op) if assignment(op)))
+                    {
+                        return false;
+                    }
+                }
+                Token::Word(w) if nesting == 0 && reserved(w) => return false,
+                Token::Eof => return false,
+                _ => (),
+            }
+            if !matches!(lexeme.token, Token::EndLine) {
+                comma = lexeme.token == Token::P(',');
+            }
+        }
+        false
+    }
+    fn if_stmt(&mut self, unless: bool) -> Result<Stmt> {
         self.enter()?;
-        let cond = self.expr(0)?;
+        let mut cond = self.expr(0)?;
+        if unless {
+            cond = self.negate(cond)?;
+        }
         self.word("then");
         self.lines();
         let yes = self.block(&["else", "elsif", "end"])?;
         let no = if self.word("elsif") {
-            vec![self.if_stmt()?]
+            if unless {
+                return self.err("unless does not support elsif");
+            }
+            vec![self.if_stmt(false)?]
         } else if self.word("else") {
             self.lines();
             let no = self.block(&["end"])?;
@@ -488,6 +712,94 @@ impl Parser {
         self.depth -= 1;
         Ok(Stmt::If(cond, yes, no))
     }
+    fn if_expr(&mut self, unless: bool) -> Result<Expr> {
+        self.enter()?;
+        let mut cond = self.expr(0)?;
+        if unless {
+            cond = self.negate(cond)?;
+        }
+        self.word("then");
+        self.lines();
+        let yes = self.expr(0)?;
+        self.lines();
+        let no = if self.word("elsif") {
+            if unless {
+                return self.err("unless does not support elsif");
+            }
+            self.if_expr(false)?
+        } else if self.word("else") {
+            self.lines();
+            let no = self.expr(0)?;
+            self.lines();
+            self.expect_word("end")?;
+            no
+        } else {
+            self.expect_word("end")?;
+            self.make(Node::Literal(Value::nil()), 1)?
+        };
+        let depth = 1 + cond.depth.max(yes.depth).max(no.depth);
+        self.depth -= 1;
+        self.make(
+            Node::Conditional(Box::new(cond), Box::new(yes), Box::new(no)),
+            depth,
+        )
+    }
+    fn case_expr(&mut self) -> Result<Expr> {
+        self.lines();
+        let target = if matches!(self.token(), Token::Word(w) if w=="when") {
+            None
+        } else {
+            Some(Box::new(self.expr(0)?))
+        };
+        self.lines();
+        let mut clauses = Vec::new();
+        while self.word("when") {
+            let mut values = Vec::new();
+            loop {
+                let splat = self.token() == &Token::Op("*");
+                if splat {
+                    self.bump();
+                }
+                values.push((self.expr(0)?, splat));
+                if !self.take_p(',') {
+                    break;
+                }
+                self.lines();
+            }
+            self.word("then");
+            self.lines();
+            let result = self.expr(0)?;
+            clauses.push(When { values, result });
+            self.lines();
+        }
+        if clauses.is_empty() {
+            return self.err("case requires a when clause");
+        }
+        let alternate = if self.word("else") {
+            self.lines();
+            Some(Box::new(self.expr(0)?))
+        } else {
+            None
+        };
+        self.lines();
+        self.expect_word("end")?;
+        let depth = 1 + target
+            .as_ref()
+            .map_or(0, |e| e.depth)
+            .max(alternate.as_ref().map_or(0, |e| e.depth))
+            .max(
+                clauses
+                    .iter()
+                    .map(|c| {
+                        c.result
+                            .depth
+                            .max(c.values.iter().map(|(v, _)| v.depth).max().unwrap_or(0))
+                    })
+                    .max()
+                    .unwrap_or(0),
+            );
+        self.make(Node::Case(target, clauses, alternate), depth)
+    }
     fn make(&self, node: Node, depth: usize) -> Result<Expr> {
         if depth > MAX_DEPTH {
             self.err("expression nesting too deep")
@@ -497,7 +809,14 @@ impl Parser {
     }
     fn expr(&mut self, min: u8) -> Result<Expr> {
         self.enter()?;
-        let mut lhs = match self.bump() {
+        let lhs = self.prefix()?;
+        let result = self.expr_tail(lhs, min);
+        self.depth -= 1;
+        result
+    }
+    // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
+    fn prefix(&mut self) -> Result<Expr> {
+        Ok(match self.bump() {
             Token::Int(n) => self.make(Node::Literal(Value::int(n)), 1)?,
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1)?,
             Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1)?,
@@ -505,6 +824,17 @@ impl Parser {
                 "nil" => self.make(Node::Literal(Value::nil()), 1)?,
                 "true" => self.make(Node::Literal(Value::boolean(true)), 1)?,
                 "false" => self.make(Node::Literal(Value::boolean(false)), 1)?,
+                "if" | "unless" => self.if_expr(w == "unless")?,
+                "case" => self.case_expr()?,
+                "while" | "until" | "for" => {
+                    let stmt = if w == "for" {
+                        self.for_stmt()?
+                    } else {
+                        self.while_stmt(w == "until")?
+                    };
+                    let depth = stmt.depth();
+                    self.make(Node::Loop(Box::new(stmt)), depth)?
+                }
                 _ if reserved(&w) => return self.err("expected expression"),
                 _ => self.make(Node::Var(w), 1)?,
             },
@@ -573,7 +903,9 @@ impl Parser {
                 self.make(Node::Unary(op, Box::new(e)), d)?
             }
             _ => return self.err("expected expression"),
-        };
+        })
+    }
+    fn expr_tail(&mut self, mut lhs: Expr, min: u8) -> Result<Expr> {
         loop {
             if self.take_p('(') {
                 let Node::Var(name) = lhs.node else {
@@ -628,7 +960,7 @@ impl Parser {
             let (left, right) = match op {
                 "||" => (3, 4),
                 "&&" => (4, 5),
-                "==" | "!=" => (5, 6),
+                "==" | "!=" | "===" => (5, 6),
                 "<" | "<=" | ">" | ">=" => (6, 7),
                 ".." | "..." => (7, 8),
                 "<<" => (10, 11),
@@ -659,7 +991,6 @@ impl Parser {
             let depth = 1 + lhs.depth.max(rhs.depth);
             lhs = self.make(Node::Binary(op, Box::new(lhs), Box::new(rhs)), depth)?;
         }
-        self.depth -= 1;
         Ok(lhs)
     }
     fn arguments(&mut self, close: char) -> Result<Vec<Expr>> {
@@ -687,12 +1018,25 @@ impl Parser {
     }
     fn starts_expression(&self) -> bool {
         match self.token() {
-            Token::Word(w) => !reserved(w),
+            Token::Word(w) => {
+                !reserved(w)
+                    || matches!(
+                        w.as_str(),
+                        "if" | "unless" | "case" | "while" | "until" | "for"
+                    )
+            }
             Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,
             Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
             _ => false,
         }
     }
+}
+
+fn assignment(op: &str) -> bool {
+    matches!(
+        op,
+        "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "**=" | "||=" | "&&="
+    )
 }
 
 fn reserved(w: &str) -> bool {
@@ -702,6 +1046,8 @@ fn reserved(w: &str) -> bool {
             | "module"
             | "enum"
             | "for"
+            | "in"
+            | "when"
             | "until"
             | "begin"
             | "rescue"

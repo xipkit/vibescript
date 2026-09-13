@@ -1,6 +1,6 @@
 use crate::{
     Result, Value,
-    syntax::{self, Expr, Node, Stmt},
+    syntax::{self, Expr, Node, Stmt, Target},
 };
 use std::collections::HashMap;
 
@@ -22,6 +22,22 @@ pub(crate) enum Op {
     Range(bool, bool, bool),
     Index(usize),
     SetIndex(usize),
+    SetIndexFromValue(usize),
+    IndexResult,
+    Extract(Selection),
+    CaseCompare(bool, bool),
+    LoopStart {
+        iterable: bool,
+        expression: bool,
+        next: usize,
+        end: usize,
+    },
+    LoopTest,
+    IterNext,
+    LoopBody,
+    LoopEnd,
+    Break(bool),
+    Next,
     Call(usize, usize),
     Host(usize, usize),
     Method(Method, usize),
@@ -31,6 +47,20 @@ pub(crate) enum Op {
     JumpFalse(usize),
     JumpTrue(usize),
     Return,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Selection {
+    At(usize),
+    Rest {
+        leading: usize,
+        trailing: usize,
+    },
+    Tail {
+        leading: usize,
+        trailing: usize,
+        index: usize,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -191,7 +221,6 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             program: &mut program,
             locals: HashMap::new(),
             code: Vec::new(),
-            loops: Vec::new(),
         };
         for name in &def.params {
             c.slot(name);
@@ -210,15 +239,10 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
     Ok(program)
 }
 
-struct Loop {
-    start: usize,
-    breaks: Vec<usize>,
-}
 struct Compiler<'a> {
     program: &'a mut Program,
     locals: HashMap<String, usize>,
     code: Vec<Op>,
-    loops: Vec<Loop>,
 }
 impl Compiler<'_> {
     fn slot(&mut self, name: &str) -> usize {
@@ -228,22 +252,102 @@ impl Compiler<'_> {
     fn declare(&mut self, body: &[Stmt]) {
         for stmt in body {
             match stmt {
-                Stmt::Assign(
-                    Expr {
-                        node: Node::Var(name),
-                        ..
-                    },
-                    _,
-                    _,
-                ) => {
-                    self.slot(name);
+                Stmt::Expr(e) => self.declare_expr(e),
+                Stmt::Assign(target, _, value) => {
+                    self.declare_target(target);
+                    self.declare_expr(value);
                 }
-                Stmt::If(_, yes, no) => {
+                Stmt::If(cond, yes, no) => {
+                    self.declare_expr(cond);
                     self.declare(yes);
                     self.declare(no);
                 }
-                Stmt::While(_, body) => self.declare(body),
-                _ => (),
+                Stmt::While(cond, body) => {
+                    self.declare_expr(cond);
+                    self.declare(body);
+                }
+                Stmt::For(target, iterable, body) => {
+                    self.declare_target(target);
+                    self.declare_expr(iterable);
+                    self.declare(body);
+                }
+                Stmt::Return(e) | Stmt::Break(e) | Stmt::Next(e) => {
+                    if let Some(e) = e {
+                        self.declare_expr(e);
+                    }
+                }
+            }
+        }
+    }
+    fn declare_target(&mut self, target: &Target) {
+        match target {
+            Target::Value(Expr {
+                node: Node::Var(name),
+                ..
+            }) => {
+                self.slot(name);
+            }
+            Target::Value(e) => self.declare_expr(e),
+            Target::Tuple(parts) => {
+                for (part, _) in parts {
+                    if let Some(part) = part {
+                        self.declare_target(part);
+                    }
+                }
+            }
+        }
+    }
+    fn declare_expr(&mut self, e: &Expr) {
+        match &e.node {
+            Node::Literal(_) | Node::Var(_) => (),
+            Node::Array(values) | Node::Call(_, values) => {
+                for value in values {
+                    self.declare_expr(value);
+                }
+            }
+            Node::Hash(entries) => {
+                for (_, value) in entries {
+                    self.declare_expr(value);
+                }
+            }
+            Node::Unary(_, value) => self.declare_expr(value),
+            Node::Binary(_, a, b) => {
+                self.declare_expr(a);
+                self.declare_expr(b);
+            }
+            Node::Range(a, b, _) => {
+                if let Some(e) = a {
+                    self.declare_expr(e);
+                }
+                if let Some(e) = b {
+                    self.declare_expr(e);
+                }
+            }
+            Node::Conditional(a, b, c) => {
+                self.declare_expr(a);
+                self.declare_expr(b);
+                self.declare_expr(c);
+            }
+            Node::Case(target, clauses, alternate) => {
+                if let Some(e) = target {
+                    self.declare_expr(e);
+                }
+                for clause in clauses {
+                    for (e, _) in &clause.values {
+                        self.declare_expr(e);
+                    }
+                    self.declare_expr(&clause.result);
+                }
+                if let Some(e) = alternate {
+                    self.declare_expr(e);
+                }
+            }
+            Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref())),
+            Node::Method(recv, _, args) | Node::Index(recv, args) => {
+                self.declare_expr(recv);
+                for arg in args {
+                    self.declare_expr(arg);
+                }
             }
         }
     }
@@ -271,11 +375,11 @@ impl Compiler<'_> {
             if i > 0 {
                 self.emit(Op::Pop);
             }
-            self.stmt(stmt)?;
+            self.stmt(stmt, false)?;
         }
         Ok(())
     }
-    fn stmt(&mut self, stmt: &Stmt) -> Result<()> {
+    fn stmt(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
         match stmt {
             Stmt::Expr(e) => self.expr(e)?,
             Stmt::Assign(target, op, rhs) => {
@@ -288,9 +392,28 @@ impl Compiler<'_> {
                     "**=" => Some("**"),
                     _ => None,
                 };
+                let Target::Value(target) = target else {
+                    self.expr(rhs)?;
+                    self.assign_value(target)?;
+                    return Ok(());
+                };
                 match &target.node {
                     Node::Var(name) => {
                         let slot = self.slot(name);
+                        if matches!(*op, "||=" | "&&=") {
+                            self.emit(Op::Load(slot));
+                            self.emit(Op::Dup);
+                            let skip = self.emit(if *op == "||=" {
+                                Op::JumpTrue(0)
+                            } else {
+                                Op::JumpFalse(0)
+                            });
+                            self.emit(Op::Pop);
+                            self.expr(rhs)?;
+                            self.emit(Op::Store(slot));
+                            self.patch(skip, self.code.len());
+                            return Ok(());
+                        }
                         if binary.is_none() {
                             if let Node::Binary("+", left, right) = &rhs.node {
                                 self.expr(left)?;
@@ -324,6 +447,24 @@ impl Compiler<'_> {
                         let slot = self.slot(name);
                         self.emit(Op::Load(slot));
                         self.expr(index)?;
+                        if matches!(*op, "||=" | "&&=") {
+                            self.emit(Op::Dup2);
+                            self.emit(Op::Index(1));
+                            self.emit(Op::Dup);
+                            let skip = self.emit(if *op == "||=" {
+                                Op::JumpTrue(0)
+                            } else {
+                                Op::JumpFalse(0)
+                            });
+                            self.emit(Op::Pop);
+                            self.expr(rhs)?;
+                            self.emit(Op::SetIndex(slot));
+                            let end = self.emit(Op::Jump(0));
+                            self.patch(skip, self.code.len());
+                            self.emit(Op::IndexResult);
+                            self.patch(end, self.code.len());
+                            return Ok(());
+                        }
                         if binary.is_some() {
                             self.emit(Op::Dup2);
                             self.emit(Op::Index(1));
@@ -347,23 +488,45 @@ impl Compiler<'_> {
                 self.patch(done, self.code.len());
             }
             Stmt::While(cond, body) => {
-                let start = self.code.len();
-                self.expr(cond)?;
-                let done = self.emit(Op::JumpFalse(0));
-                self.loops.push(Loop {
-                    start,
-                    breaks: Vec::new(),
+                let mark = self.emit(Op::LoopStart {
+                    iterable: false,
+                    expression,
+                    next: 0,
+                    end: 0,
                 });
+                let next = self.code.len();
+                self.expr(cond)?;
+                self.emit(Op::LoopTest);
                 self.block(body)?;
+                self.emit(Op::LoopBody);
+                let end = self.emit(Op::LoopEnd);
+                self.code[mark] = Op::LoopStart {
+                    iterable: false,
+                    expression,
+                    next,
+                    end,
+                };
+            }
+            Stmt::For(target, iterable, body) => {
+                self.expr(iterable)?;
+                let mark = self.emit(Op::LoopStart {
+                    iterable: true,
+                    expression,
+                    next: 0,
+                    end: 0,
+                });
+                let next = self.emit(Op::IterNext);
+                self.assign_value(target)?;
                 self.emit(Op::Pop);
-                self.emit(Op::Jump(start));
-                let exit = self.code.len();
-                self.patch(done, exit);
-                let state = self.loops.pop().unwrap();
-                for pos in state.breaks {
-                    self.patch(pos, exit);
-                }
-                self.emit(Op::Nil);
+                self.block(body)?;
+                self.emit(Op::LoopBody);
+                let end = self.emit(Op::LoopEnd);
+                self.code[mark] = Op::LoopStart {
+                    iterable: true,
+                    expression,
+                    next,
+                    end,
+                };
             }
             Stmt::Return(value) => {
                 if let Some(e) = value {
@@ -373,21 +536,71 @@ impl Compiler<'_> {
                 }
                 self.emit(Op::Return);
             }
-            Stmt::Break => {
-                if self.loops.is_empty() {
-                    return Err(syntax::unsupported("break outside loop"));
+            Stmt::Break(value) => {
+                if let Some(value) = value {
+                    self.expr(value)?;
                 }
-                let pos = self.emit(Op::Jump(0));
-                self.loops.last_mut().unwrap().breaks.push(pos);
+                self.emit(Op::Break(value.is_some()));
             }
-            Stmt::Next => {
-                let start = self
-                    .loops
-                    .last()
-                    .ok_or_else(|| syntax::unsupported("next outside loop"))?
-                    .start;
-                self.emit(Op::Jump(start));
+            Stmt::Next(value) => {
+                if let Some(value) = value {
+                    self.expr(value)?;
+                }
+                self.emit(Op::Next);
             }
+        }
+        Ok(())
+    }
+    fn assign_value(&mut self, target: &Target) -> Result<()> {
+        match target {
+            Target::Value(Expr {
+                node: Node::Var(name),
+                ..
+            }) => {
+                let slot = self.slot(name);
+                self.emit(Op::Store(slot));
+            }
+            Target::Value(Expr {
+                node: Node::Index(root, indices),
+                ..
+            }) => {
+                let Node::Var(name) = &root.node else {
+                    return Err(syntax::unsupported(
+                        "nested index assignment is not implemented",
+                    ));
+                };
+                let [index] = indices.as_slice() else {
+                    return Err(syntax::unsupported("slice assignment is not implemented"));
+                };
+                let slot = self.slot(name);
+                self.emit(Op::Load(slot));
+                self.expr(index)?;
+                self.emit(Op::SetIndexFromValue(slot));
+            }
+            Target::Tuple(parts) => {
+                let rest = parts.iter().position(|(_, rest)| *rest);
+                for (i, (part, _)) in parts.iter().enumerate() {
+                    let Some(part) = part else {
+                        continue;
+                    };
+                    let select = match rest {
+                        Some(pos) if i == pos => Selection::Rest {
+                            leading: pos,
+                            trailing: parts.len() - pos - 1,
+                        },
+                        Some(pos) if i > pos => Selection::Tail {
+                            leading: pos,
+                            trailing: parts.len() - pos - 1,
+                            index: i - pos - 1,
+                        },
+                        _ => Selection::At(i),
+                    };
+                    self.emit(Op::Extract(select));
+                    self.assign_value(part)?;
+                    self.emit(Op::Pop);
+                }
+            }
+            _ => return Err(syntax::unsupported("invalid assignment target")),
         }
         Ok(())
     }
@@ -437,6 +650,45 @@ impl Compiler<'_> {
                 self.patch(branch, self.code.len());
                 self.expr(no)?;
                 self.patch(done, self.code.len());
+            }
+            Node::Loop(stmt) => self.stmt(stmt, true)?,
+            Node::Case(target, clauses, alternate) => {
+                if let Some(target) = target {
+                    self.expr(target)?;
+                }
+                let mut completed = Vec::new();
+                for clause in clauses {
+                    let mut matches = Vec::new();
+                    for (value, splat) in &clause.values {
+                        if target.is_some() {
+                            self.emit(Op::Dup);
+                        }
+                        self.expr(value)?;
+                        self.emit(Op::CaseCompare(target.is_some(), *splat));
+                        matches.push(self.emit(Op::JumpTrue(0)));
+                    }
+                    let next = self.emit(Op::Jump(0));
+                    for matched in matches {
+                        self.patch(matched, self.code.len());
+                    }
+                    if target.is_some() {
+                        self.emit(Op::Pop);
+                    }
+                    self.expr(&clause.result)?;
+                    completed.push(self.emit(Op::Jump(0)));
+                    self.patch(next, self.code.len());
+                }
+                if target.is_some() {
+                    self.emit(Op::Pop);
+                }
+                if let Some(alternate) = alternate {
+                    self.expr(alternate)?;
+                } else {
+                    self.emit(Op::Nil);
+                }
+                for completed in completed {
+                    self.patch(completed, self.code.len());
+                }
             }
             Node::Binary(op, a, b) => {
                 self.expr(a)?;

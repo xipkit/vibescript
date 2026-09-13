@@ -1,5 +1,22 @@
 [
   {
+    "path": "rosettacode/popular/100_doors.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      1,
+      4,
+      9,
+      16,
+      25,
+      36,
+      49,
+      64,
+      81,
+      100
+    ]
+  },
+  {
     "path": "rosettacode/popular/a_b.vibe",
     "function": "run",
     "args": [],
@@ -897,6 +914,43 @@
         "strengths"
       ]
     }
+  },
+  {
+    "path": "rosettacode/popular/fizzbuzz.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      "1",
+      "2",
+      "Fizz",
+      "4",
+      "Buzz",
+      "Fizz",
+      "7",
+      "8",
+      "Fizz",
+      "Buzz",
+      "11",
+      "Fizz",
+      "13",
+      "14",
+      "FizzBuzz",
+      "16",
+      "17",
+      "Fizz",
+      "19",
+      "Buzz",
+      "Fizz",
+      "22",
+      "23",
+      "Fizz",
+      "Buzz",
+      "26",
+      "Fizz",
+      "28",
+      "29",
+      "FizzBuzz"
+    ]
   },
   {
     "path": "rosettacode/popular/floyd_s_triangle.vibe",
@@ -3100,6 +3154,16 @@
     }
   },
   {
+    "path": "upstream/control_flow/case_when.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      "perfect",
+      "great",
+      "ok"
+    ]
+  },
+  {
     "path": "upstream/control_flow/conditionals.vibe",
     "function": "run",
     "args": [],
@@ -3158,5 +3222,21 @@
       2,
       1
     ]
+  },
+  {
+    "path": "upstream/loops/fizzbuzz.vibe",
+    "function": "run",
+    "args": [],
+    "expected": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n17\nFizz\n19\nBuzz\n"
+  },
+  {
+    "path": "upstream/ranges/usage.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "inclusive_sum": 55,
+      "descending": "5,4,3,2,1",
+      "evens": "2,4,6,8,10,12,14,16,18,20"
+    }
   }
 ]

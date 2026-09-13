@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "337c509ad22fe838e682daa62f4f1a93aaf46b04",
-  "dirty": " M scripts/compare.py\n M src/bytecode.rs\n M src/lib.rs\n M src/ops.rs\n M src/range.rs\n M tests/language.json\n M tests/language.rs\n?? src/collections.rs\n?? src/text.rs\n?? tests/language-errors.json\n",
+  "source_revision": "5af8d0ad5e7777ba89bd70614c3fd7aab1826d0c",
+  "dirty": " M scripts/compare.py\n M scripts/fixtures.py\n M src/bytecode.rs\n M src/ops.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/language.rs\n?? tests/control.rs\n",
   "binary_sha256": {
-    "go-simd": "4b18246753083ef03789620db0009d0e53e55da57d482209bfca38815fd08059",
-    "rust-simd": "20019d63273568daa2ae15fcda283dbd70c0e3f556fb25286c73b7028ee2b6a7"
+    "go-simd": "d87711db7616f668bd03f1c2626e005bf0385374e28634f19209a56b6b467f4f",
+    "rust-simd": "9b09cf4b0771fdf67456d2ef81bf1fddcd7dadd467f8cea0a8c1d8707289e408"
   },
   "counts": {
-    "rust_gap": 68,
-    "match": 120,
+    "match": 125,
+    "rust_gap": 63,
     "harness_gap": 15
   },
   "examples": [
@@ -31,10 +31,22 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(258) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          1,
+          4,
+          9,
+          16,
+          25,
+          36,
+          49,
+          64,
+          81,
+          100
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/99_bottles_of_beer.vibe",
@@ -45,7 +57,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(987) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"method capitalize is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -2226,10 +2238,42 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(255) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "1",
+          "2",
+          "Fizz",
+          "4",
+          "Buzz",
+          "Fizz",
+          "7",
+          "8",
+          "Fizz",
+          "Buzz",
+          "11",
+          "Fizz",
+          "13",
+          "14",
+          "FizzBuzz",
+          "16",
+          "17",
+          "Fizz",
+          "19",
+          "Buzz",
+          "Fizz",
+          "22",
+          "23",
+          "Fizz",
+          "Buzz",
+          "26",
+          "Fizz",
+          "28",
+          "29",
+          "FizzBuzz"
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/floyd_s_triangle.vibe",
@@ -6943,7 +6987,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(335) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(340) }\n"
       },
       "status": "rust_gap"
     },
@@ -6996,7 +7040,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(359) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(364) }\n"
       },
       "status": "rust_gap"
     },
@@ -7131,7 +7175,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(294) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(299) }\n"
       },
       "status": "harness_gap"
     },
@@ -7143,7 +7187,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(351) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(356) }\n"
       },
       "status": "harness_gap"
     },
@@ -7167,7 +7211,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(317) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(322) }\n"
       },
       "status": "harness_gap"
     },
@@ -7179,7 +7223,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(308) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(313) }\n"
       },
       "status": "harness_gap"
     },
@@ -7203,7 +7247,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(343) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(348) }\n"
       },
       "status": "harness_gap"
     },
@@ -7324,7 +7368,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(312) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(317) }\n"
       },
       "status": "rust_gap"
     },
@@ -7371,7 +7415,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(343) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(348) }\n"
       },
       "status": "rust_gap"
     },
@@ -7492,7 +7536,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(310) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(315) }\n"
       },
       "status": "rust_gap"
     },
@@ -7504,7 +7548,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(343) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(348) }\n"
       },
       "status": "harness_gap"
     },
@@ -7532,7 +7576,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(323) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(328) }\n"
       },
       "status": "rust_gap"
     },
@@ -7584,7 +7628,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(291) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(296) }\n"
       },
       "status": "rust_gap"
     },
@@ -7674,7 +7718,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(332) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(337) }\n"
       },
       "status": "rust_gap"
     },
@@ -7746,7 +7790,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(312) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(317) }\n"
       },
       "status": "rust_gap"
     },
@@ -7776,7 +7820,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(395) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(400) }\n"
       },
       "status": "rust_gap"
     },
@@ -8073,7 +8117,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(13) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(20) }\n"
       },
       "status": "rust_gap"
     },
@@ -8357,10 +8401,15 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(32) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "perfect",
+          "great",
+          "ok"
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/control_flow/conditionals.vibe",
@@ -8636,10 +8685,11 @@
         "output": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n17\nFizz\n19\nBuzz\n"
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(49) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n17\nFizz\n19\nBuzz\n"
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/loops/iteration.vibe",
@@ -8717,10 +8767,15 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"this language construct is not implemented\", offset: Some(66) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "inclusive_sum": 55,
+          "descending": "5,4,3,2,1",
+          "evens": "2,4,6,8,10,12,14,16,18,20"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/stdlib/core_utilities.vibe",
@@ -8750,7 +8805,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(169) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(169) }\n"
       },
       "status": "rust_gap"
     },

@@ -1,7 +1,7 @@
 use crate::{
     CallContext, Error, ErrorKind, HostFunction, Result, Value,
     budget::Buffer,
-    bytecode::{Op, Program},
+    bytecode::{Op, Program, Selection},
     hash::Hash,
     json, ops,
     range::Range,
@@ -13,6 +13,59 @@ struct Frame {
     ip: usize,
     base: usize,
     locals: Buffer<Option<Value>>,
+    loops: Buffer<LoopState>,
+}
+
+struct LoopState {
+    base: usize,
+    next: usize,
+    end: usize,
+    expression: bool,
+    source: Value,
+    position: i128,
+    length: i128,
+    last: Value,
+    broken: bool,
+    break_value: Option<Value>,
+}
+
+impl LoopState {
+    fn next_value(&mut self, ctx: &mut CallContext) -> Result<Option<Value>> {
+        if self.position >= self.length {
+            return Ok(None);
+        }
+        ctx.charge(1)?;
+        let value = match &self.source.0 {
+            Kind::Array(h) => h.buffer.data[self.position as usize].clone(),
+            Kind::Hash(h) => {
+                let (key, value) = &h.buffer.data[self.position as usize];
+                ctx.array(&[key.clone(), value.clone()])?
+            }
+            Kind::Range(r) => {
+                let start = r.start.unwrap();
+                let direction = if start <= r.end.unwrap() { 1 } else { -1 };
+                Value::int((i128::from(start) + self.position * direction) as i64)
+            }
+            _ => unreachable!(),
+        };
+        self.position += 1;
+        Ok(Some(value))
+    }
+
+    fn result(self) -> Value {
+        if let Some(value) = self.break_value {
+            return value;
+        }
+        if self.expression {
+            if self.broken {
+                Value::nil()
+            } else {
+                self.source
+            }
+        } else {
+            self.last
+        }
+    }
 }
 
 pub(crate) fn execute(
@@ -43,9 +96,7 @@ pub(crate) fn execute(
             }
             Op::Nil => stack.push(ctx, Value::nil())?,
             Op::Load(n) => {
-                let v = frame.locals.data[n].clone().ok_or_else(|| {
-                    Error::new(ErrorKind::Name, "local variable is uninitialized")
-                })?;
+                let v = frame.locals.data[n].clone().unwrap_or_default();
                 stack.push(ctx, v)?;
             }
             Op::Store(n) => {
@@ -145,6 +196,143 @@ pub(crate) fn execute(
                 let new = ops::set_index(ctx, root, key, value.clone())?;
                 frame.locals.data[n] = Some(new);
                 stack.push(ctx, value)?;
+            }
+            Op::SetIndexFromValue(n) => {
+                let key = stack.data.pop().unwrap();
+                let root = stack.data.pop().unwrap();
+                let value = stack.data.pop().unwrap();
+                frame.locals.data[n] = None;
+                let new = ops::set_index(ctx, root, key, value.clone())?;
+                frame.locals.data[n] = Some(new);
+                stack.push(ctx, value)?;
+            }
+            Op::IndexResult => {
+                let value = stack.data.pop().unwrap();
+                stack.data.pop().unwrap();
+                stack.data.pop().unwrap();
+                stack.push(ctx, value)?;
+            }
+            Op::Extract(selection) => {
+                let source = stack.data.last().unwrap();
+                let values = source
+                    .as_array()
+                    .unwrap_or_else(|| std::slice::from_ref(source));
+                let value = match selection {
+                    Selection::At(n) => values.get(n).cloned().unwrap_or_default(),
+                    Selection::Rest { leading, trailing } => {
+                        let start = leading.min(values.len());
+                        let end = values.len().saturating_sub(trailing).max(start);
+                        ctx.array(&values[start..end])?
+                    }
+                    Selection::Tail {
+                        leading,
+                        trailing,
+                        index,
+                    } => {
+                        let pos = values
+                            .len()
+                            .saturating_sub(trailing)
+                            .max(leading)
+                            .saturating_add(index);
+                        values.get(pos).cloned().unwrap_or_default()
+                    }
+                };
+                stack.push(ctx, value)?;
+            }
+            Op::CaseCompare(target, splat) => {
+                let candidate = stack.data.pop().unwrap();
+                let target = if target {
+                    Some(stack.data.pop().unwrap())
+                } else {
+                    None
+                };
+                let matched = ops::case_matches(ctx, target.as_ref(), &candidate, splat)?;
+                stack.push(ctx, Value::boolean(matched))?;
+            }
+            Op::LoopStart {
+                iterable,
+                expression,
+                next,
+                end,
+            } => {
+                let source = if iterable {
+                    stack.data.pop().unwrap()
+                } else {
+                    Value::nil()
+                };
+                let length = if iterable {
+                    match &source.0 {
+                        Kind::Array(h) => h.buffer.data.len() as i128,
+                        Kind::Hash(h) => h.buffer.data.len() as i128,
+                        Kind::Range(r) => r.length()?,
+                        _ => return Err(Error::new(ErrorKind::Type, "cannot iterate this value")),
+                    }
+                } else {
+                    0
+                };
+                frame.loops.push(
+                    ctx,
+                    LoopState {
+                        base: stack.data.len(),
+                        next,
+                        end,
+                        expression,
+                        source,
+                        position: 0,
+                        length,
+                        last: Value::nil(),
+                        broken: false,
+                        break_value: None,
+                    },
+                )?;
+            }
+            Op::LoopTest => {
+                if !stack.data.pop().unwrap().truthy() {
+                    frame.ip = frame.loops.data.last().unwrap().end;
+                }
+            }
+            Op::IterNext => {
+                let state = frame.loops.data.last_mut().unwrap();
+                if let Some(value) = state.next_value(ctx)? {
+                    stack.push(ctx, value)?;
+                } else {
+                    frame.ip = state.end;
+                }
+            }
+            Op::LoopBody => {
+                let state = frame.loops.data.last_mut().unwrap();
+                state.last = stack.data.pop().unwrap();
+                stack.data.truncate(state.base);
+                frame.ip = state.next;
+            }
+            Op::LoopEnd => {
+                let state = frame.loops.data.pop().unwrap();
+                stack.data.truncate(state.base);
+                stack.push(ctx, state.result())?;
+            }
+            Op::Break(has_value) => {
+                let state = frame
+                    .loops
+                    .data
+                    .last_mut()
+                    .ok_or_else(|| Error::new(ErrorKind::Argument, "break outside loop"))?;
+                state.broken = true;
+                state.break_value = if has_value {
+                    Some(stack.data.pop().unwrap())
+                } else {
+                    None
+                };
+                stack.data.truncate(state.base);
+                frame.ip = state.end;
+            }
+            Op::Next => {
+                let state = frame
+                    .loops
+                    .data
+                    .last()
+                    .ok_or_else(|| Error::new(ErrorKind::Argument, "next outside loop"))?;
+                stack.data.truncate(state.base);
+                frame.ip = state.next;
             }
             Op::Call(function, n) => {
                 let base = stack.data.len() - n;
@@ -250,6 +438,7 @@ fn enter(
             ip: 0,
             base,
             locals,
+            loops: Buffer::empty(),
         },
     )
 }

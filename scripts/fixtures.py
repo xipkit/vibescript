@@ -93,8 +93,8 @@ def benchmark_cases():
 def conformance_cases():
     cases=[]
 
-    def add(name,body,expected,arg=None):
-        cases.append(dict(name=name,source=function(body),args=[arg],expected=expected,accounting=True))
+    def add(name,body,expected,arg=None,source=None):
+        cases.append(dict(name=name,source=source or function(body),args=[arg],expected=expected,accounting=True))
 
     add("truthiness",'[nil || 7, false || 8, 0 && 9, "" && 10, false && (1/0)]',[7,8,9,10,False])
     add("precedence","[2+3*4,-2**2,2**3**2]",[14,-4,512])
@@ -141,7 +141,7 @@ def conformance_cases():
         a=rng.randrange(-10000,10000);b=rng.choice([n for n in range(-97,98) if n])
         add(f"arithmetic_{i}",f"[{a}+({b}),{a}-({b}),{a}*({b}),{a}/({b}),{a}%({b})]",[a+b,a-b,a*b,a//b,a%b])
     for case in json.loads((UPSTREAM.parent/"language.json").read_text()):
-        add("language/"+case["name"],case["body"],case["expected"])
+        add("language/"+case["name"],case.get("body",""),case["expected"],source=case.get("source"))
     return cases+upstream_cases()+site_cases()
 
 

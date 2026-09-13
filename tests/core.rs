@@ -185,13 +185,33 @@ fn syntax_guards_and_overflow_are_errors() {
         "1e+",
         "1__2",
         "\"unterminated",
-        "break",
         "a = 1\na[0][0] = 2",
     ] {
         assert!(Engine::new().compile(source).is_err(), "{source}");
     }
-    let nested = format!("{}1{}", "(".repeat(300), ")".repeat(300));
-    assert!(Engine::new().compile(&nested).is_err());
+    for (prefix, suffix) in [
+        ("(", ")"),
+        ("[", "]"),
+        ("{a:", "}"),
+        ("!", ""),
+        ("1 ** ", ""),
+        ("if true then ", " end"),
+        ("case 1; when 1; ", "; end"),
+    ] {
+        let nested = format!("{}1{}", prefix.repeat(300), suffix.repeat(300));
+        assert_eq!(
+            Engine::new().compile(&nested).err().unwrap().kind,
+            ErrorKind::Syntax,
+            "{prefix}"
+        );
+    }
+    let chain = format!("(if false then 0{} end)", " elsif false then 0".repeat(300));
+    assert_eq!(
+        Engine::new().compile(&chain).err().unwrap().kind,
+        ErrorKind::Syntax
+    );
+    let supported = format!("{}1{}", "(".repeat(64), ")".repeat(64));
+    assert_eq!(run(&supported).as_int(), Some(1));
     for source in ["9223372036854775807 + 1", "1 / 0", "2 ** 64"] {
         assert_eq!(
             Engine::new()

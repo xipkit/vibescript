@@ -85,7 +85,7 @@ def validate_rejections(out):
     records=[]
     for variant in VARIANTS:
         for case in cases:
-            fixture={"name":case["name"],"source":"def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
+            fixture={"name":case["name"],"source":case.get("source") or "def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
             path=out/"rejection-input.json"
             path.write_text(json.dumps([fixture])+"\n")
             proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,timeout=10)

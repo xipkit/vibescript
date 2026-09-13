@@ -7,7 +7,10 @@ fn language_conformance() {
     let cases: serde_json::Value = serde_json::from_str(include_str!("language.json")).unwrap();
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let source = format!("def run(input)\n{}\nend", case["body"].as_str().unwrap());
+        let source = case["source"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
         let script = Engine::new()
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -101,11 +104,19 @@ fn language_runtime_rejections() {
         serde_json::from_str(include_str!("language-errors.json")).unwrap();
     for case in cases.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let source = case["body"].as_str().unwrap();
+        let source = case["source"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
         let script = Engine::new()
-            .compile(source)
+            .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
-        assert!(script.run(CallOptions::default()).is_err(), "{name}");
+        assert!(
+            script
+                .call("run", &[Value::nil()], CallOptions::default())
+                .is_err(),
+            "{name}"
+        );
     }
 }
 
