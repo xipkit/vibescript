@@ -4043,5 +4043,5500 @@
     "name": "integers_float_operator_6",
     "source": "def run(input)\n1.0%(2**100)\nend",
     "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "numeric_members_float_div_0_0_div",
+    "body": "x=(0.0).div(0.0);x.to_s",
+    "go_error": "float_div_0_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_0_divmod",
+    "body": "x=(0.0).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_0_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_0_modulo",
+    "body": "x=(0.0).modulo(0.0);x.to_s",
+    "go_error": "float_div_0_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_0_remainder",
+    "body": "x=(0.0).remainder(0.0);x.to_s",
+    "go_error": "float_div_0_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_1_div",
+    "body": "x=(0.0).div(-0.0);x.to_s",
+    "go_error": "float_div_0_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_1_divmod",
+    "body": "x=(0.0).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_0_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_1_modulo",
+    "body": "x=(0.0).modulo(-0.0);x.to_s",
+    "go_error": "float_div_0_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_1_remainder",
+    "body": "x=(0.0).remainder(-0.0);x.to_s",
+    "go_error": "float_div_0_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_0_14_div",
+    "body": "x=(0.0).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_0_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_0_14_divmod",
+    "body": "x=(0.0).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_0_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_1_0_div",
+    "body": "x=(-0.0).div(0.0);x.to_s",
+    "go_error": "float_div_1_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_0_divmod",
+    "body": "x=(-0.0).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_1_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_0_modulo",
+    "body": "x=(-0.0).modulo(0.0);x.to_s",
+    "go_error": "float_div_1_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_0_remainder",
+    "body": "x=(-0.0).remainder(0.0);x.to_s",
+    "go_error": "float_div_1_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_1_div",
+    "body": "x=(-0.0).div(-0.0);x.to_s",
+    "go_error": "float_div_1_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_1_divmod",
+    "body": "x=(-0.0).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_1_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_1_modulo",
+    "body": "x=(-0.0).modulo(-0.0);x.to_s",
+    "go_error": "float_div_1_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_1_remainder",
+    "body": "x=(-0.0).remainder(-0.0);x.to_s",
+    "go_error": "float_div_1_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_1_14_div",
+    "body": "x=(-0.0).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_1_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_1_14_divmod",
+    "body": "x=(-0.0).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_1_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_2_0_div",
+    "body": "x=(1.0).div(0.0);x.to_s",
+    "go_error": "float_div_2_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_0_divmod",
+    "body": "x=(1.0).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_2_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_0_modulo",
+    "body": "x=(1.0).modulo(0.0);x.to_s",
+    "go_error": "float_div_2_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_0_remainder",
+    "body": "x=(1.0).remainder(0.0);x.to_s",
+    "go_error": "float_div_2_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_1_div",
+    "body": "x=(1.0).div(-0.0);x.to_s",
+    "go_error": "float_div_2_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_1_divmod",
+    "body": "x=(1.0).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_2_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_1_modulo",
+    "body": "x=(1.0).modulo(-0.0);x.to_s",
+    "go_error": "float_div_2_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_1_remainder",
+    "body": "x=(1.0).remainder(-0.0);x.to_s",
+    "go_error": "float_div_2_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_2_14_div",
+    "body": "x=(1.0).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_2_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_2_14_divmod",
+    "body": "x=(1.0).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_2_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_3_0_div",
+    "body": "x=(-1.0).div(0.0);x.to_s",
+    "go_error": "float_div_3_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_0_divmod",
+    "body": "x=(-1.0).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_3_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_0_modulo",
+    "body": "x=(-1.0).modulo(0.0);x.to_s",
+    "go_error": "float_div_3_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_0_remainder",
+    "body": "x=(-1.0).remainder(0.0);x.to_s",
+    "go_error": "float_div_3_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_1_div",
+    "body": "x=(-1.0).div(-0.0);x.to_s",
+    "go_error": "float_div_3_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_1_divmod",
+    "body": "x=(-1.0).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_3_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_1_modulo",
+    "body": "x=(-1.0).modulo(-0.0);x.to_s",
+    "go_error": "float_div_3_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_1_remainder",
+    "body": "x=(-1.0).remainder(-0.0);x.to_s",
+    "go_error": "float_div_3_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_3_14_div",
+    "body": "x=(-1.0).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_3_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_3_14_divmod",
+    "body": "x=(-1.0).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_3_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_4_0_div",
+    "body": "x=(1.5).div(0.0);x.to_s",
+    "go_error": "float_div_4_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_0_divmod",
+    "body": "x=(1.5).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_4_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_0_modulo",
+    "body": "x=(1.5).modulo(0.0);x.to_s",
+    "go_error": "float_div_4_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_0_remainder",
+    "body": "x=(1.5).remainder(0.0);x.to_s",
+    "go_error": "float_div_4_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_1_div",
+    "body": "x=(1.5).div(-0.0);x.to_s",
+    "go_error": "float_div_4_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_1_divmod",
+    "body": "x=(1.5).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_4_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_1_modulo",
+    "body": "x=(1.5).modulo(-0.0);x.to_s",
+    "go_error": "float_div_4_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_1_remainder",
+    "body": "x=(1.5).remainder(-0.0);x.to_s",
+    "go_error": "float_div_4_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_4_14_div",
+    "body": "x=(1.5).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_4_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_4_14_divmod",
+    "body": "x=(1.5).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_4_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_5_0_div",
+    "body": "x=(-1.5).div(0.0);x.to_s",
+    "go_error": "float_div_5_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_0_divmod",
+    "body": "x=(-1.5).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_5_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_0_modulo",
+    "body": "x=(-1.5).modulo(0.0);x.to_s",
+    "go_error": "float_div_5_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_0_remainder",
+    "body": "x=(-1.5).remainder(0.0);x.to_s",
+    "go_error": "float_div_5_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_1_div",
+    "body": "x=(-1.5).div(-0.0);x.to_s",
+    "go_error": "float_div_5_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_1_divmod",
+    "body": "x=(-1.5).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_5_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_1_modulo",
+    "body": "x=(-1.5).modulo(-0.0);x.to_s",
+    "go_error": "float_div_5_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_1_remainder",
+    "body": "x=(-1.5).remainder(-0.0);x.to_s",
+    "go_error": "float_div_5_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_5_14_div",
+    "body": "x=(-1.5).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_5_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_5_14_divmod",
+    "body": "x=(-1.5).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_5_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_6_0_div",
+    "body": "x=(0.1).div(0.0);x.to_s",
+    "go_error": "float_div_6_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_0_divmod",
+    "body": "x=(0.1).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_6_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_0_modulo",
+    "body": "x=(0.1).modulo(0.0);x.to_s",
+    "go_error": "float_div_6_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_0_remainder",
+    "body": "x=(0.1).remainder(0.0);x.to_s",
+    "go_error": "float_div_6_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_1_div",
+    "body": "x=(0.1).div(-0.0);x.to_s",
+    "go_error": "float_div_6_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_1_divmod",
+    "body": "x=(0.1).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_6_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_1_modulo",
+    "body": "x=(0.1).modulo(-0.0);x.to_s",
+    "go_error": "float_div_6_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_1_remainder",
+    "body": "x=(0.1).remainder(-0.0);x.to_s",
+    "go_error": "float_div_6_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_6_14_div",
+    "body": "x=(0.1).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_6_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_6_14_divmod",
+    "body": "x=(0.1).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_6_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_7_0_div",
+    "body": "x=(-0.1).div(0.0);x.to_s",
+    "go_error": "float_div_7_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_0_divmod",
+    "body": "x=(-0.1).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_7_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_0_modulo",
+    "body": "x=(-0.1).modulo(0.0);x.to_s",
+    "go_error": "float_div_7_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_0_remainder",
+    "body": "x=(-0.1).remainder(0.0);x.to_s",
+    "go_error": "float_div_7_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_1_div",
+    "body": "x=(-0.1).div(-0.0);x.to_s",
+    "go_error": "float_div_7_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_1_divmod",
+    "body": "x=(-0.1).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_7_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_1_modulo",
+    "body": "x=(-0.1).modulo(-0.0);x.to_s",
+    "go_error": "float_div_7_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_1_remainder",
+    "body": "x=(-0.1).remainder(-0.0);x.to_s",
+    "go_error": "float_div_7_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_7_14_div",
+    "body": "x=(-0.1).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_7_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_7_14_divmod",
+    "body": "x=(-0.1).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_7_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_0_div",
+    "body": "x=(1e308).div(0.0);x.to_s",
+    "go_error": "float_div_8_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_0_divmod",
+    "body": "x=(1e308).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_8_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_0_modulo",
+    "body": "x=(1e308).modulo(0.0);x.to_s",
+    "go_error": "float_div_8_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_0_remainder",
+    "body": "x=(1e308).remainder(0.0);x.to_s",
+    "go_error": "float_div_8_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_1_div",
+    "body": "x=(1e308).div(-0.0);x.to_s",
+    "go_error": "float_div_8_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_1_divmod",
+    "body": "x=(1e308).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_8_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_1_modulo",
+    "body": "x=(1e308).modulo(-0.0);x.to_s",
+    "go_error": "float_div_8_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_1_remainder",
+    "body": "x=(1e308).remainder(-0.0);x.to_s",
+    "go_error": "float_div_8_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_8_6_div",
+    "body": "x=(1e308).div(0.1);x.to_s",
+    "go_error": "float_div_8_6_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_6_divmod",
+    "body": "x=(1e308).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_8_6_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_7_div",
+    "body": "x=(1e308).div(-0.1);x.to_s",
+    "go_error": "float_div_8_7_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_7_divmod",
+    "body": "x=(1e308).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_8_7_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_10_div",
+    "body": "x=(1e308).div(1e-308);x.to_s",
+    "go_error": "float_div_8_10_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_10_divmod",
+    "body": "x=(1e308).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_8_10_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_11_div",
+    "body": "x=(1e308).div(-1e-308);x.to_s",
+    "go_error": "float_div_8_11_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_11_divmod",
+    "body": "x=(1e308).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_8_11_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_14_div",
+    "body": "x=(1e308).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_8_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_8_14_divmod",
+    "body": "x=(1e308).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_8_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_0_div",
+    "body": "x=(-1e308).div(0.0);x.to_s",
+    "go_error": "float_div_9_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_0_divmod",
+    "body": "x=(-1e308).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_9_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_0_modulo",
+    "body": "x=(-1e308).modulo(0.0);x.to_s",
+    "go_error": "float_div_9_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_0_remainder",
+    "body": "x=(-1e308).remainder(0.0);x.to_s",
+    "go_error": "float_div_9_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_1_div",
+    "body": "x=(-1e308).div(-0.0);x.to_s",
+    "go_error": "float_div_9_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_1_divmod",
+    "body": "x=(-1e308).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_9_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_1_modulo",
+    "body": "x=(-1e308).modulo(-0.0);x.to_s",
+    "go_error": "float_div_9_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_1_remainder",
+    "body": "x=(-1e308).remainder(-0.0);x.to_s",
+    "go_error": "float_div_9_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_9_6_div",
+    "body": "x=(-1e308).div(0.1);x.to_s",
+    "go_error": "float_div_9_6_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_6_divmod",
+    "body": "x=(-1e308).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_9_6_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_7_div",
+    "body": "x=(-1e308).div(-0.1);x.to_s",
+    "go_error": "float_div_9_7_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_7_divmod",
+    "body": "x=(-1e308).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_9_7_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_10_div",
+    "body": "x=(-1e308).div(1e-308);x.to_s",
+    "go_error": "float_div_9_10_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_10_divmod",
+    "body": "x=(-1e308).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_9_10_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_11_div",
+    "body": "x=(-1e308).div(-1e-308);x.to_s",
+    "go_error": "float_div_9_11_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_11_divmod",
+    "body": "x=(-1e308).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_9_11_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_14_div",
+    "body": "x=(-1e308).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_9_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_9_14_divmod",
+    "body": "x=(-1e308).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_9_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_10_0_div",
+    "body": "x=(1e-308).div(0.0);x.to_s",
+    "go_error": "float_div_10_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_0_divmod",
+    "body": "x=(1e-308).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_10_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_0_modulo",
+    "body": "x=(1e-308).modulo(0.0);x.to_s",
+    "go_error": "float_div_10_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_0_remainder",
+    "body": "x=(1e-308).remainder(0.0);x.to_s",
+    "go_error": "float_div_10_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_1_div",
+    "body": "x=(1e-308).div(-0.0);x.to_s",
+    "go_error": "float_div_10_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_1_divmod",
+    "body": "x=(1e-308).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_10_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_1_modulo",
+    "body": "x=(1e-308).modulo(-0.0);x.to_s",
+    "go_error": "float_div_10_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_1_remainder",
+    "body": "x=(1e-308).remainder(-0.0);x.to_s",
+    "go_error": "float_div_10_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_10_14_div",
+    "body": "x=(1e-308).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_10_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_10_14_divmod",
+    "body": "x=(1e-308).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_10_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_11_0_div",
+    "body": "x=(-1e-308).div(0.0);x.to_s",
+    "go_error": "float_div_11_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_0_divmod",
+    "body": "x=(-1e-308).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_11_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_0_modulo",
+    "body": "x=(-1e-308).modulo(0.0);x.to_s",
+    "go_error": "float_div_11_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_0_remainder",
+    "body": "x=(-1e-308).remainder(0.0);x.to_s",
+    "go_error": "float_div_11_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_1_div",
+    "body": "x=(-1e-308).div(-0.0);x.to_s",
+    "go_error": "float_div_11_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_1_divmod",
+    "body": "x=(-1e-308).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_11_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_1_modulo",
+    "body": "x=(-1e-308).modulo(-0.0);x.to_s",
+    "go_error": "float_div_11_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_1_remainder",
+    "body": "x=(-1e-308).remainder(-0.0);x.to_s",
+    "go_error": "float_div_11_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_11_14_div",
+    "body": "x=(-1e-308).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_11_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_11_14_divmod",
+    "body": "x=(-1e-308).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_11_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_0_div",
+    "body": "x=(1e309).div(0.0);x.to_s",
+    "go_error": "float_div_12_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_0_divmod",
+    "body": "x=(1e309).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_0_modulo",
+    "body": "x=(1e309).modulo(0.0);x.to_s",
+    "go_error": "float_div_12_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_0_remainder",
+    "body": "x=(1e309).remainder(0.0);x.to_s",
+    "go_error": "float_div_12_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_1_div",
+    "body": "x=(1e309).div(-0.0);x.to_s",
+    "go_error": "float_div_12_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_1_divmod",
+    "body": "x=(1e309).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_1_modulo",
+    "body": "x=(1e309).modulo(-0.0);x.to_s",
+    "go_error": "float_div_12_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_1_remainder",
+    "body": "x=(1e309).remainder(-0.0);x.to_s",
+    "go_error": "float_div_12_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_12_2_div",
+    "body": "x=(1e309).div(1.0);x.to_s",
+    "go_error": "float_div_12_2_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_2_divmod",
+    "body": "x=(1e309).divmod(1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_2_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_3_div",
+    "body": "x=(1e309).div(-1.0);x.to_s",
+    "go_error": "float_div_12_3_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_3_divmod",
+    "body": "x=(1e309).divmod(-1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_3_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_4_div",
+    "body": "x=(1e309).div(1.5);x.to_s",
+    "go_error": "float_div_12_4_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_4_divmod",
+    "body": "x=(1e309).divmod(1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_4_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_5_div",
+    "body": "x=(1e309).div(-1.5);x.to_s",
+    "go_error": "float_div_12_5_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_5_divmod",
+    "body": "x=(1e309).divmod(-1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_5_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_6_div",
+    "body": "x=(1e309).div(0.1);x.to_s",
+    "go_error": "float_div_12_6_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_6_divmod",
+    "body": "x=(1e309).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_6_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_7_div",
+    "body": "x=(1e309).div(-0.1);x.to_s",
+    "go_error": "float_div_12_7_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_7_divmod",
+    "body": "x=(1e309).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_7_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_8_div",
+    "body": "x=(1e309).div(1e308);x.to_s",
+    "go_error": "float_div_12_8_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_8_divmod",
+    "body": "x=(1e309).divmod(1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_8_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_9_div",
+    "body": "x=(1e309).div(-1e308);x.to_s",
+    "go_error": "float_div_12_9_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_9_divmod",
+    "body": "x=(1e309).divmod(-1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_9_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_10_div",
+    "body": "x=(1e309).div(1e-308);x.to_s",
+    "go_error": "float_div_12_10_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_10_divmod",
+    "body": "x=(1e309).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_10_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_11_div",
+    "body": "x=(1e309).div(-1e-308);x.to_s",
+    "go_error": "float_div_12_11_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_11_divmod",
+    "body": "x=(1e309).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_11_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_12_div",
+    "body": "x=(1e309).div(1e309);x.to_s",
+    "go_error": "float_div_12_12_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_12_divmod",
+    "body": "x=(1e309).divmod(1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_12_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_13_div",
+    "body": "x=(1e309).div(-1e309);x.to_s",
+    "go_error": "float_div_12_13_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_13_divmod",
+    "body": "x=(1e309).divmod(-1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_12_13_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_14_div",
+    "body": "x=(1e309).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_12_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_14_divmod",
+    "body": "x=(1e309).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_12_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_15_div",
+    "body": "x=(1e309).div((2**2000));x.to_s",
+    "go_error": "float_div_12_15_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_15_divmod",
+    "body": "x=(1e309).divmod((2**2000));x.map { |v| v.to_s }",
+    "go_error": "float_div_12_15_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_16_div",
+    "body": "x=(1e309).div((-2**2000));x.to_s",
+    "go_error": "float_div_12_16_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_12_16_divmod",
+    "body": "x=(1e309).divmod((-2**2000));x.map { |v| v.to_s }",
+    "go_error": "float_div_12_16_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_0_div",
+    "body": "x=(-1e309).div(0.0);x.to_s",
+    "go_error": "float_div_13_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_0_divmod",
+    "body": "x=(-1e309).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_0_modulo",
+    "body": "x=(-1e309).modulo(0.0);x.to_s",
+    "go_error": "float_div_13_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_0_remainder",
+    "body": "x=(-1e309).remainder(0.0);x.to_s",
+    "go_error": "float_div_13_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_1_div",
+    "body": "x=(-1e309).div(-0.0);x.to_s",
+    "go_error": "float_div_13_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_1_divmod",
+    "body": "x=(-1e309).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_1_modulo",
+    "body": "x=(-1e309).modulo(-0.0);x.to_s",
+    "go_error": "float_div_13_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_1_remainder",
+    "body": "x=(-1e309).remainder(-0.0);x.to_s",
+    "go_error": "float_div_13_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_13_2_div",
+    "body": "x=(-1e309).div(1.0);x.to_s",
+    "go_error": "float_div_13_2_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_2_divmod",
+    "body": "x=(-1e309).divmod(1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_2_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_3_div",
+    "body": "x=(-1e309).div(-1.0);x.to_s",
+    "go_error": "float_div_13_3_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_3_divmod",
+    "body": "x=(-1e309).divmod(-1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_3_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_4_div",
+    "body": "x=(-1e309).div(1.5);x.to_s",
+    "go_error": "float_div_13_4_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_4_divmod",
+    "body": "x=(-1e309).divmod(1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_4_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_5_div",
+    "body": "x=(-1e309).div(-1.5);x.to_s",
+    "go_error": "float_div_13_5_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_5_divmod",
+    "body": "x=(-1e309).divmod(-1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_5_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_6_div",
+    "body": "x=(-1e309).div(0.1);x.to_s",
+    "go_error": "float_div_13_6_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_6_divmod",
+    "body": "x=(-1e309).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_6_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_7_div",
+    "body": "x=(-1e309).div(-0.1);x.to_s",
+    "go_error": "float_div_13_7_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_7_divmod",
+    "body": "x=(-1e309).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_7_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_8_div",
+    "body": "x=(-1e309).div(1e308);x.to_s",
+    "go_error": "float_div_13_8_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_8_divmod",
+    "body": "x=(-1e309).divmod(1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_8_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_9_div",
+    "body": "x=(-1e309).div(-1e308);x.to_s",
+    "go_error": "float_div_13_9_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_9_divmod",
+    "body": "x=(-1e309).divmod(-1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_9_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_10_div",
+    "body": "x=(-1e309).div(1e-308);x.to_s",
+    "go_error": "float_div_13_10_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_10_divmod",
+    "body": "x=(-1e309).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_10_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_11_div",
+    "body": "x=(-1e309).div(-1e-308);x.to_s",
+    "go_error": "float_div_13_11_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_11_divmod",
+    "body": "x=(-1e309).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_11_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_12_div",
+    "body": "x=(-1e309).div(1e309);x.to_s",
+    "go_error": "float_div_13_12_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_12_divmod",
+    "body": "x=(-1e309).divmod(1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_12_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_13_div",
+    "body": "x=(-1e309).div(-1e309);x.to_s",
+    "go_error": "float_div_13_13_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_13_divmod",
+    "body": "x=(-1e309).divmod(-1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_13_13_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_14_div",
+    "body": "x=(-1e309).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_13_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_14_divmod",
+    "body": "x=(-1e309).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_13_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_15_div",
+    "body": "x=(-1e309).div((2**2000));x.to_s",
+    "go_error": "float_div_13_15_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_15_divmod",
+    "body": "x=(-1e309).divmod((2**2000));x.map { |v| v.to_s }",
+    "go_error": "float_div_13_15_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_16_div",
+    "body": "x=(-1e309).div((-2**2000));x.to_s",
+    "go_error": "float_div_13_16_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_13_16_divmod",
+    "body": "x=(-1e309).divmod((-2**2000));x.map { |v| v.to_s }",
+    "go_error": "float_div_13_16_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_0_div",
+    "body": "x=((0.0/0.0)).div(0.0);x.to_s",
+    "go_error": "float_div_14_0_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_0_divmod",
+    "body": "x=((0.0/0.0)).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_0_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_0_modulo",
+    "body": "x=((0.0/0.0)).modulo(0.0);x.to_s",
+    "go_error": "float_div_14_0_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_0_remainder",
+    "body": "x=((0.0/0.0)).remainder(0.0);x.to_s",
+    "go_error": "float_div_14_0_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_1_div",
+    "body": "x=((0.0/0.0)).div(-0.0);x.to_s",
+    "go_error": "float_div_14_1_div: float.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_1_divmod",
+    "body": "x=((0.0/0.0)).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_1_divmod: float.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_1_modulo",
+    "body": "x=((0.0/0.0)).modulo(-0.0);x.to_s",
+    "go_error": "float_div_14_1_modulo: float.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_1_remainder",
+    "body": "x=((0.0/0.0)).remainder(-0.0);x.to_s",
+    "go_error": "float_div_14_1_remainder: float.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_14_2_div",
+    "body": "x=((0.0/0.0)).div(1.0);x.to_s",
+    "go_error": "float_div_14_2_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_2_divmod",
+    "body": "x=((0.0/0.0)).divmod(1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_2_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_3_div",
+    "body": "x=((0.0/0.0)).div(-1.0);x.to_s",
+    "go_error": "float_div_14_3_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_3_divmod",
+    "body": "x=((0.0/0.0)).divmod(-1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_3_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_4_div",
+    "body": "x=((0.0/0.0)).div(1.5);x.to_s",
+    "go_error": "float_div_14_4_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_4_divmod",
+    "body": "x=((0.0/0.0)).divmod(1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_4_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_5_div",
+    "body": "x=((0.0/0.0)).div(-1.5);x.to_s",
+    "go_error": "float_div_14_5_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_5_divmod",
+    "body": "x=((0.0/0.0)).divmod(-1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_5_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_6_div",
+    "body": "x=((0.0/0.0)).div(0.1);x.to_s",
+    "go_error": "float_div_14_6_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_6_divmod",
+    "body": "x=((0.0/0.0)).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_6_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_7_div",
+    "body": "x=((0.0/0.0)).div(-0.1);x.to_s",
+    "go_error": "float_div_14_7_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_7_divmod",
+    "body": "x=((0.0/0.0)).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_7_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_8_div",
+    "body": "x=((0.0/0.0)).div(1e308);x.to_s",
+    "go_error": "float_div_14_8_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_8_divmod",
+    "body": "x=((0.0/0.0)).divmod(1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_8_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_9_div",
+    "body": "x=((0.0/0.0)).div(-1e308);x.to_s",
+    "go_error": "float_div_14_9_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_9_divmod",
+    "body": "x=((0.0/0.0)).divmod(-1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_9_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_10_div",
+    "body": "x=((0.0/0.0)).div(1e-308);x.to_s",
+    "go_error": "float_div_14_10_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_10_divmod",
+    "body": "x=((0.0/0.0)).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_10_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_11_div",
+    "body": "x=((0.0/0.0)).div(-1e-308);x.to_s",
+    "go_error": "float_div_14_11_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_11_divmod",
+    "body": "x=((0.0/0.0)).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_11_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_12_div",
+    "body": "x=((0.0/0.0)).div(1e309);x.to_s",
+    "go_error": "float_div_14_12_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_12_divmod",
+    "body": "x=((0.0/0.0)).divmod(1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_12_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_13_div",
+    "body": "x=((0.0/0.0)).div(-1e309);x.to_s",
+    "go_error": "float_div_14_13_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_13_divmod",
+    "body": "x=((0.0/0.0)).divmod(-1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_14_13_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_14_div",
+    "body": "x=((0.0/0.0)).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_14_14_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_14_divmod",
+    "body": "x=((0.0/0.0)).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_14_14_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_15_div",
+    "body": "x=((0.0/0.0)).div((2**2000));x.to_s",
+    "go_error": "float_div_14_15_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_15_divmod",
+    "body": "x=((0.0/0.0)).divmod((2**2000));x.map { |v| v.to_s }",
+    "go_error": "float_div_14_15_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_16_div",
+    "body": "x=((0.0/0.0)).div((-2**2000));x.to_s",
+    "go_error": "float_div_14_16_div: float.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_14_16_divmod",
+    "body": "x=((0.0/0.0)).divmod((-2**2000));x.map { |v| v.to_s }",
+    "go_error": "float_div_14_16_divmod: float.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_0_div",
+    "body": "x=((2**2000)).div(0.0);x.to_s",
+    "go_error": "float_div_15_0_div: int.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_0_divmod",
+    "body": "x=((2**2000)).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_0_divmod: int.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_0_modulo",
+    "body": "x=((2**2000)).modulo(0.0);x.to_s",
+    "go_error": "float_div_15_0_modulo: int.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_0_remainder",
+    "body": "x=((2**2000)).remainder(0.0);x.to_s",
+    "go_error": "float_div_15_0_remainder: int.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_1_div",
+    "body": "x=((2**2000)).div(-0.0);x.to_s",
+    "go_error": "float_div_15_1_div: int.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_1_divmod",
+    "body": "x=((2**2000)).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_1_divmod: int.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_1_modulo",
+    "body": "x=((2**2000)).modulo(-0.0);x.to_s",
+    "go_error": "float_div_15_1_modulo: int.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_1_remainder",
+    "body": "x=((2**2000)).remainder(-0.0);x.to_s",
+    "go_error": "float_div_15_1_remainder: int.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_15_2_div",
+    "body": "x=((2**2000)).div(1.0);x.to_s",
+    "go_error": "float_div_15_2_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_2_divmod",
+    "body": "x=((2**2000)).divmod(1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_2_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_3_div",
+    "body": "x=((2**2000)).div(-1.0);x.to_s",
+    "go_error": "float_div_15_3_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_3_divmod",
+    "body": "x=((2**2000)).divmod(-1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_3_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_4_div",
+    "body": "x=((2**2000)).div(1.5);x.to_s",
+    "go_error": "float_div_15_4_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_4_divmod",
+    "body": "x=((2**2000)).divmod(1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_4_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_5_div",
+    "body": "x=((2**2000)).div(-1.5);x.to_s",
+    "go_error": "float_div_15_5_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_5_divmod",
+    "body": "x=((2**2000)).divmod(-1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_5_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_6_div",
+    "body": "x=((2**2000)).div(0.1);x.to_s",
+    "go_error": "float_div_15_6_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_6_divmod",
+    "body": "x=((2**2000)).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_6_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_7_div",
+    "body": "x=((2**2000)).div(-0.1);x.to_s",
+    "go_error": "float_div_15_7_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_7_divmod",
+    "body": "x=((2**2000)).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_7_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_8_div",
+    "body": "x=((2**2000)).div(1e308);x.to_s",
+    "go_error": "float_div_15_8_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_8_divmod",
+    "body": "x=((2**2000)).divmod(1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_8_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_9_div",
+    "body": "x=((2**2000)).div(-1e308);x.to_s",
+    "go_error": "float_div_15_9_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_9_divmod",
+    "body": "x=((2**2000)).divmod(-1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_9_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_10_div",
+    "body": "x=((2**2000)).div(1e-308);x.to_s",
+    "go_error": "float_div_15_10_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_10_divmod",
+    "body": "x=((2**2000)).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_10_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_11_div",
+    "body": "x=((2**2000)).div(-1e-308);x.to_s",
+    "go_error": "float_div_15_11_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_11_divmod",
+    "body": "x=((2**2000)).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_11_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_12_div",
+    "body": "x=((2**2000)).div(1e309);x.to_s",
+    "go_error": "float_div_15_12_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_12_divmod",
+    "body": "x=((2**2000)).divmod(1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_12_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_13_div",
+    "body": "x=((2**2000)).div(-1e309);x.to_s",
+    "go_error": "float_div_15_13_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_13_divmod",
+    "body": "x=((2**2000)).divmod(-1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_15_13_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_14_div",
+    "body": "x=((2**2000)).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_15_14_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_15_14_divmod",
+    "body": "x=((2**2000)).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_15_14_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_0_div",
+    "body": "x=((-2**2000)).div(0.0);x.to_s",
+    "go_error": "float_div_16_0_div: int.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_0_divmod",
+    "body": "x=((-2**2000)).divmod(0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_0_divmod: int.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_0_modulo",
+    "body": "x=((-2**2000)).modulo(0.0);x.to_s",
+    "go_error": "float_div_16_0_modulo: int.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_0_remainder",
+    "body": "x=((-2**2000)).remainder(0.0);x.to_s",
+    "go_error": "float_div_16_0_remainder: int.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_1_div",
+    "body": "x=((-2**2000)).div(-0.0);x.to_s",
+    "go_error": "float_div_16_1_div: int.div by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_1_divmod",
+    "body": "x=((-2**2000)).divmod(-0.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_1_divmod: int.divmod by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_1_modulo",
+    "body": "x=((-2**2000)).modulo(-0.0);x.to_s",
+    "go_error": "float_div_16_1_modulo: int.modulo by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_1_remainder",
+    "body": "x=((-2**2000)).remainder(-0.0);x.to_s",
+    "go_error": "float_div_16_1_remainder: int.remainder by zero"
+  },
+  {
+    "name": "numeric_members_float_div_16_2_div",
+    "body": "x=((-2**2000)).div(1.0);x.to_s",
+    "go_error": "float_div_16_2_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_2_divmod",
+    "body": "x=((-2**2000)).divmod(1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_2_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_3_div",
+    "body": "x=((-2**2000)).div(-1.0);x.to_s",
+    "go_error": "float_div_16_3_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_3_divmod",
+    "body": "x=((-2**2000)).divmod(-1.0);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_3_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_4_div",
+    "body": "x=((-2**2000)).div(1.5);x.to_s",
+    "go_error": "float_div_16_4_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_4_divmod",
+    "body": "x=((-2**2000)).divmod(1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_4_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_5_div",
+    "body": "x=((-2**2000)).div(-1.5);x.to_s",
+    "go_error": "float_div_16_5_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_5_divmod",
+    "body": "x=((-2**2000)).divmod(-1.5);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_5_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_6_div",
+    "body": "x=((-2**2000)).div(0.1);x.to_s",
+    "go_error": "float_div_16_6_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_6_divmod",
+    "body": "x=((-2**2000)).divmod(0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_6_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_7_div",
+    "body": "x=((-2**2000)).div(-0.1);x.to_s",
+    "go_error": "float_div_16_7_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_7_divmod",
+    "body": "x=((-2**2000)).divmod(-0.1);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_7_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_8_div",
+    "body": "x=((-2**2000)).div(1e308);x.to_s",
+    "go_error": "float_div_16_8_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_8_divmod",
+    "body": "x=((-2**2000)).divmod(1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_8_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_9_div",
+    "body": "x=((-2**2000)).div(-1e308);x.to_s",
+    "go_error": "float_div_16_9_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_9_divmod",
+    "body": "x=((-2**2000)).divmod(-1e308);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_9_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_10_div",
+    "body": "x=((-2**2000)).div(1e-308);x.to_s",
+    "go_error": "float_div_16_10_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_10_divmod",
+    "body": "x=((-2**2000)).divmod(1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_10_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_11_div",
+    "body": "x=((-2**2000)).div(-1e-308);x.to_s",
+    "go_error": "float_div_16_11_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_11_divmod",
+    "body": "x=((-2**2000)).divmod(-1e-308);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_11_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_12_div",
+    "body": "x=((-2**2000)).div(1e309);x.to_s",
+    "go_error": "float_div_16_12_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_12_divmod",
+    "body": "x=((-2**2000)).divmod(1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_12_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_13_div",
+    "body": "x=((-2**2000)).div(-1e309);x.to_s",
+    "go_error": "float_div_16_13_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_13_divmod",
+    "body": "x=((-2**2000)).divmod(-1e309);x.map { |v| v.to_s }",
+    "go_error": "float_div_16_13_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_14_div",
+    "body": "x=((-2**2000)).div((0.0/0.0));x.to_s",
+    "go_error": "float_div_16_14_div: int.div result out of int64 range"
+  },
+  {
+    "name": "numeric_members_float_div_16_14_divmod",
+    "body": "x=((-2**2000)).divmod((0.0/0.0));x.map { |v| v.to_s }",
+    "go_error": "float_div_16_14_divmod: int.divmod result out of int64 range"
+  },
+  {
+    "name": "numeric_members_clamp_0_1",
+    "body": "(0).clamp(10,0).to_s",
+    "go_error": "clamp_0_1: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_0_7",
+    "body": "(0).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_0_7: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_0_8",
+    "body": "(0).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_0_8: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_0_9",
+    "body": "(0).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_0_9: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_0_15",
+    "body": "(0).clamp((1...10)).to_s",
+    "go_error": "clamp_0_15: int.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_0_16",
+    "body": "(0).clamp((10..1)).to_s",
+    "go_error": "clamp_0_16: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_0_18",
+    "body": "(0).clamp(\"x\",1).to_s",
+    "go_error": "clamp_0_18: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_0_19",
+    "body": "(0).clamp(0,\"x\").to_s",
+    "go_error": "clamp_0_19: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_0_2",
+    "body": "(0).between?(nil,0)",
+    "go_error": "between_0_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_0_3",
+    "body": "(0).between?(0,nil)",
+    "go_error": "between_0_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_0_10",
+    "body": "(0).between?(\"x\",1)",
+    "go_error": "between_0_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_1_1",
+    "body": "(5).clamp(10,0).to_s",
+    "go_error": "clamp_1_1: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_1_7",
+    "body": "(5).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_1_7: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_1_8",
+    "body": "(5).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_1_8: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_1_9",
+    "body": "(5).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_1_9: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_1_15",
+    "body": "(5).clamp((1...10)).to_s",
+    "go_error": "clamp_1_15: int.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_1_16",
+    "body": "(5).clamp((10..1)).to_s",
+    "go_error": "clamp_1_16: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_1_18",
+    "body": "(5).clamp(\"x\",1).to_s",
+    "go_error": "clamp_1_18: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_1_19",
+    "body": "(5).clamp(0,\"x\").to_s",
+    "go_error": "clamp_1_19: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_1_2",
+    "body": "(5).between?(nil,0)",
+    "go_error": "between_1_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_1_3",
+    "body": "(5).between?(0,nil)",
+    "go_error": "between_1_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_1_9",
+    "body": "(5).between?(1,\"x\")",
+    "go_error": "between_1_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_1_10",
+    "body": "(5).between?(\"x\",1)",
+    "go_error": "between_1_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_2_1",
+    "body": "(-5).clamp(10,0).to_s",
+    "go_error": "clamp_2_1: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_2_7",
+    "body": "(-5).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_2_7: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_2_8",
+    "body": "(-5).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_2_8: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_2_9",
+    "body": "(-5).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_2_9: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_2_15",
+    "body": "(-5).clamp((1...10)).to_s",
+    "go_error": "clamp_2_15: int.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_2_16",
+    "body": "(-5).clamp((10..1)).to_s",
+    "go_error": "clamp_2_16: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_2_18",
+    "body": "(-5).clamp(\"x\",1).to_s",
+    "go_error": "clamp_2_18: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_2_19",
+    "body": "(-5).clamp(0,\"x\").to_s",
+    "go_error": "clamp_2_19: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_2_2",
+    "body": "(-5).between?(nil,0)",
+    "go_error": "between_2_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_2_10",
+    "body": "(-5).between?(\"x\",1)",
+    "go_error": "between_2_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_3_1",
+    "body": "(5.5).clamp(10,0).to_s",
+    "go_error": "clamp_3_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_3_7",
+    "body": "(5.5).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_3_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_3_8",
+    "body": "(5.5).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_3_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_3_9",
+    "body": "(5.5).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_3_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_3_15",
+    "body": "(5.5).clamp((1...10)).to_s",
+    "go_error": "clamp_3_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_3_16",
+    "body": "(5.5).clamp((10..1)).to_s",
+    "go_error": "clamp_3_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_3_18",
+    "body": "(5.5).clamp(\"x\",1).to_s",
+    "go_error": "clamp_3_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_3_19",
+    "body": "(5.5).clamp(0,\"x\").to_s",
+    "go_error": "clamp_3_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_3_2",
+    "body": "(5.5).between?(nil,0)",
+    "go_error": "between_3_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_3_3",
+    "body": "(5.5).between?(0,nil)",
+    "go_error": "between_3_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_3_9",
+    "body": "(5.5).between?(1,\"x\")",
+    "go_error": "between_3_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_3_10",
+    "body": "(5.5).between?(\"x\",1)",
+    "go_error": "between_3_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_4_1",
+    "body": "(-5.5).clamp(10,0).to_s",
+    "go_error": "clamp_4_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_4_7",
+    "body": "(-5.5).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_4_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_4_8",
+    "body": "(-5.5).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_4_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_4_9",
+    "body": "(-5.5).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_4_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_4_15",
+    "body": "(-5.5).clamp((1...10)).to_s",
+    "go_error": "clamp_4_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_4_16",
+    "body": "(-5.5).clamp((10..1)).to_s",
+    "go_error": "clamp_4_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_4_18",
+    "body": "(-5.5).clamp(\"x\",1).to_s",
+    "go_error": "clamp_4_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_4_19",
+    "body": "(-5.5).clamp(0,\"x\").to_s",
+    "go_error": "clamp_4_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_4_2",
+    "body": "(-5.5).between?(nil,0)",
+    "go_error": "between_4_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_4_10",
+    "body": "(-5.5).between?(\"x\",1)",
+    "go_error": "between_4_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_5_1",
+    "body": "(9007199254740993).clamp(10,0).to_s",
+    "go_error": "clamp_5_1: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_5_7",
+    "body": "(9007199254740993).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_5_7: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_5_8",
+    "body": "(9007199254740993).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_5_8: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_5_9",
+    "body": "(9007199254740993).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_5_9: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_5_15",
+    "body": "(9007199254740993).clamp((1...10)).to_s",
+    "go_error": "clamp_5_15: int.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_5_16",
+    "body": "(9007199254740993).clamp((10..1)).to_s",
+    "go_error": "clamp_5_16: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_5_18",
+    "body": "(9007199254740993).clamp(\"x\",1).to_s",
+    "go_error": "clamp_5_18: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_5_19",
+    "body": "(9007199254740993).clamp(0,\"x\").to_s",
+    "go_error": "clamp_5_19: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_5_2",
+    "body": "(9007199254740993).between?(nil,0)",
+    "go_error": "between_5_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_5_3",
+    "body": "(9007199254740993).between?(0,nil)",
+    "go_error": "between_5_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_5_9",
+    "body": "(9007199254740993).between?(1,\"x\")",
+    "go_error": "between_5_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_5_10",
+    "body": "(9007199254740993).between?(\"x\",1)",
+    "go_error": "between_5_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_6_1",
+    "body": "(9007199254740992.0).clamp(10,0).to_s",
+    "go_error": "clamp_6_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_6_7",
+    "body": "(9007199254740992.0).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_6_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_6_8",
+    "body": "(9007199254740992.0).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_6_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_6_9",
+    "body": "(9007199254740992.0).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_6_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_6_15",
+    "body": "(9007199254740992.0).clamp((1...10)).to_s",
+    "go_error": "clamp_6_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_6_16",
+    "body": "(9007199254740992.0).clamp((10..1)).to_s",
+    "go_error": "clamp_6_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_6_18",
+    "body": "(9007199254740992.0).clamp(\"x\",1).to_s",
+    "go_error": "clamp_6_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_6_19",
+    "body": "(9007199254740992.0).clamp(0,\"x\").to_s",
+    "go_error": "clamp_6_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_6_2",
+    "body": "(9007199254740992.0).between?(nil,0)",
+    "go_error": "between_6_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_6_3",
+    "body": "(9007199254740992.0).between?(0,nil)",
+    "go_error": "between_6_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_6_9",
+    "body": "(9007199254740992.0).between?(1,\"x\")",
+    "go_error": "between_6_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_6_10",
+    "body": "(9007199254740992.0).between?(\"x\",1)",
+    "go_error": "between_6_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_7_1",
+    "body": "(2**100).clamp(10,0).to_s",
+    "go_error": "clamp_7_1: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_7_7",
+    "body": "(2**100).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_7_7: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_7_8",
+    "body": "(2**100).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_7_8: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_7_9",
+    "body": "(2**100).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_7_9: int.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_7_15",
+    "body": "(2**100).clamp((1...10)).to_s",
+    "go_error": "clamp_7_15: int.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_7_16",
+    "body": "(2**100).clamp((10..1)).to_s",
+    "go_error": "clamp_7_16: int.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_7_18",
+    "body": "(2**100).clamp(\"x\",1).to_s",
+    "go_error": "clamp_7_18: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_7_19",
+    "body": "(2**100).clamp(0,\"x\").to_s",
+    "go_error": "clamp_7_19: int.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_7_2",
+    "body": "(2**100).between?(nil,0)",
+    "go_error": "between_7_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_7_3",
+    "body": "(2**100).between?(0,nil)",
+    "go_error": "between_7_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_7_9",
+    "body": "(2**100).between?(1,\"x\")",
+    "go_error": "between_7_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_7_10",
+    "body": "(2**100).between?(\"x\",1)",
+    "go_error": "between_7_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_8_1",
+    "body": "((2**100).to_f).clamp(10,0).to_s",
+    "go_error": "clamp_8_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_8_7",
+    "body": "((2**100).to_f).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_8_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_8_8",
+    "body": "((2**100).to_f).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_8_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_8_9",
+    "body": "((2**100).to_f).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_8_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_8_15",
+    "body": "((2**100).to_f).clamp((1...10)).to_s",
+    "go_error": "clamp_8_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_8_16",
+    "body": "((2**100).to_f).clamp((10..1)).to_s",
+    "go_error": "clamp_8_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_8_18",
+    "body": "((2**100).to_f).clamp(\"x\",1).to_s",
+    "go_error": "clamp_8_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_8_19",
+    "body": "((2**100).to_f).clamp(0,\"x\").to_s",
+    "go_error": "clamp_8_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_8_2",
+    "body": "((2**100).to_f).between?(nil,0)",
+    "go_error": "between_8_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_8_3",
+    "body": "((2**100).to_f).between?(0,nil)",
+    "go_error": "between_8_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_8_9",
+    "body": "((2**100).to_f).between?(1,\"x\")",
+    "go_error": "between_8_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_8_10",
+    "body": "((2**100).to_f).between?(\"x\",1)",
+    "go_error": "between_8_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_9_1",
+    "body": "(1e309).clamp(10,0).to_s",
+    "go_error": "clamp_9_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_9_7",
+    "body": "(1e309).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_9_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_9_8",
+    "body": "(1e309).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_9_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_9_9",
+    "body": "(1e309).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_9_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_9_15",
+    "body": "(1e309).clamp((1...10)).to_s",
+    "go_error": "clamp_9_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_9_16",
+    "body": "(1e309).clamp((10..1)).to_s",
+    "go_error": "clamp_9_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_9_18",
+    "body": "(1e309).clamp(\"x\",1).to_s",
+    "go_error": "clamp_9_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_9_19",
+    "body": "(1e309).clamp(0,\"x\").to_s",
+    "go_error": "clamp_9_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_9_2",
+    "body": "(1e309).between?(nil,0)",
+    "go_error": "between_9_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_9_3",
+    "body": "(1e309).between?(0,nil)",
+    "go_error": "between_9_3: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_9_9",
+    "body": "(1e309).between?(1,\"x\")",
+    "go_error": "between_9_9: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_9_10",
+    "body": "(1e309).between?(\"x\",1)",
+    "go_error": "between_9_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_10_1",
+    "body": "(-1e309).clamp(10,0).to_s",
+    "go_error": "clamp_10_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_10_7",
+    "body": "(-1e309).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_10_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_10_8",
+    "body": "(-1e309).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_10_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_10_9",
+    "body": "(-1e309).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_10_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_10_15",
+    "body": "(-1e309).clamp((1...10)).to_s",
+    "go_error": "clamp_10_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_10_16",
+    "body": "(-1e309).clamp((10..1)).to_s",
+    "go_error": "clamp_10_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_10_18",
+    "body": "(-1e309).clamp(\"x\",1).to_s",
+    "go_error": "clamp_10_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_10_19",
+    "body": "(-1e309).clamp(0,\"x\").to_s",
+    "go_error": "clamp_10_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_10_2",
+    "body": "(-1e309).between?(nil,0)",
+    "go_error": "between_10_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_10_10",
+    "body": "(-1e309).between?(\"x\",1)",
+    "go_error": "between_10_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_clamp_11_0",
+    "body": "(0.0/0.0).clamp(0,10).to_s",
+    "go_error": "clamp_11_0: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_1",
+    "body": "(0.0/0.0).clamp(10,0).to_s",
+    "go_error": "clamp_11_1: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_11_2",
+    "body": "(0.0/0.0).clamp(nil,0).to_s",
+    "go_error": "clamp_11_2: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_3",
+    "body": "(0.0/0.0).clamp(0,nil).to_s",
+    "go_error": "clamp_11_3: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_5",
+    "body": "(0.0/0.0).clamp(0.0,10.0).to_s",
+    "go_error": "clamp_11_5: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_6",
+    "body": "(0.0/0.0).clamp(-1e309,1e309).to_s",
+    "go_error": "clamp_11_6: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_7",
+    "body": "(0.0/0.0).clamp(0.0/0.0,nil).to_s",
+    "go_error": "clamp_11_7: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_8",
+    "body": "(0.0/0.0).clamp(nil,0.0/0.0).to_s",
+    "go_error": "clamp_11_8: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_9",
+    "body": "(0.0/0.0).clamp(1,0.0/0.0).to_s",
+    "go_error": "clamp_11_9: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_10",
+    "body": "(0.0/0.0).clamp(9007199254740993,9007199254740994).to_s",
+    "go_error": "clamp_11_10: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_11",
+    "body": "(0.0/0.0).clamp(9007199254740992.0,9007199254740992.0).to_s",
+    "go_error": "clamp_11_11: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_12",
+    "body": "(0.0/0.0).clamp((1..10)).to_s",
+    "go_error": "clamp_11_12: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_13",
+    "body": "(0.0/0.0).clamp((..10)).to_s",
+    "go_error": "clamp_11_13: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_14",
+    "body": "(0.0/0.0).clamp((1..)).to_s",
+    "go_error": "clamp_11_14: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_15",
+    "body": "(0.0/0.0).clamp((1...10)).to_s",
+    "go_error": "clamp_11_15: float.clamp cannot clamp with exclusive range"
+  },
+  {
+    "name": "numeric_members_clamp_11_16",
+    "body": "(0.0/0.0).clamp((10..1)).to_s",
+    "go_error": "clamp_11_16: float.clamp min must be <= max"
+  },
+  {
+    "name": "numeric_members_clamp_11_17",
+    "body": "(0.0/0.0).clamp((2**100),(2**100)+1).to_s",
+    "go_error": "clamp_11_17: float.clamp values must not be NaN"
+  },
+  {
+    "name": "numeric_members_clamp_11_18",
+    "body": "(0.0/0.0).clamp(\"x\",1).to_s",
+    "go_error": "clamp_11_18: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_clamp_11_19",
+    "body": "(0.0/0.0).clamp(0,\"x\").to_s",
+    "go_error": "clamp_11_19: float.clamp bounds must be numeric or nil"
+  },
+  {
+    "name": "numeric_members_between_11_2",
+    "body": "(0.0/0.0).between?(nil,0)",
+    "go_error": "between_11_2: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_between_11_10",
+    "body": "(0.0/0.0).between?(\"x\",1)",
+    "go_error": "between_11_10: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_signature_3972",
+    "body": "(1).zero?(1,2,3)",
+    "go_error": "signature_3972: int.zero? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_3977",
+    "body": "(1).positive?(1,2,3)",
+    "go_error": "signature_3977: int.positive? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_3982",
+    "body": "(1).negative?(1,2,3)",
+    "go_error": "signature_3982: int.negative? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_3987",
+    "body": "(1).nonzero?(1,2,3)",
+    "go_error": "signature_3987: int.nonzero? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_3992",
+    "body": "(1).next(1,2,3)",
+    "go_error": "signature_3992: int.next does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_3997",
+    "body": "(1).succ(1,2,3)",
+    "go_error": "signature_3997: int.succ does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4002",
+    "body": "(1).pred(1,2,3)",
+    "go_error": "signature_4002: int.pred does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4005",
+    "body": "(1).nan?",
+    "go_error": "signature_4005: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4006",
+    "body": "(1).nan?()",
+    "go_error": "signature_4006: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4007",
+    "body": "(1).nan?(1,2,3)",
+    "go_error": "signature_4007: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4008",
+    "body": "(1).nan?(flag:1)",
+    "go_error": "signature_4008: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4009",
+    "body": "(1).nan?() { 7 }",
+    "go_error": "signature_4009: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4010",
+    "body": "(1).infinite?",
+    "go_error": "signature_4010: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4011",
+    "body": "(1).infinite?()",
+    "go_error": "signature_4011: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4012",
+    "body": "(1).infinite?(1,2,3)",
+    "go_error": "signature_4012: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4013",
+    "body": "(1).infinite?(flag:1)",
+    "go_error": "signature_4013: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4014",
+    "body": "(1).infinite?() { 7 }",
+    "go_error": "signature_4014: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4015",
+    "body": "(1).finite?",
+    "go_error": "signature_4015: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4016",
+    "body": "(1).finite?()",
+    "go_error": "signature_4016: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4017",
+    "body": "(1).finite?(1,2,3)",
+    "go_error": "signature_4017: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4018",
+    "body": "(1).finite?(flag:1)",
+    "go_error": "signature_4018: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4019",
+    "body": "(1).finite?() { 7 }",
+    "go_error": "signature_4019: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4022",
+    "body": "(1).round(1,2,3)",
+    "go_error": "signature_4022: int.round expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4027",
+    "body": "(1).floor(1,2,3)",
+    "go_error": "signature_4027: int.floor expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4032",
+    "body": "(1).ceil(1,2,3)",
+    "go_error": "signature_4032: int.ceil expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4035",
+    "body": "(1).div",
+    "go_error": "signature_4035: int.div expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4037",
+    "body": "(1).div(1,2,3)",
+    "go_error": "signature_4037: int.div expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4040",
+    "body": "(1).divmod",
+    "go_error": "signature_4040: int.divmod expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4042",
+    "body": "(1).divmod(1,2,3)",
+    "go_error": "signature_4042: int.divmod expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4045",
+    "body": "(1).fdiv",
+    "go_error": "signature_4045: int.fdiv expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4047",
+    "body": "(1).fdiv(1,2,3)",
+    "go_error": "signature_4047: int.fdiv expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4050",
+    "body": "(1).remainder",
+    "go_error": "signature_4050: int.remainder expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4052",
+    "body": "(1).remainder(1,2,3)",
+    "go_error": "signature_4052: int.remainder expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4055",
+    "body": "(1).modulo",
+    "go_error": "signature_4055: int.modulo expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4057",
+    "body": "(1).modulo(1,2,3)",
+    "go_error": "signature_4057: int.modulo expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4060",
+    "body": "(1).clamp",
+    "go_error": "signature_4060: int.clamp expects min and max or range"
+  },
+  {
+    "name": "numeric_members_signature_4062",
+    "body": "(1).clamp(1,2,3)",
+    "go_error": "signature_4062: int.clamp expects min and max or range"
+  },
+  {
+    "name": "numeric_members_signature_4063",
+    "body": "(1).clamp(0,3,flag:1)",
+    "go_error": "signature_4063: int.clamp does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4064",
+    "body": "(1).clamp(0,3) { 7 }",
+    "go_error": "signature_4064: int.clamp does not accept blocks"
+  },
+  {
+    "name": "numeric_members_signature_4065",
+    "body": "(1).between?",
+    "go_error": "signature_4065: int.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4067",
+    "body": "(1).between?(1,2,3)",
+    "go_error": "signature_4067: int.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4068",
+    "body": "(1).between?(0,3,flag:1)",
+    "go_error": "signature_4068: int.between? does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4069",
+    "body": "(1).between?(0,3) { 7 }",
+    "go_error": "signature_4069: int.between? does not accept a block"
+  },
+  {
+    "name": "numeric_members_signature_4072",
+    "body": "(1.5).zero?(1,2,3)",
+    "go_error": "signature_4072: float.zero? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4077",
+    "body": "(1.5).positive?(1,2,3)",
+    "go_error": "signature_4077: float.positive? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4082",
+    "body": "(1.5).negative?(1,2,3)",
+    "go_error": "signature_4082: float.negative? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4087",
+    "body": "(1.5).nonzero?(1,2,3)",
+    "go_error": "signature_4087: float.nonzero? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4090",
+    "body": "(1.5).next",
+    "go_error": "signature_4090: unknown float method next"
+  },
+  {
+    "name": "numeric_members_signature_4091",
+    "body": "(1.5).next()",
+    "go_error": "signature_4091: unknown float method next"
+  },
+  {
+    "name": "numeric_members_signature_4092",
+    "body": "(1.5).next(1,2,3)",
+    "go_error": "signature_4092: unknown float method next"
+  },
+  {
+    "name": "numeric_members_signature_4093",
+    "body": "(1.5).next(flag:1)",
+    "go_error": "signature_4093: unknown float method next"
+  },
+  {
+    "name": "numeric_members_signature_4094",
+    "body": "(1.5).next() { 7 }",
+    "go_error": "signature_4094: unknown float method next"
+  },
+  {
+    "name": "numeric_members_signature_4095",
+    "body": "(1.5).succ",
+    "go_error": "signature_4095: unknown float method succ"
+  },
+  {
+    "name": "numeric_members_signature_4096",
+    "body": "(1.5).succ()",
+    "go_error": "signature_4096: unknown float method succ"
+  },
+  {
+    "name": "numeric_members_signature_4097",
+    "body": "(1.5).succ(1,2,3)",
+    "go_error": "signature_4097: unknown float method succ"
+  },
+  {
+    "name": "numeric_members_signature_4098",
+    "body": "(1.5).succ(flag:1)",
+    "go_error": "signature_4098: unknown float method succ"
+  },
+  {
+    "name": "numeric_members_signature_4099",
+    "body": "(1.5).succ() { 7 }",
+    "go_error": "signature_4099: unknown float method succ"
+  },
+  {
+    "name": "numeric_members_signature_4100",
+    "body": "(1.5).pred",
+    "go_error": "signature_4100: unknown float method pred"
+  },
+  {
+    "name": "numeric_members_signature_4101",
+    "body": "(1.5).pred()",
+    "go_error": "signature_4101: unknown float method pred"
+  },
+  {
+    "name": "numeric_members_signature_4102",
+    "body": "(1.5).pred(1,2,3)",
+    "go_error": "signature_4102: unknown float method pred"
+  },
+  {
+    "name": "numeric_members_signature_4103",
+    "body": "(1.5).pred(flag:1)",
+    "go_error": "signature_4103: unknown float method pred"
+  },
+  {
+    "name": "numeric_members_signature_4104",
+    "body": "(1.5).pred() { 7 }",
+    "go_error": "signature_4104: unknown float method pred"
+  },
+  {
+    "name": "numeric_members_signature_4107",
+    "body": "(1.5).nan?(1,2,3)",
+    "go_error": "signature_4107: float.nan? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4112",
+    "body": "(1.5).infinite?(1,2,3)",
+    "go_error": "signature_4112: float.infinite? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4117",
+    "body": "(1.5).finite?(1,2,3)",
+    "go_error": "signature_4117: float.finite? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4122",
+    "body": "(1.5).round(1,2,3)",
+    "go_error": "signature_4122: float.round expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4127",
+    "body": "(1.5).floor(1,2,3)",
+    "go_error": "signature_4127: float.floor expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4132",
+    "body": "(1.5).ceil(1,2,3)",
+    "go_error": "signature_4132: float.ceil expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4135",
+    "body": "(1.5).div",
+    "go_error": "signature_4135: float.div expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4137",
+    "body": "(1.5).div(1,2,3)",
+    "go_error": "signature_4137: float.div expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4140",
+    "body": "(1.5).divmod",
+    "go_error": "signature_4140: float.divmod expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4142",
+    "body": "(1.5).divmod(1,2,3)",
+    "go_error": "signature_4142: float.divmod expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4145",
+    "body": "(1.5).fdiv",
+    "go_error": "signature_4145: float.fdiv expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4147",
+    "body": "(1.5).fdiv(1,2,3)",
+    "go_error": "signature_4147: float.fdiv expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4150",
+    "body": "(1.5).remainder",
+    "go_error": "signature_4150: float.remainder expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4152",
+    "body": "(1.5).remainder(1,2,3)",
+    "go_error": "signature_4152: float.remainder expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4155",
+    "body": "(1.5).modulo",
+    "go_error": "signature_4155: float.modulo expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4157",
+    "body": "(1.5).modulo(1,2,3)",
+    "go_error": "signature_4157: float.modulo expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4160",
+    "body": "(1.5).clamp",
+    "go_error": "signature_4160: float.clamp expects min and max or range"
+  },
+  {
+    "name": "numeric_members_signature_4162",
+    "body": "(1.5).clamp(1,2,3)",
+    "go_error": "signature_4162: float.clamp expects min and max or range"
+  },
+  {
+    "name": "numeric_members_signature_4163",
+    "body": "(1.5).clamp(0,3,flag:1)",
+    "go_error": "signature_4163: float.clamp does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4164",
+    "body": "(1.5).clamp(0,3) { 7 }",
+    "go_error": "signature_4164: float.clamp does not accept blocks"
+  },
+  {
+    "name": "numeric_members_signature_4165",
+    "body": "(1.5).between?",
+    "go_error": "signature_4165: float.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4167",
+    "body": "(1.5).between?(1,2,3)",
+    "go_error": "signature_4167: float.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4168",
+    "body": "(1.5).between?(0,3,flag:1)",
+    "go_error": "signature_4168: float.between? does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4169",
+    "body": "(1.5).between?(0,3) { 7 }",
+    "go_error": "signature_4169: float.between? does not accept a block"
+  },
+  {
+    "name": "numeric_members_signature_4172",
+    "body": "((2**100)).zero?(1,2,3)",
+    "go_error": "signature_4172: int.zero? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4177",
+    "body": "((2**100)).positive?(1,2,3)",
+    "go_error": "signature_4177: int.positive? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4182",
+    "body": "((2**100)).negative?(1,2,3)",
+    "go_error": "signature_4182: int.negative? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4187",
+    "body": "((2**100)).nonzero?(1,2,3)",
+    "go_error": "signature_4187: int.nonzero? does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4192",
+    "body": "((2**100)).next(1,2,3)",
+    "go_error": "signature_4192: int.next does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4197",
+    "body": "((2**100)).succ(1,2,3)",
+    "go_error": "signature_4197: int.succ does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4202",
+    "body": "((2**100)).pred(1,2,3)",
+    "go_error": "signature_4202: int.pred does not take arguments"
+  },
+  {
+    "name": "numeric_members_signature_4205",
+    "body": "((2**100)).nan?",
+    "go_error": "signature_4205: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4206",
+    "body": "((2**100)).nan?()",
+    "go_error": "signature_4206: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4207",
+    "body": "((2**100)).nan?(1,2,3)",
+    "go_error": "signature_4207: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4208",
+    "body": "((2**100)).nan?(flag:1)",
+    "go_error": "signature_4208: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4209",
+    "body": "((2**100)).nan?() { 7 }",
+    "go_error": "signature_4209: unknown int method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4210",
+    "body": "((2**100)).infinite?",
+    "go_error": "signature_4210: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4211",
+    "body": "((2**100)).infinite?()",
+    "go_error": "signature_4211: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4212",
+    "body": "((2**100)).infinite?(1,2,3)",
+    "go_error": "signature_4212: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4213",
+    "body": "((2**100)).infinite?(flag:1)",
+    "go_error": "signature_4213: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4214",
+    "body": "((2**100)).infinite?() { 7 }",
+    "go_error": "signature_4214: unknown int method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4215",
+    "body": "((2**100)).finite?",
+    "go_error": "signature_4215: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4216",
+    "body": "((2**100)).finite?()",
+    "go_error": "signature_4216: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4217",
+    "body": "((2**100)).finite?(1,2,3)",
+    "go_error": "signature_4217: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4218",
+    "body": "((2**100)).finite?(flag:1)",
+    "go_error": "signature_4218: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4219",
+    "body": "((2**100)).finite?() { 7 }",
+    "go_error": "signature_4219: unknown int method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4222",
+    "body": "((2**100)).round(1,2,3)",
+    "go_error": "signature_4222: int.round expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4227",
+    "body": "((2**100)).floor(1,2,3)",
+    "go_error": "signature_4227: int.floor expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4232",
+    "body": "((2**100)).ceil(1,2,3)",
+    "go_error": "signature_4232: int.ceil expects at most one precision argument"
+  },
+  {
+    "name": "numeric_members_signature_4235",
+    "body": "((2**100)).div",
+    "go_error": "signature_4235: int.div expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4237",
+    "body": "((2**100)).div(1,2,3)",
+    "go_error": "signature_4237: int.div expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4240",
+    "body": "((2**100)).divmod",
+    "go_error": "signature_4240: int.divmod expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4242",
+    "body": "((2**100)).divmod(1,2,3)",
+    "go_error": "signature_4242: int.divmod expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4245",
+    "body": "((2**100)).fdiv",
+    "go_error": "signature_4245: int.fdiv expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4247",
+    "body": "((2**100)).fdiv(1,2,3)",
+    "go_error": "signature_4247: int.fdiv expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4250",
+    "body": "((2**100)).remainder",
+    "go_error": "signature_4250: int.remainder expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4252",
+    "body": "((2**100)).remainder(1,2,3)",
+    "go_error": "signature_4252: int.remainder expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4255",
+    "body": "((2**100)).modulo",
+    "go_error": "signature_4255: int.modulo expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4257",
+    "body": "((2**100)).modulo(1,2,3)",
+    "go_error": "signature_4257: int.modulo expects one numeric argument"
+  },
+  {
+    "name": "numeric_members_signature_4260",
+    "body": "((2**100)).clamp",
+    "go_error": "signature_4260: int.clamp expects min and max or range"
+  },
+  {
+    "name": "numeric_members_signature_4262",
+    "body": "((2**100)).clamp(1,2,3)",
+    "go_error": "signature_4262: int.clamp expects min and max or range"
+  },
+  {
+    "name": "numeric_members_signature_4263",
+    "body": "((2**100)).clamp(0,3,flag:1)",
+    "go_error": "signature_4263: int.clamp does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4264",
+    "body": "((2**100)).clamp(0,3) { 7 }",
+    "go_error": "signature_4264: int.clamp does not accept blocks"
+  },
+  {
+    "name": "numeric_members_signature_4265",
+    "body": "((2**100)).between?",
+    "go_error": "signature_4265: int.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4267",
+    "body": "((2**100)).between?(1,2,3)",
+    "go_error": "signature_4267: int.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4268",
+    "body": "((2**100)).between?(0,3,flag:1)",
+    "go_error": "signature_4268: int.between? does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4269",
+    "body": "((2**100)).between?(0,3) { 7 }",
+    "go_error": "signature_4269: int.between? does not accept a block"
+  },
+  {
+    "name": "numeric_members_signature_4270",
+    "body": "(\"text\").zero?",
+    "go_error": "signature_4270: unknown string method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4271",
+    "body": "(\"text\").zero?()",
+    "go_error": "signature_4271: unknown string method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4272",
+    "body": "(\"text\").zero?(1,2,3)",
+    "go_error": "signature_4272: unknown string method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4273",
+    "body": "(\"text\").zero?(flag:1)",
+    "go_error": "signature_4273: unknown string method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4274",
+    "body": "(\"text\").zero?() { 7 }",
+    "go_error": "signature_4274: unknown string method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4275",
+    "body": "(\"text\").positive?",
+    "go_error": "signature_4275: unknown string method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4276",
+    "body": "(\"text\").positive?()",
+    "go_error": "signature_4276: unknown string method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4277",
+    "body": "(\"text\").positive?(1,2,3)",
+    "go_error": "signature_4277: unknown string method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4278",
+    "body": "(\"text\").positive?(flag:1)",
+    "go_error": "signature_4278: unknown string method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4279",
+    "body": "(\"text\").positive?() { 7 }",
+    "go_error": "signature_4279: unknown string method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4280",
+    "body": "(\"text\").negative?",
+    "go_error": "signature_4280: unknown string method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4281",
+    "body": "(\"text\").negative?()",
+    "go_error": "signature_4281: unknown string method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4282",
+    "body": "(\"text\").negative?(1,2,3)",
+    "go_error": "signature_4282: unknown string method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4283",
+    "body": "(\"text\").negative?(flag:1)",
+    "go_error": "signature_4283: unknown string method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4284",
+    "body": "(\"text\").negative?() { 7 }",
+    "go_error": "signature_4284: unknown string method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4285",
+    "body": "(\"text\").nonzero?",
+    "go_error": "signature_4285: unknown string method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4286",
+    "body": "(\"text\").nonzero?()",
+    "go_error": "signature_4286: unknown string method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4287",
+    "body": "(\"text\").nonzero?(1,2,3)",
+    "go_error": "signature_4287: unknown string method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4288",
+    "body": "(\"text\").nonzero?(flag:1)",
+    "go_error": "signature_4288: unknown string method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4289",
+    "body": "(\"text\").nonzero?() { 7 }",
+    "go_error": "signature_4289: unknown string method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4290",
+    "body": "(\"text\").next",
+    "go_error": "signature_4290: unknown string method next"
+  },
+  {
+    "name": "numeric_members_signature_4291",
+    "body": "(\"text\").next()",
+    "go_error": "signature_4291: unknown string method next"
+  },
+  {
+    "name": "numeric_members_signature_4292",
+    "body": "(\"text\").next(1,2,3)",
+    "go_error": "signature_4292: unknown string method next"
+  },
+  {
+    "name": "numeric_members_signature_4293",
+    "body": "(\"text\").next(flag:1)",
+    "go_error": "signature_4293: unknown string method next"
+  },
+  {
+    "name": "numeric_members_signature_4294",
+    "body": "(\"text\").next() { 7 }",
+    "go_error": "signature_4294: unknown string method next"
+  },
+  {
+    "name": "numeric_members_signature_4295",
+    "body": "(\"text\").succ",
+    "go_error": "signature_4295: unknown string method succ"
+  },
+  {
+    "name": "numeric_members_signature_4296",
+    "body": "(\"text\").succ()",
+    "go_error": "signature_4296: unknown string method succ"
+  },
+  {
+    "name": "numeric_members_signature_4297",
+    "body": "(\"text\").succ(1,2,3)",
+    "go_error": "signature_4297: unknown string method succ"
+  },
+  {
+    "name": "numeric_members_signature_4298",
+    "body": "(\"text\").succ(flag:1)",
+    "go_error": "signature_4298: unknown string method succ"
+  },
+  {
+    "name": "numeric_members_signature_4299",
+    "body": "(\"text\").succ() { 7 }",
+    "go_error": "signature_4299: unknown string method succ"
+  },
+  {
+    "name": "numeric_members_signature_4300",
+    "body": "(\"text\").pred",
+    "go_error": "signature_4300: unknown string method pred"
+  },
+  {
+    "name": "numeric_members_signature_4301",
+    "body": "(\"text\").pred()",
+    "go_error": "signature_4301: unknown string method pred"
+  },
+  {
+    "name": "numeric_members_signature_4302",
+    "body": "(\"text\").pred(1,2,3)",
+    "go_error": "signature_4302: unknown string method pred"
+  },
+  {
+    "name": "numeric_members_signature_4303",
+    "body": "(\"text\").pred(flag:1)",
+    "go_error": "signature_4303: unknown string method pred"
+  },
+  {
+    "name": "numeric_members_signature_4304",
+    "body": "(\"text\").pred() { 7 }",
+    "go_error": "signature_4304: unknown string method pred"
+  },
+  {
+    "name": "numeric_members_signature_4305",
+    "body": "(\"text\").nan?",
+    "go_error": "signature_4305: unknown string method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4306",
+    "body": "(\"text\").nan?()",
+    "go_error": "signature_4306: unknown string method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4307",
+    "body": "(\"text\").nan?(1,2,3)",
+    "go_error": "signature_4307: unknown string method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4308",
+    "body": "(\"text\").nan?(flag:1)",
+    "go_error": "signature_4308: unknown string method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4309",
+    "body": "(\"text\").nan?() { 7 }",
+    "go_error": "signature_4309: unknown string method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4310",
+    "body": "(\"text\").infinite?",
+    "go_error": "signature_4310: unknown string method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4311",
+    "body": "(\"text\").infinite?()",
+    "go_error": "signature_4311: unknown string method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4312",
+    "body": "(\"text\").infinite?(1,2,3)",
+    "go_error": "signature_4312: unknown string method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4313",
+    "body": "(\"text\").infinite?(flag:1)",
+    "go_error": "signature_4313: unknown string method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4314",
+    "body": "(\"text\").infinite?() { 7 }",
+    "go_error": "signature_4314: unknown string method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4315",
+    "body": "(\"text\").finite?",
+    "go_error": "signature_4315: unknown string method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4316",
+    "body": "(\"text\").finite?()",
+    "go_error": "signature_4316: unknown string method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4317",
+    "body": "(\"text\").finite?(1,2,3)",
+    "go_error": "signature_4317: unknown string method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4318",
+    "body": "(\"text\").finite?(flag:1)",
+    "go_error": "signature_4318: unknown string method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4319",
+    "body": "(\"text\").finite?() { 7 }",
+    "go_error": "signature_4319: unknown string method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4320",
+    "body": "(\"text\").round",
+    "go_error": "signature_4320: unknown string method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4321",
+    "body": "(\"text\").round(2)",
+    "go_error": "signature_4321: unknown string method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4322",
+    "body": "(\"text\").round(1,2,3)",
+    "go_error": "signature_4322: unknown string method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4323",
+    "body": "(\"text\").round(2,flag:1)",
+    "go_error": "signature_4323: unknown string method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4324",
+    "body": "(\"text\").round(2) { 7 }",
+    "go_error": "signature_4324: unknown string method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4325",
+    "body": "(\"text\").floor",
+    "go_error": "signature_4325: unknown string method floor"
+  },
+  {
+    "name": "numeric_members_signature_4326",
+    "body": "(\"text\").floor(2)",
+    "go_error": "signature_4326: unknown string method floor"
+  },
+  {
+    "name": "numeric_members_signature_4327",
+    "body": "(\"text\").floor(1,2,3)",
+    "go_error": "signature_4327: unknown string method floor"
+  },
+  {
+    "name": "numeric_members_signature_4328",
+    "body": "(\"text\").floor(2,flag:1)",
+    "go_error": "signature_4328: unknown string method floor"
+  },
+  {
+    "name": "numeric_members_signature_4329",
+    "body": "(\"text\").floor(2) { 7 }",
+    "go_error": "signature_4329: unknown string method floor"
+  },
+  {
+    "name": "numeric_members_signature_4330",
+    "body": "(\"text\").ceil",
+    "go_error": "signature_4330: unknown string method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4331",
+    "body": "(\"text\").ceil(2)",
+    "go_error": "signature_4331: unknown string method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4332",
+    "body": "(\"text\").ceil(1,2,3)",
+    "go_error": "signature_4332: unknown string method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4333",
+    "body": "(\"text\").ceil(2,flag:1)",
+    "go_error": "signature_4333: unknown string method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4334",
+    "body": "(\"text\").ceil(2) { 7 }",
+    "go_error": "signature_4334: unknown string method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4335",
+    "body": "(\"text\").div",
+    "go_error": "signature_4335: unknown string method div"
+  },
+  {
+    "name": "numeric_members_signature_4336",
+    "body": "(\"text\").div(2)",
+    "go_error": "signature_4336: unknown string method div"
+  },
+  {
+    "name": "numeric_members_signature_4337",
+    "body": "(\"text\").div(1,2,3)",
+    "go_error": "signature_4337: unknown string method div"
+  },
+  {
+    "name": "numeric_members_signature_4338",
+    "body": "(\"text\").div(2,flag:1)",
+    "go_error": "signature_4338: unknown string method div"
+  },
+  {
+    "name": "numeric_members_signature_4339",
+    "body": "(\"text\").div(2) { 7 }",
+    "go_error": "signature_4339: unknown string method div"
+  },
+  {
+    "name": "numeric_members_signature_4340",
+    "body": "(\"text\").divmod",
+    "go_error": "signature_4340: unknown string method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4341",
+    "body": "(\"text\").divmod(2)",
+    "go_error": "signature_4341: unknown string method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4342",
+    "body": "(\"text\").divmod(1,2,3)",
+    "go_error": "signature_4342: unknown string method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4343",
+    "body": "(\"text\").divmod(2,flag:1)",
+    "go_error": "signature_4343: unknown string method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4344",
+    "body": "(\"text\").divmod(2) { 7 }",
+    "go_error": "signature_4344: unknown string method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4345",
+    "body": "(\"text\").fdiv",
+    "go_error": "signature_4345: unknown string method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4346",
+    "body": "(\"text\").fdiv(2)",
+    "go_error": "signature_4346: unknown string method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4347",
+    "body": "(\"text\").fdiv(1,2,3)",
+    "go_error": "signature_4347: unknown string method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4348",
+    "body": "(\"text\").fdiv(2,flag:1)",
+    "go_error": "signature_4348: unknown string method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4349",
+    "body": "(\"text\").fdiv(2) { 7 }",
+    "go_error": "signature_4349: unknown string method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4350",
+    "body": "(\"text\").remainder",
+    "go_error": "signature_4350: unknown string method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4351",
+    "body": "(\"text\").remainder(2)",
+    "go_error": "signature_4351: unknown string method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4352",
+    "body": "(\"text\").remainder(1,2,3)",
+    "go_error": "signature_4352: unknown string method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4353",
+    "body": "(\"text\").remainder(2,flag:1)",
+    "go_error": "signature_4353: unknown string method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4354",
+    "body": "(\"text\").remainder(2) { 7 }",
+    "go_error": "signature_4354: unknown string method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4355",
+    "body": "(\"text\").modulo",
+    "go_error": "signature_4355: unknown string method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4356",
+    "body": "(\"text\").modulo(2)",
+    "go_error": "signature_4356: unknown string method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4357",
+    "body": "(\"text\").modulo(1,2,3)",
+    "go_error": "signature_4357: unknown string method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4358",
+    "body": "(\"text\").modulo(2,flag:1)",
+    "go_error": "signature_4358: unknown string method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4359",
+    "body": "(\"text\").modulo(2) { 7 }",
+    "go_error": "signature_4359: unknown string method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4360",
+    "body": "(\"text\").clamp",
+    "go_error": "signature_4360: string.clamp expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4361",
+    "body": "(\"text\").clamp(0,3)",
+    "go_error": "signature_4361: string.clamp bounds must be strings or nil"
+  },
+  {
+    "name": "numeric_members_signature_4362",
+    "body": "(\"text\").clamp(1,2,3)",
+    "go_error": "signature_4362: string.clamp expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4363",
+    "body": "(\"text\").clamp(0,3,flag:1)",
+    "go_error": "signature_4363: string.clamp does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4364",
+    "body": "(\"text\").clamp(0,3) { 7 }",
+    "go_error": "signature_4364: string.clamp does not accept blocks"
+  },
+  {
+    "name": "numeric_members_signature_4365",
+    "body": "(\"text\").between?",
+    "go_error": "signature_4365: string.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4366",
+    "body": "(\"text\").between?(0,3)",
+    "go_error": "signature_4366: unsupported comparison operands"
+  },
+  {
+    "name": "numeric_members_signature_4367",
+    "body": "(\"text\").between?(1,2,3)",
+    "go_error": "signature_4367: string.between? expects min and max"
+  },
+  {
+    "name": "numeric_members_signature_4368",
+    "body": "(\"text\").between?(0,3,flag:1)",
+    "go_error": "signature_4368: string.between? does not take keyword arguments"
+  },
+  {
+    "name": "numeric_members_signature_4369",
+    "body": "(\"text\").between?(0,3) { 7 }",
+    "go_error": "signature_4369: string.between? does not accept a block"
+  },
+  {
+    "name": "numeric_members_signature_4370",
+    "body": "(nil).zero?",
+    "go_error": "signature_4370: unknown nil method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4371",
+    "body": "(nil).zero?()",
+    "go_error": "signature_4371: unknown nil method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4372",
+    "body": "(nil).zero?(1,2,3)",
+    "go_error": "signature_4372: unknown nil method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4373",
+    "body": "(nil).zero?(flag:1)",
+    "go_error": "signature_4373: unknown nil method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4374",
+    "body": "(nil).zero?() { 7 }",
+    "go_error": "signature_4374: unknown nil method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4375",
+    "body": "(nil).positive?",
+    "go_error": "signature_4375: unknown nil method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4376",
+    "body": "(nil).positive?()",
+    "go_error": "signature_4376: unknown nil method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4377",
+    "body": "(nil).positive?(1,2,3)",
+    "go_error": "signature_4377: unknown nil method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4378",
+    "body": "(nil).positive?(flag:1)",
+    "go_error": "signature_4378: unknown nil method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4379",
+    "body": "(nil).positive?() { 7 }",
+    "go_error": "signature_4379: unknown nil method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4380",
+    "body": "(nil).negative?",
+    "go_error": "signature_4380: unknown nil method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4381",
+    "body": "(nil).negative?()",
+    "go_error": "signature_4381: unknown nil method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4382",
+    "body": "(nil).negative?(1,2,3)",
+    "go_error": "signature_4382: unknown nil method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4383",
+    "body": "(nil).negative?(flag:1)",
+    "go_error": "signature_4383: unknown nil method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4384",
+    "body": "(nil).negative?() { 7 }",
+    "go_error": "signature_4384: unknown nil method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4385",
+    "body": "(nil).nonzero?",
+    "go_error": "signature_4385: unknown nil method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4386",
+    "body": "(nil).nonzero?()",
+    "go_error": "signature_4386: unknown nil method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4387",
+    "body": "(nil).nonzero?(1,2,3)",
+    "go_error": "signature_4387: unknown nil method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4388",
+    "body": "(nil).nonzero?(flag:1)",
+    "go_error": "signature_4388: unknown nil method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4389",
+    "body": "(nil).nonzero?() { 7 }",
+    "go_error": "signature_4389: unknown nil method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4390",
+    "body": "(nil).next",
+    "go_error": "signature_4390: unknown nil method next"
+  },
+  {
+    "name": "numeric_members_signature_4391",
+    "body": "(nil).next()",
+    "go_error": "signature_4391: unknown nil method next"
+  },
+  {
+    "name": "numeric_members_signature_4392",
+    "body": "(nil).next(1,2,3)",
+    "go_error": "signature_4392: unknown nil method next"
+  },
+  {
+    "name": "numeric_members_signature_4393",
+    "body": "(nil).next(flag:1)",
+    "go_error": "signature_4393: unknown nil method next"
+  },
+  {
+    "name": "numeric_members_signature_4394",
+    "body": "(nil).next() { 7 }",
+    "go_error": "signature_4394: unknown nil method next"
+  },
+  {
+    "name": "numeric_members_signature_4395",
+    "body": "(nil).succ",
+    "go_error": "signature_4395: unknown nil method succ"
+  },
+  {
+    "name": "numeric_members_signature_4396",
+    "body": "(nil).succ()",
+    "go_error": "signature_4396: unknown nil method succ"
+  },
+  {
+    "name": "numeric_members_signature_4397",
+    "body": "(nil).succ(1,2,3)",
+    "go_error": "signature_4397: unknown nil method succ"
+  },
+  {
+    "name": "numeric_members_signature_4398",
+    "body": "(nil).succ(flag:1)",
+    "go_error": "signature_4398: unknown nil method succ"
+  },
+  {
+    "name": "numeric_members_signature_4399",
+    "body": "(nil).succ() { 7 }",
+    "go_error": "signature_4399: unknown nil method succ"
+  },
+  {
+    "name": "numeric_members_signature_4400",
+    "body": "(nil).pred",
+    "go_error": "signature_4400: unknown nil method pred"
+  },
+  {
+    "name": "numeric_members_signature_4401",
+    "body": "(nil).pred()",
+    "go_error": "signature_4401: unknown nil method pred"
+  },
+  {
+    "name": "numeric_members_signature_4402",
+    "body": "(nil).pred(1,2,3)",
+    "go_error": "signature_4402: unknown nil method pred"
+  },
+  {
+    "name": "numeric_members_signature_4403",
+    "body": "(nil).pred(flag:1)",
+    "go_error": "signature_4403: unknown nil method pred"
+  },
+  {
+    "name": "numeric_members_signature_4404",
+    "body": "(nil).pred() { 7 }",
+    "go_error": "signature_4404: unknown nil method pred"
+  },
+  {
+    "name": "numeric_members_signature_4405",
+    "body": "(nil).nan?",
+    "go_error": "signature_4405: unknown nil method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4406",
+    "body": "(nil).nan?()",
+    "go_error": "signature_4406: unknown nil method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4407",
+    "body": "(nil).nan?(1,2,3)",
+    "go_error": "signature_4407: unknown nil method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4408",
+    "body": "(nil).nan?(flag:1)",
+    "go_error": "signature_4408: unknown nil method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4409",
+    "body": "(nil).nan?() { 7 }",
+    "go_error": "signature_4409: unknown nil method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4410",
+    "body": "(nil).infinite?",
+    "go_error": "signature_4410: unknown nil method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4411",
+    "body": "(nil).infinite?()",
+    "go_error": "signature_4411: unknown nil method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4412",
+    "body": "(nil).infinite?(1,2,3)",
+    "go_error": "signature_4412: unknown nil method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4413",
+    "body": "(nil).infinite?(flag:1)",
+    "go_error": "signature_4413: unknown nil method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4414",
+    "body": "(nil).infinite?() { 7 }",
+    "go_error": "signature_4414: unknown nil method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4415",
+    "body": "(nil).finite?",
+    "go_error": "signature_4415: unknown nil method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4416",
+    "body": "(nil).finite?()",
+    "go_error": "signature_4416: unknown nil method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4417",
+    "body": "(nil).finite?(1,2,3)",
+    "go_error": "signature_4417: unknown nil method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4418",
+    "body": "(nil).finite?(flag:1)",
+    "go_error": "signature_4418: unknown nil method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4419",
+    "body": "(nil).finite?() { 7 }",
+    "go_error": "signature_4419: unknown nil method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4420",
+    "body": "(nil).round",
+    "go_error": "signature_4420: unknown nil method round"
+  },
+  {
+    "name": "numeric_members_signature_4421",
+    "body": "(nil).round(2)",
+    "go_error": "signature_4421: unknown nil method round"
+  },
+  {
+    "name": "numeric_members_signature_4422",
+    "body": "(nil).round(1,2,3)",
+    "go_error": "signature_4422: unknown nil method round"
+  },
+  {
+    "name": "numeric_members_signature_4423",
+    "body": "(nil).round(2,flag:1)",
+    "go_error": "signature_4423: unknown nil method round"
+  },
+  {
+    "name": "numeric_members_signature_4424",
+    "body": "(nil).round(2) { 7 }",
+    "go_error": "signature_4424: unknown nil method round"
+  },
+  {
+    "name": "numeric_members_signature_4425",
+    "body": "(nil).floor",
+    "go_error": "signature_4425: unknown nil method floor"
+  },
+  {
+    "name": "numeric_members_signature_4426",
+    "body": "(nil).floor(2)",
+    "go_error": "signature_4426: unknown nil method floor"
+  },
+  {
+    "name": "numeric_members_signature_4427",
+    "body": "(nil).floor(1,2,3)",
+    "go_error": "signature_4427: unknown nil method floor"
+  },
+  {
+    "name": "numeric_members_signature_4428",
+    "body": "(nil).floor(2,flag:1)",
+    "go_error": "signature_4428: unknown nil method floor"
+  },
+  {
+    "name": "numeric_members_signature_4429",
+    "body": "(nil).floor(2) { 7 }",
+    "go_error": "signature_4429: unknown nil method floor"
+  },
+  {
+    "name": "numeric_members_signature_4430",
+    "body": "(nil).ceil",
+    "go_error": "signature_4430: unknown nil method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4431",
+    "body": "(nil).ceil(2)",
+    "go_error": "signature_4431: unknown nil method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4432",
+    "body": "(nil).ceil(1,2,3)",
+    "go_error": "signature_4432: unknown nil method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4433",
+    "body": "(nil).ceil(2,flag:1)",
+    "go_error": "signature_4433: unknown nil method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4434",
+    "body": "(nil).ceil(2) { 7 }",
+    "go_error": "signature_4434: unknown nil method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4435",
+    "body": "(nil).div",
+    "go_error": "signature_4435: unknown nil method div"
+  },
+  {
+    "name": "numeric_members_signature_4436",
+    "body": "(nil).div(2)",
+    "go_error": "signature_4436: unknown nil method div"
+  },
+  {
+    "name": "numeric_members_signature_4437",
+    "body": "(nil).div(1,2,3)",
+    "go_error": "signature_4437: unknown nil method div"
+  },
+  {
+    "name": "numeric_members_signature_4438",
+    "body": "(nil).div(2,flag:1)",
+    "go_error": "signature_4438: unknown nil method div"
+  },
+  {
+    "name": "numeric_members_signature_4439",
+    "body": "(nil).div(2) { 7 }",
+    "go_error": "signature_4439: unknown nil method div"
+  },
+  {
+    "name": "numeric_members_signature_4440",
+    "body": "(nil).divmod",
+    "go_error": "signature_4440: unknown nil method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4441",
+    "body": "(nil).divmod(2)",
+    "go_error": "signature_4441: unknown nil method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4442",
+    "body": "(nil).divmod(1,2,3)",
+    "go_error": "signature_4442: unknown nil method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4443",
+    "body": "(nil).divmod(2,flag:1)",
+    "go_error": "signature_4443: unknown nil method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4444",
+    "body": "(nil).divmod(2) { 7 }",
+    "go_error": "signature_4444: unknown nil method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4445",
+    "body": "(nil).fdiv",
+    "go_error": "signature_4445: unknown nil method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4446",
+    "body": "(nil).fdiv(2)",
+    "go_error": "signature_4446: unknown nil method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4447",
+    "body": "(nil).fdiv(1,2,3)",
+    "go_error": "signature_4447: unknown nil method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4448",
+    "body": "(nil).fdiv(2,flag:1)",
+    "go_error": "signature_4448: unknown nil method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4449",
+    "body": "(nil).fdiv(2) { 7 }",
+    "go_error": "signature_4449: unknown nil method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4450",
+    "body": "(nil).remainder",
+    "go_error": "signature_4450: unknown nil method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4451",
+    "body": "(nil).remainder(2)",
+    "go_error": "signature_4451: unknown nil method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4452",
+    "body": "(nil).remainder(1,2,3)",
+    "go_error": "signature_4452: unknown nil method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4453",
+    "body": "(nil).remainder(2,flag:1)",
+    "go_error": "signature_4453: unknown nil method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4454",
+    "body": "(nil).remainder(2) { 7 }",
+    "go_error": "signature_4454: unknown nil method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4455",
+    "body": "(nil).modulo",
+    "go_error": "signature_4455: unknown nil method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4456",
+    "body": "(nil).modulo(2)",
+    "go_error": "signature_4456: unknown nil method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4457",
+    "body": "(nil).modulo(1,2,3)",
+    "go_error": "signature_4457: unknown nil method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4458",
+    "body": "(nil).modulo(2,flag:1)",
+    "go_error": "signature_4458: unknown nil method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4459",
+    "body": "(nil).modulo(2) { 7 }",
+    "go_error": "signature_4459: unknown nil method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4460",
+    "body": "(nil).clamp",
+    "go_error": "signature_4460: unknown nil method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4461",
+    "body": "(nil).clamp(0,3)",
+    "go_error": "signature_4461: unknown nil method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4462",
+    "body": "(nil).clamp(1,2,3)",
+    "go_error": "signature_4462: unknown nil method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4463",
+    "body": "(nil).clamp(0,3,flag:1)",
+    "go_error": "signature_4463: unknown nil method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4464",
+    "body": "(nil).clamp(0,3) { 7 }",
+    "go_error": "signature_4464: unknown nil method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4465",
+    "body": "(nil).between?",
+    "go_error": "signature_4465: unknown nil method between?"
+  },
+  {
+    "name": "numeric_members_signature_4466",
+    "body": "(nil).between?(0,3)",
+    "go_error": "signature_4466: unknown nil method between?"
+  },
+  {
+    "name": "numeric_members_signature_4467",
+    "body": "(nil).between?(1,2,3)",
+    "go_error": "signature_4467: unknown nil method between?"
+  },
+  {
+    "name": "numeric_members_signature_4468",
+    "body": "(nil).between?(0,3,flag:1)",
+    "go_error": "signature_4468: unknown nil method between?"
+  },
+  {
+    "name": "numeric_members_signature_4469",
+    "body": "(nil).between?(0,3) { 7 }",
+    "go_error": "signature_4469: unknown nil method between?"
+  },
+  {
+    "name": "numeric_members_signature_4470",
+    "body": "([1]).zero?",
+    "go_error": "signature_4470: unknown array method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4471",
+    "body": "([1]).zero?()",
+    "go_error": "signature_4471: unknown array method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4472",
+    "body": "([1]).zero?(1,2,3)",
+    "go_error": "signature_4472: unknown array method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4473",
+    "body": "([1]).zero?(flag:1)",
+    "go_error": "signature_4473: unknown array method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4474",
+    "body": "([1]).zero?() { 7 }",
+    "go_error": "signature_4474: unknown array method zero?"
+  },
+  {
+    "name": "numeric_members_signature_4475",
+    "body": "([1]).positive?",
+    "go_error": "signature_4475: unknown array method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4476",
+    "body": "([1]).positive?()",
+    "go_error": "signature_4476: unknown array method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4477",
+    "body": "([1]).positive?(1,2,3)",
+    "go_error": "signature_4477: unknown array method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4478",
+    "body": "([1]).positive?(flag:1)",
+    "go_error": "signature_4478: unknown array method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4479",
+    "body": "([1]).positive?() { 7 }",
+    "go_error": "signature_4479: unknown array method positive?"
+  },
+  {
+    "name": "numeric_members_signature_4480",
+    "body": "([1]).negative?",
+    "go_error": "signature_4480: unknown array method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4481",
+    "body": "([1]).negative?()",
+    "go_error": "signature_4481: unknown array method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4482",
+    "body": "([1]).negative?(1,2,3)",
+    "go_error": "signature_4482: unknown array method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4483",
+    "body": "([1]).negative?(flag:1)",
+    "go_error": "signature_4483: unknown array method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4484",
+    "body": "([1]).negative?() { 7 }",
+    "go_error": "signature_4484: unknown array method negative?"
+  },
+  {
+    "name": "numeric_members_signature_4485",
+    "body": "([1]).nonzero?",
+    "go_error": "signature_4485: unknown array method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4486",
+    "body": "([1]).nonzero?()",
+    "go_error": "signature_4486: unknown array method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4487",
+    "body": "([1]).nonzero?(1,2,3)",
+    "go_error": "signature_4487: unknown array method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4488",
+    "body": "([1]).nonzero?(flag:1)",
+    "go_error": "signature_4488: unknown array method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4489",
+    "body": "([1]).nonzero?() { 7 }",
+    "go_error": "signature_4489: unknown array method nonzero?"
+  },
+  {
+    "name": "numeric_members_signature_4490",
+    "body": "([1]).next",
+    "go_error": "signature_4490: unknown array method next"
+  },
+  {
+    "name": "numeric_members_signature_4491",
+    "body": "([1]).next()",
+    "go_error": "signature_4491: unknown array method next"
+  },
+  {
+    "name": "numeric_members_signature_4492",
+    "body": "([1]).next(1,2,3)",
+    "go_error": "signature_4492: unknown array method next"
+  },
+  {
+    "name": "numeric_members_signature_4493",
+    "body": "([1]).next(flag:1)",
+    "go_error": "signature_4493: unknown array method next"
+  },
+  {
+    "name": "numeric_members_signature_4494",
+    "body": "([1]).next() { 7 }",
+    "go_error": "signature_4494: unknown array method next"
+  },
+  {
+    "name": "numeric_members_signature_4495",
+    "body": "([1]).succ",
+    "go_error": "signature_4495: unknown array method succ"
+  },
+  {
+    "name": "numeric_members_signature_4496",
+    "body": "([1]).succ()",
+    "go_error": "signature_4496: unknown array method succ"
+  },
+  {
+    "name": "numeric_members_signature_4497",
+    "body": "([1]).succ(1,2,3)",
+    "go_error": "signature_4497: unknown array method succ"
+  },
+  {
+    "name": "numeric_members_signature_4498",
+    "body": "([1]).succ(flag:1)",
+    "go_error": "signature_4498: unknown array method succ"
+  },
+  {
+    "name": "numeric_members_signature_4499",
+    "body": "([1]).succ() { 7 }",
+    "go_error": "signature_4499: unknown array method succ"
+  },
+  {
+    "name": "numeric_members_signature_4500",
+    "body": "([1]).pred",
+    "go_error": "signature_4500: unknown array method pred"
+  },
+  {
+    "name": "numeric_members_signature_4501",
+    "body": "([1]).pred()",
+    "go_error": "signature_4501: unknown array method pred"
+  },
+  {
+    "name": "numeric_members_signature_4502",
+    "body": "([1]).pred(1,2,3)",
+    "go_error": "signature_4502: unknown array method pred"
+  },
+  {
+    "name": "numeric_members_signature_4503",
+    "body": "([1]).pred(flag:1)",
+    "go_error": "signature_4503: unknown array method pred"
+  },
+  {
+    "name": "numeric_members_signature_4504",
+    "body": "([1]).pred() { 7 }",
+    "go_error": "signature_4504: unknown array method pred"
+  },
+  {
+    "name": "numeric_members_signature_4505",
+    "body": "([1]).nan?",
+    "go_error": "signature_4505: unknown array method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4506",
+    "body": "([1]).nan?()",
+    "go_error": "signature_4506: unknown array method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4507",
+    "body": "([1]).nan?(1,2,3)",
+    "go_error": "signature_4507: unknown array method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4508",
+    "body": "([1]).nan?(flag:1)",
+    "go_error": "signature_4508: unknown array method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4509",
+    "body": "([1]).nan?() { 7 }",
+    "go_error": "signature_4509: unknown array method nan?"
+  },
+  {
+    "name": "numeric_members_signature_4510",
+    "body": "([1]).infinite?",
+    "go_error": "signature_4510: unknown array method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4511",
+    "body": "([1]).infinite?()",
+    "go_error": "signature_4511: unknown array method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4512",
+    "body": "([1]).infinite?(1,2,3)",
+    "go_error": "signature_4512: unknown array method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4513",
+    "body": "([1]).infinite?(flag:1)",
+    "go_error": "signature_4513: unknown array method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4514",
+    "body": "([1]).infinite?() { 7 }",
+    "go_error": "signature_4514: unknown array method infinite?"
+  },
+  {
+    "name": "numeric_members_signature_4515",
+    "body": "([1]).finite?",
+    "go_error": "signature_4515: unknown array method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4516",
+    "body": "([1]).finite?()",
+    "go_error": "signature_4516: unknown array method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4517",
+    "body": "([1]).finite?(1,2,3)",
+    "go_error": "signature_4517: unknown array method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4518",
+    "body": "([1]).finite?(flag:1)",
+    "go_error": "signature_4518: unknown array method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4519",
+    "body": "([1]).finite?() { 7 }",
+    "go_error": "signature_4519: unknown array method finite?"
+  },
+  {
+    "name": "numeric_members_signature_4520",
+    "body": "([1]).round",
+    "go_error": "signature_4520: unknown array method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4521",
+    "body": "([1]).round(2)",
+    "go_error": "signature_4521: unknown array method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4522",
+    "body": "([1]).round(1,2,3)",
+    "go_error": "signature_4522: unknown array method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4523",
+    "body": "([1]).round(2,flag:1)",
+    "go_error": "signature_4523: unknown array method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4524",
+    "body": "([1]).round(2) { 7 }",
+    "go_error": "signature_4524: unknown array method round (did you mean \"count\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4525",
+    "body": "([1]).floor",
+    "go_error": "signature_4525: unknown array method floor"
+  },
+  {
+    "name": "numeric_members_signature_4526",
+    "body": "([1]).floor(2)",
+    "go_error": "signature_4526: unknown array method floor"
+  },
+  {
+    "name": "numeric_members_signature_4527",
+    "body": "([1]).floor(1,2,3)",
+    "go_error": "signature_4527: unknown array method floor"
+  },
+  {
+    "name": "numeric_members_signature_4528",
+    "body": "([1]).floor(2,flag:1)",
+    "go_error": "signature_4528: unknown array method floor"
+  },
+  {
+    "name": "numeric_members_signature_4529",
+    "body": "([1]).floor(2) { 7 }",
+    "go_error": "signature_4529: unknown array method floor"
+  },
+  {
+    "name": "numeric_members_signature_4530",
+    "body": "([1]).ceil",
+    "go_error": "signature_4530: unknown array method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4531",
+    "body": "([1]).ceil(2)",
+    "go_error": "signature_4531: unknown array method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4532",
+    "body": "([1]).ceil(1,2,3)",
+    "go_error": "signature_4532: unknown array method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4533",
+    "body": "([1]).ceil(2,flag:1)",
+    "go_error": "signature_4533: unknown array method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4534",
+    "body": "([1]).ceil(2) { 7 }",
+    "go_error": "signature_4534: unknown array method ceil"
+  },
+  {
+    "name": "numeric_members_signature_4535",
+    "body": "([1]).div",
+    "go_error": "signature_4535: unknown array method div (did you mean \"dig\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4536",
+    "body": "([1]).div(2)",
+    "go_error": "signature_4536: unknown array method div (did you mean \"dig\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4537",
+    "body": "([1]).div(1,2,3)",
+    "go_error": "signature_4537: unknown array method div (did you mean \"dig\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4538",
+    "body": "([1]).div(2,flag:1)",
+    "go_error": "signature_4538: unknown array method div (did you mean \"dig\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4539",
+    "body": "([1]).div(2) { 7 }",
+    "go_error": "signature_4539: unknown array method div (did you mean \"dig\"?)"
+  },
+  {
+    "name": "numeric_members_signature_4540",
+    "body": "([1]).divmod",
+    "go_error": "signature_4540: unknown array method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4541",
+    "body": "([1]).divmod(2)",
+    "go_error": "signature_4541: unknown array method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4542",
+    "body": "([1]).divmod(1,2,3)",
+    "go_error": "signature_4542: unknown array method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4543",
+    "body": "([1]).divmod(2,flag:1)",
+    "go_error": "signature_4543: unknown array method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4544",
+    "body": "([1]).divmod(2) { 7 }",
+    "go_error": "signature_4544: unknown array method divmod"
+  },
+  {
+    "name": "numeric_members_signature_4545",
+    "body": "([1]).fdiv",
+    "go_error": "signature_4545: unknown array method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4546",
+    "body": "([1]).fdiv(2)",
+    "go_error": "signature_4546: unknown array method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4547",
+    "body": "([1]).fdiv(1,2,3)",
+    "go_error": "signature_4547: unknown array method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4548",
+    "body": "([1]).fdiv(2,flag:1)",
+    "go_error": "signature_4548: unknown array method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4549",
+    "body": "([1]).fdiv(2) { 7 }",
+    "go_error": "signature_4549: unknown array method fdiv"
+  },
+  {
+    "name": "numeric_members_signature_4550",
+    "body": "([1]).remainder",
+    "go_error": "signature_4550: unknown array method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4551",
+    "body": "([1]).remainder(2)",
+    "go_error": "signature_4551: unknown array method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4552",
+    "body": "([1]).remainder(1,2,3)",
+    "go_error": "signature_4552: unknown array method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4553",
+    "body": "([1]).remainder(2,flag:1)",
+    "go_error": "signature_4553: unknown array method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4554",
+    "body": "([1]).remainder(2) { 7 }",
+    "go_error": "signature_4554: unknown array method remainder"
+  },
+  {
+    "name": "numeric_members_signature_4555",
+    "body": "([1]).modulo",
+    "go_error": "signature_4555: unknown array method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4556",
+    "body": "([1]).modulo(2)",
+    "go_error": "signature_4556: unknown array method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4557",
+    "body": "([1]).modulo(1,2,3)",
+    "go_error": "signature_4557: unknown array method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4558",
+    "body": "([1]).modulo(2,flag:1)",
+    "go_error": "signature_4558: unknown array method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4559",
+    "body": "([1]).modulo(2) { 7 }",
+    "go_error": "signature_4559: unknown array method modulo"
+  },
+  {
+    "name": "numeric_members_signature_4560",
+    "body": "([1]).clamp",
+    "go_error": "signature_4560: unknown array method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4561",
+    "body": "([1]).clamp(0,3)",
+    "go_error": "signature_4561: unknown array method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4562",
+    "body": "([1]).clamp(1,2,3)",
+    "go_error": "signature_4562: unknown array method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4563",
+    "body": "([1]).clamp(0,3,flag:1)",
+    "go_error": "signature_4563: unknown array method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4564",
+    "body": "([1]).clamp(0,3) { 7 }",
+    "go_error": "signature_4564: unknown array method clamp"
+  },
+  {
+    "name": "numeric_members_signature_4565",
+    "body": "([1]).between?",
+    "go_error": "signature_4565: unknown array method between?"
+  },
+  {
+    "name": "numeric_members_signature_4566",
+    "body": "([1]).between?(0,3)",
+    "go_error": "signature_4566: unknown array method between?"
+  },
+  {
+    "name": "numeric_members_signature_4567",
+    "body": "([1]).between?(1,2,3)",
+    "go_error": "signature_4567: unknown array method between?"
+  },
+  {
+    "name": "numeric_members_signature_4568",
+    "body": "([1]).between?(0,3,flag:1)",
+    "go_error": "signature_4568: unknown array method between?"
+  },
+  {
+    "name": "numeric_members_signature_4569",
+    "body": "([1]).between?(0,3) { 7 }",
+    "go_error": "signature_4569: unknown array method between?"
+  },
+  {
+    "name": "numeric_members_precision_4570",
+    "body": "(1).round(2147483648).to_s",
+    "go_error": "precision_4570: int.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4571",
+    "body": "(1).floor(2147483648).to_s",
+    "go_error": "precision_4571: int.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4572",
+    "body": "(1).ceil(2147483648).to_s",
+    "go_error": "precision_4572: int.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4573",
+    "body": "(1).round(-2147483649).to_s",
+    "go_error": "precision_4573: int.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4574",
+    "body": "(1).floor(-2147483649).to_s",
+    "go_error": "precision_4574: int.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4575",
+    "body": "(1).ceil(-2147483649).to_s",
+    "go_error": "precision_4575: int.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4576",
+    "body": "(1).round(2**100).to_s",
+    "go_error": "precision_4576: int.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4577",
+    "body": "(1).floor(2**100).to_s",
+    "go_error": "precision_4577: int.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4578",
+    "body": "(1).ceil(2**100).to_s",
+    "go_error": "precision_4578: int.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4579",
+    "body": "(1).round(-2**100).to_s",
+    "go_error": "precision_4579: int.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4580",
+    "body": "(1).floor(-2**100).to_s",
+    "go_error": "precision_4580: int.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4581",
+    "body": "(1).ceil(-2**100).to_s",
+    "go_error": "precision_4581: int.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4582",
+    "body": "(1).round(1.5).to_s",
+    "go_error": "precision_4582: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4583",
+    "body": "(1).floor(1.5).to_s",
+    "go_error": "precision_4583: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4584",
+    "body": "(1).ceil(1.5).to_s",
+    "go_error": "precision_4584: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4585",
+    "body": "(1).round(nil).to_s",
+    "go_error": "precision_4585: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4586",
+    "body": "(1).floor(nil).to_s",
+    "go_error": "precision_4586: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4587",
+    "body": "(1).ceil(nil).to_s",
+    "go_error": "precision_4587: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4588",
+    "body": "(1).round(\"2\").to_s",
+    "go_error": "precision_4588: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4589",
+    "body": "(1).floor(\"2\").to_s",
+    "go_error": "precision_4589: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4590",
+    "body": "(1).ceil(\"2\").to_s",
+    "go_error": "precision_4590: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4593",
+    "body": "(1).ceil(-2147483648).to_s",
+    "go_error": "precision_4593: memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "numeric_members_precision_4594",
+    "body": "(-1).round(2147483648).to_s",
+    "go_error": "precision_4594: int.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4595",
+    "body": "(-1).floor(2147483648).to_s",
+    "go_error": "precision_4595: int.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4596",
+    "body": "(-1).ceil(2147483648).to_s",
+    "go_error": "precision_4596: int.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4597",
+    "body": "(-1).round(-2147483649).to_s",
+    "go_error": "precision_4597: int.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4598",
+    "body": "(-1).floor(-2147483649).to_s",
+    "go_error": "precision_4598: int.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4599",
+    "body": "(-1).ceil(-2147483649).to_s",
+    "go_error": "precision_4599: int.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4600",
+    "body": "(-1).round(2**100).to_s",
+    "go_error": "precision_4600: int.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4601",
+    "body": "(-1).floor(2**100).to_s",
+    "go_error": "precision_4601: int.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4602",
+    "body": "(-1).ceil(2**100).to_s",
+    "go_error": "precision_4602: int.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4603",
+    "body": "(-1).round(-2**100).to_s",
+    "go_error": "precision_4603: int.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4604",
+    "body": "(-1).floor(-2**100).to_s",
+    "go_error": "precision_4604: int.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4605",
+    "body": "(-1).ceil(-2**100).to_s",
+    "go_error": "precision_4605: int.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4606",
+    "body": "(-1).round(1.5).to_s",
+    "go_error": "precision_4606: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4607",
+    "body": "(-1).floor(1.5).to_s",
+    "go_error": "precision_4607: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4608",
+    "body": "(-1).ceil(1.5).to_s",
+    "go_error": "precision_4608: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4609",
+    "body": "(-1).round(nil).to_s",
+    "go_error": "precision_4609: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4610",
+    "body": "(-1).floor(nil).to_s",
+    "go_error": "precision_4610: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4611",
+    "body": "(-1).ceil(nil).to_s",
+    "go_error": "precision_4611: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4612",
+    "body": "(-1).round(\"2\").to_s",
+    "go_error": "precision_4612: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4613",
+    "body": "(-1).floor(\"2\").to_s",
+    "go_error": "precision_4613: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4614",
+    "body": "(-1).ceil(\"2\").to_s",
+    "go_error": "precision_4614: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4616",
+    "body": "(-1).floor(-2147483648).to_s",
+    "go_error": "precision_4616: memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "numeric_members_precision_4618",
+    "body": "(1.5).round(2147483648).to_s",
+    "go_error": "precision_4618: float.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4619",
+    "body": "(1.5).floor(2147483648).to_s",
+    "go_error": "precision_4619: float.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4620",
+    "body": "(1.5).ceil(2147483648).to_s",
+    "go_error": "precision_4620: float.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4621",
+    "body": "(1.5).round(-2147483649).to_s",
+    "go_error": "precision_4621: float.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4622",
+    "body": "(1.5).floor(-2147483649).to_s",
+    "go_error": "precision_4622: float.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4623",
+    "body": "(1.5).ceil(-2147483649).to_s",
+    "go_error": "precision_4623: float.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4624",
+    "body": "(1.5).round(2**100).to_s",
+    "go_error": "precision_4624: float.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4625",
+    "body": "(1.5).floor(2**100).to_s",
+    "go_error": "precision_4625: float.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4626",
+    "body": "(1.5).ceil(2**100).to_s",
+    "go_error": "precision_4626: float.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4627",
+    "body": "(1.5).round(-2**100).to_s",
+    "go_error": "precision_4627: float.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4628",
+    "body": "(1.5).floor(-2**100).to_s",
+    "go_error": "precision_4628: float.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4629",
+    "body": "(1.5).ceil(-2**100).to_s",
+    "go_error": "precision_4629: float.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4630",
+    "body": "(1.5).round(1.5).to_s",
+    "go_error": "precision_4630: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4631",
+    "body": "(1.5).floor(1.5).to_s",
+    "go_error": "precision_4631: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4632",
+    "body": "(1.5).ceil(1.5).to_s",
+    "go_error": "precision_4632: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4633",
+    "body": "(1.5).round(nil).to_s",
+    "go_error": "precision_4633: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4634",
+    "body": "(1.5).floor(nil).to_s",
+    "go_error": "precision_4634: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4635",
+    "body": "(1.5).ceil(nil).to_s",
+    "go_error": "precision_4635: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4636",
+    "body": "(1.5).round(\"2\").to_s",
+    "go_error": "precision_4636: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4637",
+    "body": "(1.5).floor(\"2\").to_s",
+    "go_error": "precision_4637: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4638",
+    "body": "(1.5).ceil(\"2\").to_s",
+    "go_error": "precision_4638: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4641",
+    "body": "(1.5).ceil(-2147483648).to_s",
+    "go_error": "precision_4641: memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "numeric_members_precision_4642",
+    "body": "(-1.5).round(2147483648).to_s",
+    "go_error": "precision_4642: float.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4643",
+    "body": "(-1.5).floor(2147483648).to_s",
+    "go_error": "precision_4643: float.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4644",
+    "body": "(-1.5).ceil(2147483648).to_s",
+    "go_error": "precision_4644: float.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4645",
+    "body": "(-1.5).round(-2147483649).to_s",
+    "go_error": "precision_4645: float.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4646",
+    "body": "(-1.5).floor(-2147483649).to_s",
+    "go_error": "precision_4646: float.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4647",
+    "body": "(-1.5).ceil(-2147483649).to_s",
+    "go_error": "precision_4647: float.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4648",
+    "body": "(-1.5).round(2**100).to_s",
+    "go_error": "precision_4648: float.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4649",
+    "body": "(-1.5).floor(2**100).to_s",
+    "go_error": "precision_4649: float.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4650",
+    "body": "(-1.5).ceil(2**100).to_s",
+    "go_error": "precision_4650: float.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4651",
+    "body": "(-1.5).round(-2**100).to_s",
+    "go_error": "precision_4651: float.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4652",
+    "body": "(-1.5).floor(-2**100).to_s",
+    "go_error": "precision_4652: float.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4653",
+    "body": "(-1.5).ceil(-2**100).to_s",
+    "go_error": "precision_4653: float.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4654",
+    "body": "(-1.5).round(1.5).to_s",
+    "go_error": "precision_4654: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4655",
+    "body": "(-1.5).floor(1.5).to_s",
+    "go_error": "precision_4655: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4656",
+    "body": "(-1.5).ceil(1.5).to_s",
+    "go_error": "precision_4656: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4657",
+    "body": "(-1.5).round(nil).to_s",
+    "go_error": "precision_4657: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4658",
+    "body": "(-1.5).floor(nil).to_s",
+    "go_error": "precision_4658: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4659",
+    "body": "(-1.5).ceil(nil).to_s",
+    "go_error": "precision_4659: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4660",
+    "body": "(-1.5).round(\"2\").to_s",
+    "go_error": "precision_4660: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4661",
+    "body": "(-1.5).floor(\"2\").to_s",
+    "go_error": "precision_4661: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4662",
+    "body": "(-1.5).ceil(\"2\").to_s",
+    "go_error": "precision_4662: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4664",
+    "body": "(-1.5).floor(-2147483648).to_s",
+    "go_error": "precision_4664: memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "numeric_members_precision_4666",
+    "body": "(2**200).round(2147483648).to_s",
+    "go_error": "precision_4666: int.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4667",
+    "body": "(2**200).floor(2147483648).to_s",
+    "go_error": "precision_4667: int.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4668",
+    "body": "(2**200).ceil(2147483648).to_s",
+    "go_error": "precision_4668: int.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4669",
+    "body": "(2**200).round(-2147483649).to_s",
+    "go_error": "precision_4669: int.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4670",
+    "body": "(2**200).floor(-2147483649).to_s",
+    "go_error": "precision_4670: int.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4671",
+    "body": "(2**200).ceil(-2147483649).to_s",
+    "go_error": "precision_4671: int.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4672",
+    "body": "(2**200).round(2**100).to_s",
+    "go_error": "precision_4672: int.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4673",
+    "body": "(2**200).floor(2**100).to_s",
+    "go_error": "precision_4673: int.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4674",
+    "body": "(2**200).ceil(2**100).to_s",
+    "go_error": "precision_4674: int.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4675",
+    "body": "(2**200).round(-2**100).to_s",
+    "go_error": "precision_4675: int.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4676",
+    "body": "(2**200).floor(-2**100).to_s",
+    "go_error": "precision_4676: int.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4677",
+    "body": "(2**200).ceil(-2**100).to_s",
+    "go_error": "precision_4677: int.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4678",
+    "body": "(2**200).round(1.5).to_s",
+    "go_error": "precision_4678: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4679",
+    "body": "(2**200).floor(1.5).to_s",
+    "go_error": "precision_4679: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4680",
+    "body": "(2**200).ceil(1.5).to_s",
+    "go_error": "precision_4680: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4681",
+    "body": "(2**200).round(nil).to_s",
+    "go_error": "precision_4681: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4682",
+    "body": "(2**200).floor(nil).to_s",
+    "go_error": "precision_4682: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4683",
+    "body": "(2**200).ceil(nil).to_s",
+    "go_error": "precision_4683: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4684",
+    "body": "(2**200).round(\"2\").to_s",
+    "go_error": "precision_4684: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4685",
+    "body": "(2**200).floor(\"2\").to_s",
+    "go_error": "precision_4685: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4686",
+    "body": "(2**200).ceil(\"2\").to_s",
+    "go_error": "precision_4686: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4689",
+    "body": "(2**200).ceil(-2147483648).to_s",
+    "go_error": "precision_4689: memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "numeric_members_precision_4690",
+    "body": "(-2**200).round(2147483648).to_s",
+    "go_error": "precision_4690: int.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4691",
+    "body": "(-2**200).floor(2147483648).to_s",
+    "go_error": "precision_4691: int.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4692",
+    "body": "(-2**200).ceil(2147483648).to_s",
+    "go_error": "precision_4692: int.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4693",
+    "body": "(-2**200).round(-2147483649).to_s",
+    "go_error": "precision_4693: int.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4694",
+    "body": "(-2**200).floor(-2147483649).to_s",
+    "go_error": "precision_4694: int.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4695",
+    "body": "(-2**200).ceil(-2147483649).to_s",
+    "go_error": "precision_4695: int.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4696",
+    "body": "(-2**200).round(2**100).to_s",
+    "go_error": "precision_4696: int.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4697",
+    "body": "(-2**200).floor(2**100).to_s",
+    "go_error": "precision_4697: int.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4698",
+    "body": "(-2**200).ceil(2**100).to_s",
+    "go_error": "precision_4698: int.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4699",
+    "body": "(-2**200).round(-2**100).to_s",
+    "go_error": "precision_4699: int.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4700",
+    "body": "(-2**200).floor(-2**100).to_s",
+    "go_error": "precision_4700: int.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4701",
+    "body": "(-2**200).ceil(-2**100).to_s",
+    "go_error": "precision_4701: int.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4702",
+    "body": "(-2**200).round(1.5).to_s",
+    "go_error": "precision_4702: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4703",
+    "body": "(-2**200).floor(1.5).to_s",
+    "go_error": "precision_4703: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4704",
+    "body": "(-2**200).ceil(1.5).to_s",
+    "go_error": "precision_4704: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4705",
+    "body": "(-2**200).round(nil).to_s",
+    "go_error": "precision_4705: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4706",
+    "body": "(-2**200).floor(nil).to_s",
+    "go_error": "precision_4706: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4707",
+    "body": "(-2**200).ceil(nil).to_s",
+    "go_error": "precision_4707: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4708",
+    "body": "(-2**200).round(\"2\").to_s",
+    "go_error": "precision_4708: int.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4709",
+    "body": "(-2**200).floor(\"2\").to_s",
+    "go_error": "precision_4709: int.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4710",
+    "body": "(-2**200).ceil(\"2\").to_s",
+    "go_error": "precision_4710: int.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4712",
+    "body": "(-2**200).floor(-2147483648).to_s",
+    "go_error": "precision_4712: memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "numeric_members_precision_4714",
+    "body": "(1e309).round(2147483648).to_s",
+    "go_error": "precision_4714: float.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4715",
+    "body": "(1e309).floor(2147483648).to_s",
+    "go_error": "precision_4715: float.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4716",
+    "body": "(1e309).ceil(2147483648).to_s",
+    "go_error": "precision_4716: float.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4717",
+    "body": "(1e309).round(-2147483649).to_s",
+    "go_error": "precision_4717: float.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4718",
+    "body": "(1e309).floor(-2147483649).to_s",
+    "go_error": "precision_4718: float.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4719",
+    "body": "(1e309).ceil(-2147483649).to_s",
+    "go_error": "precision_4719: float.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4720",
+    "body": "(1e309).round(2**100).to_s",
+    "go_error": "precision_4720: float.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4721",
+    "body": "(1e309).floor(2**100).to_s",
+    "go_error": "precision_4721: float.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4722",
+    "body": "(1e309).ceil(2**100).to_s",
+    "go_error": "precision_4722: float.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4723",
+    "body": "(1e309).round(-2**100).to_s",
+    "go_error": "precision_4723: float.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4724",
+    "body": "(1e309).floor(-2**100).to_s",
+    "go_error": "precision_4724: float.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4725",
+    "body": "(1e309).ceil(-2**100).to_s",
+    "go_error": "precision_4725: float.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4726",
+    "body": "(1e309).round(1.5).to_s",
+    "go_error": "precision_4726: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4727",
+    "body": "(1e309).floor(1.5).to_s",
+    "go_error": "precision_4727: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4728",
+    "body": "(1e309).ceil(1.5).to_s",
+    "go_error": "precision_4728: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4729",
+    "body": "(1e309).round(nil).to_s",
+    "go_error": "precision_4729: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4730",
+    "body": "(1e309).floor(nil).to_s",
+    "go_error": "precision_4730: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4731",
+    "body": "(1e309).ceil(nil).to_s",
+    "go_error": "precision_4731: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4732",
+    "body": "(1e309).round(\"2\").to_s",
+    "go_error": "precision_4732: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4733",
+    "body": "(1e309).floor(\"2\").to_s",
+    "go_error": "precision_4733: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4734",
+    "body": "(1e309).ceil(\"2\").to_s",
+    "go_error": "precision_4734: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4735",
+    "body": "(1e309).round(-2147483648).to_s",
+    "go_error": "precision_4735: float.round result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4736",
+    "body": "(1e309).floor(-2147483648).to_s",
+    "go_error": "precision_4736: float.floor result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4737",
+    "body": "(1e309).ceil(-2147483648).to_s",
+    "go_error": "precision_4737: float.ceil result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4738",
+    "body": "(-1e309).round(2147483648).to_s",
+    "go_error": "precision_4738: float.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4739",
+    "body": "(-1e309).floor(2147483648).to_s",
+    "go_error": "precision_4739: float.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4740",
+    "body": "(-1e309).ceil(2147483648).to_s",
+    "go_error": "precision_4740: float.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4741",
+    "body": "(-1e309).round(-2147483649).to_s",
+    "go_error": "precision_4741: float.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4742",
+    "body": "(-1e309).floor(-2147483649).to_s",
+    "go_error": "precision_4742: float.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4743",
+    "body": "(-1e309).ceil(-2147483649).to_s",
+    "go_error": "precision_4743: float.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4744",
+    "body": "(-1e309).round(2**100).to_s",
+    "go_error": "precision_4744: float.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4745",
+    "body": "(-1e309).floor(2**100).to_s",
+    "go_error": "precision_4745: float.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4746",
+    "body": "(-1e309).ceil(2**100).to_s",
+    "go_error": "precision_4746: float.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4747",
+    "body": "(-1e309).round(-2**100).to_s",
+    "go_error": "precision_4747: float.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4748",
+    "body": "(-1e309).floor(-2**100).to_s",
+    "go_error": "precision_4748: float.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4749",
+    "body": "(-1e309).ceil(-2**100).to_s",
+    "go_error": "precision_4749: float.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4750",
+    "body": "(-1e309).round(1.5).to_s",
+    "go_error": "precision_4750: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4751",
+    "body": "(-1e309).floor(1.5).to_s",
+    "go_error": "precision_4751: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4752",
+    "body": "(-1e309).ceil(1.5).to_s",
+    "go_error": "precision_4752: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4753",
+    "body": "(-1e309).round(nil).to_s",
+    "go_error": "precision_4753: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4754",
+    "body": "(-1e309).floor(nil).to_s",
+    "go_error": "precision_4754: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4755",
+    "body": "(-1e309).ceil(nil).to_s",
+    "go_error": "precision_4755: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4756",
+    "body": "(-1e309).round(\"2\").to_s",
+    "go_error": "precision_4756: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4757",
+    "body": "(-1e309).floor(\"2\").to_s",
+    "go_error": "precision_4757: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4758",
+    "body": "(-1e309).ceil(\"2\").to_s",
+    "go_error": "precision_4758: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4759",
+    "body": "(-1e309).round(-2147483648).to_s",
+    "go_error": "precision_4759: float.round result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4760",
+    "body": "(-1e309).floor(-2147483648).to_s",
+    "go_error": "precision_4760: float.floor result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4761",
+    "body": "(-1e309).ceil(-2147483648).to_s",
+    "go_error": "precision_4761: float.ceil result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4762",
+    "body": "(0.0/0.0).round(2147483648).to_s",
+    "go_error": "precision_4762: float.round precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4763",
+    "body": "(0.0/0.0).floor(2147483648).to_s",
+    "go_error": "precision_4763: float.floor precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4764",
+    "body": "(0.0/0.0).ceil(2147483648).to_s",
+    "go_error": "precision_4764: float.ceil precision 2147483648 too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4765",
+    "body": "(0.0/0.0).round(-2147483649).to_s",
+    "go_error": "precision_4765: float.round precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4766",
+    "body": "(0.0/0.0).floor(-2147483649).to_s",
+    "go_error": "precision_4766: float.floor precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4767",
+    "body": "(0.0/0.0).ceil(-2147483649).to_s",
+    "go_error": "precision_4767: float.ceil precision -2147483649 too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4768",
+    "body": "(0.0/0.0).round(2**100).to_s",
+    "go_error": "precision_4768: float.round precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4769",
+    "body": "(0.0/0.0).floor(2**100).to_s",
+    "go_error": "precision_4769: float.floor precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4770",
+    "body": "(0.0/0.0).ceil(2**100).to_s",
+    "go_error": "precision_4770: float.ceil precision too big to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4771",
+    "body": "(0.0/0.0).round(-2**100).to_s",
+    "go_error": "precision_4771: float.round precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4772",
+    "body": "(0.0/0.0).floor(-2**100).to_s",
+    "go_error": "precision_4772: float.floor precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4773",
+    "body": "(0.0/0.0).ceil(-2**100).to_s",
+    "go_error": "precision_4773: float.ceil precision too small to convert to int"
+  },
+  {
+    "name": "numeric_members_precision_4774",
+    "body": "(0.0/0.0).round(1.5).to_s",
+    "go_error": "precision_4774: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4775",
+    "body": "(0.0/0.0).floor(1.5).to_s",
+    "go_error": "precision_4775: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4776",
+    "body": "(0.0/0.0).ceil(1.5).to_s",
+    "go_error": "precision_4776: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4777",
+    "body": "(0.0/0.0).round(nil).to_s",
+    "go_error": "precision_4777: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4778",
+    "body": "(0.0/0.0).floor(nil).to_s",
+    "go_error": "precision_4778: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4779",
+    "body": "(0.0/0.0).ceil(nil).to_s",
+    "go_error": "precision_4779: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4780",
+    "body": "(0.0/0.0).round(\"2\").to_s",
+    "go_error": "precision_4780: float.round precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4781",
+    "body": "(0.0/0.0).floor(\"2\").to_s",
+    "go_error": "precision_4781: float.floor precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4782",
+    "body": "(0.0/0.0).ceil(\"2\").to_s",
+    "go_error": "precision_4782: float.ceil precision must be an Integer"
+  },
+  {
+    "name": "numeric_members_precision_4783",
+    "body": "(0.0/0.0).round(-2147483648).to_s",
+    "go_error": "precision_4783: float.round result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4784",
+    "body": "(0.0/0.0).floor(-2147483648).to_s",
+    "go_error": "precision_4784: float.floor result out of int64 range"
+  },
+  {
+    "name": "numeric_members_precision_4785",
+    "body": "(0.0/0.0).ceil(-2147483648).to_s",
+    "go_error": "precision_4785: float.ceil result out of int64 range"
+  },
+  {
+    "name": "numeric_members_block_effect_4788",
+    "body": "seen=[];result=1.clamp(0,2) { seen.push(1) };[result,seen]",
+    "go_error": "block_effect_4788: int.clamp does not accept blocks"
+  },
+  {
+    "name": "numeric_members_block_effect_4789",
+    "body": "seen=[];result=1.between?(0,2) { seen.push(1) };[result,seen]",
+    "go_error": "block_effect_4789: int.between? does not accept a block"
   }
 ]

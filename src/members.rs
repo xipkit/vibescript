@@ -14,7 +14,7 @@ pub(crate) fn call_keywords(
 ) -> Result<(Value, Value)> {
     let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
     if numeric
-        && (name == "inspect"
+        && (matches!(name, "inspect" | "clamp" | "between?")
             || matches!(
                 site.method,
                 Some(Method::ToString | Method::ToInt | Method::ToFloat)
@@ -83,6 +83,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(result) = crate::numeric::call(ctx, name, &receiver, args)? {
+        return Ok((receiver, result));
+    }
     if name == "inspect" && matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
         ops::arity(args, 0)?;
         let result = ops::to_string(ctx, &receiver)?;

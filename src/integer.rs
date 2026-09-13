@@ -480,6 +480,26 @@ pub(crate) fn odd(value: &Value) -> bool {
     parts(value).1.word(0) & 1 != 0
 }
 
+pub(crate) fn bits(value: &Value) -> usize {
+    parts(value).1.bits()
+}
+
+pub(crate) fn divmod(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<(Value, Value)> {
+    let (an, am) = parts(a);
+    let (bn, bm) = parts(b);
+    let (mut quotient, mut remainder) = divide(ctx, am, bm)?;
+    if !remainder.data.is_empty() && an != bn {
+        quotient = add(ctx, Magnitude::Words(&quotient.data), Magnitude::Small(1))?;
+        let mut corrected = copy(ctx, bm)?;
+        subtract(ctx, &mut corrected.data, Magnitude::Words(&remainder.data))?;
+        remainder = corrected;
+    }
+    Ok((
+        finish(ctx, an != bn, quotient)?,
+        finish(ctx, bn, remainder)?,
+    ))
+}
+
 pub(crate) fn from_float(ctx: &mut CallContext, value: f64) -> Result<Value> {
     if !value.is_finite() {
         return Err(Error::new(

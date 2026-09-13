@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "725d18d4c6a2e497056dea9d36a8a5ed16b35936",
-  "dirty": " M Cargo.toml\n M src/address.rs\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/range.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/value.rs\n M src/vm.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/integer.rs\n?? tests/integers.rs\n",
+  "source_revision": "27e1a782300d3165054136f676b3f6c52f3f447c",
+  "dirty": " M src/integer.rs\n M src/lib.rs\n M src/members.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/numeric.rs\n?? tests/numeric.rs\n",
   "binary_sha256": {
-    "go-simd": "bfcd2805fbf15d852160789b59078d8d88b2d9b6bb71f81445565a910b9f7f2d",
-    "rust-simd": "ab11ffd69f44426217532e90d8ac847f6e43ea29dba11874060fe2d3506955a4"
+    "go-simd": "49c84918f502aa0d8875f2e0d1aad64673bb0242a0e97edd353f3b00552c9e4a",
+    "rust-simd": "8bbfa97e7321d8342961f41b064344a5c0a81368276c9b581742d897907a6ce4"
   },
   "counts": {
     "match": 156,

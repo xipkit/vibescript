@@ -23,6 +23,7 @@ mod iteration;
 mod json;
 mod members;
 mod mutate;
+mod numeric;
 mod ops;
 mod ordering;
 mod range;
