@@ -188,6 +188,11 @@ pub(crate) fn execute(
         };
         let frame = &mut frames.data[current];
         match op {
+            Op::Integer(n, radix) => {
+                let text = program.constants[n].as_bytes().unwrap();
+                let value = crate::integer::parse(ctx, text, radix)?;
+                stack.push(ctx, value)?;
+            }
             Op::Constant(n) => {
                 let v = ctx.import(&program.constants[n])?;
                 stack.push(ctx, v)?;
@@ -330,7 +335,7 @@ pub(crate) fn execute(
             }
             Op::Unary(op) => {
                 let value = stack.data.pop().unwrap();
-                let result = ops::unary(op, value)?;
+                let result = ops::unary(ctx, op, value)?;
                 stack.push(ctx, result)?;
             }
             Op::Binary(op) => {

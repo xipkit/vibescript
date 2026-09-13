@@ -886,6 +886,16 @@
     }
   },
   {
+    "path": "rosettacode/popular/factorial.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "recursive_10": 3628800,
+      "recursive_25": 15511210043330985984000000,
+      "iterative_50": 30414093201713378043612608166064768844377641568960512000000000000
+    }
+  },
+  {
     "path": "rosettacode/popular/factors_of_an_integer.vibe",
     "function": "run",
     "args": [],
@@ -1204,6 +1214,31 @@
       "negative_six_nine": 3,
       "eight_forty_five": 1,
       "large_pair": 6
+    }
+  },
+  {
+    "path": "rosettacode/popular/greedy_algorithm_for_egyptian_fractions.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "three_sevenths": [
+        "1/3",
+        "1/11",
+        "1/231"
+      ],
+      "eight_elevenths": [
+        "1/2",
+        "1/5",
+        "1/37",
+        "1/4070"
+      ],
+      "five_one_hundred_twenty_firsts": [
+        "1/25",
+        "1/757",
+        "1/763309",
+        "1/873960180913",
+        "1/1527612795642093418846225"
+      ]
     }
   },
   {
@@ -1687,6 +1722,25 @@
       "visa_true": true,
       "visa_false": false
     }
+  },
+  {
+    "path": "rosettacode/popular/lychrel_numbers.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "value": 56,
+        "lychrel_candidate": false
+      },
+      {
+        "value": 57,
+        "lychrel_candidate": false
+      },
+      {
+        "value": 196,
+        "lychrel_candidate": true
+      }
+    ]
   },
   {
     "path": "rosettacode/popular/magic_squares_of_odd_order.vibe",
@@ -3366,6 +3420,19 @@
           "finance"
         ]
       }
+    }
+  },
+  {
+    "path": "showcase/numbers/big_integers.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "factorial_50": 30414093201713378043612608166064768844377641568960512000000000000,
+      "factorial_50_digits": 65,
+      "two_to_the_256": 115792089237316195423570985008687907853269984665640564039457584007913129639936,
+      "fibonacci_300": 222232244629420445529739893461909967206666939096499764990979600,
+      "json_stays_exact": true,
+      "still_an_int": true
     }
   },
   {

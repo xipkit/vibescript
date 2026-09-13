@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "4a4128ef2b71a17f57733e8e2191012ea0d6ba79",
-  "dirty": " M docs/reference-view-results.json\n M src/bytecode.rs\n M src/ops.rs\n M src/syntax.rs\n M src/text.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n M tests/site/current-audit.json\n M tests/syntax-errors.json\n?? scripts/generate-unicode.py\n?? src/syntax/\n?? tests/literals.rs\n",
+  "source_revision": "725d18d4c6a2e497056dea9d36a8a5ed16b35936",
+  "dirty": " M Cargo.toml\n M src/address.rs\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/range.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/value.rs\n M src/vm.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/integer.rs\n?? tests/integers.rs\n",
   "binary_sha256": {
-    "go-simd": "f7fe7e17752a57e34d7fd304d2e188163fac052138fbdfe6325ff68a5d2aa34c",
-    "rust-simd": "7cfd99947d6fada50cc3401f47a9c0b3c7094ce715156ba8dc4b5f88ae164ec4"
+    "go-simd": "bfcd2805fbf15d852160789b59078d8d88b2d9b6bb71f81445565a910b9f7f2d",
+    "rust-simd": "ab11ffd69f44426217532e90d8ac847f6e43ea29dba11874060fe2d3506955a4"
   },
   "counts": {
-    "match": 152,
-    "rust_gap": 36,
+    "match": 156,
+    "rust_gap": 32,
     "harness_gap": 15
   },
   "examples": [
@@ -1963,10 +1963,15 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "recursive_10": 3628800,
+          "recursive_25": 15511210043330985984000000,
+          "iterative_50": 30414093201713378043612608166064768844377641568960512000000000000
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/factors_of_an_integer.vibe",
@@ -2685,10 +2690,30 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "three_sevenths": [
+            "1/3",
+            "1/11",
+            "1/231"
+          ],
+          "eight_elevenths": [
+            "1/2",
+            "1/5",
+            "1/37",
+            "1/4070"
+          ],
+          "five_one_hundred_twenty_firsts": [
+            "1/25",
+            "1/757",
+            "1/763309",
+            "1/873960180913",
+            "1/1527612795642093418846225"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/hailstone_sequence.vibe",
@@ -3757,10 +3782,24 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": 56,
+            "lychrel_candidate": false
+          },
+          {
+            "value": 57,
+            "lychrel_candidate": false
+          },
+          {
+            "value": 196,
+            "lychrel_candidate": true
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/magic_squares_of_odd_order.vibe",
@@ -7572,7 +7611,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable Math\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7678,10 +7717,18 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "factorial_50": 30414093201713378043612608166064768844377641568960512000000000000,
+          "factorial_50_digits": 65,
+          "two_to_the_256": 115792089237316195423570985008687907853269984665640564039457584007913129639936,
+          "fibonacci_300": 222232244629420445529739893461909967206666939096499764990979600,
+          "json_stays_exact": true,
+          "still_an_int": true
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/numbers/literals_and_rounding.vibe",

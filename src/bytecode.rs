@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    Integer(usize, u32),
     Constant(usize),
     Nil,
     Load(usize),
@@ -194,6 +195,7 @@ pub(crate) enum Method {
     Values,
     ToString,
     ToInt,
+    ToFloat,
 }
 impl Method {
     pub(crate) fn parse(name: &str) -> Option<Self> {
@@ -265,6 +267,7 @@ impl Method {
             "values" => Self::Values,
             "to_s" | "string" => Self::ToString,
             "to_i" => Self::ToInt,
+            "to_f" => Self::ToFloat,
             _ => return None,
         })
     }
@@ -443,7 +446,7 @@ impl Compiler<'_> {
     }
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
-            Node::Literal(_) | Node::Integer(_) => (),
+            Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) => (),
             Node::Var(name) => {
                 self.reads.insert(name.clone());
                 self.capture_name(name);
@@ -534,6 +537,11 @@ impl Compiler<'_> {
         let n = self.program.constants.len();
         self.program.constants.push(v);
         self.emit(Op::Constant(n));
+    }
+    fn integer_literal(&mut self, text: &str, radix: u32) {
+        let n = self.program.constants.len();
+        self.program.constants.push(Value::bytes(text.as_bytes()));
+        self.emit(Op::Integer(n, radix));
     }
     fn block(&mut self, body: &[Stmt]) -> Result<()> {
         if body.is_empty() {
@@ -820,10 +828,13 @@ impl Compiler<'_> {
     fn expr(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
             Node::Integer(n) => {
-                let n = i64::try_from(*n)
-                    .map_err(|_| syntax::unsupported("integer overflow is not implemented"))?;
-                self.constant(Value::int(n));
+                if let Ok(n) = i64::try_from(*n) {
+                    self.constant(Value::int(n));
+                } else {
+                    self.integer_literal(&n.to_string(), 10);
+                }
             }
+            Node::BigInteger(text, radix) => self.integer_literal(text, *radix),
             Node::Unary("-", value) if matches!(value.node, Node::Integer(n) if n == i64::MAX as u64 + 1) =>
             {
                 self.constant(Value::int(i64::MIN));
@@ -1276,7 +1287,7 @@ impl Compiler<'_> {
 
 fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
     match &expr.node {
-        Node::Literal(_) | Node::Integer(_) | Node::Var(_) => (),
+        Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) | Node::Var(_) => (),
         Node::Call(name, args) => {
             names.insert(name);
             for arg in args {

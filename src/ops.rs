@@ -11,18 +11,13 @@ use std::{cmp::Ordering, fmt::Write};
 fn type_error() -> Error {
     Error::new(ErrorKind::Type, "unsupported operand types")
 }
-fn overflow() -> Error {
-    Error::new(
-        ErrorKind::Arithmetic,
-        "integer overflow; bignum is not implemented",
-    )
-}
 
-pub(crate) fn unary(op: &str, value: Value) -> Result<Value> {
+pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Value> {
     match (op, &value.0) {
         ("!", _) => Ok(Value::boolean(!value.truthy())),
-        ("+", Kind::Int(_) | Kind::Float(_)) => Ok(value),
-        ("-", Kind::Int(n)) => Ok(Value::int(n.checked_neg().ok_or_else(overflow)?)),
+        ("+", Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) => Ok(value),
+        ("-", Kind::Int(n)) if *n != i64::MIN => Ok(Value::int(-n)),
+        ("-", Kind::Int(_) | Kind::Big(_)) => crate::integer::negate(ctx, &value, false),
         ("-", Kind::Float(n)) => Ok(Value::float(-n)),
         _ => Err(type_error()),
     }
@@ -60,7 +55,12 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         let scalar = |v: &Value| {
             matches!(
                 v.0,
-                Kind::Bytes(_) | Kind::Symbol(_) | Kind::Int(_) | Kind::Float(_) | Kind::Bool(_)
+                Kind::Bytes(_)
+                    | Kind::Symbol(_)
+                    | Kind::Int(_)
+                    | Kind::Big(_)
+                    | Kind::Float(_)
+                    | Kind::Bool(_)
             )
         };
         if !scalar(&a) || !scalar(&b) {
@@ -83,8 +83,10 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     if *b == 0 {
                         return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
                     }
-                    let q = a.checked_div(*b).ok_or_else(overflow)?;
-                    let r = a.checked_rem(*b).ok_or_else(overflow)?;
+                    let Some(q) = a.checked_div(*b) else {
+                        return crate::integer::binary(ctx, op, &Value::int(*a), &Value::int(*b));
+                    };
+                    let r = a % b;
                     let adjust = r != 0 && (r < 0) != (*b < 0);
                     Some(if op == "/" {
                         if adjust { q - 1 } else { q }
@@ -96,27 +98,36 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 }
                 "**" => {
                     if *b < 0 {
-                        return Ok(Value::float((*a as f64).powf(*b as f64)));
+                        return float_power(*a as f64, *b as f64);
                     }
-                    a.checked_pow(u32::try_from(*b).map_err(|_| overflow())?)
+                    u32::try_from(*b)
+                        .ok()
+                        .and_then(|power| a.checked_pow(power))
                 }
                 _ => return Err(type_error()),
             };
-            Ok(Value::int(n.ok_or_else(overflow)?))
+            match n {
+                Some(n) => Ok(Value::int(n)),
+                None => crate::integer::binary(ctx, op, &Value::int(*a), &Value::int(*b)),
+            }
         }
-        (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => {
+        (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => {
+            crate::integer::binary(ctx, op, &a, &b)
+        }
+        (
+            Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
+            Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
+        ) => {
             let a = a.as_float().unwrap();
             let b = b.as_float().unwrap();
-            if (op == "/" || op == "%") && b == 0.0 {
-                return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
+            if op == "**" {
+                return float_power(a, b);
             }
             Ok(Value::float(match op {
                 "+" => a + b,
                 "-" => a - b,
                 "*" => a * b,
                 "/" => a / b,
-                "%" => a - b * (a / b).floor(),
-                "**" => a.powf(b),
                 _ => return Err(type_error()),
             }))
         }
@@ -139,6 +150,17 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         }
         _ => Err(type_error()),
     }
+}
+
+pub(crate) fn float_power(base: f64, exponent: f64) -> Result<Value> {
+    let value = base.powf(exponent);
+    if !value.is_finite() {
+        return Err(Error::new(
+            ErrorKind::Arithmetic,
+            "float exponentiation result is not finite",
+        ));
+    }
+    Ok(Value::float(value))
 }
 
 pub(crate) fn case_matches(
@@ -175,6 +197,13 @@ pub(crate) fn case_matches(
 pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
     match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => Ok(Some(a.cmp(b))),
+        (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => {
+            crate::integer::compare(ctx, a, b).map(Some)
+        }
+        (Kind::Big(_), Kind::Float(f)) => crate::integer::compare_float(ctx, a, *f),
+        (Kind::Float(f), Kind::Big(_)) => {
+            crate::integer::compare_float(ctx, b, *f).map(|order| order.map(Ordering::reverse))
+        }
         (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => {
             Ok(a.as_float().unwrap().partial_cmp(&b.as_float().unwrap()))
         }
@@ -201,6 +230,13 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
         (Kind::Nil, Kind::Nil) => Ok(true),
         (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
         (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
+        (Kind::Big(_), Kind::Big(_)) => Ok(crate::integer::compare(ctx, a, b)? == Ordering::Equal),
+        (Kind::Big(_), Kind::Float(f)) => {
+            Ok(crate::integer::compare_float(ctx, a, *f)? == Some(Ordering::Equal))
+        }
+        (Kind::Float(f), Kind::Big(_)) => {
+            Ok(crate::integer::compare_float(ctx, b, *f)? == Some(Ordering::Equal))
+        }
         (Kind::Range(a), Kind::Range(b)) => {
             Ok(a.start == b.start && a.end == b.end && a.exclusive == b.exclusive)
         }
@@ -382,16 +418,19 @@ pub(crate) fn method(
         Abs => {
             arity(args, 0)?;
             match value.0 {
-                Kind::Int(n) => Ok(Value::int(n.checked_abs().ok_or_else(overflow)?)),
+                Kind::Int(n) if n != i64::MIN => Ok(Value::int(n.abs())),
+                Kind::Int(_) | Kind::Big(_) => crate::integer::negate(ctx, &value, true),
                 Kind::Float(n) => Ok(Value::float(n.abs())),
                 _ => Err(type_error()),
             }
         }
         Even | Odd => {
             arity(args, 0)?;
-            Ok(Value::boolean(
-                (value.require_int()? % 2 == 0) == matches!(method, Even),
-            ))
+            Ok(Value::boolean(if value.is_integer() {
+                crate::integer::odd(&value) == matches!(method, Odd)
+            } else {
+                return Err(type_error());
+            }))
         }
         Reverse if matches!(value.0, Kind::Bytes(_)) => {
             crate::text::method(ctx, method, value, args)
@@ -530,16 +569,15 @@ pub(crate) fn method(
             }
             Value::from_array(ctx, out)
         }
+        ToFloat => {
+            arity(args, 0)?;
+            value.as_float().map(Value::float).ok_or_else(type_error)
+        }
         ToInt => {
             arity(args, 0)?;
             match &value.0 {
-                Kind::Int(_) => Ok(value),
-                Kind::Float(n) => {
-                    if !n.is_finite() || *n < i64::MIN as f64 || *n >= 9223372036854775808.0 {
-                        return Err(overflow());
-                    }
-                    Ok(Value::int(*n as i64))
-                }
+                Kind::Int(_) | Kind::Big(_) => Ok(value),
+                Kind::Float(n) => crate::integer::from_float(ctx, *n),
                 _ => {
                     let bytes = value.require_bytes()?;
                     let (start, end) = trim(ctx, bytes)?;
@@ -547,9 +585,7 @@ pub(crate) fn method(
                     for chunk in text.as_bytes().chunks(CHUNK) {
                         ctx.work_bytes(chunk.len())?;
                     }
-                    Ok(Value::int(text.parse().map_err(|_| {
-                        Error::new(ErrorKind::Argument, "invalid integer")
-                    })?))
+                    crate::integer::parse(ctx, text.as_bytes(), 10)
                 }
             }
         }
@@ -783,6 +819,10 @@ fn join_into(
 pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut text = json::Number::new();
     match &value.0 {
+        Kind::Big(_) => {
+            let text = crate::integer::format(ctx, value, 10)?;
+            return Value::from_bytes(ctx, text);
+        }
         Kind::Bytes(_) => return Ok(value.clone()),
         Kind::Symbol(h) => return ctx.bytes(&h.data),
         Kind::Nil => return ctx.bytes(b""),

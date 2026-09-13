@@ -18,6 +18,7 @@ pub(crate) struct Expr {
 #[derive(Debug)]
 pub(crate) enum Node {
     Integer(u64),
+    BigInteger(String, u32),
     Literal(Value),
     Template(Vec<Expr>, bool),
     Var(String),
@@ -818,6 +819,7 @@ impl Parser<'_> {
     fn prefix(&mut self) -> Result<Expr> {
         Ok(match self.bump() {
             Token::Int(n) => self.make(Node::Integer(n), 1)?,
+            Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1)?,
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1)?,
             Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1)?,
             Token::Template(parts) => self.template(parts, false)?,
@@ -1430,6 +1432,7 @@ impl Parser<'_> {
         match &self.tokens[pos].token {
             Token::Word(w) => !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield"),
             Token::Int(_)
+            | Token::BigInt(..)
             | Token::Float(_)
             | Token::Bytes(_)
             | Token::Template(_)
@@ -1609,6 +1612,7 @@ impl Parser<'_> {
                     )
             }
             Token::Int(_)
+            | Token::BigInt(..)
             | Token::Float(_)
             | Token::Bytes(_)
             | Token::Template(_)

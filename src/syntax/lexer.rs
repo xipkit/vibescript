@@ -4,6 +4,7 @@ use crate::{Error, Result};
 pub(super) enum Token {
     Word(String),
     Int(u64),
+    BigInt(String, u32),
     Float(f64),
     Bytes(Vec<u8>),
     Template(Vec<Part>),
@@ -189,12 +190,13 @@ impl Lexer<'_> {
                         i += 1;
                         if s[start] == b'0'
                             && s.get(i).is_some_and(|b| {
-                                matches!(b, b'x' | b'X' | b'b' | b'B' | b'o' | b'O')
+                                matches!(b, b'x' | b'X' | b'b' | b'B' | b'o' | b'O' | b'd' | b'D')
                             })
                         {
                             let radix = match s[i] {
                                 b'x' | b'X' => 16,
                                 b'b' | b'B' => 2,
+                                b'd' | b'D' => 10,
                                 _ => 8,
                             };
                             i += 1;
@@ -210,9 +212,7 @@ impl Lexer<'_> {
                             {
                                 return Err(Error::syntax(start, "invalid integer literal"));
                             }
-                            Token::Int(u64::from_str_radix(&text.replace('_', ""), radix).map_err(
-                                |_| Error::syntax(start, "invalid or overflowing integer"),
-                            )?)
+                            integer(text.replace('_', ""), radix, start, 2)?
                         } else {
                             while i < self.limit && (s[i].is_ascii_digit() || s[i] == b'_') {
                                 i += 1;
@@ -260,9 +260,7 @@ impl Lexer<'_> {
                                         .map_err(|_| Error::syntax(start, "invalid float"))?,
                                 )
                             } else {
-                                Token::Int(text.parse().map_err(|_| {
-                                    Error::syntax(start, "integer overflow is not implemented")
-                                })?)
+                                integer(text, 10, start, 0)?
                             }
                         }
                     }
@@ -586,6 +584,7 @@ fn ends_expression(token: &Token) -> bool {
     match token {
         Token::Word(w) => !super::reserved(w) || matches!(w.as_str(), "self" | "end"),
         Token::Int(_)
+        | Token::BigInt(..)
         | Token::Float(_)
         | Token::Bytes(_)
         | Token::Template(_)
@@ -593,4 +592,21 @@ fn ends_expression(token: &Token) -> bool {
         | Token::P(')' | ']' | '}') => true,
         _ => false,
     }
+}
+
+fn integer(text: String, radix: u32, offset: usize, prefix: usize) -> Result<Token> {
+    if !text.bytes().all(|c| (c as char).is_digit(radix)) {
+        return Err(Error::syntax(offset, "invalid integer literal"));
+    }
+    let parsed = u64::from_str_radix(&text, radix);
+    if text.len() + prefix > 100_000 && !parsed.as_ref().is_ok_and(|&n| n <= i64::MAX as u64) {
+        return Err(Error::syntax(
+            offset,
+            "integer literal exceeds 100000 digits",
+        ));
+    }
+    Ok(match parsed {
+        Ok(n) => Token::Int(n),
+        Err(_) => Token::BigInt(text, radix),
+    })
 }

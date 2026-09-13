@@ -498,5 +498,40 @@
     "name": "literals_interpolation_whitespace_4",
     "source": "\ndef run(input)\n\"#{7}\"\nend",
     "go_error": "parse error at 3:1: unterminated string\n  --> line 3, column 1\n 3 | \"#{7}\"\n   | ^\n\nparse error at 3:4: invalid hash pair: expected key like name: or \"name\":\n  --> line 3, column 4\n 3 | \"#{7}\"\n   |    ^\n\nparse error at 3:8: unterminated string\n  --> line 3, column 8\n 3 | \"#{7}\"\n   |        ^\n\nparse error at 4:3: expected end, got end of input\n  --> line 4, column 3\n 4 | end\n   |   ^"
+  },
+  {
+    "name": "integers_signatures_8",
+    "source": "def run(input)\n0d\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "integers_signatures_9",
+    "source": "def run(input)\n0d_1\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "integers_signatures_10",
+    "source": "def run(input)\n0d12a\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "integers_signatures_11",
+    "source": "def run(input)\n0x1__2\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "integers_signatures_12",
+    "source": "def run(input)\n0x_1\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "integers_signatures_13",
+    "source": "def run(input)\n0b102\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
+  },
+  {
+    "name": "integers_signatures_14",
+    "source": "def run(input)\n0o89\nend",
+    "go_error": "parse error at 2:1: invalid numeric literal"
   }
 ]

@@ -12,13 +12,27 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
+    if numeric
+        && (name == "inspect"
+            || matches!(
+                site.method,
+                Some(Method::ToString | Method::ToInt | Method::ToFloat)
+            ))
+        && (args.block.is_some() || !args.keywords.buffer.data.is_empty())
+    {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            format!("{name} does not accept keyword arguments or blocks"),
+        ));
+    }
     if matches!(receiver.0, Kind::Hash(_)) && !hash_builtin(name) {
         return call(ctx, site, name, receiver, &args.positional.data);
     }
     if !args.keywords.buffer.data.is_empty() {
         use Method::*;
         let rejects = match site.method {
-            Some(IsNil | Itself | Dup | ToString | ToInt) => true,
+            Some(IsNil | Itself | Dup | ToString | ToInt | ToFloat) => true,
             Some(method) => match &receiver.0 {
                 Kind::Array(_) => matches!(
                     method,
@@ -69,6 +83,11 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if name == "inspect" && matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
+        ops::arity(args, 0)?;
+        let result = ops::to_string(ctx, &receiver)?;
+        return Ok((receiver, result));
+    }
     if let Some(value) = crate::iteration::without_block(ctx, name, &receiver, args)? {
         return Ok((receiver, value));
     }

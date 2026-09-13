@@ -152,7 +152,10 @@ impl Compare {
             }
             (Kind::Nil, Kind::Nil) => Ok(Some(Ordering::Equal)),
             (Kind::Bool(a), Kind::Bool(b)) => Ok(Some(a.cmp(b))),
-            (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_))
+            (
+                Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
+                Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
+            )
             | (Kind::Bytes(_), Kind::Bytes(_))
             | (Kind::Symbol(_), Kind::Symbol(_)) => ops::compare(ctx, a, b),
             _ => Ok(None),
@@ -279,6 +282,13 @@ impl Driver {
             if self.method == Method::Sort {
                 comparison = Some(match value.0 {
                     Kind::Int(n) => n.cmp(&0),
+                    Kind::Big(ref n) => {
+                        if n.negative {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        }
+                    }
                     Kind::Float(n) => n.partial_cmp(&0.0).unwrap_or(Ordering::Equal),
                     _ => {
                         return Err(Error::new(

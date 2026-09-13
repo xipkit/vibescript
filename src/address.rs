@@ -146,6 +146,7 @@ fn same_storage(a: &Value, b: &Value) -> bool {
         (Kind::Hash(a), Kind::Hash(b)) => Arc::ptr_eq(a, b),
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => Arc::ptr_eq(a, b),
         (Kind::Range(a), Kind::Range(b)) => Arc::ptr_eq(a, b),
+        (Kind::Big(a), Kind::Big(b)) => Arc::ptr_eq(a, b),
         (Kind::Nil, Kind::Nil) => true,
         (Kind::Bool(a), Kind::Bool(b)) => a == b,
         (Kind::Int(a), Kind::Int(b)) => a == b,

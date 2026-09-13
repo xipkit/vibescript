@@ -178,7 +178,7 @@ fn host_calls_are_isolated_and_exhaustion_is_latched() {
 }
 
 #[test]
-fn syntax_guards_and_overflow_are_errors() {
+fn syntax_guards_and_division_errors() {
     for source in ["class X\nend", "1e+", "1__2", "\"unterminated"] {
         assert!(Engine::new().compile(source).is_err(), "{source}");
     }
@@ -205,7 +205,7 @@ fn syntax_guards_and_overflow_are_errors() {
     );
     let supported = format!("{}1{}", "(".repeat(64), ")".repeat(64));
     assert_eq!(run(&supported).as_int(), Some(1));
-    for source in ["9223372036854775807 + 1", "1 / 0", "2 ** 64"] {
+    for source in ["1 / 0", "1 % 0"] {
         assert_eq!(
             Engine::new()
                 .compile(source)

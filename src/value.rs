@@ -96,6 +96,7 @@ pub(crate) enum Kind {
     Nil,
     Bool(bool),
     Int(i64),
+    Big(Arc<crate::integer::Big>),
     Float(f64),
     Bytes(Arc<Bytes>),
     Symbol(Arc<Bytes>),
@@ -123,9 +124,24 @@ impl Value {
     pub const fn boolean(value: bool) -> Self {
         Self(Kind::Bool(value))
     }
-    /// Creates a signed integer. This core reports overflow instead of promoting to bignum.
+    /// Creates a compact signed integer.
     pub const fn int(value: i64) -> Self {
         Self(Kind::Int(value))
+    }
+    /// Parses a caller-owned integer in base 2 through 36, with an optional sign.
+    ///
+    /// Values outside the signed 64-bit range use shared immutable storage.
+    /// Importing the result into a call charges its retained storage separately.
+    pub fn parse_integer(text: &str, radix: u32) -> Result<Self> {
+        crate::integer::parse(
+            &mut crate::integer::unlimited_context(),
+            text.as_bytes(),
+            radix,
+        )
+    }
+    /// Reports whether this value is an integer, including arbitrary-precision values.
+    pub fn is_integer(&self) -> bool {
+        matches!(self.0, Kind::Int(_) | Kind::Big(_))
     }
     /// Creates a floating-point value.
     pub const fn float(value: f64) -> Self {
@@ -172,7 +188,7 @@ impl Value {
         let depth = 1 + values.iter().map(|(_, v)| v.depth()).max().unwrap_or(0);
         Self(Kind::Hash(Hash::untracked(values, depth)))
     }
-    /// Returns an integer if this value is an integer.
+    /// Returns an integer when this value fits the compact signed 64-bit representation.
     pub fn as_int(&self) -> Option<i64> {
         if let Kind::Int(n) = self.0 {
             Some(n)
@@ -184,6 +200,7 @@ impl Value {
     pub fn as_float(&self) -> Option<f64> {
         match self.0 {
             Kind::Int(n) => Some(n as f64),
+            Kind::Big(ref n) => Some(n.to_float()),
             Kind::Float(n) => Some(n),
             _ => None,
         }
@@ -220,7 +237,7 @@ impl Value {
         match self.0 {
             Kind::Nil => "nil",
             Kind::Bool(_) => "bool",
-            Kind::Int(_) => "int",
+            Kind::Int(_) | Kind::Big(_) => "int",
             Kind::Float(_) => "float",
             Kind::Bytes(_) => "string",
             Kind::Symbol(_) => "symbol",
@@ -388,6 +405,11 @@ impl Value {
 }
 
 impl CallContext {
+    /// Parses an integer in base 2 through 36, charging conversion work and retained storage.
+    pub fn parse_integer(&mut self, text: &str, radix: u32) -> Result<Value> {
+        crate::integer::parse(self, text.as_bytes(), radix)
+    }
+
     /// Imports a host value, sharing immutable bytes and charging retained storage to this call.
     pub fn import(&mut self, value: &Value) -> Result<Value> {
         self.import_depth(value, 0)
@@ -399,6 +421,7 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Big(n) => Ok(Value(Kind::Big(crate::integer::Big::import(self, n)?))),
             Kind::Range(r) => Ok(Value(Kind::Range(Range::import(self, r)?))),
             Kind::Bytes(h) | Kind::Symbol(h) => {
                 let bytes = Bytes::import(self, h)?;
@@ -443,6 +466,11 @@ impl fmt::Display for Value {
             Kind::Nil => f.write_str("nil"),
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),
+            Kind::Big(_) => {
+                let mut ctx = crate::integer::unlimited_context();
+                let text = crate::integer::format(&mut ctx, self, 10).map_err(|_| fmt::Error)?;
+                f.write_str(std::str::from_utf8(&text.data).map_err(|_| fmt::Error)?)
+            }
             Kind::Float(n) => write!(f, "{n}"),
             Kind::Range(r) => write!(f, "{r}"),
             Kind::Bytes(h) | Kind::Symbol(h) => {

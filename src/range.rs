@@ -56,6 +56,13 @@ impl Range {
     pub fn contains(&self, value: &Value) -> bool {
         let descending = matches!((self.start, self.end), (Some(a), Some(b)) if a > b);
         match value.0 {
+            Kind::Big(ref n) => {
+                if n.negative {
+                    self.start.is_none()
+                } else {
+                    self.end.is_none()
+                }
+            }
             Kind::Int(n) => {
                 if descending {
                     self.start.is_none_or(|a| n <= a)
