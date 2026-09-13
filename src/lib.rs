@@ -15,6 +15,7 @@ pub mod asynchronous;
 mod budget;
 mod builtin;
 mod bytecode;
+mod casing;
 mod collections;
 mod conversion;
 mod duration;

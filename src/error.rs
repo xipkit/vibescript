@@ -9,6 +9,8 @@ pub enum ErrorKind {
     Argument,
     Arithmetic,
     Json,
+    /// A fixed language limit on formatted output was exceeded.
+    OutputLimit,
     Steps,
     Memory,
     Recursion,
@@ -47,6 +49,7 @@ impl Error {
         matches!(
             self.kind,
             ErrorKind::Steps
+                | ErrorKind::OutputLimit
                 | ErrorKind::Memory
                 | ErrorKind::Recursion
                 | ErrorKind::Cancelled

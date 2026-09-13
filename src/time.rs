@@ -14,7 +14,9 @@ use std::{
 };
 
 mod calendar;
+mod format;
 mod parse;
+mod strftime;
 mod zone;
 
 const NANOS: i64 = 1_000_000_000;
@@ -595,6 +597,23 @@ pub(crate) fn member(
             ops::arity(args, 0)?;
             text(ctx, receiver, None)?
         }
+        "format" | "strftime" => {
+            if site.auto && !block {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "time formatter requires a call",
+                ));
+            }
+            ops::arity(args, 1)?;
+            let Kind::Bytes(layout) = &args[0].0 else {
+                return Err(invalid());
+            };
+            if name == "format" {
+                format::format(ctx, receiver, &layout.data)?
+            } else {
+                strftime::format(ctx, receiver, &layout.data)?
+            }
+        }
         "iso8601" | "xmlschema" | "rfc3339" => {
             if args.len() > 1 {
                 return Err(invalid());
@@ -604,8 +623,11 @@ pub(crate) fn member(
             } else {
                 0
             };
-            if !(0..=100).contains(&precision) {
+            if precision < 0 {
                 return Err(invalid());
+            }
+            if precision > 100 {
+                return ctx.fail(ErrorKind::OutputLimit, "time precision exceeds 100 digits");
             }
             text(ctx, receiver, Some(precision as usize))?
         }

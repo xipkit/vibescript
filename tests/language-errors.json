@@ -30548,5 +30548,1000 @@
     "name": "anchor_truncated_34",
     "body": "t=0.seconds.after(\"2024-02-29T03:04:05.123456789+05:3\");[t.to_i,t.nsec,t.zone,t.utc?,t.dst?]",
     "go_error": "invalid time: parsing time \"2024-02-29T03:04:05.123456789+05:3\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"+05:3\" as \"Z07:00\""
+  },
+  {
+    "name": "time_format_directive_bytes_71",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x23\").bytes",
+    "go_error": "time.strftime invalid format: \"%#\""
+  },
+  {
+    "name": "time_format_directive_bytes_91",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x2d\").bytes",
+    "go_error": "time.strftime invalid format: \"%-\""
+  },
+  {
+    "name": "time_format_directive_bytes_97",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x30\").bytes",
+    "go_error": "time.strftime invalid format: \"%0\""
+  },
+  {
+    "name": "time_format_directive_bytes_99",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x31\").bytes",
+    "go_error": "time.strftime invalid format: \"%1\""
+  },
+  {
+    "name": "time_format_directive_bytes_101",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x32\").bytes",
+    "go_error": "time.strftime invalid format: \"%2\""
+  },
+  {
+    "name": "time_format_directive_bytes_103",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x33\").bytes",
+    "go_error": "time.strftime invalid format: \"%3\""
+  },
+  {
+    "name": "time_format_directive_bytes_105",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x34\").bytes",
+    "go_error": "time.strftime invalid format: \"%4\""
+  },
+  {
+    "name": "time_format_directive_bytes_107",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x35\").bytes",
+    "go_error": "time.strftime invalid format: \"%5\""
+  },
+  {
+    "name": "time_format_directive_bytes_109",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x36\").bytes",
+    "go_error": "time.strftime invalid format: \"%6\""
+  },
+  {
+    "name": "time_format_directive_bytes_111",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x37\").bytes",
+    "go_error": "time.strftime invalid format: \"%7\""
+  },
+  {
+    "name": "time_format_directive_bytes_113",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x38\").bytes",
+    "go_error": "time.strftime invalid format: \"%8\""
+  },
+  {
+    "name": "time_format_directive_bytes_115",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x39\").bytes",
+    "go_error": "time.strftime invalid format: \"%9\""
+  },
+  {
+    "name": "time_format_directive_bytes_117",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x3a\").bytes",
+    "go_error": "time.strftime invalid format: \"%:\""
+  },
+  {
+    "name": "time_format_directive_bytes_130",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x41\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%A\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_132",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x42\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%B\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_134",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x43\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%C\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_136",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x44\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%D\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_140",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x46\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_144",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x48\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%H\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_146",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x49\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%I\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_152",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x4c\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%L\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_154",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x4d\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%M\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_156",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x4e\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_160",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x50\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%P\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_164",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x52\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%R\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_166",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x53\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%S\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_168",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x54\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%T\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_176",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x58\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%X\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_178",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x59\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_180",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x5a\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%Z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_189",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x5e\").bytes",
+    "go_error": "time.strftime invalid format: \"%^\""
+  },
+  {
+    "name": "time_format_directive_bytes_191",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"\\x25\\x5f\").bytes",
+    "go_error": "time.strftime invalid format: \"%_\""
+  },
+  {
+    "name": "time_format_directive_bytes_194",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x61\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%a\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_196",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x62\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%b\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_198",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x63\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%c\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_200",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x64\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%d\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_202",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x65\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%e\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_208",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x68\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%h\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_212",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x6a\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%j\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_214",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x6b\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%k\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_216",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x6c\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%l\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_218",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x6d\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%m\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_220",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x6e\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%n\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_224",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x70\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%p\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_228",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x72\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%r\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_230",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x73\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%s\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_232",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x74\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%t\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_234",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x75\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%u\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_238",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x77\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%w\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_240",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x78\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%x\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_242",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x79\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_directive_bytes_244",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"\\x25\\x7a\").bytes",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_2",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%\")",
+    "go_error": "time.strftime invalid format: \"%\""
+  },
+  {
+    "name": "time_format_crossing_3",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%\")",
+    "go_error": "time.strftime invalid format: \"%\""
+  },
+  {
+    "name": "time_format_crossing_6",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%_\")",
+    "go_error": "time.strftime invalid format: \"%_\""
+  },
+  {
+    "name": "time_format_crossing_7",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%_\")",
+    "go_error": "time.strftime invalid format: \"%_\""
+  },
+  {
+    "name": "time_format_crossing_10",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%-\")",
+    "go_error": "time.strftime invalid format: \"%-\""
+  },
+  {
+    "name": "time_format_crossing_11",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%-\")",
+    "go_error": "time.strftime invalid format: \"%-\""
+  },
+  {
+    "name": "time_format_crossing_14",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%^\")",
+    "go_error": "time.strftime invalid format: \"%^\""
+  },
+  {
+    "name": "time_format_crossing_15",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%^\")",
+    "go_error": "time.strftime invalid format: \"%^\""
+  },
+  {
+    "name": "time_format_crossing_18",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%#\")",
+    "go_error": "time.strftime invalid format: \"%#\""
+  },
+  {
+    "name": "time_format_crossing_19",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%#\")",
+    "go_error": "time.strftime invalid format: \"%#\""
+  },
+  {
+    "name": "time_format_crossing_22",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%1\")",
+    "go_error": "time.strftime invalid format: \"%1\""
+  },
+  {
+    "name": "time_format_crossing_23",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%1\")",
+    "go_error": "time.strftime invalid format: \"%1\""
+  },
+  {
+    "name": "time_format_crossing_26",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%999999999999999999999999999999\")",
+    "go_error": "time.strftime invalid format: \"%999999999999999999999999999999\""
+  },
+  {
+    "name": "time_format_crossing_27",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%999999999999999999999999999999\")",
+    "go_error": "time.strftime invalid format: \"%999999999999999999999999999999\""
+  },
+  {
+    "name": "time_format_crossing_30",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%:\")",
+    "go_error": "time.strftime invalid format: \"%:\""
+  },
+  {
+    "name": "time_format_crossing_31",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%:\")",
+    "go_error": "time.strftime invalid format: \"%:\""
+  },
+  {
+    "name": "time_format_crossing_34",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%0:\")",
+    "go_error": "time.strftime invalid format: \"%0:\""
+  },
+  {
+    "name": "time_format_crossing_35",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%0:\")",
+    "go_error": "time.strftime invalid format: \"%0:\""
+  },
+  {
+    "name": "time_format_crossing_38",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%Y%\")",
+    "go_error": "time.strftime invalid format: \"%Y%\""
+  },
+  {
+    "name": "time_format_crossing_39",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%Y%\")",
+    "go_error": "time.strftime invalid format: \"%Y%\""
+  },
+  {
+    "name": "time_format_crossing_42",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%Y%:\")",
+    "go_error": "time.strftime invalid format: \"%Y%:\""
+  },
+  {
+    "name": "time_format_crossing_43",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%Y%:\")",
+    "go_error": "time.strftime invalid format: \"%Y%:\""
+  },
+  {
+    "name": "time_format_crossing_46",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"%Y%999999999999999999999999999999\")",
+    "go_error": "time.strftime invalid format: \"%Y%999999999999999999999999999999\""
+  },
+  {
+    "name": "time_format_crossing_47",
+    "body": "Time.utc(2006,1,2,15,4,5).strftime(\"%Y%999999999999999999999999999999\")",
+    "go_error": "time.strftime invalid format: \"%Y%999999999999999999999999999999\""
+  },
+  {
+    "name": "time_format_crossing_48",
+    "body": "Time.utc(2024,1,2,3,4,5).format(\"%Q%Y\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%Q%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_49",
+    "body": "Time.utc(2006,1,2,15,4,5).format(\"%Q%Y\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%Q%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_56",
+    "body": "Time.utc(2024,1,2,3,4,5).format(\"%%%Y\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%%%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_57",
+    "body": "Time.utc(2006,1,2,15,4,5).format(\"%%%Y\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%%%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_64",
+    "body": "Time.utc(2024,1,2,3,4,5).format(\"%5%\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%5%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_65",
+    "body": "Time.utc(2006,1,2,15,4,5).format(\"%5%\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%5%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_68",
+    "body": "Time.utc(2024,1,2,3,4,5).format(\"%_0%\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%_0%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_69",
+    "body": "Time.utc(2006,1,2,15,4,5).format(\"%_0%\")",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%_0%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_crossing_86",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"2006-01-02\")",
+    "go_error": "time.strftime expects a percent format such as \"%Y-%m-%d\"; \"2006-01-02\" is a Go layout, use format for that"
+  },
+  {
+    "name": "time_format_crossing_90",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"15:04\")",
+    "go_error": "time.strftime expects a percent format such as \"%Y-%m-%d\"; \"15:04\" is a Go layout, use format for that"
+  },
+  {
+    "name": "time_format_crossing_102",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"2006\")",
+    "go_error": "time.strftime expects a percent format such as \"%Y-%m-%d\"; \"2006\" is a Go layout, use format for that"
+  },
+  {
+    "name": "time_format_crossing_106",
+    "body": "Time.utc(2024,1,2,3,4,5).strftime(\"prefix 2006 suffix\")",
+    "go_error": "time.strftime expects a percent format such as \"%Y-%m-%d\"; \"prefix 2006 suffix\" is a Go layout, use format for that"
+  },
+  {
+    "name": "time_format_width_overflow_0",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775807N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775807N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_1",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%9223372036854775807N\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_width_overflow_2",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775807Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775807Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_3",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%9223372036854775807Y\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_width_overflow_4",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775807z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775807z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_5",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%9223372036854775807z\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_width_overflow_6",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775807F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775807F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_7",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%9223372036854775807F\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_width_overflow_10",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775807%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775807%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_11",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%9223372036854775807%\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_width_overflow_12",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775808N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775808N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_14",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775808Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775808Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_16",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775808z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775808z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_18",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775808F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775808F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_22",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%9223372036854775808%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%9223372036854775808%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_24",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%999999999999999999999999999999999N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%999999999999999999999999999999999N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_26",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%999999999999999999999999999999999Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%999999999999999999999999999999999Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_28",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%999999999999999999999999999999999z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%999999999999999999999999999999999z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_30",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%999999999999999999999999999999999F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%999999999999999999999999999999999F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_34",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%999999999999999999999999999999999%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%999999999999999999999999999999999%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_36",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000009N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000009N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_38",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000009Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000009Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_40",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000009z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000009z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_42",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000009F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000009F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_width_overflow_46",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000009%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000009%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_0",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_2",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_6",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_8",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_10",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_12",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_16",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_18",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_20",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_22",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_26",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_28",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_30",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------8Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_32",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_36",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_long_scan_38",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx%Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_signature_error_0",
+    "body": "Time.utc(2024).format()",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_1",
+    "body": "Time.utc(2024).format(nil)",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_2",
+    "body": "Time.utc(2024).format(1)",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_3",
+    "body": "Time.utc(2024).format(true)",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_4",
+    "body": "Time.utc(2024).format([])",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_5",
+    "body": "Time.utc(2024).format({})",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_6",
+    "body": "Time.utc(2024).format(:x)",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_7",
+    "body": "Time.utc(2024).format(\"x\",\"y\")",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_signature_error_8",
+    "body": "Time.utc(2024).format(layout:\"x\")",
+    "go_error": "time.format does not accept keyword arguments"
+  },
+  {
+    "name": "time_format_signature_error_9",
+    "body": "Time.utc(2024).format(\"x\",other:1)",
+    "go_error": "time.format does not accept keyword arguments"
+  },
+  {
+    "name": "time_format_signature_error_10",
+    "body": "Time.utc(2024).format(**{})",
+    "go_error": "format expects a Go layout string"
+  },
+  {
+    "name": "time_format_descriptor_error_0",
+    "body": "Time.utc(2024).format",
+    "go_error": "format is a method and cannot be used as a value; call it with format(...)"
+  },
+  {
+    "name": "time_format_descriptor_error_1",
+    "body": "Time.utc(2024).format.to_s",
+    "go_error": "format is a method and cannot be used as a value; call it with format(...)"
+  },
+  {
+    "name": "time_format_descriptor_error_2",
+    "body": "Time.utc(2024).format.call()",
+    "go_error": "format is a method and cannot be used as a value; call it with format(...)"
+  },
+  {
+    "name": "time_format_signature_error_11",
+    "body": "Time.utc(2024).strftime()",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_12",
+    "body": "Time.utc(2024).strftime(nil)",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_13",
+    "body": "Time.utc(2024).strftime(1)",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_14",
+    "body": "Time.utc(2024).strftime(true)",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_15",
+    "body": "Time.utc(2024).strftime([])",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_16",
+    "body": "Time.utc(2024).strftime({})",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_17",
+    "body": "Time.utc(2024).strftime(:x)",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_18",
+    "body": "Time.utc(2024).strftime(\"x\",\"y\")",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_signature_error_19",
+    "body": "Time.utc(2024).strftime(layout:\"x\")",
+    "go_error": "time.strftime does not accept keyword arguments"
+  },
+  {
+    "name": "time_format_signature_error_20",
+    "body": "Time.utc(2024).strftime(\"x\",other:1)",
+    "go_error": "time.strftime does not accept keyword arguments"
+  },
+  {
+    "name": "time_format_signature_error_21",
+    "body": "Time.utc(2024).strftime(**{})",
+    "go_error": "time.strftime expects a format string"
+  },
+  {
+    "name": "time_format_descriptor_error_3",
+    "body": "Time.utc(2024).strftime",
+    "go_error": "strftime is a method and cannot be used as a value; call it with strftime(...)"
+  },
+  {
+    "name": "time_format_descriptor_error_4",
+    "body": "Time.utc(2024).strftime.to_s",
+    "go_error": "strftime is a method and cannot be used as a value; call it with strftime(...)"
+  },
+  {
+    "name": "time_format_descriptor_error_5",
+    "body": "Time.utc(2024).strftime.call()",
+    "go_error": "strftime is a method and cannot be used as a value; call it with strftime(...)"
+  },
+  {
+    "name": "time_format_limit_0",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_1",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575L\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575L\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_2",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_3",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_4",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_5",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575Z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575Z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_6",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048575%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048575%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_8",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_9",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576L\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576L\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_10",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_11",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_12",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_13",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576Z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576Z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_14",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048576%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048576%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_16",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_17",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577L\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577L\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_18",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_19",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_20",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_21",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577Z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577Z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_22",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1048577%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1048577%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_24",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000N\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000N\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_25",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000L\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000L\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_26",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000Y\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000Y\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_27",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_28",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000F\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000F\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_29",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000Z\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000Z\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_30",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).format(\"%1000000000%\").size",
+    "go_error": "time.format expects a Go layout such as \"2006-01-02\"; \"%1000000000%\" is a strftime format, use strftime for that"
+  },
+  {
+    "name": "time_format_limit_48",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577N\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_49",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577L\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_50",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577Y\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_51",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577z\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_52",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577F\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_53",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577Z\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_54",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1048577%\").size",
+    "go_error": "output limit exceeded: time.strftime output exceeds limit 1048576 bytes"
+  },
+  {
+    "name": "time_format_limit_56",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000N\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_limit_57",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000L\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_limit_58",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000Y\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_limit_59",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000z\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_limit_60",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000F\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_limit_61",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000Z\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "time_format_limit_62",
+    "body": "Time.utc(2024,1,2,3,4,5,123456).strftime(\"%1000000000%\").size",
+    "go_error": "memory quota exceeded (67108864 bytes)"
   }
 ]

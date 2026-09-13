@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "5a5389410d5e461b26bea4fc9a02b49381b69b81",
-  "dirty": " M src/duration.rs\n M src/time.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/time/parse.rs\n?? tests/time_anchors.rs\n",
+  "source_revision": "27cf99fbe17e8cfc43a793fcd05421c1b92d264b",
+  "dirty": " M src/error.rs\n M src/lib.rs\n M src/time.rs\n M tests/language-errors.json\n M tests/language.json\n?? scripts/generate-casing.py\n?? src/casing.rs\n?? src/time/format.rs\n?? src/time/strftime.rs\n?? tests/time_format.rs\n",
   "binary_sha256": {
-    "go-simd": "59f51949d93ae95f46a5836cb7bdbb6d7fede70e15f7ee7e14df1550fd2d1fe2",
-    "rust-simd": "4c03904e576b84d38419551f001087fa1779a920f0332491cd9a1a78a6c8e097"
+    "go-simd": "0a96710f585a9a8b711349893ad08441f807965866b7da64812aed58ff04fe4b",
+    "rust-simd": "59f0cdfa6aa761b9f6bd93e0a9c28155d10b1f1023637f118f3f936f23906fa0"
   },
   "counts": {
     "match": 158,
