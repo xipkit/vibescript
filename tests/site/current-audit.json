@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "531e4b44b4825bdddc35bc7d398cb58cff2e8daf",
-  "dirty": " M docs/compatibility-cases.json\n M src/bytecode.rs\n M src/collections.rs\n M src/iteration.rs\n M src/lib.rs\n M src/ops.rs\n M src/ordering.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/hash_blocks.rs\n?? tests/hash_blocks.rs\n",
+  "source_revision": "4a4128ef2b71a17f57733e8e2191012ea0d6ba79",
+  "dirty": " M docs/reference-view-results.json\n M src/bytecode.rs\n M src/ops.rs\n M src/syntax.rs\n M src/text.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n M tests/site/current-audit.json\n M tests/syntax-errors.json\n?? scripts/generate-unicode.py\n?? src/syntax/\n?? tests/literals.rs\n",
   "binary_sha256": {
-    "go-simd": "7857b433a266d275f85d516c0b793ecb716955c3c7bceaeb29b56999689dc483",
-    "rust-simd": "dbc2c94d0dbe0ee85e993d30692388c375b83e1aea1da380d6d91ac36732037d"
+    "go-simd": "f7fe7e17752a57e34d7fd304d2e188163fac052138fbdfe6325ff68a5d2aa34c",
+    "rust-simd": "7cfd99947d6fada50cc3401f47a9c0b3c7094ce715156ba8dc4b5f88ae164ec4"
   },
   "counts": {
-    "match": 149,
-    "rust_gap": 39,
+    "match": 152,
+    "rust_gap": 36,
     "harness_gap": 15
   },
   "examples": [
@@ -1250,10 +1250,22 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(443) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          7,
+          8,
+          10,
+          12,
+          13,
+          14,
+          15,
+          16,
+          18,
+          20
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/bubble_sort.vibe",
@@ -2234,7 +2246,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(501) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(959) }\n"
       },
       "status": "rust_gap"
     },
@@ -2674,7 +2686,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(730) }\n"
+        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -4992,10 +5004,11 @@
         "output": "0-2,4,6-8,11,12,14-25,27-33,35-39"
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(633) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": "0-2,4,6-8,11,12,14-25,27-33,35-39"
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/roman_numerals_decode.vibe",
@@ -5959,10 +5972,25 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(303) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": "1729",
+            "decompositions": [
+              [
+                1,
+                12
+              ],
+              [
+                9,
+                10
+              ]
+            ]
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/temperature_conversion.vibe",
@@ -7544,7 +7572,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(2031) }\n"
+        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7584,7 +7612,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(408) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(362) }\n"
       },
       "status": "harness_gap"
     },
@@ -7631,7 +7659,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(380) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable sms\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7892,7 +7920,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(310) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(364) }\n"
       },
       "status": "rust_gap"
     },

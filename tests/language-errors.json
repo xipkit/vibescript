@@ -3818,5 +3818,90 @@
     "name": "collection_blocks_except_receiver_4",
     "body": "(1..3).except(:a)",
     "go_error": "unknown range method except"
+  },
+  {
+    "name": "literals_interpolation_value_17_0",
+    "source": "\ndef run(input)\n\"#{missing}\".bytes\nend",
+    "go_error": "undefined variable missing\n  --> line 1, column 1\n 1 | \n   | ^\n  at run (1:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_interpolation_value_17_1",
+    "source": "\ndef run(input)\n\"before #{missing} after\".bytes\nend",
+    "go_error": "undefined variable missing\n  --> line 1, column 1\n 1 | \n   | ^\n  at run (1:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_w_6_5",
+    "source": "\ndef run(input)\n%w##{7}#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_w_6_6",
+    "source": "\ndef run(input)\n%w#a#{1+2}b c#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_w_6_7",
+    "source": "\ndef run(input)\n%w##{\"}\"} x#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %w##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_W_6_5",
+    "source": "\ndef run(input)\n%W##{7}#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_W_6_6",
+    "source": "\ndef run(input)\n%W#a#{1+2}b c#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_W_6_7",
+    "source": "\ndef run(input)\n%W##{\"}\"} x#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %W##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_i_6_5",
+    "source": "\ndef run(input)\n%i##{7}#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_i_6_6",
+    "source": "\ndef run(input)\n%i#a#{1+2}b c#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_i_6_7",
+    "source": "\ndef run(input)\n%i##{\"}\"} x#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %i##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_I_6_5",
+    "source": "\ndef run(input)\n%I##{7}#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{7}#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_I_6_6",
+    "source": "\ndef run(input)\n%I#a#{1+2}b c#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I#a#{1+2}b c#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_I_6_7",
+    "source": "\ndef run(input)\n%I##{\"}\"} x#\nend",
+    "go_error": "attempted to call non-callable value\n  --> line 3, column 1\n 3 | %I##{\"}\"} x#\n   | ^\n  at run (3:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_percent_reject_7",
+    "source": "\ndef run(input)\n%I[#{missing}]\nend",
+    "go_error": "undefined variable missing\n  --> line 1, column 1\n 1 | \n   | ^\n  at run (1:1)\n  at run (2:1)"
+  },
+  {
+    "name": "literals_interpolation_scope_1",
+    "source": "def x(*args)\nargs.length\nend\ndef helper(total=10,w=[3],n=\"#{total %w[0]}\")\nn\nend\ndef run(input)\nout=\"#{for x in [];x;end}\";w=[3];[out,x %w[0]]\nend",
+    "go_error": "unsupported modulo operands\n  --> line 8, column 41\n 8 | out=\"#{for x in [];x;end}\";w=[3];[out,x %w[0]]\n   |                                         ^\n  at run (8:41)\n  at run (7:1)"
+  },
+  {
+    "name": "literals_interpolation_scope_2",
+    "source": "def x(*args)\nargs.length\nend\ndef helper(total=10,w=[3],n=\"#{total %w[0]}\")\nn\nend\ndef run(input)\nout=\"#{while false;x=10;end}\";w=[3];[out,x %w[0]]\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)\n  --> line 8, column 42\n 8 | out=\"#{while false;x=10;end}\";w=[3];[out,x %w[0]]\n   |                                          ^\n  at run (8:42)\n  at run (7:1)"
   }
 ]

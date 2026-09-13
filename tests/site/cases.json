@@ -541,6 +541,23 @@
     ]
   },
   {
+    "path": "rosettacode/popular/brazilian_numbers.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      7,
+      8,
+      10,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18,
+      20
+    ]
+  },
+  {
     "path": "rosettacode/popular/bubble_sort.vibe",
     "function": "run",
     "args": [],
@@ -2252,6 +2269,12 @@
     }
   },
   {
+    "path": "rosettacode/popular/range_extraction.vibe",
+    "function": "run",
+    "args": [],
+    "expected": "0-2,4,6-8,11,12,14-25,27-33,35-39"
+  },
+  {
     "path": "rosettacode/popular/roman_numerals_decode.vibe",
     "function": "run",
     "args": [],
@@ -2689,6 +2712,26 @@
       "below_one_hundred": 2318,
       "below_one_thousand": 233168
     }
+  },
+  {
+    "path": "rosettacode/popular/taxicab_numbers.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "value": "1729",
+        "decompositions": [
+          [
+            1,
+            12
+          ],
+          [
+            9,
+            10
+          ]
+        ]
+      }
+    ]
   },
   {
     "path": "rosettacode/popular/temperature_conversion.vibe",

@@ -10,6 +10,10 @@ pub(crate) fn display(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     Value::from_bytes(ctx, out)
 }
 
+pub(crate) fn append(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>) -> Result<()> {
+    render(ctx, value, out, 0)
+}
+
 fn render(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, depth: usize) -> Result<()> {
     ctx.charge(1)?;
     if depth > crate::budget::MAX_VALUE_DEPTH {

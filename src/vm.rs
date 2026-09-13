@@ -20,6 +20,7 @@ struct Frame {
     local_base: usize,
     address_base: usize,
     bypass_base: usize,
+    text_base: usize,
     loops: Buffer<LoopState>,
     arguments: Buffer<Arguments>,
     binding: Buffer<Binding>,
@@ -30,6 +31,7 @@ struct Frame {
 }
 
 struct Storage {
+    texts: Buffer<Buffer<u8>>,
     iterations: Buffer<Iteration>,
     locals: Buffer<Option<Value>>,
     addresses: Buffer<Address>,
@@ -41,6 +43,7 @@ struct LoopState {
     address_base: usize,
     bypass_base: usize,
     argument_base: usize,
+    text_base: usize,
     next: usize,
     end: usize,
     expression: bool,
@@ -103,6 +106,7 @@ pub(crate) fn execute(
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
     let mut storage = Storage {
+        texts: Buffer::empty(),
         iterations: Buffer::empty(),
         locals: Buffer::empty(),
         addresses: Buffer::empty(),
@@ -189,6 +193,22 @@ pub(crate) fn execute(
                 stack.push(ctx, v)?;
             }
             Op::Nil => stack.push(ctx, Value::nil())?,
+            Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
+            Op::TextPart => {
+                let value = stack.data.pop().unwrap();
+                crate::text::append(ctx, &value, storage.texts.data.last_mut().unwrap())?;
+            }
+            Op::TextEnd(symbol) => {
+                let text = storage.texts.data.pop().unwrap();
+                let mut value = Value::from_bytes(ctx, text)?;
+                if symbol {
+                    let Kind::Bytes(bytes) = value.0 else {
+                        unreachable!()
+                    };
+                    value = Value(Kind::Symbol(bytes));
+                }
+                stack.push(ctx, value)?;
+            }
             Op::Load(n) => {
                 let v = storage.locals.data[n].clone().unwrap_or_default();
                 stack.push(ctx, v)?;
@@ -547,6 +567,7 @@ pub(crate) fn execute(
                         address_base: storage.addresses.data.len(),
                         bypass_base: storage.bypasses.data.len(),
                         argument_base: frame.arguments.data.len(),
+                        text_base: storage.texts.data.len(),
                         next,
                         end,
                         expression,
@@ -578,6 +599,7 @@ pub(crate) fn execute(
                 stack.data.truncate(state.base);
                 storage.addresses.data.truncate(state.address_base);
                 storage.bypasses.data.truncate(state.bypass_base);
+                storage.texts.data.truncate(state.text_base);
                 frame.arguments.data.truncate(state.argument_base);
                 frame.ip = state.next;
             }
@@ -586,6 +608,7 @@ pub(crate) fn execute(
                 stack.data.truncate(state.base);
                 storage.addresses.data.truncate(state.address_base);
                 storage.bypasses.data.truncate(state.bypass_base);
+                storage.texts.data.truncate(state.text_base);
                 frame.arguments.data.truncate(state.argument_base);
                 stack.push(ctx, state.result())?;
             }
@@ -615,6 +638,7 @@ pub(crate) fn execute(
                         stack.data.truncate(state.base);
                         storage.addresses.data.truncate(state.address_base);
                         storage.bypasses.data.truncate(state.bypass_base);
+                        storage.texts.data.truncate(state.text_base);
                         frame.arguments.data.truncate(state.argument_base);
                         frame.ip = state.end;
                         continue;
@@ -644,6 +668,7 @@ pub(crate) fn execute(
                 stack.data.truncate(state.base);
                 storage.addresses.data.truncate(state.address_base);
                 storage.bypasses.data.truncate(state.bypass_base);
+                storage.texts.data.truncate(state.text_base);
                 frame.arguments.data.truncate(state.argument_base);
                 frame.ip = state.end;
             }
@@ -666,6 +691,7 @@ pub(crate) fn execute(
                 stack.data.truncate(state.base);
                 storage.addresses.data.truncate(state.address_base);
                 storage.bypasses.data.truncate(state.bypass_base);
+                storage.texts.data.truncate(state.text_base);
                 frame.arguments.data.truncate(state.argument_base);
                 frame.ip = state.next;
             }
@@ -1027,6 +1053,7 @@ fn new_frame(
         local_base,
         address_base: storage.addresses.data.len(),
         bypass_base: storage.bypasses.data.len(),
+        text_base: storage.texts.data.len(),
         loops: Buffer::empty(),
         arguments: Buffer::empty(),
         binding: Buffer::empty(),
@@ -1107,5 +1134,6 @@ fn unwind(
     storage.iterations.data.truncate(frame.iteration_base);
     storage.addresses.data.truncate(frame.address_base);
     storage.bypasses.data.truncate(frame.bypass_base);
+    storage.texts.data.truncate(frame.text_base);
     frames.data.truncate(target);
 }

@@ -28,6 +28,9 @@ pub(crate) enum Op {
     Binary(&'static str),
     AddStore(usize),
     Array(usize),
+    TextStart,
+    TextPart,
+    TextEnd(bool),
     Hash(usize),
     Range(bool, bool, bool),
     Index(usize),
@@ -445,7 +448,7 @@ impl Compiler<'_> {
                 self.reads.insert(name.clone());
                 self.capture_name(name);
             }
-            Node::Array(values) | Node::Yield(values) => {
+            Node::Array(values) | Node::Yield(values) | Node::Template(values, _) => {
                 for value in values {
                     self.declare_expr(value);
                 }
@@ -717,6 +720,11 @@ impl Compiler<'_> {
             }
             Stmt::For(target, iterable, body) => {
                 self.expr(iterable)?;
+                let mut names = Vec::new();
+                target_names(target, &mut names);
+                for name in names {
+                    self.emit(Op::Declare(self.locals[name]));
+                }
                 let mark = self.emit(Op::LoopStart {
                     iterable: true,
                     expression,
@@ -846,6 +854,14 @@ impl Compiler<'_> {
                     self.expr(v)?;
                 }
                 self.emit(Op::Array(values.len()));
+            }
+            Node::Template(parts, symbol) => {
+                self.emit(Op::TextStart);
+                for part in parts {
+                    self.expr(part)?;
+                    self.emit(Op::TextPart);
+                }
+                self.emit(Op::TextEnd(*symbol));
             }
             Node::Hash(values) => {
                 for (k, v) in values {
@@ -1274,7 +1290,7 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
             call_names(call, names);
             block_call_names(&block.body, names);
         }
-        Node::Array(items) | Node::Yield(items) => {
+        Node::Array(items) | Node::Yield(items) | Node::Template(items, _) => {
             for item in items {
                 call_names(item, names);
             }

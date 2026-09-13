@@ -1,250 +1,14 @@
 use crate::{Error, Result, Value};
 use std::collections::HashSet;
 
+mod lexer;
+mod tokens;
+mod unicode;
+use lexer::{Lexeme, Part, Token, lex};
+use tokens::Tokens;
+
 const MAX_DEPTH: usize = 128;
 const MAX_SOURCE: usize = 8 << 20;
-
-#[derive(Clone, Debug, PartialEq)]
-enum Token {
-    Word(String),
-    Int(u64),
-    Float(f64),
-    Bytes(Vec<u8>),
-    P(char),
-    Op(&'static str),
-    EndLine,
-    Eof,
-}
-struct Lexeme {
-    token: Token,
-    offset: usize,
-    end: usize,
-    line: usize,
-    end_line: usize,
-}
-
-fn lex(source: &str) -> Result<Vec<Lexeme>> {
-    if source.len() > MAX_SOURCE {
-        return Err(Error::syntax(0, "source exceeds 8 MiB"));
-    }
-    let s = source.as_bytes();
-    let mut i = 0;
-    let mut line = 0;
-    let mut out = Vec::new();
-    while i < s.len() {
-        let start = i;
-        let token = match s[i] {
-            b' ' | b'\t' | b'\r' => {
-                i += 1;
-                continue;
-            }
-            b'#' => {
-                while i < s.len() && s[i] != b'\n' {
-                    i += 1;
-                }
-                continue;
-            }
-            b'\n' | b';' => {
-                i += 1;
-                Token::EndLine
-            }
-            b'\'' | b'"' => {
-                let quote = s[i];
-                i += 1;
-                let mut bytes = Vec::new();
-                let mut closed = false;
-                while i < s.len() {
-                    let b = s[i];
-                    i += 1;
-                    if b == quote {
-                        closed = true;
-                        break;
-                    }
-                    if quote == b'"' && b == b'#' && s.get(i) == Some(&b'{') {
-                        return Err(Error::syntax(
-                            i - 1,
-                            "string interpolation is not implemented",
-                        ));
-                    }
-                    if b != b'\\' {
-                        bytes.push(b);
-                        continue;
-                    }
-                    let Some(&escape) = s.get(i) else {
-                        break;
-                    };
-                    i += 1;
-                    if quote == b'\'' && escape != b'\'' && escape != b'\\' {
-                        bytes.extend_from_slice(&[b'\\', escape]);
-                        continue;
-                    }
-                    match escape {
-                        b'n' => bytes.push(b'\n'),
-                        b'r' => bytes.push(b'\r'),
-                        b't' => bytes.push(b'\t'),
-                        b'0' => bytes.push(0),
-                        b'\\' | b'\'' | b'"' | b'#' => bytes.push(escape),
-                        b'x' => {
-                            let end = i + 2;
-                            if end > s.len() {
-                                return Err(Error::syntax(i, "incomplete hexadecimal escape"));
-                            }
-                            let hex = std::str::from_utf8(&s[i..end])
-                                .map_err(|_| Error::syntax(i, "invalid hexadecimal escape"))?;
-                            bytes.push(
-                                u8::from_str_radix(hex, 16)
-                                    .map_err(|_| Error::syntax(i, "invalid hexadecimal escape"))?,
-                            );
-                            i = end;
-                        }
-                        _ => return Err(Error::syntax(i - 1, "unsupported string escape")),
-                    }
-                }
-                if !closed {
-                    return Err(Error::syntax(start, "unterminated string"));
-                }
-                Token::Bytes(bytes)
-            }
-            b'0'..=b'9' => {
-                i += 1;
-                if s[start] == b'0'
-                    && s.get(i)
-                        .is_some_and(|b| matches!(b, b'x' | b'X' | b'b' | b'B' | b'o' | b'O'))
-                {
-                    let radix = match s[i] {
-                        b'x' | b'X' => 16,
-                        b'b' | b'B' => 2,
-                        _ => 8,
-                    };
-                    i += 1;
-                    let digits = i;
-                    while i < s.len() && (s[i].is_ascii_alphanumeric() || s[i] == b'_') {
-                        i += 1;
-                    }
-                    let text = &source[digits..i];
-                    if text.is_empty()
-                        || text.starts_with('_')
-                        || text.ends_with('_')
-                        || text.contains("__")
-                    {
-                        return Err(Error::syntax(start, "invalid integer literal"));
-                    }
-                    Token::Int(
-                        u64::from_str_radix(&text.replace('_', ""), radix)
-                            .map_err(|_| Error::syntax(start, "invalid or overflowing integer"))?,
-                    )
-                } else {
-                    while i < s.len() && (s[i].is_ascii_digit() || s[i] == b'_') {
-                        i += 1;
-                    }
-                    let mut float = false;
-                    if s.get(i) == Some(&b'.') && s.get(i + 1).is_some_and(u8::is_ascii_digit) {
-                        float = true;
-                        i += 1;
-                        while i < s.len() && (s[i].is_ascii_digit() || s[i] == b'_') {
-                            i += 1;
-                        }
-                    }
-                    if s.get(i).is_some_and(|b| matches!(b, b'e' | b'E')) {
-                        float = true;
-                        i += 1;
-                        if s.get(i).is_some_and(|b| matches!(b, b'+' | b'-')) {
-                            i += 1;
-                        }
-                        while i < s.len() && (s[i].is_ascii_digit() || s[i] == b'_') {
-                            i += 1;
-                        }
-                    }
-                    if s.get(i)
-                        .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
-                    {
-                        return Err(Error::syntax(start, "invalid numeric literal"));
-                    }
-                    let raw = &source[start..i];
-                    for (j, b) in raw.bytes().enumerate() {
-                        if b == b'_'
-                            && (j == 0
-                                || j + 1 == raw.len()
-                                || !raw.as_bytes()[j - 1].is_ascii_digit()
-                                || !raw.as_bytes()[j + 1].is_ascii_digit())
-                        {
-                            return Err(Error::syntax(start, "invalid numeric separator"));
-                        }
-                    }
-                    let text = raw.replace('_', "");
-                    if float {
-                        Token::Float(
-                            text.parse()
-                                .map_err(|_| Error::syntax(start, "invalid float"))?,
-                        )
-                    } else {
-                        Token::Int(text.parse().map_err(|_| {
-                            Error::syntax(start, "integer overflow is not implemented")
-                        })?)
-                    }
-                }
-            }
-            b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
-                i += 1;
-                while i < s.len()
-                    && (s[i].is_ascii_alphanumeric() || matches!(s[i], b'_' | b'?' | b'!'))
-                {
-                    i += 1;
-                }
-                Token::Word(source[start..i].to_owned())
-            }
-            _ => {
-                let mut found = None;
-                for op in [
-                    "...", "..", "===", "<=>", "||=", "&&=", "**=", "==", "!=", "<=", ">=", "&&",
-                    "||", "+=", "-=", "*=", "/=", "%=", "**", "<<",
-                ] {
-                    if s[i..].starts_with(op.as_bytes()) {
-                        found = Some(op);
-                        break;
-                    }
-                }
-                if let Some(op) = found {
-                    i += op.len();
-                    Token::Op(op)
-                } else {
-                    i += 1;
-                    match s[start] {
-                        b'+' => Token::Op("+"),
-                        b'-' => Token::Op("-"),
-                        b'*' => Token::Op("*"),
-                        b'/' => Token::Op("/"),
-                        b'%' => Token::Op("%"),
-                        b'=' => Token::Op("="),
-                        b'<' => Token::Op("<"),
-                        b'>' => Token::Op(">"),
-                        b'!' => Token::Op("!"),
-                        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' | b'?'
-                        | b'|' => Token::P(s[start] as char),
-                        _ => return Err(Error::syntax(start, "unsupported character")),
-                    }
-                }
-            }
-        };
-        let start_line = line;
-        line += s[start..i].iter().filter(|&&b| b == b'\n').count();
-        out.push(Lexeme {
-            token,
-            offset: start,
-            end: i,
-            line: start_line,
-            end_line: line,
-        });
-    }
-    out.push(Lexeme {
-        token: Token::Eof,
-        offset: s.len(),
-        end: s.len(),
-        line,
-        end_line: line,
-    });
-    Ok(out)
-}
 
 #[derive(Debug)]
 pub(crate) struct Expr {
@@ -255,6 +19,7 @@ pub(crate) struct Expr {
 pub(crate) enum Node {
     Integer(u64),
     Literal(Value),
+    Template(Vec<Expr>, bool),
     Var(String),
     Array(Vec<Expr>),
     Hash(Vec<(Vec<u8>, Expr)>),
@@ -368,7 +133,9 @@ pub(crate) struct Definition {
 
 pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
     let mut p = Parser {
-        tokens: lex(source)?,
+        source,
+        lex_depth: 0,
+        tokens: Tokens::new(lex(source)?),
         pos: 0,
         depth: 0,
         groups: 0,
@@ -415,8 +182,10 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
     Ok(defs)
 }
 
-struct Parser {
-    tokens: Vec<Lexeme>,
+struct Parser<'a> {
+    source: &'a str,
+    lex_depth: usize,
+    tokens: Tokens,
     pos: usize,
     depth: usize,
     groups: usize,
@@ -428,7 +197,7 @@ struct Parser {
     locals: HashSet<String>,
     declared_it: bool,
 }
-impl Parser {
+impl Parser<'_> {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
         let mut params = Vec::new();
         let mut rest = false;
@@ -861,7 +630,7 @@ impl Parser {
     fn assignment_ahead(&self) -> bool {
         let mut nesting = 0usize;
         let mut comma = false;
-        for (i, lexeme) in self.tokens[self.pos..].iter().enumerate() {
+        for (i, lexeme) in self.tokens.from(self.pos).enumerate() {
             match &lexeme.token {
                 Token::P('(' | '[' | '{') => nesting += 1,
                 Token::P(')' | ']' | '}') => {
@@ -882,8 +651,9 @@ impl Parser {
                     if lexeme.line == lexeme.end_line {
                         return false;
                     }
-                    let next = self.tokens[self.pos + i + 1..]
-                        .iter()
+                    let next = self
+                        .tokens
+                        .from(self.pos + i + 1)
                         .find(|l| !matches!(l.token, Token::EndLine));
                     if !comma
                         && !next.is_some_and(|l| {
@@ -1050,6 +820,9 @@ impl Parser {
             Token::Int(n) => self.make(Node::Integer(n), 1)?,
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1)?,
             Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1)?,
+            Token::Template(parts) => self.template(parts, false)?,
+            Token::Words(words) => self.words(*words)?,
+            Token::Invalid(error) => return Err(Error::syntax(error.0, error.1)),
             Token::Word(w) => match w.as_str() {
                 "nil" => self.make(Node::Literal(Value::nil()), 1)?,
                 "true" => self.make(Node::Literal(Value::boolean(true)), 1)?,
@@ -1084,35 +857,7 @@ impl Parser {
                 let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
                 self.make(Node::Array(a), d)?
             }
-            Token::P('{') => {
-                self.groups += 1;
-                let mut entries = Vec::new();
-                self.lines();
-                if !self.take_p('}') {
-                    loop {
-                        let key = match self.bump() {
-                            Token::Word(w) => w.into_bytes(),
-                            Token::Bytes(b) => b,
-                            _ => return self.err("expected hash label"),
-                        };
-                        self.expect_p(':')?;
-                        self.lines();
-                        entries.push((key, self.expr(0)?));
-                        self.lines();
-                        if self.take_p('}') {
-                            break;
-                        }
-                        self.expect_p(',')?;
-                        self.lines();
-                        if self.take_p('}') {
-                            break;
-                        }
-                    }
-                }
-                let d = 1 + entries.iter().map(|(_, e)| e.depth).max().unwrap_or(0);
-                self.groups -= 1;
-                self.make(Node::Hash(entries), d)?
-            }
+            Token::P('{') => self.hash_expr()?,
             Token::Op(op @ (".." | "...")) => {
                 if self.groups > 0 {
                     self.lines();
@@ -1129,6 +874,136 @@ impl Parser {
             _ => return self.err("expected expression"),
         })
     }
+    fn hash_expr(&mut self) -> Result<Expr> {
+        self.groups += 1;
+        let mut entries = Vec::new();
+        self.lines();
+        if !self.take_p('}') {
+            loop {
+                let key = match self.bump() {
+                    Token::Word(w) => w.into_bytes(),
+                    Token::Bytes(b) => b,
+                    _ => return self.err("expected hash label"),
+                };
+                self.expect_p(':')?;
+                self.lines();
+                entries.push((key, self.expr(0)?));
+                self.lines();
+                if self.take_p('}') {
+                    break;
+                }
+                self.expect_p(',')?;
+                self.lines();
+                if self.take_p('}') {
+                    break;
+                }
+            }
+        }
+        let d = 1 + entries.iter().map(|(_, e)| e.depth).max().unwrap_or(0);
+        self.groups -= 1;
+        self.make(Node::Hash(entries), d)
+    }
+
+    fn words(&mut self, words: lexer::Words) -> Result<Expr> {
+        let mut values = Vec::with_capacity(words.entries.len());
+        for word in words.entries {
+            values.push(self.template(word, words.symbol)?);
+        }
+        let depth = 1 + values.iter().map(|v| v.depth).max().unwrap_or(0);
+        self.make(Node::Array(values), depth)
+    }
+
+    fn template(&mut self, parts: Vec<Part>, symbol: bool) -> Result<Expr> {
+        if !parts.iter().any(|part| matches!(part, Part::Expr(_))) {
+            let bytes = lexer::plain(parts);
+            let value = if symbol {
+                Value::symbol(bytes)
+            } else {
+                Value::bytes(bytes)
+            };
+            return self.make(Node::Literal(value), 1);
+        }
+        let mut values = Vec::with_capacity(parts.len());
+        for part in parts {
+            values.push(match part {
+                Part::Text(bytes) => self.make(Node::Literal(Value::bytes(bytes)), 1)?,
+                Part::Expr(tokens) => self.interpolation(tokens)?,
+            });
+        }
+        let depth = 1 + values.iter().map(|v| v.depth).max().unwrap_or(0);
+        self.make(Node::Template(values, symbol), depth)
+    }
+
+    fn interpolation(&mut self, mut tokens: Vec<Lexeme>) -> Result<Expr> {
+        while tokens.len() >= 2 {
+            let tail = &tokens[tokens.len() - 2];
+            if tail.token != Token::EndLine || tail.line == tail.end_line {
+                break;
+            }
+            tokens.remove(tokens.len() - 2);
+        }
+        let mut parser = Parser {
+            source: self.source,
+            lex_depth: self.lex_depth + 1,
+            tokens: Tokens::new(tokens),
+            pos: 0,
+            depth: self.depth,
+            groups: 0,
+            line_exprs: 0,
+            command_depth: 0,
+            ternaries: Vec::new(),
+            command_group: 0,
+            loop_condition: None,
+            locals: std::mem::take(&mut self.locals),
+            declared_it: self.declared_it,
+        };
+        while parser.token() == &Token::EndLine
+            && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
+        {
+            parser.pos += 1;
+        }
+        let result = (|| {
+            let expr = parser.line_expr(0)?;
+            if parser.token() != &Token::Eof {
+                return parser.err("string interpolation must contain a single expression");
+            }
+            Ok(expr)
+        })();
+        self.locals = parser.locals;
+        self.declared_it = parser.declared_it;
+        result
+    }
+
+    fn expand_modulo(&mut self) -> Result<()> {
+        // A quoted index can extend past a tentative percent-literal delimiter.
+        // Re-lex its suffix through the next intact token boundary.
+        let limit = self.tokens.last().unwrap().offset;
+        let mut tokens = lexer::modulo(self.source, &self.tokens[self.pos], limit, self.lex_depth)?;
+        let mut cursor = tokens.pop().unwrap();
+        let mut finish = self.pos + 1;
+        loop {
+            while self.tokens[finish].offset < cursor.offset {
+                finish += 1;
+            }
+            let end = self.tokens[finish - 1].end;
+            if end <= cursor.offset {
+                break;
+            }
+            let mut suffix = lexer::resume(
+                self.source,
+                &cursor,
+                end,
+                limit,
+                self.lex_depth,
+                tokens.last(),
+            )?;
+            cursor = suffix.pop().unwrap();
+            tokens.extend(suffix);
+        }
+        self.tokens.replace(self.pos..finish, tokens);
+        Ok(())
+    }
+
     fn symbol(&mut self) -> Result<Expr> {
         if !self.symbol_start(self.pos - 1) {
             return self.err("expected symbol");
@@ -1246,6 +1121,9 @@ impl Parser {
                 )?;
                 continue;
             }
+            if matches!(self.token(), Token::Words(words) if words.ambiguous) {
+                self.expand_modulo()?;
+            }
             let Token::Op(op) = self.token() else {
                 break;
             };
@@ -1278,8 +1156,8 @@ impl Parser {
         Ok(lhs)
     }
     fn previous(&self) -> &Lexeme {
-        self.tokens[..self.pos]
-            .iter()
+        self.tokens
+            .range(0..self.pos)
             .rev()
             .find(|t| t.token != Token::EndLine)
             .unwrap()
@@ -1423,8 +1301,9 @@ impl Parser {
                     return (self.groups > 0).then_some(next);
                 }
                 match op {
-                    "+" | "-" => self.tokens[next + 1..]
-                        .iter()
+                    "+" | "-" => self
+                        .tokens
+                        .from(next + 1)
                         .find(|t| t.token != Token::EndLine || t.line == t.end_line)
                         .is_some_and(|operand| {
                             !matches!(operand.token, Token::Eof | Token::EndLine)
@@ -1446,7 +1325,7 @@ impl Parser {
         let shaped = matches!(operand.token, Token::P(',') | Token::Op("="))
             || operand.offset == previous.end;
         let mut comma = false;
-        for token in &self.tokens[start + 1..] {
+        for token in self.tokens.from(start + 1) {
             if token.line > self.tokens[start].line + 64 {
                 return false;
             }
@@ -1530,6 +1409,7 @@ impl Parser {
                 false
             }
             Token::P('[') => !local && previous.end != next.offset,
+            Token::Words(..) => !local && previous.end != next.offset,
             Token::Op(op @ ("*" | "**" | "/")) => {
                 // Go v0.70.0 locates a power token at its second star.
                 let start = next.offset + usize::from(op == "**");
@@ -1549,7 +1429,11 @@ impl Parser {
         }
         match &self.tokens[pos].token {
             Token::Word(w) => !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield"),
-            Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,
+            Token::Int(_)
+            | Token::Float(_)
+            | Token::Bytes(_)
+            | Token::Template(_)
+            | Token::Words(..) => true,
             Token::P(':') => self.symbol_start(pos),
             Token::Op("!") => true,
             Token::P('[') | Token::Op("*" | "**") => after_comma,
@@ -1724,7 +1608,11 @@ impl Parser {
                         "if" | "unless" | "case" | "while" | "until" | "for" | "yield"
                     )
             }
-            Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,
+            Token::Int(_)
+            | Token::Float(_)
+            | Token::Bytes(_)
+            | Token::Template(_)
+            | Token::Words(..) => true,
             Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
             _ => false,
         }

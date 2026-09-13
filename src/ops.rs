@@ -788,8 +788,30 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
         Kind::Nil => return ctx.bytes(b""),
         Kind::Bool(v) => return ctx.bytes(if *v { b"true" } else { b"false" }),
         Kind::Int(n) => write!(text, "{n}").unwrap(),
-        Kind::Float(n) => write!(text, "{n}").unwrap(),
+        Kind::Float(n) => format_float(&mut text, *n),
         _ => return crate::text::display(ctx, value),
     }
     ctx.bytes(text.bytes())
+}
+
+fn format_float(out: &mut json::Number, value: f64) {
+    if value.is_nan() {
+        out.write_str("NaN").unwrap();
+    } else if value.is_infinite() {
+        out.write_str(if value.is_sign_negative() {
+            "-Infinity"
+        } else {
+            "Infinity"
+        })
+        .unwrap();
+    } else if value != 0.0 && !(1e-4..1e6).contains(&value.abs()) {
+        let mut scientific = json::Number::new();
+        write!(scientific, "{value:e}").unwrap();
+        let text = std::str::from_utf8(scientific.bytes()).unwrap();
+        let (mantissa, exponent) = text.split_once('e').unwrap();
+        let exponent: i32 = exponent.parse().unwrap();
+        write!(out, "{mantissa}e{exponent:+03}").unwrap();
+    } else {
+        write!(out, "{value}").unwrap();
+    }
 }
