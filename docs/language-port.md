@@ -1,0 +1,40 @@
+# Complete the Vibescript language in Rust
+
+The active objective is to implement the remainder of Vibescript, using Go v0.70.0 at commit `5cba216c33bea8890787d64efb2ab926a761fb1b` as the compatibility reference. This replaces the earlier goal of building a performance experiment around a subset. Performance passes resume after language coverage; existing accounting and cancellation contracts remain required throughout.
+
+The full release source is available locally at `.cache/reference-go-0.70.0` on the external volume. The normative references are its `docs/language_reference.md`, `docs/stdlib_core_utilities.md`, focused language guides, implementation, and tests. The site corpus is useful coverage but is not the complete specification.
+
+## Completion requirements
+
+| Area | Required behavior | Current status |
+| --- | --- | --- |
+| Values and operators | Arbitrary-precision integers with compact normalization, floats, byte strings, symbols, arrays, hashes, ranges, enum values, class instances, money, duration, and time; complete operators and coercions | Core scalar/collection subset implemented; remainder pending |
+| Literals and expressions | Complete numeric/string escapes, interpolation, percent word/symbol arrays, range and ternary expressions, expression-valued conditionals, bracket slices, chained and bare calls | Partial |
+| Assignment and control flow | Destructuring/rest assignment, nested addressable writes and mutating receivers, all compound assignments, modifiers, for/while/until, case/when, break/next/return | Partial |
+| Functions and blocks | Positional, default, keyword, rest and keyword-rest binding; argument splats; synchronous call-attached blocks, yield, block_given?, nonlocal returns, block retirement | Required positional functions implemented; remainder pending |
+| Classes | Instance/class methods and variables, constructors, operator/index methods, accessors, visibility, constants, introspection, per-call isolation | Pending |
+| Modules and enums | Namespace declarations, nested constants, module functions, require/load paths and module initialization/cycles/isolation, enum coercion and serialization | Pending |
+| Typed boundaries | Runtime argument/return/accessor normalization and checking; nullable, union, collection, shape, enum and nominal types; optional static checking | Pending |
+| Error handling | Raise/rescue/else/ensure, error values and backtraces; unwinding on return/break/next; exhaustion and cancellation remain uncatchable | Host/runtime error categories implemented; language handling pending |
+| Standard library | Every documented builtin/member signature and behavior in stdlib_core_utilities.md and focused guides, including block forms, JSON, regex, formatting, numeric/math, money, duration, time and IDs | Partial |
+| Host capabilities | Namespaced methods, positional/keyword contracts, synchronous block invocation with retirement, context/deadline propagation, independently accounted results; usable Rust async integration | Flat synchronous callbacks and bounded Tokio runner implemented; remainder pending |
+| Limits and value semantics | Account new value storage and temporary allocations; bound work and cancellation latency; enforce recursion and latched exhaustion; preserve aliases and cross-call isolation | Existing core verified; every new feature requires coverage |
+| Compatibility evidence | Differential success/error cases covering the full reference, all applicable original examples, input/output and mutation checks, debug/release and portable/SIMD gates | Existing 276 shared cases and 74 passing site programs; full coverage pending |
+
+ADR-006 remains part of the target: no inheritance, module mixins, escaping executable values, script-created tasks or sleep. Removed forms must produce the documented errors. These exclusions follow Vibescript's language boundary, not Rust implementation convenience.
+
+## Implementation sequence
+
+1. Complete basic collection, string, numeric and expression behavior; extend the shared harness as each feature lands.
+2. Add general addressable writes, richer call binding, control flow and synchronous blocks with explicit VM state.
+3. Implement arbitrary precision and the remaining standard-library value families and operations.
+4. Add declarations, namespaces, classes, enums, module loading and typed boundaries/checking.
+5. Complete error unwinding, capability binding and async integration, then audit every reference surface and gap.
+
+This sequence can change when dependencies require it. Finishing a stage or making all 203 site examples pass does not complete the objective by itself.
+
+## Verification
+
+Use `./scripts/check` for formatting, linting, debug/release, portable/SIMD, documentation and optional Tokio tests. Extend `scripts/fixtures.py` with Go-checked conformance cases and run `scripts/compare.py --validate-only`; do not run performance measurements during this language port. Keep `scripts/audit-site.py` reporting all site successes, missing features and harness gaps. Add independent expected-value and limit tests for new semantics, not only comparisons to the Go implementation.
+
+Before completion, replace every partial/pending status above with specific current evidence, audit all documented signatures and rejection boundaries, and verify the full implemented state. Leave the thread goal active while any required behavior is missing, incomplete or unverified.
