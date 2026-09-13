@@ -13,6 +13,7 @@ use crate::{
 
 struct Frame {
     function: Option<usize>,
+    mutating: bool,
     ip: usize,
     iteration_base: usize,
     base: usize,
@@ -142,7 +143,19 @@ pub(crate) fn execute(
                         stack.data.len(),
                     )?;
                 }
-                Progress::Done(value) => {
+                Progress::Done(mut value) => {
+                    let mutation = iteration.mutation.take();
+                    if frames.data[current].mutating {
+                        let address = storage.addresses.data.pop().unwrap();
+                        if let Some(mutation) = mutation {
+                            value = address.apply(
+                                ctx,
+                                &mut storage.locals.data,
+                                &mut storage.addresses.data,
+                                |ctx, receiver| mutation.apply(ctx, receiver, value),
+                            )?;
+                        }
+                    }
                     unwind(&mut frames, &mut storage, &mut stack, current);
                     stack.push(ctx, value)?;
                 }
@@ -744,33 +757,41 @@ pub(crate) fn execute(
                     }
                     Invocation::Member(site, mutating) => {
                         let name = &program.members[site.name];
-                        if !mutating {
-                            let receiver = stack.data.last().unwrap();
-                            let arity = args
-                                .block
-                                .map(|block| program.functions[block.function].block_arity);
-                            if let Some(iteration) = iteration::start(
-                                ctx,
-                                name,
-                                receiver,
-                                &args.positional.data,
-                                !args.keywords.buffer.data.is_empty(),
-                                arity,
-                            )? {
+                        let receiver = if mutating {
+                            &storage.addresses.data.last().unwrap().value
+                        } else {
+                            stack.data.last().unwrap()
+                        };
+                        let arity = args
+                            .block
+                            .map(|block| program.functions[block.function].block_arity);
+                        if let Some(iteration) = iteration::start(
+                            ctx,
+                            name,
+                            receiver,
+                            &args.positional.data,
+                            !args.keywords.buffer.data.is_empty(),
+                            arity,
+                        )? {
+                            if !mutating {
                                 stack.data.pop();
-                                ctx.charge(1)?;
-                                if frames.data.len() >= ctx.options.limits.recursion {
-                                    return ctx
-                                        .fail(ErrorKind::Recursion, "recursion limit exceeded");
-                                }
-                                let mut frame =
-                                    new_frame(ctx, program, &mut storage, None, stack.data.len())?;
-                                frame.block = args.block;
-                                frame.arguments.push(ctx, args)?;
-                                storage.iterations.push(ctx, iteration)?;
-                                frames.push(ctx, frame)?;
-                                continue;
                             }
+                            ctx.charge(1)?;
+                            if frames.data.len() >= ctx.options.limits.recursion {
+                                return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
+                            }
+                            let mut frame =
+                                new_frame(ctx, program, &mut storage, None, stack.data.len())?;
+                            frame.mutating = mutating;
+                            if mutating {
+                                // The native frame owns this address, including on nonlocal exits.
+                                frame.address_base -= 1;
+                            }
+                            frame.block = args.block;
+                            frame.arguments.push(ctx, args)?;
+                            storage.iterations.push(ctx, iteration)?;
+                            frames.push(ctx, frame)?;
+                            continue;
                         }
                         let value = if mutating {
                             let address = storage.addresses.data.pop().unwrap();
@@ -999,6 +1020,7 @@ fn new_frame(
     }
     Ok(Frame {
         function,
+        mutating: false,
         ip: 0,
         iteration_base: storage.iterations.data.len(),
         base,

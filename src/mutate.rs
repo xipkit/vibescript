@@ -122,14 +122,15 @@ pub(crate) fn call(
             if start == end && length == source.len() {
                 return Ok((receiver.clone(), receiver));
             }
-            let mut out = Buffer::with_capacity(ctx, length)?;
+            let mut out = Buffer::empty();
             for i in 0..length {
                 ctx.charge(1)?;
-                out.data.push(if i >= start && i < end {
+                let next = if i >= start && i < end {
                     value.clone()
                 } else {
                     source.get(i).cloned().unwrap_or_default()
-                });
+                };
+                out.push(ctx, next)?;
             }
             let value = Value::from_array(ctx, out)?;
             Ok((value.clone(), value))
@@ -176,7 +177,7 @@ fn remove_end(
     Ok((receiver.keep_array_range(ctx, start, end)?, removed))
 }
 
-fn fill_span(
+pub(crate) fn fill_span(
     ctx: &mut CallContext,
     args: &[Value],
     length: usize,

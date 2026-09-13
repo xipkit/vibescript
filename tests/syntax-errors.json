@@ -198,5 +198,15 @@
     "name": "iteration_symbol_...",
     "source": "\ndef run(input)\n:...\nend",
     "go_error": "parse error at 3:1: unexpected token \":\""
+  },
+  {
+    "name": "mutable_block_fill_[1,2,3]_(..)",
+    "source": "\ndef run(input)\na=[1,2,3];b=a;seen=[];r=a.fill((..)) {|i|seen.push([i,a]);i*2};[a,b,r,seen]\nend",
+    "go_error": "parse error at 3:34: range is missing end expression"
+  },
+  {
+    "name": "mutable_block_fill_[]_(..)",
+    "source": "\ndef run(input)\na=[];b=a;seen=[];r=a.fill((..)) {|i|seen.push([i,a]);i*2};[a,b,r,seen]\nend",
+    "go_error": "parse error at 3:29: range is missing end expression"
   }
 ]

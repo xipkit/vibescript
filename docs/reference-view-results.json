@@ -1,0 +1,713 @@
+{
+  "reference_version": "v0.70.0",
+  "reference_revision": "5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "counts": {
+    "cases": 17,
+    "rust_matches_normal": 0,
+    "rust_matches_copy": 13
+  },
+  "binary_sha256": {
+    "go-test": "f1a57347d87a6d5142751bcdd6aa25fe4dc43cedb3a85fe06711840596beb48e",
+    "rust-portable": "993887eae9cc50d47461d4d0f1dfc162ef4b6c64ddda02cc5f101839adca2703",
+    "rust-simd": "145398d390f28b2e610f768f9695595ffea248d8bdd9c8368bf9db9d7caf4ca6"
+  },
+  "probe_sha256": "ea603804b5cbf71f21ec35dad654758486aea526e3b322a27d2e91d376e3a218",
+  "cases": [
+    {
+      "name": "negative_receiver_growth",
+      "go_normal": [
+        [
+          1,
+          2
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            9
+          ]
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2
+        ],
+        [
+          [
+            1
+          ],
+          [
+            9
+          ]
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2
+        ],
+        [
+          [
+            1
+          ],
+          [
+            9
+          ]
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "compound_collection_side_effect",
+      "go_normal": [
+        [
+          1,
+          2,
+          1,
+          2
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          1,
+          2
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "binary_collection_side_effect",
+      "go_normal": [
+        [
+          1,
+          2,
+          1,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          1,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          1,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "inclusive_integer_endpoint",
+      "go_normal": [
+        9223372036854775807,
+        -9223372036854775808
+      ],
+      "go_always_copy": [
+        9223372036854775807,
+        -9223372036854775808
+      ],
+      "rust": [
+        9223372036854775807
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "hash_break_value",
+      "go_normal": {
+        "a": 1
+      },
+      "go_always_copy": {
+        "a": 1
+      },
+      "rust": 7,
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "hash_break_nil",
+      "go_normal": {
+        "a": 1
+      },
+      "go_always_copy": {
+        "a": 1
+      },
+      "rust": null,
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "for_expression_mutation",
+      "go_normal": [
+        [
+          1,
+          2,
+          3,
+          3
+        ],
+        [
+          1,
+          2,
+          3,
+          3
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          2,
+          3,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          2,
+          3,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "iteration_array_mutation_each",
+      "go_normal": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "iteration_array_mutation_map",
+      "go_normal": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "iteration_array_mutation_select",
+      "go_normal": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "iteration_array_mutation_each_with_index",
+      "go_normal": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2,
+          3
+        ],
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "iteration_hash_mutation_each",
+      "go_normal": [
+        [
+          [
+            "a",
+            1
+          ],
+          [
+            "b",
+            2
+          ]
+        ],
+        {
+          "a": 1,
+          "b": 9
+        },
+        {
+          "a": 1,
+          "b": 9
+        }
+      ],
+      "go_always_copy": [
+        [
+          [
+            "a",
+            1
+          ],
+          [
+            "b",
+            2
+          ]
+        ],
+        {
+          "a": 1,
+          "b": 9
+        },
+        {
+          "a": 1,
+          "b": 2
+        }
+      ],
+      "rust": [
+        [
+          [
+            "a",
+            1
+          ],
+          [
+            "b",
+            2
+          ]
+        ],
+        {
+          "a": 1,
+          "b": 9
+        },
+        {
+          "a": 1,
+          "b": 2
+        }
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "mutable_block_fill_changes_tail",
+      "go_normal": [
+        [
+          7,
+          2,
+          9
+        ],
+        [
+          7,
+          2,
+          9
+        ]
+      ],
+      "go_always_copy": [
+        [
+          7,
+          2,
+          3
+        ],
+        [
+          7,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          7,
+          2,
+          3
+        ],
+        [
+          7,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "mutable_block_filter_changes_tail",
+      "go_normal": [
+        [
+          1,
+          2,
+          9
+        ],
+        [
+          1,
+          2,
+          9
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          2,
+          9
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          2,
+          9
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "mutable_block_filter_changes_tail_removes",
+      "go_normal": [
+        [
+          1,
+          9
+        ],
+        [
+          1,
+          9
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "mutable_block_hash_filter_changes_noop",
+      "go_normal": [
+        {
+          "a": 1,
+          "b": 9
+        },
+        {
+          "a": 1,
+          "b": 9
+        }
+      ],
+      "go_always_copy": [
+        {
+          "a": 1,
+          "b": 9
+        },
+        {
+          "a": 1,
+          "b": 2
+        }
+      ],
+      "rust": [
+        {
+          "a": 1,
+          "b": 9
+        },
+        {
+          "a": 1,
+          "b": 2
+        }
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "mutable_block_fill_negative_parent_growth",
+      "go_normal": [
+        [
+          [
+            7,
+            7
+          ],
+          [
+            9
+          ],
+          [
+            9
+          ]
+        ],
+        [
+          7,
+          7
+        ]
+      ],
+      "go_always_copy": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            9
+          ],
+          [
+            9
+          ]
+        ],
+        [
+          7,
+          7
+        ]
+      ],
+      "rust": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            9
+          ],
+          [
+            9
+          ]
+        ],
+        [
+          7,
+          7
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    }
+  ]
+}

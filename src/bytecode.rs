@@ -1039,6 +1039,8 @@ impl Compiler<'_> {
                     | "pop"
                     | "shift"
                     | "delete"
+                    | "delete_if"
+                    | "keep_if"
                     | "insert"
                     | "clear"
                     | "fill"

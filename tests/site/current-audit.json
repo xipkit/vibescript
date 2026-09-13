@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "0eee47acb769618319c68de53e1adf526cc89c43",
-  "dirty": " M README.md\n M docs/compatibility-cases.json\n M docs/compatibility.md\n M src/bytecode.rs\n M src/collections.rs\n M src/lib.rs\n M src/members.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/iteration.rs\n?? tests/iteration.rs\n",
+  "source_revision": "f75df328b2a5635fc80416a54664b2f4cccd0709",
+  "dirty": " M docs/compatibility-cases.json\n M src/bytecode.rs\n M src/iteration.rs\n M src/mutate.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? scripts/audit-reference-views.py\n?? tests/mutable_blocks.rs\n",
   "binary_sha256": {
-    "go-simd": "a8caacc21816655e3df2a2bbc6c6da11f74477eae18708031f98a17b8b971868",
-    "rust-simd": "4c2469f2ae9a8422e4e8fbdfc6a95602ad3fe0797eab5086270cf454cd4e986d"
+    "go-simd": "7f39096c21d1d1b03305d4e0f03520f6d192b6b294338e346e711132644b0c0a",
+    "rust-simd": "145398d390f28b2e610f768f9695595ffea248d8bdd9c8368bf9db9d7caf4ca6"
   },
   "counts": {
     "match": 144,

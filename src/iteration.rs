@@ -4,7 +4,7 @@ use crate::{
     bytecode::{CallSite, Method},
     collections,
     hash::Hash,
-    members, ops,
+    members, mutate, ops,
     value::Kind,
 };
 
@@ -54,6 +54,10 @@ enum MethodKind {
     Upto,
     Downto,
     Step,
+    DeleteIf,
+    KeepIf,
+    Fill,
+    Delete,
 }
 
 impl MethodKind {
@@ -103,6 +107,10 @@ impl MethodKind {
             "upto" => Self::Upto,
             "downto" => Self::Downto,
             "step" => Self::Step,
+            "delete_if" => Self::DeleteIf,
+            "keep_if" => Self::KeepIf,
+            "fill" => Self::Fill,
+            "delete" => Self::Delete,
             _ => return None,
         })
     }
@@ -117,6 +125,31 @@ pub(crate) enum Progress {
     Done(Value),
 }
 
+pub(crate) enum Mutation {
+    Replace(Value),
+    DeleteKeys(Buffer<Value>),
+}
+
+impl Mutation {
+    pub fn apply(
+        self,
+        ctx: &mut CallContext,
+        mut receiver: Value,
+        result: Value,
+    ) -> Result<(Value, Value)> {
+        match self {
+            Self::Replace(value) => Ok((value, result)),
+            Self::DeleteKeys(mut keys) => {
+                for key in keys.data.drain(..) {
+                    ctx.charge(1)?;
+                    receiver = receiver.delete_hash(ctx, &key)?.0;
+                }
+                Ok((receiver.clone(), receiver))
+            }
+        }
+    }
+}
+
 pub(crate) struct Iteration {
     method: MethodKind,
     receiver: Value,
@@ -129,6 +162,7 @@ pub(crate) struct Iteration {
     block: bool,
     collapse_pair: bool,
     pub waiting: bool,
+    pub mutation: Option<Mutation>,
     pending: [Value; 2],
     pending_index: i128,
     accumulator: Option<Value>,
@@ -186,6 +220,9 @@ pub(crate) fn start(
                     | FetchValues
                     | TransformKeys
                     | TransformValues
+                    | DeleteIf
+                    | KeepIf
+                    | Delete
             ),
             Kind::Range(_) => matches!(
                 method,
@@ -205,7 +242,12 @@ pub(crate) fn start(
         }
     }
     let has_block = block_arity.is_some();
-    if !has_block && matches!(method, Index | Rindex | Fetch | ToHash | Uniq) {
+    if !has_block
+        && matches!(
+            method,
+            Index | Rindex | Fetch | ToHash | Uniq | Fill | Delete
+        )
+    {
         return Ok(None);
     }
     if !has_block && method == Sum && args.is_empty() {
@@ -231,6 +273,10 @@ pub(crate) fn start(
                 | ToHash
                 | Uniq
                 | Sum
+                | DeleteIf
+                | KeepIf
+                | Fill
+                | Delete
         )
         || (is_hash && method == Map);
     if keywords && rejects_keywords {
@@ -242,7 +288,8 @@ pub(crate) fn start(
         Each | Map | Select if !is_hash && !is_range => usize::MAX,
         Cycle | Find | Count | Any | All | NoneMatch | Sum | Grep | GrepV | EachSlice
         | EachCons | Upto | Downto => 1,
-        Fetch => 2,
+        Fetch | Fill => 2,
+        Delete => 1,
         FetchValues => usize::MAX,
         Reduce if !is_range => 2,
         Reduce => 1,
@@ -268,6 +315,7 @@ pub(crate) fn start(
         block: has_block,
         collapse_pair: block_arity == Some(1),
         waiting: false,
+        mutation: None,
         pending: [Value::nil(), Value::nil()],
         pending_index: 0,
         accumulator: None,
@@ -404,6 +452,37 @@ pub(crate) fn start(
         state.inputs.extend(ctx, args)?;
         state.length = args.len() as i128;
     }
+    if method == Fill {
+        let original = receiver.as_array().unwrap().len();
+        let (start, end, length) = mutate::fill_span(ctx, args, original)?;
+        state.start = start as i128;
+        state.width = end;
+        state.length = length as i128;
+        if start == end && length == original {
+            state.accumulator = Some(receiver.clone());
+            state.length = 0;
+        }
+    }
+    if method == Delete {
+        let (updated, removed) = mutate::call(ctx, Method::Delete, receiver.clone(), args)?;
+        let changed = match (&receiver.0, &updated.0) {
+            (Kind::Array(before), Kind::Array(after)) => {
+                before.buffer.data.len() != after.buffer.data.len()
+            }
+            (Kind::Hash(before), Kind::Hash(after)) => {
+                before.buffer.data.len() != after.buffer.data.len()
+            }
+            _ => unreachable!(),
+        };
+        if changed {
+            state.mutation = Some(Mutation::Replace(updated));
+            state.accumulator = Some(removed);
+            state.length = 0;
+        } else {
+            state.inputs.push(ctx, args[0].clone())?;
+            state.length = 1;
+        }
+    }
     if method == Count && !has_block && args.is_empty() {
         state.count = i64::try_from(state.length).map_err(|_| argument("count overflow"))?;
         state.length = 0;
@@ -429,6 +508,20 @@ impl Iteration {
                     *count -= 1;
                 }
                 self.position = 0;
+            }
+            if self.method == MethodKind::Fill
+                && (self.position < self.start || self.position >= self.width as i128)
+            {
+                let value = self
+                    .receiver
+                    .as_array()
+                    .unwrap()
+                    .get(self.position as usize)
+                    .cloned()
+                    .unwrap_or_default();
+                self.output.push(ctx, value)?;
+                self.position += 1;
+                continue;
             }
             let (args, count) = self.arguments(ctx)?;
             self.pending = args.clone();
@@ -497,7 +590,9 @@ impl Iteration {
         self.pending_index = index;
         if matches!(self.method, Tap | YieldSelf) {
             args[0] = self.receiver.clone();
-        } else if matches!(self.method, Fetch | FetchValues) {
+        } else if self.method == Fill {
+            args[0] = Value::int(index as i64);
+        } else if matches!(self.method, Fetch | FetchValues | Delete) {
             args[0] = self.inputs.data[index as usize].clone();
         } else {
             match &self.receiver.0 {
@@ -555,7 +650,7 @@ impl Iteration {
         use MethodKind::*;
         let truthy = value.truthy();
         let depth = match self.method {
-            Map | MapIndex | Grep | GrepV | FetchValues => value.depth() + 1,
+            Map | MapIndex | Grep | GrepV | FetchValues | Fill => value.depth() + 1,
             FlatMap if value.as_array().is_none() => value.depth() + 1,
             FilterMap if truthy => value.depth() + 1,
             Partition | GroupBy => self.pending[0].depth() + 2,
@@ -568,8 +663,8 @@ impl Iteration {
         match self.method {
             Tap | Each | EachIndex | EachKey | EachValue | EachSlice | EachCons | ReverseEach
             | Cycle | Times | Upto | Downto | Step => (),
-            YieldSelf | Fetch | Reduce => self.accumulator = Some(value),
-            Map | MapIndex | Grep | GrepV | FetchValues => self.output.push(ctx, value)?,
+            YieldSelf | Fetch | Reduce | Delete => self.accumulator = Some(value),
+            Map | MapIndex | Grep | GrepV | FetchValues | Fill => self.output.push(ctx, value)?,
             FlatMap => {
                 if let Some(items) = value.as_array() {
                     self.output.extend(ctx, items)?;
@@ -579,8 +674,15 @@ impl Iteration {
             }
             FilterMap if truthy => self.output.push(ctx, value)?,
             FilterMap => (),
-            Select | Reject => {
-                if truthy == (self.method == Select) {
+            Select | Reject | DeleteIf | KeepIf => {
+                let keep = truthy == matches!(self.method, Select | KeepIf);
+                if matches!(self.receiver.0, Kind::Hash(_))
+                    && matches!(self.method, DeleteIf | KeepIf)
+                {
+                    if !keep {
+                        self.other.push(ctx, self.pending[0].clone())?;
+                    }
+                } else if keep {
                     if matches!(self.receiver.0, Kind::Hash(_)) {
                         self.hash
                             .insert(ctx, self.pending[0].clone(), self.pending[1].clone())?;
@@ -718,8 +820,31 @@ impl Iteration {
             Tap | Each | EachIndex | EachKey | EachValue | ReverseEach | Times | Upto | Downto
             | Step => Ok(self.receiver.clone()),
             EachSlice | EachCons | Cycle => Ok(Value::nil()),
-            YieldSelf | Fetch | Reduce | Find | Index | Rindex | Sum => {
+            YieldSelf | Fetch | Reduce | Find | Index | Rindex | Sum | Delete => {
                 Ok(self.accumulator.take().unwrap_or_default())
+            }
+            DeleteIf | KeepIf | Fill => {
+                if let Some(value) = self.accumulator.take() {
+                    return Ok(value);
+                }
+                if matches!(self.receiver.0, Kind::Hash(_)) {
+                    if !self.other.data.is_empty() {
+                        self.mutation = Some(Mutation::DeleteKeys(std::mem::replace(
+                            &mut self.other,
+                            Buffer::empty(),
+                        )));
+                    }
+                    return Ok(self.receiver.clone());
+                }
+                if self.method != Fill
+                    && self.output.data.len() == self.receiver.as_array().unwrap().len()
+                {
+                    return Ok(self.receiver.clone());
+                }
+                let value =
+                    Value::from_array(ctx, std::mem::replace(&mut self.output, Buffer::empty()))?;
+                self.mutation = Some(Mutation::Replace(value.clone()));
+                Ok(value)
             }
             Count => Ok(Value::int(self.count)),
             Any => Ok(Value::boolean(self.count != 0)),
