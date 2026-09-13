@@ -56,6 +56,15 @@ pub(crate) fn call_keywords(
         )?;
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::text::transform::call(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+    )? {
+        return Ok((receiver, result));
+    }
     let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
     if numeric
         && (matches!(name, "inspect" | "clamp" | "between?")
@@ -141,6 +150,9 @@ pub(crate) fn call(
         return Ok((receiver, result));
     }
     if let Some(result) = crate::text::case::call(ctx, name, &receiver, args)? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::text::transform::call(ctx, name, &receiver, args, false)? {
         return Ok((receiver, result));
     }
     if let Some(result) = crate::numeric::call(ctx, name, &receiver, args)? {

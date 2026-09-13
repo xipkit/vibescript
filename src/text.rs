@@ -5,6 +5,7 @@ use crate::{
 use std::fmt::Write;
 
 pub(crate) mod case;
+pub(crate) mod transform;
 
 pub(crate) fn display(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut out = Buffer::empty();

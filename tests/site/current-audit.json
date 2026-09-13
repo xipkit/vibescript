@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "5220a96abe3e6f1a250233e96147015e83681f49",
-  "dirty": " M README.md\n M docs/language-port.md\n M scripts/check\n M src/bytecode.rs\n M src/members.rs\n M src/ops.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n?? licenses/casing-NOTICE.txt\n?? scripts/generate-string-casing.go\n?? scripts/generate-string-casing.py\n?? src/text/\n?? tests/string_case.rs\n",
+  "source_revision": "1e7ffc48e3458cc1ec58de2db8b4f4ec2ddd4432",
+  "dirty": " M README.md\n M src/bytecode.rs\n M src/members.rs\n M src/ops.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n?? src/text/transform.rs\n?? tests/string_transforms.rs\n",
   "binary_sha256": {
-    "go-simd": "9db8baef4659704108ba45e6409131cd12430594cbd3458d9d37fe1542cf80fc",
-    "rust-simd": "3e5f828f62bf695b9d2cdaf4adb912b3d951b1a2f2319c0668887439cbc1b305"
+    "go-simd": "f6a92f7fc089b61e4b5f7bf8e58504d1ba729f26f570ca06fc314d484cb97735",
+    "rust-simd": "d16b96e29d3d6ae1b6d19bac32062073d2cf3f53a1154d54ef14bb05d291c238"
   },
   "counts": {
-    "match": 159,
-    "rust_gap": 29,
+    "match": 160,
+    "rust_gap": 28,
     "harness_gap": 15
   },
   "examples": [
@@ -420,10 +420,29 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method delete_suffix is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "widths": [
+            10,
+            10,
+            10,
+            6,
+            6,
+            9,
+            10,
+            8,
+            7,
+            7,
+            6,
+            4
+          ],
+          "left": "Given      a          text       file   of     many      lines,     where    fields  within  a      line",
+          "right": "     Given          a       text   file     of      many     lines,    where  fields  within      a line",
+          "center": "  Given        a         text     file    of     many      lines,    where   fields  within    a    line"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/aliquot_sequence_classifications.vibe",

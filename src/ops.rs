@@ -523,16 +523,6 @@ pub(crate) fn method(
                 Ok(found.map(|n| Value::int(n as i64)).unwrap_or_default())
             }
         }
-        Strip => {
-            arity(args, 0)?;
-            let bytes = value.require_bytes()?;
-            let (start, end) = trim_ascii(ctx, bytes)?;
-            if start == 0 && end == bytes.len() {
-                Ok(value)
-            } else {
-                ctx.bytes(&bytes[start..end])
-            }
-        }
         Split => split(ctx, &value, args),
         Join => join(ctx, &value, args),
         Push => value.push(ctx, args),
@@ -620,20 +610,6 @@ pub(crate) fn runes(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, bool)
         }
     }
     Ok((count, valid))
-}
-
-fn trim_ascii(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)> {
-    let mut start = 0;
-    while start < bytes.len() && matches!(bytes[start], 0 | 9..=13 | 32) {
-        ctx.charge(1)?;
-        start += 1;
-    }
-    let mut end = bytes.len();
-    while end > start && matches!(bytes[end - 1], 0 | 9..=13 | 32) {
-        ctx.charge(1)?;
-        end -= 1;
-    }
-    Ok((start, end))
 }
 
 pub(crate) fn trim(ctx: &mut CallContext, bytes: &[u8]) -> Result<(usize, usize)> {

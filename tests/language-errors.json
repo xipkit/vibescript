@@ -59293,5 +59293,1785 @@
     "name": "string_case_compare_args_10",
     "body": "\"A\".casecmp?(\"a\",\"b\")",
     "go_error": "string.casecmp? expects exactly one string"
+  },
+  {
+    "name": "string_transform_chomp_separator_0",
+    "body": "s=\"\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_8",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_16",
+    "body": "s=\"\\x61\\x62\\x63\\x0d\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_24",
+    "body": "s=\"\\x61\\x62\\x63\\x0a\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_32",
+    "body": "s=\"\\x61\\x62\\x63\\x0d\\x0a\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_40",
+    "body": "s=\"\\x61\\x62\\x63\\x0a\\x0d\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_48",
+    "body": "s=\"\\x61\\x62\\x63\\x0d\\x0a\\x0d\\x0a\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_56",
+    "body": "s=\"\\x61\\x62\\x63\\x0d\\x0d\\x0d\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_64",
+    "body": "s=\"\\x0d\\x0a\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_chomp_separator_72",
+    "body": "s=\"\\xff\\x0d\\x0a\";r=s.chomp(null);b=s.chomp!(null);[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "undefined variable null"
+  },
+  {
+    "name": "string_transform_args_1",
+    "body": "\"x\".strip(1,2,3)",
+    "go_error": "string.strip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_2",
+    "body": "\"x\".strip(nil)",
+    "go_error": "string.strip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_3",
+    "body": "\"x\".strip(false)",
+    "go_error": "string.strip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_4",
+    "body": "\"x\".strip([])",
+    "go_error": "string.strip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_5",
+    "body": "\"x\".strip({})",
+    "go_error": "string.strip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_6",
+    "body": "\"x\".strip(:hello)",
+    "go_error": "string.strip does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_0",
+    "body": ":hello.strip()",
+    "go_error": "unknown symbol method strip (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_1",
+    "body": "1.strip()",
+    "go_error": "unknown int method strip (did you mean \"step\" or \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_2",
+    "body": "nil.strip()",
+    "go_error": "unknown nil method strip (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_3",
+    "body": "[].strip()",
+    "go_error": "unknown array method strip (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_4",
+    "body": "{}.strip()",
+    "go_error": "unknown hash method strip"
+  },
+  {
+    "name": "string_transform_args_8",
+    "body": "\"x\".strip!(1,2,3)",
+    "go_error": "string.strip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_9",
+    "body": "\"x\".strip!(nil)",
+    "go_error": "string.strip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_10",
+    "body": "\"x\".strip!(false)",
+    "go_error": "string.strip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_11",
+    "body": "\"x\".strip!([])",
+    "go_error": "string.strip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_12",
+    "body": "\"x\".strip!({})",
+    "go_error": "string.strip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_13",
+    "body": "\"x\".strip!(:hello)",
+    "go_error": "string.strip! does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_5",
+    "body": ":hello.strip!()",
+    "go_error": "unknown symbol method strip! (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_6",
+    "body": "1.strip!()",
+    "go_error": "unknown int method strip! (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_7",
+    "body": "nil.strip!()",
+    "go_error": "unknown nil method strip! (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_8",
+    "body": "[].strip!()",
+    "go_error": "unknown array method strip! (did you mean \"string\"?)"
+  },
+  {
+    "name": "string_transform_receivers_9",
+    "body": "{}.strip!()",
+    "go_error": "unknown hash method strip!"
+  },
+  {
+    "name": "string_transform_args_15",
+    "body": "\"x\".lstrip(1,2,3)",
+    "go_error": "string.lstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_16",
+    "body": "\"x\".lstrip(nil)",
+    "go_error": "string.lstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_17",
+    "body": "\"x\".lstrip(false)",
+    "go_error": "string.lstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_18",
+    "body": "\"x\".lstrip([])",
+    "go_error": "string.lstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_19",
+    "body": "\"x\".lstrip({})",
+    "go_error": "string.lstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_20",
+    "body": "\"x\".lstrip(:hello)",
+    "go_error": "string.lstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_10",
+    "body": ":hello.lstrip()",
+    "go_error": "unknown symbol method lstrip"
+  },
+  {
+    "name": "string_transform_receivers_11",
+    "body": "1.lstrip()",
+    "go_error": "unknown int method lstrip"
+  },
+  {
+    "name": "string_transform_receivers_12",
+    "body": "nil.lstrip()",
+    "go_error": "unknown nil method lstrip"
+  },
+  {
+    "name": "string_transform_receivers_13",
+    "body": "[].lstrip()",
+    "go_error": "unknown array method lstrip"
+  },
+  {
+    "name": "string_transform_receivers_14",
+    "body": "{}.lstrip()",
+    "go_error": "unknown hash method lstrip"
+  },
+  {
+    "name": "string_transform_args_22",
+    "body": "\"x\".lstrip!(1,2,3)",
+    "go_error": "string.lstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_23",
+    "body": "\"x\".lstrip!(nil)",
+    "go_error": "string.lstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_24",
+    "body": "\"x\".lstrip!(false)",
+    "go_error": "string.lstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_25",
+    "body": "\"x\".lstrip!([])",
+    "go_error": "string.lstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_26",
+    "body": "\"x\".lstrip!({})",
+    "go_error": "string.lstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_27",
+    "body": "\"x\".lstrip!(:hello)",
+    "go_error": "string.lstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_15",
+    "body": ":hello.lstrip!()",
+    "go_error": "unknown symbol method lstrip!"
+  },
+  {
+    "name": "string_transform_receivers_16",
+    "body": "1.lstrip!()",
+    "go_error": "unknown int method lstrip!"
+  },
+  {
+    "name": "string_transform_receivers_17",
+    "body": "nil.lstrip!()",
+    "go_error": "unknown nil method lstrip!"
+  },
+  {
+    "name": "string_transform_receivers_18",
+    "body": "[].lstrip!()",
+    "go_error": "unknown array method lstrip!"
+  },
+  {
+    "name": "string_transform_receivers_19",
+    "body": "{}.lstrip!()",
+    "go_error": "unknown hash method lstrip!"
+  },
+  {
+    "name": "string_transform_args_29",
+    "body": "\"x\".rstrip(1,2,3)",
+    "go_error": "string.rstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_30",
+    "body": "\"x\".rstrip(nil)",
+    "go_error": "string.rstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_31",
+    "body": "\"x\".rstrip(false)",
+    "go_error": "string.rstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_32",
+    "body": "\"x\".rstrip([])",
+    "go_error": "string.rstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_33",
+    "body": "\"x\".rstrip({})",
+    "go_error": "string.rstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_args_34",
+    "body": "\"x\".rstrip(:hello)",
+    "go_error": "string.rstrip does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_20",
+    "body": ":hello.rstrip()",
+    "go_error": "unknown symbol method rstrip"
+  },
+  {
+    "name": "string_transform_receivers_21",
+    "body": "1.rstrip()",
+    "go_error": "unknown int method rstrip"
+  },
+  {
+    "name": "string_transform_receivers_22",
+    "body": "nil.rstrip()",
+    "go_error": "unknown nil method rstrip"
+  },
+  {
+    "name": "string_transform_receivers_23",
+    "body": "[].rstrip()",
+    "go_error": "unknown array method rstrip"
+  },
+  {
+    "name": "string_transform_receivers_24",
+    "body": "{}.rstrip()",
+    "go_error": "unknown hash method rstrip"
+  },
+  {
+    "name": "string_transform_args_36",
+    "body": "\"x\".rstrip!(1,2,3)",
+    "go_error": "string.rstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_37",
+    "body": "\"x\".rstrip!(nil)",
+    "go_error": "string.rstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_38",
+    "body": "\"x\".rstrip!(false)",
+    "go_error": "string.rstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_39",
+    "body": "\"x\".rstrip!([])",
+    "go_error": "string.rstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_40",
+    "body": "\"x\".rstrip!({})",
+    "go_error": "string.rstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_41",
+    "body": "\"x\".rstrip!(:hello)",
+    "go_error": "string.rstrip! does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_25",
+    "body": ":hello.rstrip!()",
+    "go_error": "unknown symbol method rstrip!"
+  },
+  {
+    "name": "string_transform_receivers_26",
+    "body": "1.rstrip!()",
+    "go_error": "unknown int method rstrip!"
+  },
+  {
+    "name": "string_transform_receivers_27",
+    "body": "nil.rstrip!()",
+    "go_error": "unknown nil method rstrip!"
+  },
+  {
+    "name": "string_transform_receivers_28",
+    "body": "[].rstrip!()",
+    "go_error": "unknown array method rstrip!"
+  },
+  {
+    "name": "string_transform_receivers_29",
+    "body": "{}.rstrip!()",
+    "go_error": "unknown hash method rstrip!"
+  },
+  {
+    "name": "string_transform_args_43",
+    "body": "\"x\".squish(1,2,3)",
+    "go_error": "string.squish does not take arguments"
+  },
+  {
+    "name": "string_transform_args_44",
+    "body": "\"x\".squish(nil)",
+    "go_error": "string.squish does not take arguments"
+  },
+  {
+    "name": "string_transform_args_45",
+    "body": "\"x\".squish(false)",
+    "go_error": "string.squish does not take arguments"
+  },
+  {
+    "name": "string_transform_args_46",
+    "body": "\"x\".squish([])",
+    "go_error": "string.squish does not take arguments"
+  },
+  {
+    "name": "string_transform_args_47",
+    "body": "\"x\".squish({})",
+    "go_error": "string.squish does not take arguments"
+  },
+  {
+    "name": "string_transform_args_48",
+    "body": "\"x\".squish(:hello)",
+    "go_error": "string.squish does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_30",
+    "body": ":hello.squish()",
+    "go_error": "unknown symbol method squish"
+  },
+  {
+    "name": "string_transform_receivers_31",
+    "body": "1.squish()",
+    "go_error": "unknown int method squish"
+  },
+  {
+    "name": "string_transform_receivers_32",
+    "body": "nil.squish()",
+    "go_error": "unknown nil method squish"
+  },
+  {
+    "name": "string_transform_receivers_33",
+    "body": "[].squish()",
+    "go_error": "unknown array method squish"
+  },
+  {
+    "name": "string_transform_receivers_34",
+    "body": "{}.squish()",
+    "go_error": "unknown hash method squish"
+  },
+  {
+    "name": "string_transform_args_50",
+    "body": "\"x\".squish!(1,2,3)",
+    "go_error": "string.squish! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_51",
+    "body": "\"x\".squish!(nil)",
+    "go_error": "string.squish! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_52",
+    "body": "\"x\".squish!(false)",
+    "go_error": "string.squish! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_53",
+    "body": "\"x\".squish!([])",
+    "go_error": "string.squish! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_54",
+    "body": "\"x\".squish!({})",
+    "go_error": "string.squish! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_55",
+    "body": "\"x\".squish!(:hello)",
+    "go_error": "string.squish! does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_35",
+    "body": ":hello.squish!()",
+    "go_error": "unknown symbol method squish!"
+  },
+  {
+    "name": "string_transform_receivers_36",
+    "body": "1.squish!()",
+    "go_error": "unknown int method squish!"
+  },
+  {
+    "name": "string_transform_receivers_37",
+    "body": "nil.squish!()",
+    "go_error": "unknown nil method squish!"
+  },
+  {
+    "name": "string_transform_receivers_38",
+    "body": "[].squish!()",
+    "go_error": "unknown array method squish!"
+  },
+  {
+    "name": "string_transform_receivers_39",
+    "body": "{}.squish!()",
+    "go_error": "unknown hash method squish!"
+  },
+  {
+    "name": "string_transform_args_57",
+    "body": "\"x\".chomp(1,2,3)",
+    "go_error": "string.chomp accepts at most one separator"
+  },
+  {
+    "name": "string_transform_args_59",
+    "body": "\"x\".chomp(false)",
+    "go_error": "string.chomp separator must be string"
+  },
+  {
+    "name": "string_transform_args_60",
+    "body": "\"x\".chomp([])",
+    "go_error": "string.chomp separator must be string"
+  },
+  {
+    "name": "string_transform_args_61",
+    "body": "\"x\".chomp({})",
+    "go_error": "string.chomp separator must be string"
+  },
+  {
+    "name": "string_transform_args_62",
+    "body": "\"x\".chomp(:hello)",
+    "go_error": "string.chomp separator must be string"
+  },
+  {
+    "name": "string_transform_receivers_40",
+    "body": ":hello.chomp()",
+    "go_error": "unknown symbol method chomp"
+  },
+  {
+    "name": "string_transform_receivers_41",
+    "body": "1.chomp()",
+    "go_error": "unknown int method chomp (did you mean \"clamp\"?)"
+  },
+  {
+    "name": "string_transform_receivers_42",
+    "body": "nil.chomp()",
+    "go_error": "unknown nil method chomp"
+  },
+  {
+    "name": "string_transform_receivers_43",
+    "body": "[].chomp()",
+    "go_error": "unknown array method chomp"
+  },
+  {
+    "name": "string_transform_receivers_44",
+    "body": "{}.chomp()",
+    "go_error": "unknown hash method chomp"
+  },
+  {
+    "name": "string_transform_args_64",
+    "body": "\"x\".chomp!(1,2,3)",
+    "go_error": "string.chomp! accepts at most one separator"
+  },
+  {
+    "name": "string_transform_args_66",
+    "body": "\"x\".chomp!(false)",
+    "go_error": "string.chomp! separator must be string"
+  },
+  {
+    "name": "string_transform_args_67",
+    "body": "\"x\".chomp!([])",
+    "go_error": "string.chomp! separator must be string"
+  },
+  {
+    "name": "string_transform_args_68",
+    "body": "\"x\".chomp!({})",
+    "go_error": "string.chomp! separator must be string"
+  },
+  {
+    "name": "string_transform_args_69",
+    "body": "\"x\".chomp!(:hello)",
+    "go_error": "string.chomp! separator must be string"
+  },
+  {
+    "name": "string_transform_receivers_45",
+    "body": ":hello.chomp!()",
+    "go_error": "unknown symbol method chomp!"
+  },
+  {
+    "name": "string_transform_receivers_46",
+    "body": "1.chomp!()",
+    "go_error": "unknown int method chomp!"
+  },
+  {
+    "name": "string_transform_receivers_47",
+    "body": "nil.chomp!()",
+    "go_error": "unknown nil method chomp!"
+  },
+  {
+    "name": "string_transform_receivers_48",
+    "body": "[].chomp!()",
+    "go_error": "unknown array method chomp!"
+  },
+  {
+    "name": "string_transform_receivers_49",
+    "body": "{}.chomp!()",
+    "go_error": "unknown hash method chomp!"
+  },
+  {
+    "name": "string_transform_args_71",
+    "body": "\"x\".chop(1,2,3)",
+    "go_error": "string.chop does not take arguments"
+  },
+  {
+    "name": "string_transform_args_72",
+    "body": "\"x\".chop(nil)",
+    "go_error": "string.chop does not take arguments"
+  },
+  {
+    "name": "string_transform_args_73",
+    "body": "\"x\".chop(false)",
+    "go_error": "string.chop does not take arguments"
+  },
+  {
+    "name": "string_transform_args_74",
+    "body": "\"x\".chop([])",
+    "go_error": "string.chop does not take arguments"
+  },
+  {
+    "name": "string_transform_args_75",
+    "body": "\"x\".chop({})",
+    "go_error": "string.chop does not take arguments"
+  },
+  {
+    "name": "string_transform_args_76",
+    "body": "\"x\".chop(:hello)",
+    "go_error": "string.chop does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_50",
+    "body": ":hello.chop()",
+    "go_error": "unknown symbol method chop"
+  },
+  {
+    "name": "string_transform_receivers_51",
+    "body": "1.chop()",
+    "go_error": "unknown int method chop"
+  },
+  {
+    "name": "string_transform_receivers_52",
+    "body": "nil.chop()",
+    "go_error": "unknown nil method chop"
+  },
+  {
+    "name": "string_transform_receivers_53",
+    "body": "[].chop()",
+    "go_error": "unknown array method chop"
+  },
+  {
+    "name": "string_transform_receivers_54",
+    "body": "{}.chop()",
+    "go_error": "unknown hash method chop"
+  },
+  {
+    "name": "string_transform_args_78",
+    "body": "\"x\".chop!(1,2,3)",
+    "go_error": "string.chop! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_79",
+    "body": "\"x\".chop!(nil)",
+    "go_error": "string.chop! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_80",
+    "body": "\"x\".chop!(false)",
+    "go_error": "string.chop! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_81",
+    "body": "\"x\".chop!([])",
+    "go_error": "string.chop! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_82",
+    "body": "\"x\".chop!({})",
+    "go_error": "string.chop! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_83",
+    "body": "\"x\".chop!(:hello)",
+    "go_error": "string.chop! does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_55",
+    "body": ":hello.chop!()",
+    "go_error": "unknown symbol method chop!"
+  },
+  {
+    "name": "string_transform_receivers_56",
+    "body": "1.chop!()",
+    "go_error": "unknown int method chop!"
+  },
+  {
+    "name": "string_transform_receivers_57",
+    "body": "nil.chop!()",
+    "go_error": "unknown nil method chop!"
+  },
+  {
+    "name": "string_transform_receivers_58",
+    "body": "[].chop!()",
+    "go_error": "unknown array method chop!"
+  },
+  {
+    "name": "string_transform_receivers_59",
+    "body": "{}.chop!()",
+    "go_error": "unknown hash method chop!"
+  },
+  {
+    "name": "string_transform_args_84",
+    "body": "\"x\".delete_prefix()",
+    "go_error": "string.delete_prefix expects exactly one prefix"
+  },
+  {
+    "name": "string_transform_args_85",
+    "body": "\"x\".delete_prefix(1,2,3)",
+    "go_error": "string.delete_prefix expects exactly one prefix"
+  },
+  {
+    "name": "string_transform_args_86",
+    "body": "\"x\".delete_prefix(nil)",
+    "go_error": "string.delete_prefix prefix must be string"
+  },
+  {
+    "name": "string_transform_args_87",
+    "body": "\"x\".delete_prefix(false)",
+    "go_error": "string.delete_prefix prefix must be string"
+  },
+  {
+    "name": "string_transform_args_88",
+    "body": "\"x\".delete_prefix([])",
+    "go_error": "string.delete_prefix prefix must be string"
+  },
+  {
+    "name": "string_transform_args_89",
+    "body": "\"x\".delete_prefix({})",
+    "go_error": "string.delete_prefix prefix must be string"
+  },
+  {
+    "name": "string_transform_args_90",
+    "body": "\"x\".delete_prefix(:hello)",
+    "go_error": "string.delete_prefix prefix must be string"
+  },
+  {
+    "name": "string_transform_receivers_60",
+    "body": ":hello.delete_prefix(\"x\")",
+    "go_error": "unknown symbol method delete_prefix"
+  },
+  {
+    "name": "string_transform_receivers_61",
+    "body": "1.delete_prefix(\"x\")",
+    "go_error": "unknown int method delete_prefix"
+  },
+  {
+    "name": "string_transform_receivers_62",
+    "body": "nil.delete_prefix(\"x\")",
+    "go_error": "unknown nil method delete_prefix"
+  },
+  {
+    "name": "string_transform_receivers_63",
+    "body": "[].delete_prefix(\"x\")",
+    "go_error": "unknown array method delete_prefix"
+  },
+  {
+    "name": "string_transform_receivers_64",
+    "body": "{}.delete_prefix(\"x\")",
+    "go_error": "unknown hash method delete_prefix"
+  },
+  {
+    "name": "string_transform_args_91",
+    "body": "\"x\".delete_prefix!()",
+    "go_error": "string.delete_prefix! expects exactly one prefix"
+  },
+  {
+    "name": "string_transform_args_92",
+    "body": "\"x\".delete_prefix!(1,2,3)",
+    "go_error": "string.delete_prefix! expects exactly one prefix"
+  },
+  {
+    "name": "string_transform_args_93",
+    "body": "\"x\".delete_prefix!(nil)",
+    "go_error": "string.delete_prefix! prefix must be string"
+  },
+  {
+    "name": "string_transform_args_94",
+    "body": "\"x\".delete_prefix!(false)",
+    "go_error": "string.delete_prefix! prefix must be string"
+  },
+  {
+    "name": "string_transform_args_95",
+    "body": "\"x\".delete_prefix!([])",
+    "go_error": "string.delete_prefix! prefix must be string"
+  },
+  {
+    "name": "string_transform_args_96",
+    "body": "\"x\".delete_prefix!({})",
+    "go_error": "string.delete_prefix! prefix must be string"
+  },
+  {
+    "name": "string_transform_args_97",
+    "body": "\"x\".delete_prefix!(:hello)",
+    "go_error": "string.delete_prefix! prefix must be string"
+  },
+  {
+    "name": "string_transform_receivers_65",
+    "body": ":hello.delete_prefix!(\"x\")",
+    "go_error": "unknown symbol method delete_prefix!"
+  },
+  {
+    "name": "string_transform_receivers_66",
+    "body": "1.delete_prefix!(\"x\")",
+    "go_error": "unknown int method delete_prefix!"
+  },
+  {
+    "name": "string_transform_receivers_67",
+    "body": "nil.delete_prefix!(\"x\")",
+    "go_error": "unknown nil method delete_prefix!"
+  },
+  {
+    "name": "string_transform_receivers_68",
+    "body": "[].delete_prefix!(\"x\")",
+    "go_error": "unknown array method delete_prefix!"
+  },
+  {
+    "name": "string_transform_receivers_69",
+    "body": "{}.delete_prefix!(\"x\")",
+    "go_error": "unknown hash method delete_prefix!"
+  },
+  {
+    "name": "string_transform_args_98",
+    "body": "\"x\".delete_suffix()",
+    "go_error": "string.delete_suffix expects exactly one suffix"
+  },
+  {
+    "name": "string_transform_args_99",
+    "body": "\"x\".delete_suffix(1,2,3)",
+    "go_error": "string.delete_suffix expects exactly one suffix"
+  },
+  {
+    "name": "string_transform_args_100",
+    "body": "\"x\".delete_suffix(nil)",
+    "go_error": "string.delete_suffix suffix must be string"
+  },
+  {
+    "name": "string_transform_args_101",
+    "body": "\"x\".delete_suffix(false)",
+    "go_error": "string.delete_suffix suffix must be string"
+  },
+  {
+    "name": "string_transform_args_102",
+    "body": "\"x\".delete_suffix([])",
+    "go_error": "string.delete_suffix suffix must be string"
+  },
+  {
+    "name": "string_transform_args_103",
+    "body": "\"x\".delete_suffix({})",
+    "go_error": "string.delete_suffix suffix must be string"
+  },
+  {
+    "name": "string_transform_args_104",
+    "body": "\"x\".delete_suffix(:hello)",
+    "go_error": "string.delete_suffix suffix must be string"
+  },
+  {
+    "name": "string_transform_receivers_70",
+    "body": ":hello.delete_suffix(\"x\")",
+    "go_error": "unknown symbol method delete_suffix"
+  },
+  {
+    "name": "string_transform_receivers_71",
+    "body": "1.delete_suffix(\"x\")",
+    "go_error": "unknown int method delete_suffix"
+  },
+  {
+    "name": "string_transform_receivers_72",
+    "body": "nil.delete_suffix(\"x\")",
+    "go_error": "unknown nil method delete_suffix"
+  },
+  {
+    "name": "string_transform_receivers_73",
+    "body": "[].delete_suffix(\"x\")",
+    "go_error": "unknown array method delete_suffix"
+  },
+  {
+    "name": "string_transform_receivers_74",
+    "body": "{}.delete_suffix(\"x\")",
+    "go_error": "unknown hash method delete_suffix"
+  },
+  {
+    "name": "string_transform_args_105",
+    "body": "\"x\".delete_suffix!()",
+    "go_error": "string.delete_suffix! expects exactly one suffix"
+  },
+  {
+    "name": "string_transform_args_106",
+    "body": "\"x\".delete_suffix!(1,2,3)",
+    "go_error": "string.delete_suffix! expects exactly one suffix"
+  },
+  {
+    "name": "string_transform_args_107",
+    "body": "\"x\".delete_suffix!(nil)",
+    "go_error": "string.delete_suffix! suffix must be string"
+  },
+  {
+    "name": "string_transform_args_108",
+    "body": "\"x\".delete_suffix!(false)",
+    "go_error": "string.delete_suffix! suffix must be string"
+  },
+  {
+    "name": "string_transform_args_109",
+    "body": "\"x\".delete_suffix!([])",
+    "go_error": "string.delete_suffix! suffix must be string"
+  },
+  {
+    "name": "string_transform_args_110",
+    "body": "\"x\".delete_suffix!({})",
+    "go_error": "string.delete_suffix! suffix must be string"
+  },
+  {
+    "name": "string_transform_args_111",
+    "body": "\"x\".delete_suffix!(:hello)",
+    "go_error": "string.delete_suffix! suffix must be string"
+  },
+  {
+    "name": "string_transform_receivers_75",
+    "body": ":hello.delete_suffix!(\"x\")",
+    "go_error": "unknown symbol method delete_suffix!"
+  },
+  {
+    "name": "string_transform_receivers_76",
+    "body": "1.delete_suffix!(\"x\")",
+    "go_error": "unknown int method delete_suffix!"
+  },
+  {
+    "name": "string_transform_receivers_77",
+    "body": "nil.delete_suffix!(\"x\")",
+    "go_error": "unknown nil method delete_suffix!"
+  },
+  {
+    "name": "string_transform_receivers_78",
+    "body": "[].delete_suffix!(\"x\")",
+    "go_error": "unknown array method delete_suffix!"
+  },
+  {
+    "name": "string_transform_receivers_79",
+    "body": "{}.delete_suffix!(\"x\")",
+    "go_error": "unknown hash method delete_suffix!"
+  },
+  {
+    "name": "string_transform_args_113",
+    "body": "\"x\".reverse!(1,2,3)",
+    "go_error": "string.reverse! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_114",
+    "body": "\"x\".reverse!(nil)",
+    "go_error": "string.reverse! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_115",
+    "body": "\"x\".reverse!(false)",
+    "go_error": "string.reverse! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_116",
+    "body": "\"x\".reverse!([])",
+    "go_error": "string.reverse! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_117",
+    "body": "\"x\".reverse!({})",
+    "go_error": "string.reverse! does not take arguments"
+  },
+  {
+    "name": "string_transform_args_118",
+    "body": "\"x\".reverse!(:hello)",
+    "go_error": "string.reverse! does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_80",
+    "body": ":hello.reverse!()",
+    "go_error": "unknown symbol method reverse!"
+  },
+  {
+    "name": "string_transform_receivers_81",
+    "body": "1.reverse!()",
+    "go_error": "unknown int method reverse!"
+  },
+  {
+    "name": "string_transform_receivers_82",
+    "body": "nil.reverse!()",
+    "go_error": "unknown nil method reverse!"
+  },
+  {
+    "name": "string_transform_receivers_83",
+    "body": "[].reverse!()",
+    "go_error": "unknown array method reverse! (did you mean \"reverse\"?)"
+  },
+  {
+    "name": "string_transform_receivers_84",
+    "body": "{}.reverse!()",
+    "go_error": "unknown hash method reverse!"
+  },
+  {
+    "name": "string_transform_keywords_51",
+    "body": "\" x x \".center(8,unused: 1)",
+    "go_error": "string.center does not accept keyword arguments"
+  },
+  {
+    "name": "string_transform_keywords_52",
+    "body": "\" x x \".center(8,**{unused: 1})",
+    "go_error": "string.center does not accept keyword arguments"
+  },
+  {
+    "name": "string_transform_args_119",
+    "body": "\"x\".center()",
+    "go_error": "string.center expects width and optional pad string"
+  },
+  {
+    "name": "string_transform_args_120",
+    "body": "\"x\".center(1,2,3)",
+    "go_error": "string.center expects width and optional pad string"
+  },
+  {
+    "name": "string_transform_args_121",
+    "body": "\"x\".center(nil)",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_args_122",
+    "body": "\"x\".center(false)",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_args_123",
+    "body": "\"x\".center([])",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_args_124",
+    "body": "\"x\".center({})",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_args_125",
+    "body": "\"x\".center(:hello)",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_receivers_85",
+    "body": ":hello.center(8)",
+    "go_error": "unknown symbol method center"
+  },
+  {
+    "name": "string_transform_receivers_86",
+    "body": "1.center(8)",
+    "go_error": "unknown int method center"
+  },
+  {
+    "name": "string_transform_receivers_87",
+    "body": "nil.center(8)",
+    "go_error": "unknown nil method center"
+  },
+  {
+    "name": "string_transform_receivers_88",
+    "body": "[].center(8)",
+    "go_error": "unknown array method center"
+  },
+  {
+    "name": "string_transform_receivers_89",
+    "body": "{}.center(8)",
+    "go_error": "unknown hash method center"
+  },
+  {
+    "name": "string_transform_keywords_54",
+    "body": "\" x x \".ljust(8,unused: 1)",
+    "go_error": "string.ljust does not accept keyword arguments"
+  },
+  {
+    "name": "string_transform_keywords_55",
+    "body": "\" x x \".ljust(8,**{unused: 1})",
+    "go_error": "string.ljust does not accept keyword arguments"
+  },
+  {
+    "name": "string_transform_args_126",
+    "body": "\"x\".ljust()",
+    "go_error": "string.ljust expects width and optional pad string"
+  },
+  {
+    "name": "string_transform_args_127",
+    "body": "\"x\".ljust(1,2,3)",
+    "go_error": "string.ljust expects width and optional pad string"
+  },
+  {
+    "name": "string_transform_args_128",
+    "body": "\"x\".ljust(nil)",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_args_129",
+    "body": "\"x\".ljust(false)",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_args_130",
+    "body": "\"x\".ljust([])",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_args_131",
+    "body": "\"x\".ljust({})",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_args_132",
+    "body": "\"x\".ljust(:hello)",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_receivers_90",
+    "body": ":hello.ljust(8)",
+    "go_error": "unknown symbol method ljust"
+  },
+  {
+    "name": "string_transform_receivers_91",
+    "body": "1.ljust(8)",
+    "go_error": "unknown int method ljust"
+  },
+  {
+    "name": "string_transform_receivers_92",
+    "body": "nil.ljust(8)",
+    "go_error": "unknown nil method ljust"
+  },
+  {
+    "name": "string_transform_receivers_93",
+    "body": "[].ljust(8)",
+    "go_error": "unknown array method ljust (did you mean \"last\"?)"
+  },
+  {
+    "name": "string_transform_receivers_94",
+    "body": "{}.ljust(8)",
+    "go_error": "unknown hash method ljust"
+  },
+  {
+    "name": "string_transform_keywords_57",
+    "body": "\" x x \".rjust(8,unused: 1)",
+    "go_error": "string.rjust does not accept keyword arguments"
+  },
+  {
+    "name": "string_transform_keywords_58",
+    "body": "\" x x \".rjust(8,**{unused: 1})",
+    "go_error": "string.rjust does not accept keyword arguments"
+  },
+  {
+    "name": "string_transform_args_133",
+    "body": "\"x\".rjust()",
+    "go_error": "string.rjust expects width and optional pad string"
+  },
+  {
+    "name": "string_transform_args_134",
+    "body": "\"x\".rjust(1,2,3)",
+    "go_error": "string.rjust expects width and optional pad string"
+  },
+  {
+    "name": "string_transform_args_135",
+    "body": "\"x\".rjust(nil)",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_args_136",
+    "body": "\"x\".rjust(false)",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_args_137",
+    "body": "\"x\".rjust([])",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_args_138",
+    "body": "\"x\".rjust({})",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_args_139",
+    "body": "\"x\".rjust(:hello)",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_receivers_95",
+    "body": ":hello.rjust(8)",
+    "go_error": "unknown symbol method rjust"
+  },
+  {
+    "name": "string_transform_receivers_96",
+    "body": "1.rjust(8)",
+    "go_error": "unknown int method rjust"
+  },
+  {
+    "name": "string_transform_receivers_97",
+    "body": "nil.rjust(8)",
+    "go_error": "unknown nil method rjust"
+  },
+  {
+    "name": "string_transform_receivers_98",
+    "body": "[].rjust(8)",
+    "go_error": "unknown array method rjust"
+  },
+  {
+    "name": "string_transform_receivers_99",
+    "body": "{}.rjust(8)",
+    "go_error": "unknown hash method rjust"
+  },
+  {
+    "name": "string_transform_keywords_60",
+    "body": "\" x x \".partition(\"x\",unused: 1)",
+    "go_error": "string.partition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_keywords_61",
+    "body": "\" x x \".partition(\"x\",**{unused: 1})",
+    "go_error": "string.partition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_args_140",
+    "body": "\"x\".partition()",
+    "go_error": "string.partition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_args_141",
+    "body": "\"x\".partition(1,2,3)",
+    "go_error": "string.partition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_args_142",
+    "body": "\"x\".partition(nil)",
+    "go_error": "string.partition separator must be string"
+  },
+  {
+    "name": "string_transform_args_143",
+    "body": "\"x\".partition(false)",
+    "go_error": "string.partition separator must be string"
+  },
+  {
+    "name": "string_transform_args_144",
+    "body": "\"x\".partition([])",
+    "go_error": "string.partition separator must be string"
+  },
+  {
+    "name": "string_transform_args_145",
+    "body": "\"x\".partition({})",
+    "go_error": "string.partition separator must be string"
+  },
+  {
+    "name": "string_transform_args_146",
+    "body": "\"x\".partition(:hello)",
+    "go_error": "string.partition separator must be string"
+  },
+  {
+    "name": "string_transform_receivers_100",
+    "body": ":hello.partition(\"x\")",
+    "go_error": "unknown symbol method partition"
+  },
+  {
+    "name": "string_transform_receivers_101",
+    "body": "1.partition(\"x\")",
+    "go_error": "unknown int method partition"
+  },
+  {
+    "name": "string_transform_receivers_102",
+    "body": "nil.partition(\"x\")",
+    "go_error": "unknown nil method partition"
+  },
+  {
+    "name": "string_transform_receivers_103",
+    "body": "[].partition(\"x\")",
+    "go_error": "array.partition does not take arguments"
+  },
+  {
+    "name": "string_transform_receivers_104",
+    "body": "{}.partition(\"x\")",
+    "go_error": "unknown hash method partition"
+  },
+  {
+    "name": "string_transform_keywords_63",
+    "body": "\" x x \".rpartition(\"x\",unused: 1)",
+    "go_error": "string.rpartition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_keywords_64",
+    "body": "\" x x \".rpartition(\"x\",**{unused: 1})",
+    "go_error": "string.rpartition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_args_147",
+    "body": "\"x\".rpartition()",
+    "go_error": "string.rpartition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_args_148",
+    "body": "\"x\".rpartition(1,2,3)",
+    "go_error": "string.rpartition expects exactly one separator"
+  },
+  {
+    "name": "string_transform_args_149",
+    "body": "\"x\".rpartition(nil)",
+    "go_error": "string.rpartition separator must be string"
+  },
+  {
+    "name": "string_transform_args_150",
+    "body": "\"x\".rpartition(false)",
+    "go_error": "string.rpartition separator must be string"
+  },
+  {
+    "name": "string_transform_args_151",
+    "body": "\"x\".rpartition([])",
+    "go_error": "string.rpartition separator must be string"
+  },
+  {
+    "name": "string_transform_args_152",
+    "body": "\"x\".rpartition({})",
+    "go_error": "string.rpartition separator must be string"
+  },
+  {
+    "name": "string_transform_args_153",
+    "body": "\"x\".rpartition(:hello)",
+    "go_error": "string.rpartition separator must be string"
+  },
+  {
+    "name": "string_transform_receivers_105",
+    "body": ":hello.rpartition(\"x\")",
+    "go_error": "unknown symbol method rpartition"
+  },
+  {
+    "name": "string_transform_receivers_106",
+    "body": "1.rpartition(\"x\")",
+    "go_error": "unknown int method rpartition"
+  },
+  {
+    "name": "string_transform_receivers_107",
+    "body": "nil.rpartition(\"x\")",
+    "go_error": "unknown nil method rpartition"
+  },
+  {
+    "name": "string_transform_receivers_108",
+    "body": "[].rpartition(\"x\")",
+    "go_error": "unknown array method rpartition (did you mean \"partition\"?)"
+  },
+  {
+    "name": "string_transform_receivers_109",
+    "body": "{}.rpartition(\"x\")",
+    "go_error": "unknown hash method rpartition"
+  },
+  {
+    "name": "string_transform_padding_width_2",
+    "body": "\"x\".center(9223372036854775808)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_3",
+    "body": "\"x\".center(-9223372036854775809)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_4",
+    "body": "\"x\".center(9223372036854775808.0)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_5",
+    "body": "\"x\".center(1e30)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_6",
+    "body": "\"x\".center(-1e30)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_7",
+    "body": "\"x\".center(1.0/0.0)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_8",
+    "body": "\"x\".center(-1.0/0.0)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_9",
+    "body": "\"x\".center(0.0/0.0)",
+    "go_error": "string.center width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_10",
+    "body": "\"x\".center(nil)",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_padding_width_11",
+    "body": "\"x\".center(:ten)",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_padding_width_12",
+    "body": "\"x\".center(\"10\")",
+    "go_error": "string.center width must be integer"
+  },
+  {
+    "name": "string_transform_padding_pad_0",
+    "body": "\"x\".center(-5,\"\")",
+    "go_error": "string.center pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_1",
+    "body": "\"x\".center(-5,nil)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_2",
+    "body": "\"x\".center(-5,:x)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_3",
+    "body": "\"x\".center(-5,1)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_4",
+    "body": "\"x\".center(-5,[])",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_5",
+    "body": "\"x\".center(-5,{})",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_6",
+    "body": "\"x\".center(0,\"\")",
+    "go_error": "string.center pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_7",
+    "body": "\"x\".center(0,nil)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_8",
+    "body": "\"x\".center(0,:x)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_9",
+    "body": "\"x\".center(0,1)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_10",
+    "body": "\"x\".center(0,[])",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_11",
+    "body": "\"x\".center(0,{})",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_12",
+    "body": "\"x\".center(9,\"\")",
+    "go_error": "string.center pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_13",
+    "body": "\"x\".center(9,nil)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_14",
+    "body": "\"x\".center(9,:x)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_15",
+    "body": "\"x\".center(9,1)",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_16",
+    "body": "\"x\".center(9,[])",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_17",
+    "body": "\"x\".center(9,{})",
+    "go_error": "string.center pad must be string"
+  },
+  {
+    "name": "string_transform_padding_width_15",
+    "body": "\"x\".ljust(9223372036854775808)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_16",
+    "body": "\"x\".ljust(-9223372036854775809)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_17",
+    "body": "\"x\".ljust(9223372036854775808.0)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_18",
+    "body": "\"x\".ljust(1e30)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_19",
+    "body": "\"x\".ljust(-1e30)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_20",
+    "body": "\"x\".ljust(1.0/0.0)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_21",
+    "body": "\"x\".ljust(-1.0/0.0)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_22",
+    "body": "\"x\".ljust(0.0/0.0)",
+    "go_error": "string.ljust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_23",
+    "body": "\"x\".ljust(nil)",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_padding_width_24",
+    "body": "\"x\".ljust(:ten)",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_padding_width_25",
+    "body": "\"x\".ljust(\"10\")",
+    "go_error": "string.ljust width must be integer"
+  },
+  {
+    "name": "string_transform_padding_pad_18",
+    "body": "\"x\".ljust(-5,\"\")",
+    "go_error": "string.ljust pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_19",
+    "body": "\"x\".ljust(-5,nil)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_20",
+    "body": "\"x\".ljust(-5,:x)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_21",
+    "body": "\"x\".ljust(-5,1)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_22",
+    "body": "\"x\".ljust(-5,[])",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_23",
+    "body": "\"x\".ljust(-5,{})",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_24",
+    "body": "\"x\".ljust(0,\"\")",
+    "go_error": "string.ljust pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_25",
+    "body": "\"x\".ljust(0,nil)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_26",
+    "body": "\"x\".ljust(0,:x)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_27",
+    "body": "\"x\".ljust(0,1)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_28",
+    "body": "\"x\".ljust(0,[])",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_29",
+    "body": "\"x\".ljust(0,{})",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_30",
+    "body": "\"x\".ljust(9,\"\")",
+    "go_error": "string.ljust pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_31",
+    "body": "\"x\".ljust(9,nil)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_32",
+    "body": "\"x\".ljust(9,:x)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_33",
+    "body": "\"x\".ljust(9,1)",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_34",
+    "body": "\"x\".ljust(9,[])",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_35",
+    "body": "\"x\".ljust(9,{})",
+    "go_error": "string.ljust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_width_28",
+    "body": "\"x\".rjust(9223372036854775808)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_29",
+    "body": "\"x\".rjust(-9223372036854775809)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_30",
+    "body": "\"x\".rjust(9223372036854775808.0)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_31",
+    "body": "\"x\".rjust(1e30)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_32",
+    "body": "\"x\".rjust(-1e30)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_33",
+    "body": "\"x\".rjust(1.0/0.0)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_34",
+    "body": "\"x\".rjust(-1.0/0.0)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_35",
+    "body": "\"x\".rjust(0.0/0.0)",
+    "go_error": "string.rjust width is out of range"
+  },
+  {
+    "name": "string_transform_padding_width_36",
+    "body": "\"x\".rjust(nil)",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_padding_width_37",
+    "body": "\"x\".rjust(:ten)",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_padding_width_38",
+    "body": "\"x\".rjust(\"10\")",
+    "go_error": "string.rjust width must be integer"
+  },
+  {
+    "name": "string_transform_padding_pad_36",
+    "body": "\"x\".rjust(-5,\"\")",
+    "go_error": "string.rjust pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_37",
+    "body": "\"x\".rjust(-5,nil)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_38",
+    "body": "\"x\".rjust(-5,:x)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_39",
+    "body": "\"x\".rjust(-5,1)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_40",
+    "body": "\"x\".rjust(-5,[])",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_41",
+    "body": "\"x\".rjust(-5,{})",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_42",
+    "body": "\"x\".rjust(0,\"\")",
+    "go_error": "string.rjust pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_43",
+    "body": "\"x\".rjust(0,nil)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_44",
+    "body": "\"x\".rjust(0,:x)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_45",
+    "body": "\"x\".rjust(0,1)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_46",
+    "body": "\"x\".rjust(0,[])",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_47",
+    "body": "\"x\".rjust(0,{})",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_48",
+    "body": "\"x\".rjust(9,\"\")",
+    "go_error": "string.rjust pad must not be empty"
+  },
+  {
+    "name": "string_transform_padding_pad_49",
+    "body": "\"x\".rjust(9,nil)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_50",
+    "body": "\"x\".rjust(9,:x)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_51",
+    "body": "\"x\".rjust(9,1)",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_52",
+    "body": "\"x\".rjust(9,[])",
+    "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_transform_padding_pad_53",
+    "body": "\"x\".rjust(9,{})",
+    "go_error": "string.rjust pad must be string"
   }
 ]

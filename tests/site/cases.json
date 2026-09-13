@@ -181,6 +181,30 @@
     }
   },
   {
+    "path": "rosettacode/popular/align_columns.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "widths": [
+        10,
+        10,
+        10,
+        6,
+        6,
+        9,
+        10,
+        8,
+        7,
+        7,
+        6,
+        4
+      ],
+      "left": "Given      a          text       file   of     many      lines,     where    fields  within  a      line",
+      "right": "     Given          a       text   file     of      many     lines,    where  fields  within      a line",
+      "center": "  Given        a         text     file    of     many      lines,    where   fields  within    a    line"
+    }
+  },
+  {
     "path": "rosettacode/popular/anagrams.vibe",
     "function": "run",
     "args": [],
