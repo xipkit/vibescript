@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "03c09ad7ce36ec37ebd1a3cd9a9843216ee6c7ac",
-  "dirty": " M README.md\n M docs/language-port.md\n M src/builtin.rs\n M src/time.rs\n M src/time/parse.rs\n M src/time/zone.rs\n M tests/language-errors.json\n M tests/language.json\n?? tests/time_parse.rs\n",
+  "source_revision": "4725d2f888409e03835d3632f85a139ca1df34c8",
+  "dirty": " M README.md\n M docs/language-port.md\n M src/time/zone.rs\n?? docs/timezones.md\n?? licenses/tzdata-NOTICE.txt\n?? scripts/generate-timezones.py\n?? src/time/zone/data/\n?? src/time/zone/source.rs\n?? src/time/zone/windows.rs\n?? tests/timezone-cases.json\n",
   "binary_sha256": {
-    "go-simd": "32d0b7b9ce7a8519992a1142b67948651874f9b52b27909e76397db8312576c8",
-    "rust-simd": "a69a40791d2dd1fe8b6dbc78856b01935c3404527254c479d32b3710b47a4070"
+    "go-simd": "c4276d330a7ba57de4fe704cd28e82a733dbd006d629462894f9f199a6d97104",
+    "rust-simd": "633de696f93dbf088c9c73ad22e88790ca39ecaff9fbe4b6f7ae6fff850a96ab"
   },
   "counts": {
     "match": 158,

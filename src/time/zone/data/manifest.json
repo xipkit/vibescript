@@ -1,0 +1,9 @@
+{
+  "go": "1.27.1",
+  "tzdata": "2026c",
+  "sha256": "b2d18a7c8fa8142097a48c99609fb3c92db5ee98bc740294e57eab8ae9f94779",
+  "bytes": 408467,
+  "zones": 598,
+  "windows_abbreviations": 139,
+  "windows_source_sha256": "fdabcbf35b6e9613c7e12bc44a10701cabf08c1760aef7be07f58609dfb89ead"
+}

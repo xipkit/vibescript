@@ -9,23 +9,46 @@ use crate::{
 };
 use std::{
     fs::File,
-    io::Read,
+    io::Cursor,
     mem::size_of,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
 
 mod rules;
+mod source;
+#[cfg(any(windows, test))]
+mod windows;
 
+#[cfg(not(any(
+    windows,
+    target_os = "android",
+    target_os = "ios",
+    target_family = "wasm"
+)))]
 const SOURCES: [&str; 4] = [
     "/usr/share/zoneinfo",
     "/usr/share/lib/zoneinfo",
     "/usr/lib/locale/TZ",
     "/etc/zoneinfo",
 ];
+#[cfg(any(windows, target_os = "ios", target_family = "wasm"))]
+const SOURCES: [&str; 0] = [];
+#[cfg(target_os = "android")]
+const SOURCES: [&str; 2] = [
+    "/system/usr/share/zoneinfo/tzdata",
+    "/data/misc/zoneinfo/current/tzdata",
+];
 const MAX_ZONE_BYTES: usize = 10 << 20;
+const BUNDLED: &[u8] = include_bytes!("zone/data/zoneinfo.zip");
 
 static ZONEINFO: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
+#[cfg(not(any(
+    windows,
+    target_os = "android",
+    target_os = "ios",
+    target_family = "wasm"
+)))]
 static LOCAL_TZ: OnceLock<Option<std::ffi::OsString>> = OnceLock::new();
 
 #[derive(Clone, Copy, Debug)]
@@ -240,33 +263,7 @@ impl Zone {
         Self::new(ctx, bytes, zone.info, zone.rules.clone(), zone.offset)
     }
 
-    fn file(ctx: &mut CallContext, path: &Path) -> Result<Option<Arc<Self>>> {
-        ctx.checkpoint()?;
-        let Ok(mut file) = File::open(path) else {
-            return Ok(None);
-        };
-        if !file
-            .metadata()
-            .is_ok_and(|m| m.is_file() && m.len() <= MAX_ZONE_BYTES as u64)
-        {
-            return Ok(None);
-        }
-        let mut buffer = Buffer::empty();
-        let mut chunk = [0; 4096];
-        loop {
-            ctx.charge(1)?;
-            let length = match file.read(&mut chunk) {
-                Ok(n) => n,
-                Err(_) => return Ok(None),
-            };
-            if length == 0 {
-                break;
-            }
-            if buffer.data.len() + length > MAX_ZONE_BYTES {
-                return Ok(None);
-            }
-            buffer.extend(ctx, &chunk[..length])?;
-        }
+    fn from_buffer(ctx: &mut CallContext, buffer: Buffer<u8>) -> Result<Option<Arc<Self>>> {
         let (info, rules) = match Tzif::parse(ctx, &buffer.data) {
             Ok(parsed) => parsed,
             Err(error) if error.kind == ErrorKind::Argument => return Ok(None),
@@ -276,42 +273,152 @@ impl Zone {
         Self::new(ctx, bytes, Some(info), rules, 0).map(Some)
     }
 
-    fn search(ctx: &mut CallContext, name: &str, custom: bool) -> Result<Option<Arc<Self>>> {
-        let env = if custom {
-            ZONEINFO
-                .get_or_init(|| std::env::var_os("ZONEINFO"))
-                .as_deref()
-        } else {
-            None
+    fn read(
+        ctx: &mut CallContext,
+        path: &Path,
+        format: source::Format,
+        name: &[u8],
+    ) -> Result<Option<Arc<Self>>> {
+        ctx.checkpoint()?;
+        let Ok(file) = File::open(path) else {
+            return Ok(None);
         };
-        let _config = ctx.reserve(env.map_or(0, |v| v.len()))?;
-        for root in env
-            .map(Path::new)
-            .into_iter()
-            .chain(SOURCES.iter().map(Path::new))
-        {
-            let capacity = root
-                .as_os_str()
-                .len()
-                .saturating_add(name.len())
-                .saturating_add(1);
-            let mut reservation = ctx.reserve(capacity)?;
-            let mut path = PathBuf::with_capacity(capacity);
-            if path.capacity() != capacity {
-                reservation = ctx.reserve(path.capacity())?;
-            }
-            path.push(root);
-            path.push(name);
-            let result = Self::file(ctx, &path)?;
-            drop(path);
-            drop(reservation);
-            if let Some(zone) = result {
-                return Ok(Some(zone));
-            }
+        let Ok(metadata) = file.metadata() else {
+            return Ok(None);
+        };
+        if !metadata.is_file() {
+            return Ok(None);
         }
-        Ok(None)
+        let mut source = source::Source::new(file, metadata.len());
+        match source.load(ctx, format, name)? {
+            Some(buffer) => Self::from_buffer(ctx, buffer),
+            None => Ok(None),
+        }
     }
 
+    fn file(ctx: &mut CallContext, path: &Path) -> Result<Option<Arc<Self>>> {
+        Self::read(ctx, path, source::Format::File, b"")
+    }
+
+    fn dir_or_zip(ctx: &mut CallContext, root: &Path, name: &[u8]) -> Result<Option<Arc<Self>>> {
+        let bytes = root.as_os_str().as_encoded_bytes();
+        if bytes.len() > 4 && bytes.ends_with(b".zip") {
+            return Self::read(ctx, root, source::Format::Zip, name);
+        }
+        #[cfg(unix)]
+        let name = {
+            use std::os::unix::ffi::OsStrExt;
+            std::ffi::OsStr::from_bytes(name)
+        };
+        #[cfg(windows)]
+        let normalized;
+        #[cfg(windows)]
+        let _name_charge;
+        #[cfg(windows)]
+        let name = match std::str::from_utf8(name) {
+            Ok(text) => std::ffi::OsStr::new(text),
+            Err(_) => {
+                use std::os::windows::ffi::OsStringExt;
+                let units = windows::filename_units(ctx, name)?;
+                // Reserve the geometric growth bound before Rust converts UTF-16 to its OS string.
+                let reservation = ctx.reserve(units.data.len().saturating_mul(6).max(8))?;
+                normalized = std::ffi::OsString::from_wide(&units.data);
+                drop(reservation);
+                _name_charge = ctx.reserve(normalized.capacity())?;
+                normalized.as_os_str()
+            }
+        };
+        #[cfg(not(any(unix, windows)))]
+        let normalized;
+        #[cfg(not(any(unix, windows)))]
+        let name = {
+            let text = match std::str::from_utf8(name) {
+                Ok(text) => text,
+                Err(_) => {
+                    let mut buffer = Buffer::empty();
+                    for chunk in name.utf8_chunks() {
+                        buffer.extend(ctx, chunk.valid().as_bytes())?;
+                        for _ in chunk.invalid() {
+                            buffer.extend(ctx, "�".as_bytes())?;
+                        }
+                    }
+                    normalized = buffer;
+                    std::str::from_utf8(&normalized.data).unwrap()
+                }
+            };
+            std::ffi::OsStr::new(text)
+        };
+        let capacity = root
+            .as_os_str()
+            .len()
+            .saturating_add(name.len())
+            .saturating_add(1);
+        let mut reservation = ctx.reserve(capacity)?;
+        let mut path = PathBuf::with_capacity(capacity);
+        if path.capacity() != capacity {
+            reservation = ctx.reserve(path.capacity())?;
+        }
+        path.push(root);
+        if !root.as_os_str().is_empty() {
+            path.as_mut_os_string().push("/");
+        }
+        path.as_mut_os_string().push(name);
+        let result = Self::file(ctx, &path)?;
+        drop(path);
+        drop(reservation);
+        Ok(result)
+    }
+
+    fn bundled(ctx: &mut CallContext, name: &[u8]) -> Result<Option<Arc<Self>>> {
+        let mut source = source::Source::new(Cursor::new(BUNDLED), BUNDLED.len() as u64);
+        match source.zip(ctx, name)? {
+            Some(buffer) => Self::from_buffer(ctx, buffer),
+            None => Ok(None),
+        }
+    }
+
+    fn search(ctx: &mut CallContext, name: &[u8], custom: bool) -> Result<Option<Arc<Self>>> {
+        if custom {
+            let env = ZONEINFO.get_or_init(|| std::env::var_os("ZONEINFO"));
+            let _config = ctx.reserve(env.as_ref().map_or(0, |v| v.len()))?;
+            if let Some(root) = env.as_deref().filter(|s| !s.is_empty()) {
+                if let Some(zone) = Self::dir_or_zip(ctx, Path::new(root), name)? {
+                    return Ok(Some(zone));
+                }
+            }
+        }
+        for root in SOURCES {
+            #[cfg(target_os = "android")]
+            let result = Self::read(ctx, Path::new(root), source::Format::Android, name)?;
+            #[cfg(not(target_os = "android"))]
+            let result = Self::dir_or_zip(ctx, Path::new(root), name)?;
+            if result.is_some() {
+                return Ok(result);
+            }
+        }
+        #[cfg(target_os = "ios")]
+        if let Some(zone) = Self::read(ctx, Path::new("zoneinfo.zip"), source::Format::Zip, name)? {
+            return Ok(Some(zone));
+        }
+        Self::bundled(ctx, name)
+    }
+
+    #[cfg(windows)]
+    pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
+        windows::local(ctx)
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios", target_family = "wasm"))]
+    pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
+        Self::fixed(ctx, b"UTC", 0)
+    }
+
+    #[cfg(not(any(
+        windows,
+        target_os = "android",
+        target_os = "ios",
+        target_family = "wasm"
+    )))]
     pub fn local(ctx: &mut CallContext) -> Result<Arc<Self>> {
         let tz = LOCAL_TZ.get_or_init(|| std::env::var_os("TZ"));
         let _config = ctx.reserve(tz.as_ref().map_or(0, |v| v.len()))?;
@@ -319,13 +426,24 @@ impl Zone {
             if let Some(zone) = Self::file(ctx, Path::new("/etc/localtime"))? {
                 return Ok(zone);
             }
-        } else if let Some(tz) = tz.as_ref().and_then(|v| v.to_str()) {
-            let tz = tz.strip_prefix(':').unwrap_or(tz);
-            if tz.starts_with('/') {
-                if let Some(zone) = Self::file(ctx, Path::new(tz))? {
+        } else if let Some(tz) = tz.as_ref() {
+            let tz = tz.as_encoded_bytes();
+            let tz = tz.strip_prefix(b":").unwrap_or(tz);
+            if tz.starts_with(b"/") {
+                #[cfg(unix)]
+                let path = {
+                    use std::os::unix::ffi::OsStrExt;
+                    Some(Path::new(std::ffi::OsStr::from_bytes(tz)))
+                };
+                #[cfg(not(unix))]
+                let path = std::str::from_utf8(tz).ok().map(Path::new);
+                if let Some(zone) = match path {
+                    Some(path) => Self::file(ctx, path)?,
+                    None => None,
+                } {
                     return Ok(zone);
                 }
-            } else if !tz.is_empty() && tz != "UTC" {
+            } else if !tz.is_empty() && tz != b"UTC" {
                 if let Some(zone) = Self::search(ctx, tz, false)? {
                     return Ok(zone);
                 }
@@ -380,8 +498,9 @@ impl Zone {
         if matches!(bytes.first(), Some(b'/' | b'\\')) {
             return Err(invalid());
         }
-        let name = std::str::from_utf8(bytes).map_err(|_| invalid())?;
-        Self::search(ctx, name, true)?.map(Some).ok_or_else(invalid)
+        Self::search(ctx, bytes, true)?
+            .map(Some)
+            .ok_or_else(invalid)
     }
 
     pub fn lookup(&self, ctx: &mut CallContext, seconds: i64) -> Result<Offset<'_>> {
@@ -495,6 +614,88 @@ impl Zone {
 mod tests {
     use super::*;
     use crate::{CallOptions, Limits};
+
+    #[test]
+    fn bundled_zones_match_the_pinned_go_database_at_all_recorded_instants() {
+        let cases: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/timezone-cases.json")).unwrap();
+        assert_eq!(cases.as_array().unwrap().len(), 598);
+        for case in cases.as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let mut ctx = CallContext::new(CallOptions::default());
+            let zone = Zone::bundled(&mut ctx, name.as_bytes()).unwrap().unwrap();
+            for sample in case["samples"].as_array().unwrap() {
+                let instant = sample[0].as_i64().unwrap();
+                let actual = zone.lookup(&mut ctx, instant).unwrap();
+                assert_eq!(
+                    i64::from(actual.seconds),
+                    sample[1].as_i64().unwrap(),
+                    "{name} at {instant}"
+                );
+                // The language's canonical GMT spelling selects UTC before a database lookup.
+                let expected_name = if name == "GMT" {
+                    b"GMT".as_slice()
+                } else {
+                    sample[2].as_str().unwrap().as_bytes()
+                };
+                assert_eq!(actual.name, expected_name, "{name} at {instant}");
+                assert_eq!(
+                    actual.dst,
+                    sample[3].as_bool().unwrap(),
+                    "{name} at {instant}"
+                );
+            }
+            let size = zone.bytes.as_bytes().unwrap().len();
+            assert!(
+                ctx.stats().peak_memory_bytes < size + 512,
+                "{name}: {:?}",
+                ctx.stats()
+            );
+            drop(zone);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn fallback_loading_propagates_limits_and_never_caches_failed_calls() {
+        for (limits, kind) in [
+            (
+                Limits {
+                    steps: Some(32),
+                    ..Limits::default()
+                },
+                ErrorKind::Steps,
+            ),
+            (
+                Limits {
+                    memory_bytes: Some(0),
+                    ..Limits::default()
+                },
+                ErrorKind::Memory,
+            ),
+        ] {
+            let mut ctx = CallContext::new(CallOptions {
+                limits,
+                ..CallOptions::default()
+            });
+            assert_eq!(
+                Zone::bundled(&mut ctx, b"Pacific/Auckland")
+                    .unwrap_err()
+                    .kind,
+                kind
+            );
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.charge(0).unwrap_err().kind, kind);
+        }
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert!(
+            Zone::bundled(&mut ctx, b"Pacific/Auckland")
+                .unwrap()
+                .is_some()
+        );
+        assert!(Zone::bundled(&mut ctx, b"Not/AZone").unwrap().is_none());
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
 
     fn data(offset: i32, extension: &str) -> Vec<u8> {
         let mut bytes = vec![0; 44];

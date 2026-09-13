@@ -1,0 +1,10 @@
+The bundled zoneinfo.zip contains IANA Time Zone Database 2026c files,
+compiled and distributed with Go 1.27.1. IANA places the database in the
+public domain. See https://www.iana.org/time-zones.
+
+The ZIP reader, Android database reader, Windows transition and filename
+conversion, and Windows abbreviation table adapt Go code under the BSD
+3-Clause license in Go-BSD-3-Clause.txt.
+
+The archive's hash and generation instructions are in
+src/time/zone/data/manifest.json and scripts/generate-timezones.py.
