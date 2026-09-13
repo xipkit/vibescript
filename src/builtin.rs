@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    Time(crate::time::Constructor),
+    Now,
     DurationBuild,
     DurationParse,
     Money,
@@ -37,6 +39,8 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Time,
+    Now,
     Duration,
     Money,
     MoneyCents,
@@ -49,6 +53,8 @@ pub(crate) enum Global {
 impl Global {
     pub fn parse(name: &str) -> Option<Self> {
         match name {
+            "Time" => Some(Self::Time),
+            "now" => Some(Self::Now),
             "Duration" => Some(Self::Duration),
             "money" => Some(Self::Money),
             "money_cents" => Some(Self::MoneyCents),
@@ -63,6 +69,24 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Time => [
+                crate::time::Constructor::New,
+                crate::time::Constructor::Local,
+                crate::time::Constructor::Mktime,
+                crate::time::Constructor::Utc,
+                crate::time::Constructor::Gm,
+                crate::time::Constructor::At,
+                crate::time::Constructor::Now,
+            ]
+            .into_iter()
+            .map(|constructor| {
+                (
+                    constructor.name().strip_prefix("Time.").unwrap(),
+                    Value(Kind::Builtin(Time(constructor))),
+                )
+            })
+            .collect(),
+            Self::Now => return Value(Kind::Builtin(Now)),
             Self::Duration => vec![
                 ("build", Value(Kind::Builtin(DurationBuild))),
                 ("parse", Value(Kind::Builtin(DurationParse))),
@@ -122,9 +146,23 @@ impl Global {
 }
 
 impl Builtin {
+    pub fn auto(self) -> bool {
+        self == Self::Now || matches!(self, Self::Time(constructor) if constructor.auto())
+    }
+
+    pub fn read(self, ctx: &mut CallContext) -> Result<Value> {
+        if self.auto() {
+            self.call(ctx, &[], &[], false)
+        } else {
+            Err(self.value_error())
+        }
+    }
+
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::Time(constructor) => constructor.name(),
+            Self::Now => "now",
             Self::DurationBuild => "Duration.build",
             Self::DurationParse => "Duration.parse",
             Self::Money => "money",
@@ -171,6 +209,12 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        if let Self::Time(constructor) = self {
+            return constructor.call(ctx, args, keywords);
+        }
+        if self == Self::Now {
+            return crate::time::now(ctx, args);
+        }
         if self == Self::DurationBuild {
             return crate::duration::build(ctx, args, keywords);
         }
@@ -259,7 +303,9 @@ impl Builtin {
             | Self::Money
             | Self::MoneyCents
             | Self::DurationBuild
-            | Self::DurationParse => unreachable!(),
+            | Self::DurationParse
+            | Self::Time(_)
+            | Self::Now => unreachable!(),
         }
     }
 }

@@ -37,6 +37,7 @@ mod sequence;
 mod sort;
 mod syntax;
 mod text;
+mod time;
 mod value;
 mod vm;
 

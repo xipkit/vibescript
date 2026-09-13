@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
     Global(usize),
+    GlobalReceiver(usize, bool),
     StoreGlobal(usize),
     ResolveGlobalCall(usize),
     AddressGlobal(usize),
@@ -16,6 +17,7 @@ pub(crate) enum Op {
     Nil,
     Load(usize),
     LoadOptional(usize, usize),
+    ReceiverBound(usize, usize),
     Unbound(usize),
     NonCallable,
     Bind(usize, usize),
@@ -543,7 +545,8 @@ impl Compiler<'_> {
             | Op::JumpFalse(n)
             | Op::JumpTrue(n)
             | Op::Bind(_, n)
-            | Op::AddressBound(_, n) => *n = target,
+            | Op::AddressBound(_, n)
+            | Op::ReceiverBound(_, n) => *n = target,
             _ => unreachable!(),
         }
     }
@@ -1141,7 +1144,7 @@ impl Compiler<'_> {
         if mutating {
             self.address(receiver)?;
         } else {
-            self.expr(receiver)?;
+            self.member_receiver(receiver, name != "call")?;
         }
         let site = self.call_site(name, auto);
         if expanded(args) || block.is_some() || crate::iteration::method(name) {
@@ -1161,6 +1164,21 @@ impl Compiler<'_> {
             });
         }
         Ok(())
+    }
+    fn member_receiver(&mut self, receiver: &Expr, auto: bool) -> Result<()> {
+        if let Node::Var(name) = &receiver.node {
+            if let Some(&slot) = self.locals.get(name) {
+                let bound = self.emit(Op::ReceiverBound(slot, 0));
+                self.expr(receiver)?;
+                self.patch(bound, self.code.len());
+                return Ok(());
+            }
+            if let Some(global) = self.global_fallback(name) {
+                self.emit(Op::GlobalReceiver(global, auto));
+                return Ok(());
+            }
+        }
+        self.expr(receiver)
     }
     fn scoped_call(
         &mut self,

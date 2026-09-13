@@ -101,6 +101,8 @@ pub(crate) enum Kind {
     Float(f64),
     Money(crate::money::Money),
     Duration(i64),
+    Time(crate::time::Stamp),
+    Zoned(Arc<crate::time::Zoned>),
     Bytes(Arc<Bytes>),
     Symbol(Arc<Bytes>),
     Array(Arc<Heap<Value>>),
@@ -220,6 +222,23 @@ impl Value {
             None
         }
     }
+    /// Constructs an inline UTC timestamp from Unix seconds and nanoseconds within the second.
+    pub fn time(seconds: i64, nanoseconds: u32) -> Result<Self> {
+        if nanoseconds >= 1_000_000_000 {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                "time nanoseconds must be below one second",
+            ));
+        }
+        Ok(Self(Kind::Time(crate::time::Stamp::new(
+            seconds,
+            nanoseconds,
+        ))))
+    }
+    /// Returns a timestamp's Unix seconds and nanoseconds, independent of its display timezone.
+    pub fn as_time(&self) -> Option<(i64, u32)> {
+        crate::time::stamp(self).map(|stamp| (stamp.seconds(), stamp.nanos()))
+    }
     /// Constructs inline money from signed cents and a three-letter ASCII currency.
     pub fn money(cents: i64, currency: &str) -> Result<Self> {
         crate::money::Money::new(cents, currency.as_bytes()).map(|money| Self(Kind::Money(money)))
@@ -269,6 +288,7 @@ impl Value {
             Kind::Float(_) => "float",
             Kind::Money(_) => "money",
             Kind::Duration(_) => "duration",
+            Kind::Time(_) | Kind::Zoned(_) => "time",
             Kind::Bytes(_) => "string",
             Kind::Symbol(_) => "symbol",
             Kind::Array(_) => "array",
@@ -452,6 +472,7 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Zoned(time) => Ok(Value(Kind::Zoned(crate::time::Zoned::import(self, time)?))),
             Kind::Big(n) => Ok(Value(Kind::Big(crate::integer::Big::import(self, n)?))),
             Kind::Range(r) => Ok(Value(Kind::Range(Range::import(self, r)?))),
             Kind::Bytes(h) | Kind::Symbol(h) => {
@@ -498,6 +519,11 @@ impl fmt::Display for Value {
             Kind::Nil => f.write_str("nil"),
             Kind::Money(money) => write!(f, "{money}"),
             Kind::Duration(seconds) => write!(f, "{seconds}s"),
+            Kind::Time(_) | Kind::Zoned(_) => {
+                let mut ctx = crate::integer::unlimited_context();
+                let text = crate::time::text(&mut ctx, self, None).map_err(|_| fmt::Error)?;
+                f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
+            }
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
             Kind::Bool(b) => write!(f, "{b}"),
             Kind::Int(n) => write!(f, "{n}"),

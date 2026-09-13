@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "c0690bac818ae1af489ecd1ea843103ef8cdc5c1",
-  "dirty": " M src/builtin.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/syntax.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n M tests/syntax-errors.json\n?? scripts/generate-duration-cases.py\n?? src/duration.rs\n?? src/duration/\n?? tests/duration-float-cases.json\n?? tests/duration.rs\n",
+  "source_revision": "243ac0d2e78c2463cba0119a9b604ee174792cb7",
+  "dirty": " M docs/compatibility-cases.json\n M docs/compatibility.md\n M docs/language-port.md\n M scripts/audit-compatibility.py\n M src/builtin.rs\n M src/bytecode.rs\n M src/collections.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/ordering.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n?? scripts/generate-time-cases.py\n?? src/time.rs\n?? src/time/\n?? tests/time-float-cases.json\n?? tests/time.rs\n?? tests/value_semantics.rs\n",
   "binary_sha256": {
-    "go-simd": "ba5c9bd3edfe2d748e156814fabbef4500fd514dfed086542fcfe80bd69a0463",
-    "rust-simd": "aa0d4f4d611a114e0cc0ce2dd8680fe9defe5dbb76cc76ffcbb166f278a4bc3e"
+    "go-simd": "7669bb540b02a517ceb4d996623628c6ecb63969ccdf06c359c33ddb4e680057",
+    "rust-simd": "622bcbaeb3cde6d82dbde5ad12224917a87931432e7e88b90d2ee069362de707"
   },
   "counts": {
     "match": 158,

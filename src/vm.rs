@@ -181,6 +181,7 @@ pub(crate) fn execute(
             Op::Load(n) => Op::Load(slot(n, false)?),
             Op::Bypass(n) => Op::Bypass(slot(n, false)?),
             Op::LoadOptional(n, name) => Op::LoadOptional(slot(n, false)?, name),
+            Op::ReceiverBound(n, next) => Op::ReceiverBound(slot(n, false)?, next),
             Op::Declare(n) => Op::Declare(slot(n, false)?),
             Op::Store(n) => Op::Store(slot(n, false)?),
             Op::AddStore(n) => Op::AddStore(slot(n, false)?),
@@ -218,18 +219,20 @@ pub(crate) fn execute(
                 stack.push(ctx, value)?;
             }
             Op::Load(n) => {
-                let v = storage.locals.data[n].clone().unwrap_or_default();
+                let mut v = storage.locals.data[n].clone().unwrap_or_default();
                 if let Kind::Builtin(builtin) = v.0 {
-                    return Err(builtin.value_error());
+                    v = builtin.read(ctx)?;
                 }
                 stack.push(ctx, v)?;
             }
             Op::LoadOptional(slot, name) => {
                 if let Some(value) = &storage.locals.data[slot] {
-                    if let Kind::Builtin(builtin) = value.0 {
-                        return Err(builtin.value_error());
-                    }
-                    stack.push(ctx, value.clone())?;
+                    let value = if let Kind::Builtin(builtin) = value.0 {
+                        builtin.read(ctx)?
+                    } else {
+                        value.clone()
+                    };
+                    stack.push(ctx, value)?;
                 } else if let Some(&function) = program.names.get(&program.members[name]) {
                     enter_auto(
                         program,
@@ -246,9 +249,9 @@ pub(crate) fn execute(
                 {
                     return Err(callable_value_error(&program.hosts[host], "method"));
                 } else if let Some(global) = global_index(program, &program.members[name]) {
-                    let value = global_value(program, ctx, &mut storage, global)?;
+                    let mut value = global_value(program, ctx, &mut storage, global)?;
                     if let Kind::Builtin(builtin) = value.0 {
-                        return Err(builtin.value_error());
+                        value = builtin.read(ctx)?;
                     }
                     stack.push(ctx, value)?;
                 } else {
@@ -258,6 +261,12 @@ pub(crate) fn execute(
                     ));
                 }
             }
+            Op::ReceiverBound(slot, next) => {
+                if let Some(value) = &storage.locals.data[slot] {
+                    stack.push(ctx, value.clone())?;
+                    frame.ip = next;
+                }
+            }
             Op::Unbound(name) => {
                 return Err(Error::new(
                     ErrorKind::Name,
@@ -265,9 +274,22 @@ pub(crate) fn execute(
                 ));
             }
             Op::Global(index) => {
-                let value = global_value(program, ctx, &mut storage, index)?;
+                let mut value = global_value(program, ctx, &mut storage, index)?;
                 if let Kind::Builtin(builtin) = value.0 {
-                    return Err(builtin.value_error());
+                    value = builtin.read(ctx)?;
+                }
+                stack.push(ctx, value)?;
+            }
+            Op::GlobalReceiver(index, auto) => {
+                let mut value = global_value(program, ctx, &mut storage, index)?;
+                if auto {
+                    if let (Kind::Builtin(current), Kind::Builtin(original)) =
+                        (&value.0, &program.globals[index].1.0)
+                    {
+                        if current == original {
+                            value = current.read(ctx)?;
+                        }
+                    }
                 }
                 stack.push(ctx, value)?;
             }
@@ -281,10 +303,17 @@ pub(crate) fn execute(
                 frame.arguments.push(ctx, arguments)?;
             }
             Op::AddressGlobal(index) => {
-                let value = global_value(program, ctx, &mut storage, index)?;
-                storage
-                    .addresses
-                    .push(ctx, Address::new(Some(index), value))?;
+                let mut value = global_value(program, ctx, &mut storage, index)?;
+                let mut root = Some(index);
+                if let (Kind::Builtin(current), Kind::Builtin(original)) =
+                    (&value.0, &program.globals[index].1.0)
+                {
+                    if current == original && current.auto() {
+                        value = current.read(ctx)?;
+                        root = None;
+                    }
+                }
+                storage.addresses.push(ctx, Address::new(root, value))?;
             }
             Op::NonCallable => {
                 return Err(Error::new(

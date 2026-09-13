@@ -418,6 +418,9 @@ fn write_value(
         Kind::Builtin(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a builtin")),
         Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
         Kind::Duration(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a duration")),
+        Kind::Time(_) | Kind::Zoned(_) => {
+            return Err(Error::new(ErrorKind::Json, "cannot encode a time"));
+        }
         Kind::Range(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a range")),
         Kind::Nil => out.extend(ctx, b"null")?,
         Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,

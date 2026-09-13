@@ -233,9 +233,11 @@ fn array_method(
                 } else {
                     let mut found = false;
                     for prior in &out.data {
-                        if std::mem::discriminant(&v.0) == std::mem::discriminant(&prior.0)
-                            && ops::equal(ctx, v, prior, 0)?
-                        {
+                        let same_type = std::mem::discriminant(&v.0)
+                            == std::mem::discriminant(&prior.0)
+                            || (crate::time::stamp(v).is_some()
+                                && crate::time::stamp(prior).is_some());
+                        if same_type && ops::equal(ctx, v, prior, 0)? {
                             found = true;
                             break;
                         }

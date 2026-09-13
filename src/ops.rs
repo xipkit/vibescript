@@ -63,6 +63,8 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     | Kind::Bool(_)
                     | Kind::Money(_)
                     | Kind::Duration(_)
+                    | Kind::Time(_)
+                    | Kind::Zoned(_)
             )
         };
         if !scalar(&a) || !scalar(&b) {
@@ -74,6 +76,9 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         out.extend(ctx, a.require_bytes()?)?;
         out.extend(ctx, b.require_bytes()?)?;
         return Value::from_bytes(ctx, out);
+    }
+    if crate::time::stamp(&a).is_some() || crate::time::stamp(&b).is_some() {
+        return crate::time::binary(ctx, op, &a, &b);
     }
     if matches!(a.0, Kind::Money(_)) || matches!(b.0, Kind::Money(_)) {
         return crate::money::binary(op, &a, &b);
@@ -208,6 +213,11 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
             Error::new(ErrorKind::Type, "cannot compare different money currencies")
         }),
         (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
+        (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Ok(Some(
+            crate::time::stamp(a)
+                .unwrap()
+                .order(crate::time::stamp(b).unwrap()),
+        )),
         (Kind::Int(a), Kind::Int(b)) => Ok(Some(a.cmp(b))),
         (Kind::Int(_) | Kind::Big(_), Kind::Int(_) | Kind::Big(_)) => {
             crate::integer::compare(ctx, a, b).map(Some)
@@ -242,6 +252,9 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
         (Kind::Nil, Kind::Nil) => Ok(true),
         (Kind::Money(a), Kind::Money(b)) => Ok(a == b),
         (Kind::Duration(a), Kind::Duration(b)) => Ok(a == b),
+        (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => {
+            Ok(crate::time::stamp(a) == crate::time::stamp(b))
+        }
         (Kind::Builtin(a), Kind::Builtin(b)) => Ok(a == b),
         (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
         (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
@@ -837,6 +850,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
         Kind::Builtin(builtin) => return Err(builtin.value_error()),
         Kind::Money(money) => return money.text(ctx),
         Kind::Duration(seconds) => return crate::duration::text(ctx, *seconds),
+        Kind::Time(_) | Kind::Zoned(_) => return crate::time::text(ctx, value, None),
         Kind::Big(_) => {
             let text = crate::integer::format(ctx, value, 10)?;
             return Value::from_bytes(ctx, text);

@@ -153,6 +153,11 @@ impl Compare {
             (Kind::Nil, Kind::Nil) => Ok(Some(Ordering::Equal)),
             (Kind::Money(a), Kind::Money(b)) => Ok(a.order(*b)),
             (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
+            (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Ok(Some(
+                crate::time::stamp(a)
+                    .unwrap()
+                    .order(crate::time::stamp(b).unwrap()),
+            )),
             (Kind::Bool(a), Kind::Bool(b)) => Ok(Some(a.cmp(b))),
             (
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_),

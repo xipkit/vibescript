@@ -10,6 +10,8 @@ The remaining 15 are harness gaps: 13 return money or duration values that the h
 
 Money support retains the same JSON audit counts. The unchanged `upstream/money/operations.vibe` also passes a separate native test in [money.rs](../money.rs), which checks its typed money results through the Rust host API. It remains a JSON harness gap because both interpreters reject money during JSON encoding; it is not added to `cases.json`.
 
+Time constructors, accessors, arithmetic and basic serializers retain the same 158 matches; the remaining time showcase also needs typed parameters and custom formatting.
+
 The unchanged `upstream/durations/durations.vibe` is similarly verified through typed host values in [duration.rs](../duration.rs). Its duration result remains a JSON harness gap and is not counted among the 158 JSON-compatible matches.
 
 [initial-audit.json](initial-audit.json) preserves the initial errors; [current-audit.json](current-audit.json) records the latest full audit. After building comparison binaries with `scripts/compare.py`, rerun all 203 examples with:

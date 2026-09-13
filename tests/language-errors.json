@@ -24428,5 +24428,2010 @@
     "name": "duration_negative_precedence_5781",
     "source": "def run(input)\nx=5;v=(- 0.5.to_s);v.to_s\nend",
     "go_error": "unsupported unary - operand"
+  },
+  {
+    "name": "time_construct_error_0",
+    "body": "Time.new().to_s",
+    "go_error": "Time.new expects at least a year"
+  },
+  {
+    "name": "time_construct_error_1",
+    "body": "Time.new(nil).to_s",
+    "go_error": "Time constructor year must be numeric, got nil"
+  },
+  {
+    "name": "time_construct_error_2",
+    "body": "Time.new(\"2024\").to_s",
+    "go_error": "Time constructor year must be numeric, got string"
+  },
+  {
+    "name": "time_construct_error_3",
+    "body": "Time.new(true).to_s",
+    "go_error": "Time constructor year must be numeric, got bool"
+  },
+  {
+    "name": "time_construct_error_4",
+    "body": "Time.new([]).to_s",
+    "go_error": "Time constructor year must be numeric, got array"
+  },
+  {
+    "name": "time_construct_error_5",
+    "body": "Time.new({}).to_s",
+    "go_error": "Time constructor year must be numeric, got hash"
+  },
+  {
+    "name": "time_construct_error_6",
+    "body": "Time.new(2**63).to_s",
+    "go_error": "Time.new parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_construct_error_7",
+    "body": "Time.new(1e100).to_s",
+    "go_error": "Time constructor year 1e+100 is out of range"
+  },
+  {
+    "name": "time_construct_error_8",
+    "body": "Time.new(Math.sqrt(-1)).to_s",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "time_construct_error_9",
+    "body": "Time.new(2024,1,1,0,0,0,nil,2**63).to_s",
+    "go_error": "Time.new parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_construct_signature_2",
+    "body": "Time.new(2024,in:\"invalid\").to_s",
+    "go_error": "invalid timezone \"invalid\""
+  },
+  {
+    "name": "time_descriptor_0",
+    "body": "Time.new",
+    "go_error": "new is a method and cannot be used as a value; call it with new(...)"
+  },
+  {
+    "name": "time_descriptor_2",
+    "body": "f=Time::new;f.to_s",
+    "go_error": "a method has no member to_s; call Time.new(...) directly"
+  },
+  {
+    "name": "time_construct_error_10",
+    "body": "Time.utc().to_s",
+    "go_error": "Time constructor expects at least a year"
+  },
+  {
+    "name": "time_construct_error_11",
+    "body": "Time.utc(nil).to_s",
+    "go_error": "Time constructor year must be numeric, got nil"
+  },
+  {
+    "name": "time_construct_error_12",
+    "body": "Time.utc(\"2024\").to_s",
+    "go_error": "Time constructor year must be numeric, got string"
+  },
+  {
+    "name": "time_construct_error_13",
+    "body": "Time.utc(true).to_s",
+    "go_error": "Time constructor year must be numeric, got bool"
+  },
+  {
+    "name": "time_construct_error_14",
+    "body": "Time.utc([]).to_s",
+    "go_error": "Time constructor year must be numeric, got array"
+  },
+  {
+    "name": "time_construct_error_15",
+    "body": "Time.utc({}).to_s",
+    "go_error": "Time constructor year must be numeric, got hash"
+  },
+  {
+    "name": "time_construct_error_16",
+    "body": "Time.utc(2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_construct_error_17",
+    "body": "Time.utc(1e100).to_s",
+    "go_error": "Time constructor year 1e+100 is out of range"
+  },
+  {
+    "name": "time_construct_error_18",
+    "body": "Time.utc(Math.sqrt(-1)).to_s",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "time_construct_error_19",
+    "body": "Time.utc(2024,1,1,0,0,0,nil,2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_descriptor_3",
+    "body": "Time.utc",
+    "go_error": "utc is a method and cannot be used as a value; call it with utc(...)"
+  },
+  {
+    "name": "time_descriptor_5",
+    "body": "f=Time::utc;f.to_s",
+    "go_error": "a method has no member to_s; call Time.utc(...) directly"
+  },
+  {
+    "name": "time_construct_error_20",
+    "body": "Time.gm().to_s",
+    "go_error": "Time constructor expects at least a year"
+  },
+  {
+    "name": "time_construct_error_21",
+    "body": "Time.gm(nil).to_s",
+    "go_error": "Time constructor year must be numeric, got nil"
+  },
+  {
+    "name": "time_construct_error_22",
+    "body": "Time.gm(\"2024\").to_s",
+    "go_error": "Time constructor year must be numeric, got string"
+  },
+  {
+    "name": "time_construct_error_23",
+    "body": "Time.gm(true).to_s",
+    "go_error": "Time constructor year must be numeric, got bool"
+  },
+  {
+    "name": "time_construct_error_24",
+    "body": "Time.gm([]).to_s",
+    "go_error": "Time constructor year must be numeric, got array"
+  },
+  {
+    "name": "time_construct_error_25",
+    "body": "Time.gm({}).to_s",
+    "go_error": "Time constructor year must be numeric, got hash"
+  },
+  {
+    "name": "time_construct_error_26",
+    "body": "Time.gm(2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_construct_error_27",
+    "body": "Time.gm(1e100).to_s",
+    "go_error": "Time constructor year 1e+100 is out of range"
+  },
+  {
+    "name": "time_construct_error_28",
+    "body": "Time.gm(Math.sqrt(-1)).to_s",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "time_construct_error_29",
+    "body": "Time.gm(2024,1,1,0,0,0,nil,2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_descriptor_6",
+    "body": "Time.gm",
+    "go_error": "Time constructor expects at least a year"
+  },
+  {
+    "name": "time_descriptor_8",
+    "body": "f=Time::gm;f.to_s",
+    "go_error": "a method has no member to_s; call Time.gm(...) directly"
+  },
+  {
+    "name": "time_construct_error_30",
+    "body": "Time.local().to_s",
+    "go_error": "Time constructor expects at least a year"
+  },
+  {
+    "name": "time_construct_error_31",
+    "body": "Time.local(nil).to_s",
+    "go_error": "Time constructor year must be numeric, got nil"
+  },
+  {
+    "name": "time_construct_error_32",
+    "body": "Time.local(\"2024\").to_s",
+    "go_error": "Time constructor year must be numeric, got string"
+  },
+  {
+    "name": "time_construct_error_33",
+    "body": "Time.local(true).to_s",
+    "go_error": "Time constructor year must be numeric, got bool"
+  },
+  {
+    "name": "time_construct_error_34",
+    "body": "Time.local([]).to_s",
+    "go_error": "Time constructor year must be numeric, got array"
+  },
+  {
+    "name": "time_construct_error_35",
+    "body": "Time.local({}).to_s",
+    "go_error": "Time constructor year must be numeric, got hash"
+  },
+  {
+    "name": "time_construct_error_36",
+    "body": "Time.local(2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_construct_error_37",
+    "body": "Time.local(1e100).to_s",
+    "go_error": "Time constructor year 1e+100 is out of range"
+  },
+  {
+    "name": "time_construct_error_38",
+    "body": "Time.local(Math.sqrt(-1)).to_s",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "time_construct_error_39",
+    "body": "Time.local(2024,1,1,0,0,0,nil,2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_descriptor_9",
+    "body": "Time.local",
+    "go_error": "local is a method and cannot be used as a value; call it with local(...)"
+  },
+  {
+    "name": "time_descriptor_11",
+    "body": "f=Time::local;f.to_s",
+    "go_error": "a method has no member to_s; call Time.local(...) directly"
+  },
+  {
+    "name": "time_construct_error_40",
+    "body": "Time.mktime().to_s",
+    "go_error": "Time constructor expects at least a year"
+  },
+  {
+    "name": "time_construct_error_41",
+    "body": "Time.mktime(nil).to_s",
+    "go_error": "Time constructor year must be numeric, got nil"
+  },
+  {
+    "name": "time_construct_error_42",
+    "body": "Time.mktime(\"2024\").to_s",
+    "go_error": "Time constructor year must be numeric, got string"
+  },
+  {
+    "name": "time_construct_error_43",
+    "body": "Time.mktime(true).to_s",
+    "go_error": "Time constructor year must be numeric, got bool"
+  },
+  {
+    "name": "time_construct_error_44",
+    "body": "Time.mktime([]).to_s",
+    "go_error": "Time constructor year must be numeric, got array"
+  },
+  {
+    "name": "time_construct_error_45",
+    "body": "Time.mktime({}).to_s",
+    "go_error": "Time constructor year must be numeric, got hash"
+  },
+  {
+    "name": "time_construct_error_46",
+    "body": "Time.mktime(2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_construct_error_47",
+    "body": "Time.mktime(1e100).to_s",
+    "go_error": "Time constructor year 1e+100 is out of range"
+  },
+  {
+    "name": "time_construct_error_48",
+    "body": "Time.mktime(Math.sqrt(-1)).to_s",
+    "go_error": "Math.sqrt out of domain"
+  },
+  {
+    "name": "time_construct_error_49",
+    "body": "Time.mktime(2024,1,1,0,0,0,nil,2**63).to_s",
+    "go_error": "Time constructor parts must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_descriptor_12",
+    "body": "Time.mktime",
+    "go_error": "Time constructor expects at least a year"
+  },
+  {
+    "name": "time_descriptor_14",
+    "body": "f=Time::mktime;f.to_s",
+    "go_error": "a method has no member to_s; call Time.mktime(...) directly"
+  },
+  {
+    "name": "time_epoch_0",
+    "body": "t=Time.at(-9223372036854775808,-1000001,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_1",
+    "body": "t=Time.at(-9223372036854775808,-1000000,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_2",
+    "body": "t=Time.at(-9223372036854775808,-1,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_7",
+    "body": "t=Time.at(-9223372036854775807,-1000001,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_69",
+    "body": "t=Time.at(9223372036854775807,1000000,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_70",
+    "body": "t=Time.at(0,-1e+20,:usec,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_71",
+    "body": "t=Time.at(0,-9223372036854775808,:usec,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_83",
+    "body": "t=Time.at(0,9223372036854775807,:usec,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_84",
+    "body": "t=Time.at(0,1e+20,:usec,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_85",
+    "body": "t=Time.at(0,-1e+20,:microsecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_86",
+    "body": "t=Time.at(0,-9223372036854775808,:microsecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_98",
+    "body": "t=Time.at(0,9223372036854775807,:microsecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_99",
+    "body": "t=Time.at(0,1e+20,:microsecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_100",
+    "body": "t=Time.at(0,-1e+20,:millisecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_101",
+    "body": "t=Time.at(0,-9223372036854775808,:millisecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_113",
+    "body": "t=Time.at(0,9223372036854775807,:millisecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_114",
+    "body": "t=Time.at(0,1e+20,:millisecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_115",
+    "body": "t=Time.at(0,-1e+20,:nsec,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_129",
+    "body": "t=Time.at(0,1e+20,:nsec,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_130",
+    "body": "t=Time.at(0,-1e+20,:nanosecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_144",
+    "body": "t=Time.at(0,1e+20,:nanosecond,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_145",
+    "body": "t=Time.at(-1e+100,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_157",
+    "body": "t=Time.at(1e+100,in:\"UTC\");[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value out of range"
+  },
+  {
+    "name": "time_epoch_158",
+    "body": "t=Time.at();[t.to_i,t.nsec]",
+    "go_error": "Time.at expects seconds since epoch with optional subsecond value and unit"
+  },
+  {
+    "name": "time_epoch_159",
+    "body": "t=Time.at(nil);[t.to_i,t.nsec]",
+    "go_error": "Time.at expects numeric seconds"
+  },
+  {
+    "name": "time_epoch_160",
+    "body": "t=Time.at(true);[t.to_i,t.nsec]",
+    "go_error": "Time.at expects numeric seconds"
+  },
+  {
+    "name": "time_epoch_161",
+    "body": "t=Time.at(\"1\");[t.to_i,t.nsec]",
+    "go_error": "Time.at expects numeric seconds"
+  },
+  {
+    "name": "time_epoch_162",
+    "body": "t=Time.at([]);[t.to_i,t.nsec]",
+    "go_error": "Time.at expects numeric seconds"
+  },
+  {
+    "name": "time_epoch_163",
+    "body": "t=Time.at({});[t.to_i,t.nsec]",
+    "go_error": "Time.at expects numeric seconds"
+  },
+  {
+    "name": "time_epoch_164",
+    "body": "t=Time.at(2**63);[t.to_i,t.nsec]",
+    "go_error": "Time.at seconds must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_epoch_165",
+    "body": "t=Time.at(0,nil);[t.to_i,t.nsec]",
+    "go_error": "Time.at subsecond value must be numeric"
+  },
+  {
+    "name": "time_epoch_166",
+    "body": "t=Time.at(0,1,:second);[t.to_i,t.nsec]",
+    "go_error": "unexpected unit: second"
+  },
+  {
+    "name": "time_epoch_167",
+    "body": "t=Time.at(0,1,\"usec\");[t.to_i,t.nsec]",
+    "go_error": "unexpected unit: usec"
+  },
+  {
+    "name": "time_epoch_168",
+    "body": "t=Time.at(0,1,nil);[t.to_i,t.nsec]",
+    "go_error": "unexpected unit: "
+  },
+  {
+    "name": "time_epoch_169",
+    "body": "t=Time.at(0,1,:usec,1);[t.to_i,t.nsec]",
+    "go_error": "Time.at expects seconds since epoch with optional subsecond value and unit"
+  },
+  {
+    "name": "time_epoch_170",
+    "body": "t=Time.at(Time.utc(2024));[t.to_i,t.nsec]",
+    "go_error": "Time.at expects numeric seconds"
+  },
+  {
+    "name": "time_microseconds_0",
+    "body": "Time.utc(2024,1,1,0,0,0,-1).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_1",
+    "body": "Time.utc(2024,1,1,0,0,0,-1e-05).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_8",
+    "body": "Time.utc(2024,1,1,0,0,0,1000000).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_9",
+    "body": "Time.utc(2024,1,1,0,0,0,9223372036854775807).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_10",
+    "body": "Time.utc(2024,1,1,0,0,0,1e+100).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_11",
+    "body": "Time.gm(2024,1,1,0,0,0,-1).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_12",
+    "body": "Time.gm(2024,1,1,0,0,0,-1e-05).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_19",
+    "body": "Time.gm(2024,1,1,0,0,0,1000000).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_20",
+    "body": "Time.gm(2024,1,1,0,0,0,9223372036854775807).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_21",
+    "body": "Time.gm(2024,1,1,0,0,0,1e+100).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_22",
+    "body": "Time.local(2024,1,1,0,0,0,-1).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_23",
+    "body": "Time.local(2024,1,1,0,0,0,-1e-05).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_30",
+    "body": "Time.local(2024,1,1,0,0,0,1000000).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_31",
+    "body": "Time.local(2024,1,1,0,0,0,9223372036854775807).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_32",
+    "body": "Time.local(2024,1,1,0,0,0,1e+100).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_33",
+    "body": "Time.mktime(2024,1,1,0,0,0,-1).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_34",
+    "body": "Time.mktime(2024,1,1,0,0,0,-1e-05).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_41",
+    "body": "Time.mktime(2024,1,1,0,0,0,1000000).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_42",
+    "body": "Time.mktime(2024,1,1,0,0,0,9223372036854775807).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_microseconds_43",
+    "body": "Time.mktime(2024,1,1,0,0,0,1e+100).nsec",
+    "go_error": "Time constructor microsecond argument out of range (must be within one second)"
+  },
+  {
+    "name": "time_zones_error_0",
+    "body": "Time.at(0,in:\"not/a/zone\").to_s",
+    "go_error": "invalid timezone \"not/a/zone\""
+  },
+  {
+    "name": "time_zones_error_1",
+    "body": "Time.at(0,in:\"../UTC\").to_s",
+    "go_error": "invalid timezone \"../UTC\""
+  },
+  {
+    "name": "time_zones_error_2",
+    "body": "Time.at(0,in:\"/etc/localtime\").to_s",
+    "go_error": "invalid timezone \"/etc/localtime\""
+  },
+  {
+    "name": "time_zones_error_3",
+    "body": "Time.at(0,in:\"America/../UTC\").to_s",
+    "go_error": "invalid timezone \"America/../UTC\""
+  },
+  {
+    "name": "time_zones_error_4",
+    "body": "Time.at(0,in:\"+01:xx\").to_s",
+    "go_error": "invalid timezone offset"
+  },
+  {
+    "name": "time_zones_error_5",
+    "body": "Time.at(0,in:\"+24\").to_s",
+    "go_error": "invalid timezone \"+24\""
+  },
+  {
+    "name": "time_zones_error_6",
+    "body": "Time.at(0,in:\"+0500\").to_s",
+    "go_error": "invalid timezone \"+0500\""
+  },
+  {
+    "name": "time_zones_error_7",
+    "body": "Time.at(0,in:\":UTC\").to_s",
+    "go_error": "invalid timezone \":UTC\""
+  },
+  {
+    "name": "time_zones_error_8",
+    "body": "Time.at(0,in:\"+01:0a\").to_s",
+    "go_error": "invalid timezone offset"
+  },
+  {
+    "name": "time_zones_error_9",
+    "body": "Time.at(0,in:\"Local/nope\").to_s",
+    "go_error": "invalid timezone \"Local/nope\""
+  },
+  {
+    "name": "time_property_error_0",
+    "body": "Time.utc(2024).year()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_1",
+    "body": "Time.utc(2024).year {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_2",
+    "body": "Time.utc(2024).month()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_3",
+    "body": "Time.utc(2024).month {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_4",
+    "body": "Time.utc(2024).mon()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_5",
+    "body": "Time.utc(2024).mon {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_6",
+    "body": "Time.utc(2024).mday()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_7",
+    "body": "Time.utc(2024).mday {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_8",
+    "body": "Time.utc(2024).day()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_9",
+    "body": "Time.utc(2024).day {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_10",
+    "body": "Time.utc(2024).hour()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_11",
+    "body": "Time.utc(2024).hour {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_12",
+    "body": "Time.utc(2024).min()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_13",
+    "body": "Time.utc(2024).min {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_14",
+    "body": "Time.utc(2024).sec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_15",
+    "body": "Time.utc(2024).sec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_16",
+    "body": "Time.utc(2024).usec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_17",
+    "body": "Time.utc(2024).usec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_18",
+    "body": "Time.utc(2024).tv_usec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_19",
+    "body": "Time.utc(2024).tv_usec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_20",
+    "body": "Time.utc(2024).nsec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_21",
+    "body": "Time.utc(2024).nsec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_22",
+    "body": "Time.utc(2024).tv_nsec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_23",
+    "body": "Time.utc(2024).tv_nsec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_24",
+    "body": "Time.utc(2024).subsec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_25",
+    "body": "Time.utc(2024).subsec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_26",
+    "body": "Time.utc(2024).wday()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_27",
+    "body": "Time.utc(2024).wday {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_28",
+    "body": "Time.utc(2024).yday()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_29",
+    "body": "Time.utc(2024).yday {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_30",
+    "body": "Time.utc(2024).hash()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_31",
+    "body": "Time.utc(2024).hash {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_32",
+    "body": "Time.utc(2024).utc_offset()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_33",
+    "body": "Time.utc(2024).utc_offset {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_34",
+    "body": "Time.utc(2024).gmt_offset()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_35",
+    "body": "Time.utc(2024).gmt_offset {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_36",
+    "body": "Time.utc(2024).gmtoff()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_37",
+    "body": "Time.utc(2024).gmtoff {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_38",
+    "body": "Time.utc(2024).to_f()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_39",
+    "body": "Time.utc(2024).to_f {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_40",
+    "body": "Time.utc(2024).to_i()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_41",
+    "body": "Time.utc(2024).to_i {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_42",
+    "body": "Time.utc(2024).tv_sec()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_43",
+    "body": "Time.utc(2024).tv_sec {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_44",
+    "body": "Time.utc(2024).to_r()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_45",
+    "body": "Time.utc(2024).to_r {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_46",
+    "body": "Time.utc(2024).zone()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_47",
+    "body": "Time.utc(2024).zone {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_48",
+    "body": "Time.utc(2024).utc?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_49",
+    "body": "Time.utc(2024).utc? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_50",
+    "body": "Time.utc(2024).gmt?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_51",
+    "body": "Time.utc(2024).gmt? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_52",
+    "body": "Time.utc(2024).dst?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_53",
+    "body": "Time.utc(2024).dst? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_54",
+    "body": "Time.utc(2024).isdst()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_55",
+    "body": "Time.utc(2024).isdst {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_56",
+    "body": "Time.utc(2024).sunday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_57",
+    "body": "Time.utc(2024).sunday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_58",
+    "body": "Time.utc(2024).monday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_59",
+    "body": "Time.utc(2024).monday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_60",
+    "body": "Time.utc(2024).tuesday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_61",
+    "body": "Time.utc(2024).tuesday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_62",
+    "body": "Time.utc(2024).wednesday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_63",
+    "body": "Time.utc(2024).wednesday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_64",
+    "body": "Time.utc(2024).thursday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_65",
+    "body": "Time.utc(2024).thursday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_66",
+    "body": "Time.utc(2024).friday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_67",
+    "body": "Time.utc(2024).friday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_68",
+    "body": "Time.utc(2024).saturday?()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_69",
+    "body": "Time.utc(2024).saturday? {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_70",
+    "body": "Time.utc(2024).to_a()",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_property_error_71",
+    "body": "Time.utc(2024).to_a {1}",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_convert_error_0",
+    "body": "Time.at(0).getutc().to_s",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_convert_error_1",
+    "body": "Time.at(0).getgm().to_s",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_convert_error_2",
+    "body": "Time.at(0).utc().to_s",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_convert_error_3",
+    "body": "Time.at(0).gmtime().to_s",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "time_getlocal_5",
+    "body": "t=Time.at(0,in:\"UTC\").getlocal(true);[t.to_i,t.getutc.to_s]",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_getlocal_6",
+    "body": "t=Time.at(0,in:\"UTC\").getlocal(\"bad\");[t.to_i,t.getutc.to_s]",
+    "go_error": "invalid timezone \"bad\""
+  },
+  {
+    "name": "time_getlocal_7",
+    "body": "t=Time.at(0,in:\"UTC\").getlocal(1,2);[t.to_i,t.getutc.to_s]",
+    "go_error": "getlocal expects at most one timezone offset argument"
+  },
+  {
+    "name": "time_getlocal_13",
+    "body": "t=Time.at(0,in:\"UTC\").localtime(true);[t.to_i,t.getutc.to_s]",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_getlocal_14",
+    "body": "t=Time.at(0,in:\"UTC\").localtime(\"bad\");[t.to_i,t.getutc.to_s]",
+    "go_error": "invalid timezone \"bad\""
+  },
+  {
+    "name": "time_getlocal_15",
+    "body": "t=Time.at(0,in:\"UTC\").localtime(1,2);[t.to_i,t.getutc.to_s]",
+    "go_error": "localtime expects at most one timezone offset argument"
+  },
+  {
+    "name": "time_signature_1",
+    "body": "t=Time.utc(2024);t.to_s(nil)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_signature_2",
+    "body": "t=Time.utc(2024);t.to_s(1)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_signature_3",
+    "body": "t=Time.utc(2024);t.to_s(1.5)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_signature_4",
+    "body": "t=Time.utc(2024);t.to_s(-1)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_signature_5",
+    "body": "t=Time.utc(2024);t.to_s(2**63)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_signature_6",
+    "body": "t=Time.utc(2024);t.to_s(0,1)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_signature_7",
+    "body": "t=Time.utc(2024);t.to_s(other:1)",
+    "go_error": "time.to_s does not take keyword arguments"
+  },
+  {
+    "name": "time_signature_8",
+    "body": "t=Time.utc(2024);t.to_s(0,other:1)",
+    "go_error": "time.to_s does not take arguments"
+  },
+  {
+    "name": "time_block_signature_0",
+    "body": "t=Time.utc(2024);t.to_s {1}",
+    "go_error": "time.to_s does not take a block"
+  },
+  {
+    "name": "time_signature_10",
+    "body": "t=Time.utc(2024);t.string(nil)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_signature_11",
+    "body": "t=Time.utc(2024);t.string(1)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_signature_12",
+    "body": "t=Time.utc(2024);t.string(1.5)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_signature_13",
+    "body": "t=Time.utc(2024);t.string(-1)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_signature_14",
+    "body": "t=Time.utc(2024);t.string(2**63)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_signature_15",
+    "body": "t=Time.utc(2024);t.string(0,1)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_signature_16",
+    "body": "t=Time.utc(2024);t.string(other:1)",
+    "go_error": "time.string does not take keyword arguments"
+  },
+  {
+    "name": "time_signature_17",
+    "body": "t=Time.utc(2024);t.string(0,other:1)",
+    "go_error": "time.string does not take arguments"
+  },
+  {
+    "name": "time_block_signature_1",
+    "body": "t=Time.utc(2024);t.string {1}",
+    "go_error": "time.string does not take a block"
+  },
+  {
+    "name": "time_signature_19",
+    "body": "t=Time.utc(2024);t.inspect(nil)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_signature_20",
+    "body": "t=Time.utc(2024);t.inspect(1)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_signature_21",
+    "body": "t=Time.utc(2024);t.inspect(1.5)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_signature_22",
+    "body": "t=Time.utc(2024);t.inspect(-1)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_signature_23",
+    "body": "t=Time.utc(2024);t.inspect(2**63)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_signature_24",
+    "body": "t=Time.utc(2024);t.inspect(0,1)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_signature_25",
+    "body": "t=Time.utc(2024);t.inspect(other:1)",
+    "go_error": "time.inspect does not take keyword arguments"
+  },
+  {
+    "name": "time_signature_26",
+    "body": "t=Time.utc(2024);t.inspect(0,other:1)",
+    "go_error": "time.inspect does not take arguments"
+  },
+  {
+    "name": "time_block_signature_2",
+    "body": "t=Time.utc(2024);t.inspect {1}",
+    "go_error": "time.inspect does not take a block"
+  },
+  {
+    "name": "time_signature_28",
+    "body": "t=Time.utc(2024);t.iso8601(nil)",
+    "go_error": "time.iso8601 precision must be an Integer"
+  },
+  {
+    "name": "time_signature_30",
+    "body": "t=Time.utc(2024);t.iso8601(1.5)",
+    "go_error": "time.iso8601 precision must be an Integer"
+  },
+  {
+    "name": "time_signature_31",
+    "body": "t=Time.utc(2024);t.iso8601(-1)",
+    "go_error": "time.iso8601 precision must be non-negative"
+  },
+  {
+    "name": "time_signature_32",
+    "body": "t=Time.utc(2024);t.iso8601(2**63)",
+    "go_error": "time.iso8601 precision must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_signature_33",
+    "body": "t=Time.utc(2024);t.iso8601(0,1)",
+    "go_error": "time.iso8601 expects at most one precision argument"
+  },
+  {
+    "name": "time_signature_34",
+    "body": "t=Time.utc(2024);t.iso8601(other:1)",
+    "go_error": "time.iso8601 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_35",
+    "body": "t=Time.utc(2024);t.iso8601(0,other:1)",
+    "go_error": "time.iso8601 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_37",
+    "body": "t=Time.utc(2024);t.xmlschema(nil)",
+    "go_error": "time.xmlschema precision must be an Integer"
+  },
+  {
+    "name": "time_signature_39",
+    "body": "t=Time.utc(2024);t.xmlschema(1.5)",
+    "go_error": "time.xmlschema precision must be an Integer"
+  },
+  {
+    "name": "time_signature_40",
+    "body": "t=Time.utc(2024);t.xmlschema(-1)",
+    "go_error": "time.xmlschema precision must be non-negative"
+  },
+  {
+    "name": "time_signature_41",
+    "body": "t=Time.utc(2024);t.xmlschema(2**63)",
+    "go_error": "time.xmlschema precision must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_signature_42",
+    "body": "t=Time.utc(2024);t.xmlschema(0,1)",
+    "go_error": "time.xmlschema expects at most one precision argument"
+  },
+  {
+    "name": "time_signature_43",
+    "body": "t=Time.utc(2024);t.xmlschema(other:1)",
+    "go_error": "time.xmlschema does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_44",
+    "body": "t=Time.utc(2024);t.xmlschema(0,other:1)",
+    "go_error": "time.xmlschema does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_46",
+    "body": "t=Time.utc(2024);t.rfc3339(nil)",
+    "go_error": "time.rfc3339 precision must be an Integer"
+  },
+  {
+    "name": "time_signature_48",
+    "body": "t=Time.utc(2024);t.rfc3339(1.5)",
+    "go_error": "time.rfc3339 precision must be an Integer"
+  },
+  {
+    "name": "time_signature_49",
+    "body": "t=Time.utc(2024);t.rfc3339(-1)",
+    "go_error": "time.rfc3339 precision must be non-negative"
+  },
+  {
+    "name": "time_signature_50",
+    "body": "t=Time.utc(2024);t.rfc3339(2**63)",
+    "go_error": "time.rfc3339 precision must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_signature_51",
+    "body": "t=Time.utc(2024);t.rfc3339(0,1)",
+    "go_error": "time.rfc3339 expects at most one precision argument"
+  },
+  {
+    "name": "time_signature_52",
+    "body": "t=Time.utc(2024);t.rfc3339(other:1)",
+    "go_error": "time.rfc3339 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_53",
+    "body": "t=Time.utc(2024);t.rfc3339(0,other:1)",
+    "go_error": "time.rfc3339 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_55",
+    "body": "t=Time.utc(2024);t.httpdate(nil)",
+    "go_error": "time.httpdate does not accept arguments"
+  },
+  {
+    "name": "time_signature_56",
+    "body": "t=Time.utc(2024);t.httpdate(1)",
+    "go_error": "time.httpdate does not accept arguments"
+  },
+  {
+    "name": "time_signature_57",
+    "body": "t=Time.utc(2024);t.httpdate(1.5)",
+    "go_error": "time.httpdate does not accept arguments"
+  },
+  {
+    "name": "time_signature_58",
+    "body": "t=Time.utc(2024);t.httpdate(-1)",
+    "go_error": "time.httpdate does not accept arguments"
+  },
+  {
+    "name": "time_signature_59",
+    "body": "t=Time.utc(2024);t.httpdate(2**63)",
+    "go_error": "time.httpdate does not accept arguments"
+  },
+  {
+    "name": "time_signature_60",
+    "body": "t=Time.utc(2024);t.httpdate(0,1)",
+    "go_error": "time.httpdate does not accept arguments"
+  },
+  {
+    "name": "time_signature_61",
+    "body": "t=Time.utc(2024);t.httpdate(other:1)",
+    "go_error": "time.httpdate does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_62",
+    "body": "t=Time.utc(2024);t.httpdate(0,other:1)",
+    "go_error": "time.httpdate does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_64",
+    "body": "t=Time.utc(2024);t.rfc2822(nil)",
+    "go_error": "time.rfc2822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_65",
+    "body": "t=Time.utc(2024);t.rfc2822(1)",
+    "go_error": "time.rfc2822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_66",
+    "body": "t=Time.utc(2024);t.rfc2822(1.5)",
+    "go_error": "time.rfc2822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_67",
+    "body": "t=Time.utc(2024);t.rfc2822(-1)",
+    "go_error": "time.rfc2822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_68",
+    "body": "t=Time.utc(2024);t.rfc2822(2**63)",
+    "go_error": "time.rfc2822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_69",
+    "body": "t=Time.utc(2024);t.rfc2822(0,1)",
+    "go_error": "time.rfc2822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_70",
+    "body": "t=Time.utc(2024);t.rfc2822(other:1)",
+    "go_error": "time.rfc2822 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_71",
+    "body": "t=Time.utc(2024);t.rfc2822(0,other:1)",
+    "go_error": "time.rfc2822 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_73",
+    "body": "t=Time.utc(2024);t.rfc822(nil)",
+    "go_error": "time.rfc822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_74",
+    "body": "t=Time.utc(2024);t.rfc822(1)",
+    "go_error": "time.rfc822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_75",
+    "body": "t=Time.utc(2024);t.rfc822(1.5)",
+    "go_error": "time.rfc822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_76",
+    "body": "t=Time.utc(2024);t.rfc822(-1)",
+    "go_error": "time.rfc822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_77",
+    "body": "t=Time.utc(2024);t.rfc822(2**63)",
+    "go_error": "time.rfc822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_78",
+    "body": "t=Time.utc(2024);t.rfc822(0,1)",
+    "go_error": "time.rfc822 does not accept arguments"
+  },
+  {
+    "name": "time_signature_79",
+    "body": "t=Time.utc(2024);t.rfc822(other:1)",
+    "go_error": "time.rfc822 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_80",
+    "body": "t=Time.utc(2024);t.rfc822(0,other:1)",
+    "go_error": "time.rfc822 does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_82",
+    "body": "t=Time.utc(2024);t.round(nil).to_s",
+    "go_error": "time.round precision must be an Integer"
+  },
+  {
+    "name": "time_signature_84",
+    "body": "t=Time.utc(2024);t.round(1.5).to_s",
+    "go_error": "time.round precision must be an Integer"
+  },
+  {
+    "name": "time_signature_85",
+    "body": "t=Time.utc(2024);t.round(-1).to_s",
+    "go_error": "time.round precision must be non-negative"
+  },
+  {
+    "name": "time_signature_86",
+    "body": "t=Time.utc(2024);t.round(2**63).to_s",
+    "go_error": "time.round precision must fit in a 64-bit integer"
+  },
+  {
+    "name": "time_signature_87",
+    "body": "t=Time.utc(2024);t.round(0,1).to_s",
+    "go_error": "time.round expects at most one precision argument"
+  },
+  {
+    "name": "time_signature_88",
+    "body": "t=Time.utc(2024);t.round(other:1).to_s",
+    "go_error": "time.round does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_89",
+    "body": "t=Time.utc(2024);t.round(0,other:1).to_s",
+    "go_error": "time.round does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_91",
+    "body": "t=Time.utc(2024);t.ceil(nil).to_s",
+    "go_error": "ceil does not accept precision"
+  },
+  {
+    "name": "time_signature_92",
+    "body": "t=Time.utc(2024);t.ceil(1).to_s",
+    "go_error": "ceil does not accept precision"
+  },
+  {
+    "name": "time_signature_93",
+    "body": "t=Time.utc(2024);t.ceil(1.5).to_s",
+    "go_error": "ceil does not accept precision"
+  },
+  {
+    "name": "time_signature_94",
+    "body": "t=Time.utc(2024);t.ceil(-1).to_s",
+    "go_error": "ceil does not accept precision"
+  },
+  {
+    "name": "time_signature_95",
+    "body": "t=Time.utc(2024);t.ceil(2**63).to_s",
+    "go_error": "ceil does not accept precision"
+  },
+  {
+    "name": "time_signature_96",
+    "body": "t=Time.utc(2024);t.ceil(0,1).to_s",
+    "go_error": "ceil does not accept precision"
+  },
+  {
+    "name": "time_signature_97",
+    "body": "t=Time.utc(2024);t.ceil(other:1).to_s",
+    "go_error": "time.ceil does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_98",
+    "body": "t=Time.utc(2024);t.ceil(0,other:1).to_s",
+    "go_error": "time.ceil does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_100",
+    "body": "t=Time.utc(2024);t.floor(nil).to_s",
+    "go_error": "floor does not accept precision"
+  },
+  {
+    "name": "time_signature_101",
+    "body": "t=Time.utc(2024);t.floor(1).to_s",
+    "go_error": "floor does not accept precision"
+  },
+  {
+    "name": "time_signature_102",
+    "body": "t=Time.utc(2024);t.floor(1.5).to_s",
+    "go_error": "floor does not accept precision"
+  },
+  {
+    "name": "time_signature_103",
+    "body": "t=Time.utc(2024);t.floor(-1).to_s",
+    "go_error": "floor does not accept precision"
+  },
+  {
+    "name": "time_signature_104",
+    "body": "t=Time.utc(2024);t.floor(2**63).to_s",
+    "go_error": "floor does not accept precision"
+  },
+  {
+    "name": "time_signature_105",
+    "body": "t=Time.utc(2024);t.floor(0,1).to_s",
+    "go_error": "floor does not accept precision"
+  },
+  {
+    "name": "time_signature_106",
+    "body": "t=Time.utc(2024);t.floor(other:1).to_s",
+    "go_error": "time.floor does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_107",
+    "body": "t=Time.utc(2024);t.floor(0,other:1).to_s",
+    "go_error": "time.floor does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_110",
+    "body": "t=Time.utc(2024);t.getlocal(1).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_111",
+    "body": "t=Time.utc(2024);t.getlocal(1.5).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_112",
+    "body": "t=Time.utc(2024);t.getlocal(-1).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_113",
+    "body": "t=Time.utc(2024);t.getlocal(2**63).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_114",
+    "body": "t=Time.utc(2024);t.getlocal(0,1).getutc.to_s",
+    "go_error": "getlocal expects at most one timezone offset argument"
+  },
+  {
+    "name": "time_signature_115",
+    "body": "t=Time.utc(2024);t.getlocal(other:1).getutc.to_s",
+    "go_error": "getlocal does not take keyword arguments; pass the offset positionally"
+  },
+  {
+    "name": "time_signature_116",
+    "body": "t=Time.utc(2024);t.getlocal(0,other:1).getutc.to_s",
+    "go_error": "getlocal does not take keyword arguments; pass the offset positionally"
+  },
+  {
+    "name": "time_signature_119",
+    "body": "t=Time.utc(2024);t.localtime(1).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_120",
+    "body": "t=Time.utc(2024);t.localtime(1.5).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_121",
+    "body": "t=Time.utc(2024);t.localtime(-1).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_122",
+    "body": "t=Time.utc(2024);t.localtime(2**63).getutc.to_s",
+    "go_error": "invalid timezone spec"
+  },
+  {
+    "name": "time_signature_123",
+    "body": "t=Time.utc(2024);t.localtime(0,1).getutc.to_s",
+    "go_error": "localtime expects at most one timezone offset argument"
+  },
+  {
+    "name": "time_signature_124",
+    "body": "t=Time.utc(2024);t.localtime(other:1).getutc.to_s",
+    "go_error": "localtime does not take keyword arguments; pass the offset positionally"
+  },
+  {
+    "name": "time_signature_125",
+    "body": "t=Time.utc(2024);t.localtime(0,other:1).getutc.to_s",
+    "go_error": "localtime does not take keyword arguments; pass the offset positionally"
+  },
+  {
+    "name": "time_signature_127",
+    "body": "t=Time.utc(2024);t.nil?(nil)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_signature_128",
+    "body": "t=Time.utc(2024);t.nil?(1)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_signature_129",
+    "body": "t=Time.utc(2024);t.nil?(1.5)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_signature_130",
+    "body": "t=Time.utc(2024);t.nil?(-1)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_signature_131",
+    "body": "t=Time.utc(2024);t.nil?(2**63)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_signature_132",
+    "body": "t=Time.utc(2024);t.nil?(0,1)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_signature_133",
+    "body": "t=Time.utc(2024);t.nil?(other:1)",
+    "go_error": "time.nil? does not take keyword arguments"
+  },
+  {
+    "name": "time_signature_134",
+    "body": "t=Time.utc(2024);t.nil?(0,other:1)",
+    "go_error": "time.nil? does not take arguments"
+  },
+  {
+    "name": "time_block_signature_14",
+    "body": "t=Time.utc(2024);t.nil? {1}",
+    "go_error": "time.nil? does not take a block"
+  },
+  {
+    "name": "time_signature_136",
+    "body": "t=Time.utc(2024);t.itself(nil).to_s",
+    "go_error": "time.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "time_signature_137",
+    "body": "t=Time.utc(2024);t.itself(1).to_s",
+    "go_error": "time.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "time_signature_138",
+    "body": "t=Time.utc(2024);t.itself(1.5).to_s",
+    "go_error": "time.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "time_signature_139",
+    "body": "t=Time.utc(2024);t.itself(-1).to_s",
+    "go_error": "time.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "time_signature_140",
+    "body": "t=Time.utc(2024);t.itself(2**63).to_s",
+    "go_error": "time.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "time_signature_141",
+    "body": "t=Time.utc(2024);t.itself(0,1).to_s",
+    "go_error": "time.itself expects 0 arguments, got 2"
+  },
+  {
+    "name": "time_signature_142",
+    "body": "t=Time.utc(2024);t.itself(other:1).to_s",
+    "go_error": "time.itself does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_143",
+    "body": "t=Time.utc(2024);t.itself(0,other:1).to_s",
+    "go_error": "time.itself does not accept keyword arguments"
+  },
+  {
+    "name": "time_block_signature_15",
+    "body": "t=Time.utc(2024);t.itself {1}.to_s",
+    "go_error": "time.itself does not accept a block"
+  },
+  {
+    "name": "time_signature_145",
+    "body": "t=Time.utc(2024);t.dup(nil).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_signature_146",
+    "body": "t=Time.utc(2024);t.dup(1).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_signature_147",
+    "body": "t=Time.utc(2024);t.dup(1.5).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_signature_148",
+    "body": "t=Time.utc(2024);t.dup(-1).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_signature_149",
+    "body": "t=Time.utc(2024);t.dup(2**63).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_signature_150",
+    "body": "t=Time.utc(2024);t.dup(0,1).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_signature_151",
+    "body": "t=Time.utc(2024);t.dup(other:1).to_s",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "time_signature_152",
+    "body": "t=Time.utc(2024);t.dup(0,other:1).to_s",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "time_block_signature_16",
+    "body": "t=Time.utc(2024);t.dup {1}.to_s",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "time_signature_153",
+    "body": "t=Time.utc(2024);t.equal?()",
+    "go_error": "time.equal? expects 1 argument, got 0"
+  },
+  {
+    "name": "time_signature_159",
+    "body": "t=Time.utc(2024);t.equal?(0,1)",
+    "go_error": "time.equal? expects 1 argument, got 2"
+  },
+  {
+    "name": "time_signature_160",
+    "body": "t=Time.utc(2024);t.equal?(other:1)",
+    "go_error": "time.equal? does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_161",
+    "body": "t=Time.utc(2024);t.equal?(0,other:1)",
+    "go_error": "time.equal? does not accept keyword arguments"
+  },
+  {
+    "name": "time_block_signature_17",
+    "body": "t=Time.utc(2024);t.equal? {1}",
+    "go_error": "time.equal? does not accept a block"
+  },
+  {
+    "name": "time_signature_162",
+    "body": "t=Time.utc(2024);t.eql?()",
+    "go_error": "time.eql? expects 1 argument, got 0"
+  },
+  {
+    "name": "time_signature_168",
+    "body": "t=Time.utc(2024);t.eql?(0,1)",
+    "go_error": "time.eql? expects 1 argument, got 2"
+  },
+  {
+    "name": "time_signature_169",
+    "body": "t=Time.utc(2024);t.eql?(other:1)",
+    "go_error": "time.eql? does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_170",
+    "body": "t=Time.utc(2024);t.eql?(0,other:1)",
+    "go_error": "time.eql? does not accept keyword arguments"
+  },
+  {
+    "name": "time_block_signature_18",
+    "body": "t=Time.utc(2024);t.eql? {1}",
+    "go_error": "time.eql? expects 1 argument, got 0"
+  },
+  {
+    "name": "time_signature_171",
+    "body": "t=Time.utc(2024);t.between?()",
+    "go_error": "time.between? expects min and max"
+  },
+  {
+    "name": "time_signature_172",
+    "body": "t=Time.utc(2024);t.between?(nil)",
+    "go_error": "time.between? expects min and max"
+  },
+  {
+    "name": "time_signature_173",
+    "body": "t=Time.utc(2024);t.between?(1)",
+    "go_error": "time.between? expects min and max"
+  },
+  {
+    "name": "time_signature_174",
+    "body": "t=Time.utc(2024);t.between?(1.5)",
+    "go_error": "time.between? expects min and max"
+  },
+  {
+    "name": "time_signature_175",
+    "body": "t=Time.utc(2024);t.between?(-1)",
+    "go_error": "time.between? expects min and max"
+  },
+  {
+    "name": "time_signature_176",
+    "body": "t=Time.utc(2024);t.between?(2**63)",
+    "go_error": "time.between? expects min and max"
+  },
+  {
+    "name": "time_signature_177",
+    "body": "t=Time.utc(2024);t.between?(0,1)",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "time_signature_178",
+    "body": "t=Time.utc(2024);t.between?(other:1)",
+    "go_error": "time.between? does not take keyword arguments"
+  },
+  {
+    "name": "time_signature_179",
+    "body": "t=Time.utc(2024);t.between?(0,other:1)",
+    "go_error": "time.between? does not take keyword arguments"
+  },
+  {
+    "name": "time_block_signature_19",
+    "body": "t=Time.utc(2024);t.between? {1}",
+    "go_error": "time.between? does not accept a block"
+  },
+  {
+    "name": "time_signature_180",
+    "body": "t=Time.utc(2024);t.<=>()",
+    "go_error": "time.<=> expects 1 argument, got 0"
+  },
+  {
+    "name": "time_signature_186",
+    "body": "t=Time.utc(2024);t.<=>(0,1)",
+    "go_error": "time.<=> expects 1 argument, got 2"
+  },
+  {
+    "name": "time_signature_187",
+    "body": "t=Time.utc(2024);t.<=>(other:1)",
+    "go_error": "time.<=> does not accept keyword arguments"
+  },
+  {
+    "name": "time_signature_188",
+    "body": "t=Time.utc(2024);t.<=>(0,other:1)",
+    "go_error": "time.<=> does not accept keyword arguments"
+  },
+  {
+    "name": "time_block_signature_20",
+    "body": "t=Time.utc(2024);t.<=> {1}",
+    "go_error": "time.<=> expects 1 argument, got 0"
+  },
+  {
+    "name": "time_arithmetic_integer_0",
+    "body": "t=Time.at(0,in:\"UTC\")+-9223372037;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_1",
+    "body": "t=Time.at(0,in:\"UTC\")--9223372037;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_2",
+    "body": "t=Time.at(0,in:\"UTC\")+(-9223372037).seconds;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_3",
+    "body": "t=Time.at(0,in:\"UTC\")-(-9223372037).seconds;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_24",
+    "body": "t=Time.at(0,in:\"UTC\")+9223372037;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_25",
+    "body": "t=Time.at(0,in:\"UTC\")-9223372037;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_26",
+    "body": "t=Time.at(0,in:\"UTC\")+(9223372037).seconds;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_integer_27",
+    "body": "t=Time.at(0,in:\"UTC\")-(9223372037).seconds;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_0",
+    "body": "t=Time.at(0,in:\"UTC\")+-1e+100;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_1",
+    "body": "t=Time.at(0,in:\"UTC\")--1e+100;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_2",
+    "body": "t=Time.at(0,in:\"UTC\")+-9223372036.854776;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_3",
+    "body": "t=Time.at(0,in:\"UTC\")--9223372036.854776;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_26",
+    "body": "t=Time.at(0,in:\"UTC\")+9223372036.854776;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_27",
+    "body": "t=Time.at(0,in:\"UTC\")-9223372036.854776;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_28",
+    "body": "t=Time.at(0,in:\"UTC\")+1e+100;[t.to_i,t.nsec]",
+    "go_error": "time addition result out of int64 range"
+  },
+  {
+    "name": "time_arithmetic_float_29",
+    "body": "t=Time.at(0,in:\"UTC\")-1e+100;[t.to_i,t.nsec]",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_2",
+    "body": "(Time.at(-9223372036854775808,in:\"UTC\")-Time.at(1,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_3",
+    "body": "(Time.at(-9223372036854775808,in:\"UTC\")-Time.at(9223372036854775807,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_4",
+    "body": "(Time.at(0,in:\"UTC\")-Time.at(-9223372036854775808,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_8",
+    "body": "(Time.at(1,in:\"UTC\")-Time.at(-9223372036854775808,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_12",
+    "body": "(Time.at(9223371974719179007,in:\"UTC\")-Time.at(-9223372036854775808,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_16",
+    "body": "(Time.at(9223371974719179008,in:\"UTC\")-Time.at(-9223372036854775808,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_difference_20",
+    "body": "(Time.at(9223372036854775807,in:\"UTC\")-Time.at(-9223372036854775808,in:\"UTC\")).to_s",
+    "go_error": "time subtraction result out of int64 range"
+  },
+  {
+    "name": "time_integration_6",
+    "body": "f=Time::now;f.utc?",
+    "go_error": "a method has no member utc?; call Time.now(...) directly"
+  },
+  {
+    "name": "time_auto_binding_3",
+    "body": "now=Time::now;now.utc?",
+    "go_error": "a method has no member utc?; call Time.now(...) directly"
+  },
+  {
+    "name": "time_auto_binding_5",
+    "body": "money=Time::now;money.utc?",
+    "go_error": "a method has no member utc?; call Time.now(...) directly"
+  },
+  {
+    "name": "time_auto_binding_10",
+    "body": "Time[\"now\"].utc?",
+    "go_error": "a method has no member utc?; call Time.now(...) directly"
+  },
+  {
+    "name": "time_auto_binding_11",
+    "body": "(Time::now).utc?",
+    "go_error": "a method has no member utc?; call Time.now(...) directly"
+  },
+  {
+    "name": "time_auto_binding_12",
+    "source": "def take(f)\nf.utc?\nend\ndef run(input)\ntake(Time::now)\nend",
+    "go_error": "a method has no member utc?; call Time.now(...) directly"
+  },
+  {
+    "name": "time_auto_binding_14",
+    "body": "f=Time::gm;f.year",
+    "go_error": "a method has no member year; call Time.gm(...) directly"
+  },
+  {
+    "name": "time_auto_binding_15",
+    "body": "f=Time::gm;f",
+    "go_error": "Time constructor expects at least a year"
   }
 ]
