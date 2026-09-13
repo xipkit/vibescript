@@ -205,10 +205,10 @@ impl CallContext {
         Err(self.exhausted.clone().unwrap_or(err))
     }
 
-    pub(crate) fn reserve(&mut self, bytes: usize) -> Result<Option<Charge>> {
+    pub(crate) fn check_memory(&mut self, bytes: usize) -> Result<()> {
         self.checkpoint()?;
         if self.options.limits.memory_bytes.is_none() {
-            return Ok(None);
+            return Ok(());
         }
         let used = self.memory.used.load(Ordering::Relaxed);
         let Some(next) = used.checked_add(bytes) else {
@@ -221,6 +221,14 @@ impl CallContext {
             .is_some_and(|limit| next > limit)
         {
             return self.fail(ErrorKind::Memory, "memory quota exceeded");
+        }
+        Ok(())
+    }
+
+    pub(crate) fn reserve(&mut self, bytes: usize) -> Result<Option<Charge>> {
+        self.check_memory(bytes)?;
+        if self.options.limits.memory_bytes.is_none() {
+            return Ok(None);
         }
         // Execution allocates on one thread; returned values can be dropped on another.
         let actual = self.memory.used.fetch_add(bytes, Ordering::Relaxed) + bytes;

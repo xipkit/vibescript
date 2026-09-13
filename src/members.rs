@@ -77,6 +77,25 @@ pub(crate) fn call_keywords(
         )?;
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::text::inspect::call(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::text::template::call(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        &args.keywords.buffer.data,
+    )? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::sets::call(
         ctx,
         name,
@@ -144,6 +163,7 @@ pub(crate) fn call_keywords(
                         | Last
                         | At
                         | Slice
+                        | ValuesAt
                         | Reverse
                         | Compact
                         | Uniq
@@ -160,7 +180,10 @@ pub(crate) fn call_keywords(
                         | Sum
                 ),
                 Kind::Hash(_) => {
-                    matches!(method, ToArray | Flatten | Store | Delete | Replace | Clear)
+                    matches!(
+                        method,
+                        ToArray | Flatten | Store | Delete | Replace | Clear | ValuesAt
+                    )
                 }
                 Kind::Bytes(_) => {
                     matches!(method, ByteSlice | GetByte | Bytes | Chars | Codepoints)
@@ -204,6 +227,12 @@ pub(crate) fn call(
     }
     if let Some(value) = field(ctx, site, name, &receiver)? {
         let result = field_call(ctx, site, value, args, &[], false)?;
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::text::inspect::call(ctx, name, &receiver, args, false, false)? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::text::template::call(ctx, name, &receiver, args, &[])? {
         return Ok((receiver, result));
     }
     if let Some(result) = crate::text::case::call(ctx, name, &receiver, args)? {

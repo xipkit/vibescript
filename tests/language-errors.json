@@ -84348,5 +84348,1085 @@
     "name": "shapes_trailing_types_16",
     "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:nil,})\nx\nend\ndef run(input)\ntyped({x:1})\nend",
     "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "rendering_inspect_kinds_81",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n({x:int}).inspect.bytes\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "rendering_inspect_kinds_83",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n{value: {x:int}}.inspect.bytes\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "rendering_inspect_kinds_96",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n(JSON::parse).inspect.bytes\nend",
+    "go_error": "a method has no member inspect; call JSON.parse(...) directly"
+  },
+  {
+    "name": "rendering_inspect_arguments_0",
+    "source": "\ndef run(input)\nnil.inspect(1)\nend",
+    "go_error": "nil.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_1",
+    "source": "\ndef run(input)\nnil.inspect(bad:1)\nend",
+    "go_error": "nil.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_2",
+    "source": "\ndef run(input)\nnil.inspect{7}\nend",
+    "go_error": "nil.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_3",
+    "source": "\ndef run(input)\nnil.inspect(1,bad:1){7}\nend",
+    "go_error": "nil.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_4",
+    "source": "\ndef run(input)\ntrue.inspect(1)\nend",
+    "go_error": "bool.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_5",
+    "source": "\ndef run(input)\ntrue.inspect(bad:1)\nend",
+    "go_error": "bool.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_6",
+    "source": "\ndef run(input)\ntrue.inspect{7}\nend",
+    "go_error": "bool.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_7",
+    "source": "\ndef run(input)\ntrue.inspect(1,bad:1){7}\nend",
+    "go_error": "bool.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_8",
+    "source": "\ndef run(input)\n1.inspect(1)\nend",
+    "go_error": "int.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_9",
+    "source": "\ndef run(input)\n1.inspect(bad:1)\nend",
+    "go_error": "int.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_10",
+    "source": "\ndef run(input)\n1.inspect{7}\nend",
+    "go_error": "int.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_11",
+    "source": "\ndef run(input)\n1.inspect(1,bad:1){7}\nend",
+    "go_error": "int.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_12",
+    "source": "\ndef run(input)\n1.5.inspect(1)\nend",
+    "go_error": "float.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_13",
+    "source": "\ndef run(input)\n1.5.inspect(bad:1)\nend",
+    "go_error": "float.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_14",
+    "source": "\ndef run(input)\n1.5.inspect{7}\nend",
+    "go_error": "float.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_15",
+    "source": "\ndef run(input)\n1.5.inspect(1,bad:1){7}\nend",
+    "go_error": "float.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_16",
+    "source": "\ndef run(input)\n\"x\".inspect(1)\nend",
+    "go_error": "string.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_17",
+    "source": "\ndef run(input)\n\"x\".inspect(bad:1)\nend",
+    "go_error": "string.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_18",
+    "source": "\ndef run(input)\n\"x\".inspect{7}\nend",
+    "go_error": "string.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_19",
+    "source": "\ndef run(input)\n\"x\".inspect(1,bad:1){7}\nend",
+    "go_error": "string.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_20",
+    "source": "\ndef run(input)\n:x.inspect(1)\nend",
+    "go_error": "symbol.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_21",
+    "source": "\ndef run(input)\n:x.inspect(bad:1)\nend",
+    "go_error": "symbol.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_22",
+    "source": "\ndef run(input)\n:x.inspect{7}\nend",
+    "go_error": "symbol.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_23",
+    "source": "\ndef run(input)\n:x.inspect(1,bad:1){7}\nend",
+    "go_error": "symbol.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_24",
+    "source": "\ndef run(input)\n[].inspect(1)\nend",
+    "go_error": "array.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_25",
+    "source": "\ndef run(input)\n[].inspect(bad:1)\nend",
+    "go_error": "array.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_26",
+    "source": "\ndef run(input)\n[].inspect{7}\nend",
+    "go_error": "array.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_27",
+    "source": "\ndef run(input)\n[].inspect(1,bad:1){7}\nend",
+    "go_error": "array.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_28",
+    "source": "\ndef run(input)\n{}.inspect(1)\nend",
+    "go_error": "hash.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_29",
+    "source": "\ndef run(input)\n{}.inspect(bad:1)\nend",
+    "go_error": "hash.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_30",
+    "source": "\ndef run(input)\n{}.inspect{7}\nend",
+    "go_error": "hash.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_31",
+    "source": "\ndef run(input)\n{}.inspect(1,bad:1){7}\nend",
+    "go_error": "hash.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_32",
+    "source": "\ndef run(input)\n(1..3).inspect(1)\nend",
+    "go_error": "range.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_33",
+    "source": "\ndef run(input)\n(1..3).inspect(bad:1)\nend",
+    "go_error": "range.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_34",
+    "source": "\ndef run(input)\n(1..3).inspect{7}\nend",
+    "go_error": "range.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_35",
+    "source": "\ndef run(input)\n(1..3).inspect(1,bad:1){7}\nend",
+    "go_error": "range.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_36",
+    "source": "\ndef run(input)\nJSON.inspect(1)\nend",
+    "go_error": "hash.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_37",
+    "source": "\ndef run(input)\nJSON.inspect(bad:1)\nend",
+    "go_error": "hash.inspect does not take keyword arguments"
+  },
+  {
+    "name": "rendering_inspect_arguments_38",
+    "source": "\ndef run(input)\nJSON.inspect{7}\nend",
+    "go_error": "hash.inspect does not take a block"
+  },
+  {
+    "name": "rendering_inspect_arguments_39",
+    "source": "\ndef run(input)\nJSON.inspect(1,bad:1){7}\nend",
+    "go_error": "hash.inspect does not take arguments"
+  },
+  {
+    "name": "rendering_template_scan_17",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{missing}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template missing placeholder missing"
+  },
+  {
+    "name": "rendering_template_scan_19",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{ missing }}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template missing placeholder missing"
+  },
+  {
+    "name": "rendering_template_scan_25",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{user.length}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template missing placeholder user.length"
+  },
+  {
+    "name": "rendering_template_scan_33",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{a..b}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template missing placeholder a..b"
+  },
+  {
+    "name": "rendering_template_scan_35",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{a.}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template missing placeholder a."
+  },
+  {
+    "name": "rendering_template_scan_44",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{items}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:false)\nend",
+    "go_error": "string.template placeholder items value must be scalar"
+  },
+  {
+    "name": "rendering_template_scan_45",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{items}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template placeholder items value must be scalar"
+  },
+  {
+    "name": "rendering_template_scan_47",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{items.0}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template missing placeholder items.0"
+  },
+  {
+    "name": "rendering_template_scan_48",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{shape}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:false)\nend",
+    "go_error": "string.template placeholder shape value must be scalar"
+  },
+  {
+    "name": "rendering_template_scan_49",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{shape}}\".template({name:\"Alex\",user:{name:\"Ada\",age:37},empty:nil,yes:true,no:false,n:123,f:1.5,big:10**40,symbol: :ready,status:Status::InProgress,\"a-b\":\"dash\",\"a.b\":\"literal\",\"a\":{b:\"nested\",\"1\":\"one\",\"-b\":\"minus\"},items:[1],shape:{x:int}},strict:true)\nend",
+    "go_error": "string.template placeholder shape value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_15",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: []})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_16",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: [nil,\"x\",:x]})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_17",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: {}})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_18",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: {z:nil,a:\"x\"}})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_19",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: (1..3)})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_20",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: (..3)})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_21",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: (2...)})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_22",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: Status})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_27",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: {x:int}})\nend",
+    "go_error": "string.template context must be hash"
+  },
+  {
+    "name": "rendering_template_scalar_28",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: JSON})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_29",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: Math})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_30",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: Time})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_31",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: Duration})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_scalar_32",
+    "source": "enum Status\nDraft\nInProgress\nend\n\ndef run(input)\n\"{{value}}/{{value}}\".template({value: JSON::parse})\nend",
+    "go_error": "string.template placeholder value value must be scalar"
+  },
+  {
+    "name": "rendering_template_arguments_0",
+    "source": "\ndef run(input)\n\"{{name}}\".template\nend",
+    "go_error": "string.template expects exactly one context hash"
+  },
+  {
+    "name": "rendering_template_arguments_1",
+    "source": "\ndef run(input)\n\"{{name}}\".template()\nend",
+    "go_error": "string.template expects exactly one context hash"
+  },
+  {
+    "name": "rendering_template_arguments_5",
+    "source": "\ndef run(input)\n\"{{name}}\".template({name:\"Alex\"},strict:nil)\nend",
+    "go_error": "string.template strict keyword must be bool"
+  },
+  {
+    "name": "rendering_template_arguments_6",
+    "source": "\ndef run(input)\n\"{{name}}\".template({name:\"Alex\"},strict:1)\nend",
+    "go_error": "string.template strict keyword must be bool"
+  },
+  {
+    "name": "rendering_template_arguments_7",
+    "source": "\ndef run(input)\n\"{{name}}\".template({name:\"Alex\"},extra:true)\nend",
+    "go_error": "string.template supports only strict keyword"
+  },
+  {
+    "name": "rendering_template_arguments_8",
+    "source": "\ndef run(input)\n\"{{name}}\".template({name:\"Alex\"},strict:true,extra:true)\nend",
+    "go_error": "string.template supports only strict keyword"
+  },
+  {
+    "name": "rendering_template_arguments_9",
+    "source": "\ndef run(input)\n\"{{name}}\".template(nil)\nend",
+    "go_error": "string.template context must be hash"
+  },
+  {
+    "name": "rendering_template_arguments_10",
+    "source": "\ndef run(input)\n\"{{name}}\".template([])\nend",
+    "go_error": "string.template context must be hash"
+  },
+  {
+    "name": "rendering_template_arguments_11",
+    "source": "\ndef run(input)\n\"{{name}}\".template({},{})\nend",
+    "go_error": "string.template expects exactly one context hash"
+  },
+  {
+    "name": "rendering_template_arguments_12",
+    "source": "\ndef run(input)\n:\"{{name}}\".template\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_13",
+    "source": "\ndef run(input)\n:\"{{name}}\".template()\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_14",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"})\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_15",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"}){7}\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_16",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"},strict:true)\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_17",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"},strict:nil)\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_18",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"},strict:1)\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_19",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"},extra:true)\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_20",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({name:\"Alex\"},strict:true,extra:true)\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_21",
+    "source": "\ndef run(input)\n:\"{{name}}\".template(nil)\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_22",
+    "source": "\ndef run(input)\n:\"{{name}}\".template([])\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_23",
+    "source": "\ndef run(input)\n:\"{{name}}\".template({},{})\nend",
+    "go_error": "unknown symbol method template"
+  },
+  {
+    "name": "rendering_template_arguments_24",
+    "source": "\ndef run(input)\n1.template\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_25",
+    "source": "\ndef run(input)\n1.template()\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_26",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"})\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_27",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"}){7}\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_28",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"},strict:true)\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_29",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"},strict:nil)\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_30",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"},strict:1)\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_31",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"},extra:true)\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_32",
+    "source": "\ndef run(input)\n1.template({name:\"Alex\"},strict:true,extra:true)\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_33",
+    "source": "\ndef run(input)\n1.template(nil)\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_34",
+    "source": "\ndef run(input)\n1.template([])\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_35",
+    "source": "\ndef run(input)\n1.template({},{})\nend",
+    "go_error": "unknown int method template"
+  },
+  {
+    "name": "rendering_template_arguments_36",
+    "source": "\ndef run(input)\n[].template\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_37",
+    "source": "\ndef run(input)\n[].template()\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_38",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"})\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_39",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"}){7}\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_40",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"},strict:true)\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_41",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"},strict:nil)\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_42",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"},strict:1)\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_43",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"},extra:true)\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_44",
+    "source": "\ndef run(input)\n[].template({name:\"Alex\"},strict:true,extra:true)\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_45",
+    "source": "\ndef run(input)\n[].template(nil)\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_46",
+    "source": "\ndef run(input)\n[].template([])\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_47",
+    "source": "\ndef run(input)\n[].template({},{})\nend",
+    "go_error": "unknown array method template"
+  },
+  {
+    "name": "rendering_template_arguments_48",
+    "source": "\ndef run(input)\n{}.template\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_49",
+    "source": "\ndef run(input)\n{}.template()\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_50",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"})\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_51",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"}){7}\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_52",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"},strict:true)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_53",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"},strict:nil)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_54",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"},strict:1)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_55",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"},extra:true)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_56",
+    "source": "\ndef run(input)\n{}.template({name:\"Alex\"},strict:true,extra:true)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_57",
+    "source": "\ndef run(input)\n{}.template(nil)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_58",
+    "source": "\ndef run(input)\n{}.template([])\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_59",
+    "source": "\ndef run(input)\n{}.template({},{})\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_60",
+    "source": "\ndef run(input)\nJSON.template\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_61",
+    "source": "\ndef run(input)\nJSON.template()\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_62",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"})\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_63",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"}){7}\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_64",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"},strict:true)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_65",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"},strict:nil)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_66",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"},strict:1)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_67",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"},extra:true)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_68",
+    "source": "\ndef run(input)\nJSON.template({name:\"Alex\"},strict:true,extra:true)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_69",
+    "source": "\ndef run(input)\nJSON.template(nil)\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_70",
+    "source": "\ndef run(input)\nJSON.template([])\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_arguments_71",
+    "source": "\ndef run(input)\nJSON.template({},{})\nend",
+    "go_error": "unknown hash method template"
+  },
+  {
+    "name": "rendering_template_objects_2",
+    "source": "\ndef run(input)\n\"{{utc}}\".template(Time)\nend",
+    "go_error": "string.template placeholder utc value must be scalar"
+  },
+  {
+    "name": "rendering_array_selectors_10",
+    "source": "\ndef run(input)\n[].values_at(10**80)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_11",
+    "source": "\ndef run(input)\n[].values_at(1.0e100)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_12",
+    "source": "\ndef run(input)\n[].values_at(nil)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_13",
+    "source": "\ndef run(input)\n[].values_at(true)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_14",
+    "source": "\ndef run(input)\n[].values_at(\"1\")\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_15",
+    "source": "\ndef run(input)\n[].values_at(:x)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_16",
+    "source": "\ndef run(input)\n[].values_at([])\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_17",
+    "source": "\ndef run(input)\n[].values_at({})\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_21",
+    "source": "\ndef run(input)\n[].values_at((-2..5))\nend",
+    "go_error": "array.values_at range -2..5 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_22",
+    "source": "\ndef run(input)\n[].values_at((-5..1))\nend",
+    "go_error": "array.values_at range -5..1 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_30",
+    "source": "\ndef run(input)\n[].values_at((-1..))\nend",
+    "go_error": "array.values_at range -1.. out of range"
+  },
+  {
+    "name": "rendering_array_selectors_35",
+    "source": "\ndef run(input)\n[].values_at((0..9223372036854775807))\nend",
+    "go_error": "array.values_at window is too large"
+  },
+  {
+    "name": "rendering_array_selectors_36",
+    "source": "\ndef run(input)\n[].values_at((0...9223372036854775807))\nend",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "rendering_array_selectors_37",
+    "source": "\ndef run(input)\n[].values_at((-9223372036854775808..1))\nend",
+    "go_error": "array.values_at range -9223372036854775808..1 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_48",
+    "source": "\ndef run(input)\n[10].values_at(10**80)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_49",
+    "source": "\ndef run(input)\n[10].values_at(1.0e100)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_50",
+    "source": "\ndef run(input)\n[10].values_at(nil)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_51",
+    "source": "\ndef run(input)\n[10].values_at(true)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_52",
+    "source": "\ndef run(input)\n[10].values_at(\"1\")\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_53",
+    "source": "\ndef run(input)\n[10].values_at(:x)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_54",
+    "source": "\ndef run(input)\n[10].values_at([])\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_55",
+    "source": "\ndef run(input)\n[10].values_at({})\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_59",
+    "source": "\ndef run(input)\n[10].values_at((-2..5))\nend",
+    "go_error": "array.values_at range -2..5 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_60",
+    "source": "\ndef run(input)\n[10].values_at((-5..1))\nend",
+    "go_error": "array.values_at range -5..1 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_73",
+    "source": "\ndef run(input)\n[10].values_at((0..9223372036854775807))\nend",
+    "go_error": "array.values_at window is too large"
+  },
+  {
+    "name": "rendering_array_selectors_74",
+    "source": "\ndef run(input)\n[10].values_at((0...9223372036854775807))\nend",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "rendering_array_selectors_75",
+    "source": "\ndef run(input)\n[10].values_at((-9223372036854775808..1))\nend",
+    "go_error": "array.values_at range -9223372036854775808..1 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_86",
+    "source": "\ndef run(input)\n[10,20,30].values_at(10**80)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_87",
+    "source": "\ndef run(input)\n[10,20,30].values_at(1.0e100)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_88",
+    "source": "\ndef run(input)\n[10,20,30].values_at(nil)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_89",
+    "source": "\ndef run(input)\n[10,20,30].values_at(true)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_90",
+    "source": "\ndef run(input)\n[10,20,30].values_at(\"1\")\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_91",
+    "source": "\ndef run(input)\n[10,20,30].values_at(:x)\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_92",
+    "source": "\ndef run(input)\n[10,20,30].values_at([])\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_93",
+    "source": "\ndef run(input)\n[10,20,30].values_at({})\nend",
+    "go_error": "array.values_at index must be integer"
+  },
+  {
+    "name": "rendering_array_selectors_98",
+    "source": "\ndef run(input)\n[10,20,30].values_at((-5..1))\nend",
+    "go_error": "array.values_at range -5..1 out of range"
+  },
+  {
+    "name": "rendering_array_selectors_111",
+    "source": "\ndef run(input)\n[10,20,30].values_at((0..9223372036854775807))\nend",
+    "go_error": "array.values_at window is too large"
+  },
+  {
+    "name": "rendering_array_selectors_112",
+    "source": "\ndef run(input)\n[10,20,30].values_at((0...9223372036854775807))\nend",
+    "go_error": "memory quota exceeded (67108864 bytes)"
+  },
+  {
+    "name": "rendering_array_selectors_113",
+    "source": "\ndef run(input)\n[10,20,30].values_at((-9223372036854775808..1))\nend",
+    "go_error": "array.values_at range -9223372036854775808..1 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_0",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..-5)\nend",
+    "go_error": "array.values_at range -5..-5 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_1",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...-5)\nend",
+    "go_error": "array.values_at range -5...-5 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_2",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..-3)\nend",
+    "go_error": "array.values_at range -5..-3 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_3",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...-3)\nend",
+    "go_error": "array.values_at range -5...-3 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_4",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..-1)\nend",
+    "go_error": "array.values_at range -5..-1 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_5",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...-1)\nend",
+    "go_error": "array.values_at range -5...-1 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_6",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..0)\nend",
+    "go_error": "array.values_at range -5..0 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_7",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...0)\nend",
+    "go_error": "array.values_at range -5...0 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_8",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..2)\nend",
+    "go_error": "array.values_at range -5..2 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_9",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...2)\nend",
+    "go_error": "array.values_at range -5...2 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_10",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..3)\nend",
+    "go_error": "array.values_at range -5..3 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_11",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...3)\nend",
+    "go_error": "array.values_at range -5...3 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_12",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5..5)\nend",
+    "go_error": "array.values_at range -5..5 out of range"
+  },
+  {
+    "name": "rendering_array_ranges_13",
+    "source": "\ndef run(input)\n[10,20,30].values_at(-5...5)\nend",
+    "go_error": "array.values_at range -5...5 out of range"
+  },
+  {
+    "name": "rendering_hash_selectors_8",
+    "source": "\ndef run(input)\n{}.values_at(nil)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_9",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at(nil)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_10",
+    "source": "\ndef run(input)\n{}.values_at(1)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_11",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at(1)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_12",
+    "source": "\ndef run(input)\n{}.values_at(1.5)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type float: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_13",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at(1.5)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type float: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_14",
+    "source": "\ndef run(input)\n{}.values_at(true)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_15",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at(true)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_16",
+    "source": "\ndef run(input)\n{}.values_at([])\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_17",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at([])\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_18",
+    "source": "\ndef run(input)\n{}.values_at({})\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_19",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at({})\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_20",
+    "source": "\ndef run(input)\n{}.values_at((1..2))\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type range: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_21",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at((1..2))\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type range: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_22",
+    "source": "\ndef run(input)\n{}.values_at(:a,1)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_hash_selectors_23",
+    "source": "\ndef run(input)\n{b:2,a:1}.values_at(:a,1)\nend",
+    "go_error": "hash.values_at key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "rendering_values_arguments_2",
+    "source": "\ndef run(input)\n[1,2,3].values_at(0,2,bad:1)\nend",
+    "go_error": "array.values_at does not take keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_3",
+    "source": "\ndef run(input)\n[1,2,3].values_at(0,2,bad:1){7}\nend",
+    "go_error": "array.values_at does not take keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_6",
+    "source": "\ndef run(input)\n{a:1,b:2}.values_at(:a,:missing,bad:1)\nend",
+    "go_error": "hash.values_at does not accept keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_7",
+    "source": "\ndef run(input)\n{a:1,b:2}.values_at(:a,:missing,bad:1){7}\nend",
+    "go_error": "hash.values_at does not accept keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_10",
+    "source": "\ndef run(input)\n[].values_at(bad:1)\nend",
+    "go_error": "array.values_at does not take keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_11",
+    "source": "\ndef run(input)\n[].values_at(bad:1){7}\nend",
+    "go_error": "array.values_at does not take keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_14",
+    "source": "\ndef run(input)\n{}.values_at(bad:1)\nend",
+    "go_error": "hash.values_at does not accept keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_15",
+    "source": "\ndef run(input)\n{}.values_at(bad:1){7}\nend",
+    "go_error": "hash.values_at does not accept keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_18",
+    "source": "\ndef run(input)\nJSON.values_at(:parse,bad:1) .length\nend",
+    "go_error": "hash.values_at does not accept keyword arguments"
+  },
+  {
+    "name": "rendering_values_arguments_19",
+    "source": "\ndef run(input)\nJSON.values_at(:parse,bad:1){7} .length\nend",
+    "go_error": "hash.values_at does not accept keyword arguments"
   }
 ]

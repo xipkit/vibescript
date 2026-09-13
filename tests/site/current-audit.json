@@ -1,15 +1,15 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "f0a50932eea5428b97abd3529a3a504335f75e50",
-  "dirty": " M README.md\n M docs/language-port.md\n M docs/types.md\n M src/builtin.rs\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/types.rs\n M src/text.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/language.rs\n M tests/syntax-errors.json\n?? licenses/printable-NOTICE.txt\n?? scripts/generate-printable.py\n?? src/printable.rs\n?? src/shapes.rs\n?? tests/json.rs\n?? tests/shapes.rs\n",
+  "source_revision": "3855e80987067ec9ecfa94b61b010a57a06cdaa3",
+  "dirty": " M README.md\n M src/budget.rs\n M src/bytecode.rs\n M src/collections.rs\n M src/members.rs\n M src/ops.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/rendering.md\n?? src/text/inspect.rs\n?? src/text/template.rs\n?? tests/rendering.rs\n",
   "binary_sha256": {
-    "go-simd": "ffe26f13bd26dc23feaaa9b032940e396a388e916f85eba46156771c48c40be9",
-    "rust-simd": "9db99d447c3a51ed078fed1e2a26cac5ea8e35407c56c58a3c79c7c06e64a40a"
+    "go-simd": "bcffdd8b674114dc46be8f15d119ba3524d76f3698c10f74af1bd679690d2f0a",
+    "rust-simd": "afe6b429bf76dd95141779459197ca7982831e9e779c07177ec619f2c2578b16"
   },
   "counts": {
-    "match": 174,
-    "rust_gap": 14,
-    "harness_gap": 15
+    "match": 183,
+    "harness_gap": 15,
+    "rust_gap": 5
   },
   "examples": [
     {
@@ -7516,10 +7516,37 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method values_at is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "public_view": {
+            "id": 42,
+            "name": "Ada",
+            "email": "ada@vibe.dev",
+            "plan": "pro"
+          },
+          "summary": {
+            "id": 42,
+            "name": "Ada",
+            "plan": "pro"
+          },
+          "with_defaults": {
+            "plan": "free",
+            "region": "us",
+            "id": 7,
+            "name": "Lin"
+          },
+          "required_fields": [
+            42,
+            "ada@vibe.dev"
+          ],
+          "contacts": [
+            "Ada",
+            "ada@vibe.dev"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/collections/matrix_report.vibe",
@@ -7622,10 +7649,48 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method values_at is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "pages": [
+            [
+              101,
+              102,
+              103
+            ],
+            [
+              104,
+              105,
+              106
+            ],
+            [
+              107
+            ]
+          ],
+          "first_three": [
+            101,
+            102,
+            103
+          ],
+          "rest": [
+            104,
+            105,
+            106,
+            107
+          ],
+          "endpoints": [
+            101,
+            107
+          ],
+          "rolling_totals": [
+            8,
+            9,
+            12,
+            14
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/commerce/quote_approval.vibe",
@@ -7635,7 +7700,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7840,10 +7905,26 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "hourly": {
+            "channel_id": "ops-alerts",
+            "cadence": "Hourly",
+            "window": "PT1H",
+            "next_run": "2023-11-25T09:13:20Z",
+            "subject": "Hourly digest for ops-alerts"
+          },
+          "weekly": {
+            "channel_id": "revenue-updates",
+            "cadence": "Weekly",
+            "window": "P7D",
+            "next_run": "2023-12-02T08:13:20Z",
+            "subject": "Weekly digest for revenue-updates"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/notifications/email.vibe",
@@ -7887,10 +7968,33 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "email": {
+            "invoice_id": "inv_2026_0042",
+            "channel": "Email",
+            "lead_time": "P2D",
+            "send_at": "2023-11-19T20:53:20Z",
+            "subject": "Invoice inv_2026_0042 is due soon"
+          },
+          "sms": {
+            "invoice_id": "inv_2026_0042",
+            "channel": "Sms",
+            "lead_time": "PT6H",
+            "send_at": "2023-11-21T14:53:20Z",
+            "subject": "Invoice inv_2026_0042 is due soon"
+          },
+          "push": {
+            "invoice_id": "inv_2026_0042",
+            "channel": "Push",
+            "lead_time": "PT30M",
+            "send_at": "2023-11-21T20:23:20Z",
+            "subject": "Invoice inv_2026_0042 is due soon"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/notifications/sms.vibe",
@@ -8038,10 +8142,28 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "primary": {
+            "service": "payments-api",
+            "level": "Primary",
+            "starts_at": "2023-11-27T10:46:40Z",
+            "ends_at": "2023-11-27T23:46:40Z",
+            "reminder_at": "2023-11-27T23:16:40Z",
+            "summary": "payments-api Primary handoff"
+          },
+          "commander": {
+            "service": "payments-api",
+            "level": "Commander",
+            "starts_at": "2023-11-27T10:46:40Z",
+            "ends_at": "2023-11-28T15:46:40Z",
+            "reminder_at": "2023-11-28T15:16:40Z",
+            "summary": "payments-api Commander handoff"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/policies/refund_decision.vibe",
@@ -8078,10 +8200,26 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "personal": {
+            "account_id": "acct_personal_22",
+            "account_kind": "Personal",
+            "trial_length": "P14D",
+            "expires_at": "2023-12-08T04:26:40Z",
+            "welcome": "acct_personal_22 starts a Personal trial"
+          },
+          "enterprise": {
+            "account_id": "acct_enterprise_09",
+            "account_kind": "Enterprise",
+            "trial_length": "P30D",
+            "expires_at": "2023-12-24T04:26:40Z",
+            "welcome": "acct_enterprise_09 starts a Enterprise trial"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/reliability/resilient_parse.vibe",
@@ -8274,10 +8412,28 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "high": {
+            "ticket_id": "inc_204",
+            "severity": "High",
+            "response_window": "PT2H",
+            "deadline": "2023-11-17T07:46:40Z",
+            "route_to": "incident-manager",
+            "summary": "inc_204 routes to incident-manager"
+          },
+          "critical": {
+            "ticket_id": "inc_205",
+            "severity": "Critical",
+            "response_window": "PT15M",
+            "deadline": "2023-11-17T06:01:40Z",
+            "route_to": "exec-bridge",
+            "summary": "inc_205 routes to exec-bridge"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/time/timestamps.vibe",
@@ -8424,10 +8580,28 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "draft": {
+            "name": "billing-v2",
+            "status": "Draft",
+            "next_status": "Approved",
+            "publishable": false,
+            "launch_at": "unscheduled",
+            "banner": "billing-v2 is Draft"
+          },
+          "scheduled": {
+            "name": "billing-v2",
+            "status": "Scheduled",
+            "next_status": "Live",
+            "publishable": true,
+            "launch_at": "2023-11-15T00:13:20Z",
+            "banner": "billing-v2 is Scheduled"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/arrays/extras.vibe",
@@ -9419,10 +9593,27 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method template is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "member_name": "Draft",
+          "published_name": "Published",
+          "names": [
+            "Draft",
+            "Published"
+          ],
+          "facts": {
+            "same": true,
+            "symbol_same": false,
+            "cross_enum_same": false,
+            "name": "Draft",
+            "symbol": "draft",
+            "render": "status=draft",
+            "payload": "{\"status\":\"draft\"}"
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/errors/assertions.vibe",

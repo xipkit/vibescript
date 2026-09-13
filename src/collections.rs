@@ -56,6 +56,22 @@ pub(crate) fn method(
 ) -> Result<Value> {
     use Method::*;
     match method {
+        ValuesAt => {
+            if !matches!(value.0, Kind::Array(_) | Kind::Hash(_)) {
+                return Err(wrong_type());
+            }
+            let mut out = Buffer::empty();
+            for selector in args {
+                ctx.charge(1)?;
+                if let (Kind::Array(array), Kind::Range(range)) = (&value.0, &selector.0) {
+                    values_at_range(ctx, &array.buffer.data, range, &mut out)?;
+                } else {
+                    let selected = lookup(ctx, &value, selector, false)?.unwrap_or_default();
+                    out.push(ctx, selected)?;
+                }
+            }
+            Value::from_array(ctx, out)
+        }
         Fetch => {
             if args.is_empty() || args.len() > 2 {
                 return Err(argument("fetch expects a key and optional default"));
@@ -189,6 +205,56 @@ pub(crate) fn method(
         }
         _ => array_method(ctx, method, value.as_array().ok_or_else(wrong_type)?, args),
     }
+}
+
+fn values_at_range(
+    ctx: &mut CallContext,
+    array: &[Value],
+    range: &crate::range::Range,
+    out: &mut Buffer<Value>,
+) -> Result<()> {
+    let length = array.len() as i128;
+    let mut start = i128::from(range.start.unwrap_or(0));
+    if start < 0 {
+        start += length;
+        if start < 0 {
+            return Err(argument("array.values_at range starts out of bounds"));
+        }
+    }
+    let mut end = range.end.map(i128::from).unwrap_or(length - 1);
+    if end < 0 {
+        end += length;
+    }
+    let count = (end - start + i128::from(range.end.is_none() || !range.exclusive)).max(0);
+    if count > isize::MAX as i128 {
+        return ctx.fail(
+            ErrorKind::OutputLimit,
+            "array.values_at window is too large",
+        );
+    }
+    let count = count as usize;
+    if count == 0 {
+        return Ok(());
+    }
+    if let Some(length) = out.data.len().checked_add(count)
+        && let Some(bytes) = length.checked_mul(size_of::<Value>())
+    {
+        if length > out.data.capacity() {
+            ctx.check_memory(bytes)?;
+        }
+    } else {
+        return ctx.fail(ErrorKind::Memory, "array.values_at output size overflow");
+    }
+    for offset in 0..count {
+        ctx.charge(1)?;
+        let selected = usize::try_from(start + offset as i128)
+            .ok()
+            .and_then(|index| array.get(index))
+            .cloned()
+            .unwrap_or_default();
+        out.push(ctx, selected)?;
+    }
+    Ok(())
 }
 
 fn array_method(

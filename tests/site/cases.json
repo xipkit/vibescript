@@ -4428,5 +4428,241 @@
         ]
       }
     }
+  },
+  {
+    "path": "showcase/collections/hash_projection.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "public_view": {
+        "id": 42,
+        "name": "Ada",
+        "email": "ada@vibe.dev",
+        "plan": "pro"
+      },
+      "summary": {
+        "id": 42,
+        "name": "Ada",
+        "plan": "pro"
+      },
+      "with_defaults": {
+        "plan": "free",
+        "region": "us",
+        "id": 7,
+        "name": "Lin"
+      },
+      "required_fields": [
+        42,
+        "ada@vibe.dev"
+      ],
+      "contacts": [
+        "Ada",
+        "ada@vibe.dev"
+      ]
+    }
+  },
+  {
+    "path": "showcase/collections/reshape.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "pages": [
+        [
+          101,
+          102,
+          103
+        ],
+        [
+          104,
+          105,
+          106
+        ],
+        [
+          107
+        ]
+      ],
+      "first_three": [
+        101,
+        102,
+        103
+      ],
+      "rest": [
+        104,
+        105,
+        106,
+        107
+      ],
+      "endpoints": [
+        101,
+        107
+      ],
+      "rolling_totals": [
+        8,
+        9,
+        12,
+        14
+      ]
+    }
+  },
+  {
+    "path": "showcase/notifications/digest_schedule.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "hourly": {
+        "channel_id": "ops-alerts",
+        "cadence": "Hourly",
+        "window": "PT1H",
+        "next_run": "2023-11-25T09:13:20Z",
+        "subject": "Hourly digest for ops-alerts"
+      },
+      "weekly": {
+        "channel_id": "revenue-updates",
+        "cadence": "Weekly",
+        "window": "P7D",
+        "next_run": "2023-12-02T08:13:20Z",
+        "subject": "Weekly digest for revenue-updates"
+      }
+    }
+  },
+  {
+    "path": "showcase/notifications/reminder_schedule.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "email": {
+        "invoice_id": "inv_2026_0042",
+        "channel": "Email",
+        "lead_time": "P2D",
+        "send_at": "2023-11-19T20:53:20Z",
+        "subject": "Invoice inv_2026_0042 is due soon"
+      },
+      "sms": {
+        "invoice_id": "inv_2026_0042",
+        "channel": "Sms",
+        "lead_time": "PT6H",
+        "send_at": "2023-11-21T14:53:20Z",
+        "subject": "Invoice inv_2026_0042 is due soon"
+      },
+      "push": {
+        "invoice_id": "inv_2026_0042",
+        "channel": "Push",
+        "lead_time": "PT30M",
+        "send_at": "2023-11-21T20:23:20Z",
+        "subject": "Invoice inv_2026_0042 is due soon"
+      }
+    }
+  },
+  {
+    "path": "showcase/operations/on_call_handoff.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "primary": {
+        "service": "payments-api",
+        "level": "Primary",
+        "starts_at": "2023-11-27T10:46:40Z",
+        "ends_at": "2023-11-27T23:46:40Z",
+        "reminder_at": "2023-11-27T23:16:40Z",
+        "summary": "payments-api Primary handoff"
+      },
+      "commander": {
+        "service": "payments-api",
+        "level": "Commander",
+        "starts_at": "2023-11-27T10:46:40Z",
+        "ends_at": "2023-11-28T15:46:40Z",
+        "reminder_at": "2023-11-28T15:16:40Z",
+        "summary": "payments-api Commander handoff"
+      }
+    }
+  },
+  {
+    "path": "showcase/policies/trial_offer.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "personal": {
+        "account_id": "acct_personal_22",
+        "account_kind": "Personal",
+        "trial_length": "P14D",
+        "expires_at": "2023-12-08T04:26:40Z",
+        "welcome": "acct_personal_22 starts a Personal trial"
+      },
+      "enterprise": {
+        "account_id": "acct_enterprise_09",
+        "account_kind": "Enterprise",
+        "trial_length": "P30D",
+        "expires_at": "2023-12-24T04:26:40Z",
+        "welcome": "acct_enterprise_09 starts a Enterprise trial"
+      }
+    }
+  },
+  {
+    "path": "showcase/support/escalation_policy.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "high": {
+        "ticket_id": "inc_204",
+        "severity": "High",
+        "response_window": "PT2H",
+        "deadline": "2023-11-17T07:46:40Z",
+        "route_to": "incident-manager",
+        "summary": "inc_204 routes to incident-manager"
+      },
+      "critical": {
+        "ticket_id": "inc_205",
+        "severity": "Critical",
+        "response_window": "PT15M",
+        "deadline": "2023-11-17T06:01:40Z",
+        "route_to": "exec-bridge",
+        "summary": "inc_205 routes to exec-bridge"
+      }
+    }
+  },
+  {
+    "path": "showcase/workflows/release_readiness.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "draft": {
+        "name": "billing-v2",
+        "status": "Draft",
+        "next_status": "Approved",
+        "publishable": false,
+        "launch_at": "unscheduled",
+        "banner": "billing-v2 is Draft"
+      },
+      "scheduled": {
+        "name": "billing-v2",
+        "status": "Scheduled",
+        "next_status": "Live",
+        "publishable": true,
+        "launch_at": "2023-11-15T00:13:20Z",
+        "banner": "billing-v2 is Scheduled"
+      }
+    }
+  },
+  {
+    "path": "upstream/enums/operations.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "member_name": "Draft",
+      "published_name": "Published",
+      "names": [
+        "Draft",
+        "Published"
+      ],
+      "facts": {
+        "same": true,
+        "symbol_same": false,
+        "cross_enum_same": false,
+        "name": "Draft",
+        "symbol": "draft",
+        "render": "status=draft",
+        "payload": "{\"status\":\"draft\"}"
+      }
+    }
   }
 ]

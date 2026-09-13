@@ -477,7 +477,7 @@ pub(crate) fn method(
             crate::text::method(ctx, method, value, args)
         }
         Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose
-        | ToHash | Fetch | Dig | Key | HasValue | Member | RemapKeys | Except => {
+        | ToHash | Fetch | ValuesAt | Dig | Key | HasValue | Member | RemapKeys | Except => {
             crate::collections::method(ctx, method, value, args)
         }
         Slice if matches!(value.0, Kind::Hash(_)) => {
@@ -824,7 +824,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     ctx.bytes(text.bytes())
 }
 
-fn format_float(out: &mut json::Number, value: f64) {
+pub(crate) fn format_float(out: &mut json::Number, value: f64) {
     if value.is_nan() {
         out.write_str("NaN").unwrap();
     } else if value.is_infinite() {
