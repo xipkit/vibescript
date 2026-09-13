@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "d6df627f418ae13e2673bf0cc6de2e95d11132e8",
-  "dirty": " M src/arguments.rs\n M src/bytecode.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? tests/blocks.rs\n",
+  "source_revision": "0eee47acb769618319c68de53e1adf526cc89c43",
+  "dirty": " M README.md\n M docs/compatibility-cases.json\n M docs/compatibility.md\n M src/bytecode.rs\n M src/collections.rs\n M src/lib.rs\n M src/members.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/iteration.rs\n?? tests/iteration.rs\n",
   "binary_sha256": {
-    "go-simd": "3a87d4b753c52f32f22537bc32a360928031dd730ca6dd6a6581c698c3b4ef2c",
-    "rust-simd": "8503297e893cc84348ac7830bf115850af418bc8c0f63727a14213302625513a"
+    "go-simd": "a8caacc21816655e3df2a2bbc6c6da11f74477eae18708031f98a17b8b971868",
+    "rust-simd": "4c2469f2ae9a8422e4e8fbdfc6a95602ad3fe0797eab5086270cf454cd4e986d"
   },
   "counts": {
-    "match": 135,
-    "rust_gap": 53,
+    "match": 144,
+    "rust_gap": 44,
     "harness_gap": 15
   },
   "examples": [
@@ -420,7 +420,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method delete_suffix is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -496,7 +496,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -1726,10 +1726,16 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "balloon": true,
+          "mississippi": true,
+          "no_change": true,
+          "mismatch": true
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/digital_root.vibe",
@@ -5089,10 +5095,28 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method times is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "sample": "AAABBCCCC",
+          "encoded": [
+            {
+              "char": "A",
+              "count": 3
+            },
+            {
+              "char": "B",
+              "count": 2
+            },
+            {
+              "char": "C",
+              "count": 4
+            }
+          ],
+          "decoded": "AAABBCCCC"
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/selection_sort.vibe",
@@ -5264,7 +5288,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method select is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7200,10 +7224,32 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method map is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "by_metric": [
+            [
+              "signups",
+              31
+            ],
+            [
+              "errors",
+              10
+            ],
+            [
+              "refunds",
+              3
+            ]
+          ],
+          "daily_totals": [
+            14,
+            17,
+            13
+          ],
+          "grand_total": 44
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/collections/reshape.vibe",
@@ -7251,7 +7297,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each_slice is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method values_at is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7353,10 +7399,17 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method select is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "doubled_twice": 12,
+          "ready_ids": [
+            "a",
+            "c"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/language/value_boundaries.vibe",
@@ -7535,7 +7588,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected symbol\", offset: Some(381) }\n"
+        "stderr": "Error: Error { kind: Arithmetic, message: \"integer overflow; bignum is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8229,10 +8282,15 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method reduce is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "active_count": 3,
+          "max_score": 67,
+          "any_large": true
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/blocks/enumerable_reports.vibe",
@@ -8261,10 +8319,18 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method map is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "doubled": [
+            20,
+            40,
+            60
+          ],
+          "total": 600
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/blocks/yield_patterns.vibe",
@@ -8287,10 +8353,24 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "times": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "tap": 42,
+          "transform_keys": {
+            "name": "Alice",
+            "age": 30
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/capabilities/context_access.vibe",
@@ -8772,7 +8852,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method except is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8789,10 +8869,16 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "sum_of_products": 60,
+          "accumulate": 15,
+          "first_div_by_7": 7,
+          "matrix_sum": 45
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/loops/fizzbuzz.vibe",
@@ -8834,10 +8920,29 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "sum_range": 55,
+          "product_range": 720,
+          "countdown": 15,
+          "total_each": 55,
+          "doubled": [
+            6,
+            14,
+            22
+          ],
+          "above_5": [
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "reduce": 55
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/money/operations.vibe",

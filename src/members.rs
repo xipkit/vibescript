@@ -69,6 +69,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = crate::iteration::without_block(ctx, name, &receiver, args)? {
+        return Ok((receiver, value));
+    }
     if matches!(receiver.0, Kind::Bytes(_)) && matches!(name, "unshift" | "append") {
         return Err(Error::new(
             ErrorKind::Name,

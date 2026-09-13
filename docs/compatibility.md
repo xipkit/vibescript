@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate, verified differences discovered during the control-flow port; they are not included in the matching-case count. Rust expectations are covered by `tests/control.rs`.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate, verified differences discovered during the language port; they are not included in the matching-case count. The four-build compatibility audit covers all twelve recorded cases, and `tests/control.rs` also checks the original loop differences.
 
 ## Inclusive range endpoints
 
@@ -36,6 +36,8 @@ end
 Adding `b = a` before the loop makes Go return the original snapshot for `x` too. Reassigning `a` to a new array or using `a += [3]` also leaves Go's captured result unchanged. The difference comes from which writes detach Go's shared collection storage.
 
 Go array iteration can also observe index writes through its captured backing, and a preceding append can change that behavior by replacing the backing. Hash entries are captured before iteration, but the hash returned by a normal loop expression can include writes performed during the loop. Rust's captured values remain unchanged in both cases.
+
+Builtin block iteration exposes the same gap. For `a=[1,2,3]; a.map {|v| a[1]=9; v}`, Go returns `[1,9,3]` and Rust returns `[1,2,3]`. Separate audit records cover array `each`, `map`, `select`, and `each_with_index`, including the yielded sequence, the mutated local and the method result. For hash `each`, both implementations yield the original entries, but Go's returned receiver includes the write while Rust's result remains the original snapshot. Hash `map`, `select`, and `transform_values` mutation cases that agree are in the shared success suite.
 
 Matching this allocation-dependent behavior would require a deliberate compatibility policy. It remains an open item in the full-port checklist; the current Rust behavior is recorded explicitly so ordinary success counts cannot conceal the difference.
 

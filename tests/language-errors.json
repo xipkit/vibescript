@@ -1248,5 +1248,665 @@
     "name": "block_bypass_loop_cleanup",
     "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef id(x)\nx\nend\ndef receive()\nid=9\nwhile true\nid=yield id(3)\nend\nid(4)\nend\ndef run(input)\nreceive {break 7}\nend",
     "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "iteration_each_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].each() \nend",
+    "go_error": "array.each requires a block"
+  },
+  {
+    "name": "iteration_each_with_index_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].each_with_index() \nend",
+    "go_error": "array.each_with_index requires a block"
+  },
+  {
+    "name": "iteration_each_with_index_extra",
+    "source": "\ndef run(input)\n[1,2,3].each_with_index(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.each_with_index does not take arguments"
+  },
+  {
+    "name": "iteration_each_with_index_keyword",
+    "source": "\ndef run(input)\n[1,2,3].each_with_index(bad:7) {|v,i|v}\nend",
+    "go_error": "array.each_with_index does not take keyword arguments"
+  },
+  {
+    "name": "iteration_each_slice_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].each_slice(2) \nend",
+    "go_error": "array.each_slice requires a block"
+  },
+  {
+    "name": "iteration_each_slice_extra",
+    "source": "\ndef run(input)\n[1,2,3].each_slice(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.each_slice expects a slice size"
+  },
+  {
+    "name": "iteration_each_cons_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].each_cons(2) \nend",
+    "go_error": "array.each_cons requires a block"
+  },
+  {
+    "name": "iteration_each_cons_extra",
+    "source": "\ndef run(input)\n[1,2,3].each_cons(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.each_cons expects a window size"
+  },
+  {
+    "name": "iteration_reverse_each_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].reverse_each() \nend",
+    "go_error": "array.reverse_each requires a block"
+  },
+  {
+    "name": "iteration_reverse_each_extra",
+    "source": "\ndef run(input)\n[1,2,3].reverse_each(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.reverse_each does not take arguments"
+  },
+  {
+    "name": "iteration_cycle_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].cycle(2) \nend",
+    "go_error": "array.cycle requires a block"
+  },
+  {
+    "name": "iteration_cycle_extra",
+    "source": "\ndef run(input)\n[1,2,3].cycle(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.cycle accepts at most one count"
+  },
+  {
+    "name": "iteration_map_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].map() \nend",
+    "go_error": "array.map requires a block"
+  },
+  {
+    "name": "iteration_map_with_index_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].map_with_index() \nend",
+    "go_error": "array.map_with_index requires a block"
+  },
+  {
+    "name": "iteration_map_with_index_extra",
+    "source": "\ndef run(input)\n[1,2,3].map_with_index(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.map_with_index does not take arguments"
+  },
+  {
+    "name": "iteration_map_with_index_keyword",
+    "source": "\ndef run(input)\n[1,2,3].map_with_index(bad:7) {|v,i|v}\nend",
+    "go_error": "array.map_with_index does not take keyword arguments"
+  },
+  {
+    "name": "iteration_flat_map_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].flat_map() \nend",
+    "go_error": "array.flat_map requires a block"
+  },
+  {
+    "name": "iteration_flat_map_extra",
+    "source": "\ndef run(input)\n[1,2,3].flat_map(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.flat_map does not take arguments"
+  },
+  {
+    "name": "iteration_flat_map_keyword",
+    "source": "\ndef run(input)\n[1,2,3].flat_map(bad:7) {|v,i|v}\nend",
+    "go_error": "array.flat_map does not take keyword arguments"
+  },
+  {
+    "name": "iteration_collect_concat_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].collect_concat() \nend",
+    "go_error": "array.flat_map requires a block"
+  },
+  {
+    "name": "iteration_collect_concat_extra",
+    "source": "\ndef run(input)\n[1,2,3].collect_concat(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.flat_map does not take arguments"
+  },
+  {
+    "name": "iteration_collect_concat_keyword",
+    "source": "\ndef run(input)\n[1,2,3].collect_concat(bad:7) {|v,i|v}\nend",
+    "go_error": "array.flat_map does not take keyword arguments"
+  },
+  {
+    "name": "iteration_filter_map_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].filter_map() \nend",
+    "go_error": "array.filter_map requires a block"
+  },
+  {
+    "name": "iteration_filter_map_extra",
+    "source": "\ndef run(input)\n[1,2,3].filter_map(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.filter_map does not take arguments"
+  },
+  {
+    "name": "iteration_filter_map_keyword",
+    "source": "\ndef run(input)\n[1,2,3].filter_map(bad:7) {|v,i|v}\nend",
+    "go_error": "array.filter_map does not take keyword arguments"
+  },
+  {
+    "name": "iteration_select_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].select() \nend",
+    "go_error": "array.select requires a block"
+  },
+  {
+    "name": "iteration_reject_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].reject() \nend",
+    "go_error": "array.reject requires a block"
+  },
+  {
+    "name": "iteration_reject_extra",
+    "source": "\ndef run(input)\n[1,2,3].reject(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.reject does not take arguments"
+  },
+  {
+    "name": "iteration_take_while_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].take_while() \nend",
+    "go_error": "array.take_while requires a block"
+  },
+  {
+    "name": "iteration_take_while_extra",
+    "source": "\ndef run(input)\n[1,2,3].take_while(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.take_while does not take arguments"
+  },
+  {
+    "name": "iteration_drop_while_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].drop_while() \nend",
+    "go_error": "array.drop_while requires a block"
+  },
+  {
+    "name": "iteration_drop_while_extra",
+    "source": "\ndef run(input)\n[1,2,3].drop_while(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.drop_while does not take arguments"
+  },
+  {
+    "name": "iteration_find_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].find() \nend",
+    "go_error": "array.find requires a block"
+  },
+  {
+    "name": "iteration_find_extra",
+    "source": "\ndef run(input)\n[1,2,3].find(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.find takes no fallback; a miss returns nil"
+  },
+  {
+    "name": "iteration_find_keyword",
+    "source": "\ndef run(input)\n[1,2,3].find(bad:7) {|v,i|v}\nend",
+    "go_error": "array.find does not take keyword arguments"
+  },
+  {
+    "name": "iteration_index_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].index() \nend",
+    "go_error": "array.index expects a value (with optional offset) or a block"
+  },
+  {
+    "name": "iteration_index_extra",
+    "source": "\ndef run(input)\n[1,2,3].index(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.index takes a value or a block, not both"
+  },
+  {
+    "name": "iteration_find_index_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].find_index() \nend",
+    "go_error": "array.find_index expects a value (with optional offset) or a block"
+  },
+  {
+    "name": "iteration_find_index_extra",
+    "source": "\ndef run(input)\n[1,2,3].find_index(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.find_index takes a value or a block, not both"
+  },
+  {
+    "name": "iteration_rindex_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].rindex() \nend",
+    "go_error": "array.rindex expects a value (with optional offset) or a block"
+  },
+  {
+    "name": "iteration_rindex_extra",
+    "source": "\ndef run(input)\n[1,2,3].rindex(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.rindex takes a value or a block, not both"
+  },
+  {
+    "name": "iteration_reduce_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].reduce(10) \nend",
+    "go_error": "array.reduce operation must be a symbol or string"
+  },
+  {
+    "name": "iteration_reduce_extra",
+    "source": "\ndef run(input)\n[1,2,3].reduce(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.reduce accepts at most an initial value and an operation"
+  },
+  {
+    "name": "iteration_reduce_keyword",
+    "source": "\ndef run(input)\n[1,2,3].reduce(10,bad:7) {|v,i|v}\nend",
+    "go_error": "array.reduce does not take keyword arguments"
+  },
+  {
+    "name": "iteration_count_extra",
+    "source": "\ndef run(input)\n[1,2,3].count(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.count accepts at most one value argument"
+  },
+  {
+    "name": "iteration_any?_extra",
+    "source": "\ndef run(input)\n[1,2,3].any?(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.any? accepts at most one value argument"
+  },
+  {
+    "name": "iteration_any?_keyword",
+    "source": "\ndef run(input)\n[1,2,3].any?(bad:7) {|v,i|v}\nend",
+    "go_error": "array.any? does not take keyword arguments"
+  },
+  {
+    "name": "iteration_all?_extra",
+    "source": "\ndef run(input)\n[1,2,3].all?(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.all? accepts at most one value argument"
+  },
+  {
+    "name": "iteration_all?_keyword",
+    "source": "\ndef run(input)\n[1,2,3].all?(bad:7) {|v,i|v}\nend",
+    "go_error": "array.all? does not take keyword arguments"
+  },
+  {
+    "name": "iteration_none?_extra",
+    "source": "\ndef run(input)\n[1,2,3].none?(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.none? accepts at most one value argument"
+  },
+  {
+    "name": "iteration_none?_keyword",
+    "source": "\ndef run(input)\n[1,2,3].none?(bad:7) {|v,i|v}\nend",
+    "go_error": "array.none? does not take keyword arguments"
+  },
+  {
+    "name": "iteration_one?_extra",
+    "source": "\ndef run(input)\n[1,2,3].one?(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.one? does not take arguments"
+  },
+  {
+    "name": "iteration_partition_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].partition() \nend",
+    "go_error": "array.partition requires a block"
+  },
+  {
+    "name": "iteration_partition_extra",
+    "source": "\ndef run(input)\n[1,2,3].partition(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.partition does not take arguments"
+  },
+  {
+    "name": "iteration_group_by_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].group_by() \nend",
+    "go_error": "array.group_by requires a block"
+  },
+  {
+    "name": "iteration_group_by_extra",
+    "source": "\ndef run(input)\n[1,2,3].group_by(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.group_by does not take arguments"
+  },
+  {
+    "name": "iteration_group_by_keyword",
+    "source": "\ndef run(input)\n[1,2,3].group_by(bad:7) {|v,i|v}\nend",
+    "go_error": "array.group_by block returned an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "iteration_group_by_stable_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].group_by_stable() \nend",
+    "go_error": "array.group_by_stable requires a block"
+  },
+  {
+    "name": "iteration_group_by_stable_extra",
+    "source": "\ndef run(input)\n[1,2,3].group_by_stable(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.group_by_stable does not take arguments"
+  },
+  {
+    "name": "iteration_group_by_stable_keyword",
+    "source": "\ndef run(input)\n[1,2,3].group_by_stable(bad:7) {|v,i|v}\nend",
+    "go_error": "array.group_by_stable block returned an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "iteration_tally_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].tally() \nend",
+    "go_error": "array.tally value is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "iteration_tally_extra",
+    "source": "\ndef run(input)\n[1,2,3].tally(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.tally does not take arguments"
+  },
+  {
+    "name": "iteration_tally_keyword",
+    "source": "\ndef run(input)\n[1,2,3].tally(bad:7) {|v,i|v}\nend",
+    "go_error": "array.tally value is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "iteration_to_h_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].to_h() \nend",
+    "go_error": "array.to_h expects an array of two-element pairs"
+  },
+  {
+    "name": "iteration_to_h_extra",
+    "source": "\ndef run(input)\n[1,2,3].to_h(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.to_h does not take arguments"
+  },
+  {
+    "name": "iteration_to_h_keyword",
+    "source": "\ndef run(input)\n[1,2,3].to_h(bad:7) {|v,i|v}\nend",
+    "go_error": "array.to_h does not take keyword arguments"
+  },
+  {
+    "name": "iteration_fetch_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].fetch(9) \nend",
+    "go_error": "array.fetch index 9 outside of array bounds: -3...3"
+  },
+  {
+    "name": "iteration_fetch_extra",
+    "source": "\ndef run(input)\n[1,2,3].fetch(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.fetch expects index and optional default"
+  },
+  {
+    "name": "iteration_grep_extra",
+    "source": "\ndef run(input)\n[1,2,3].grep(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.grep expects exactly one pattern argument"
+  },
+  {
+    "name": "iteration_grep_v_extra",
+    "source": "\ndef run(input)\n[1,2,3].grep_v(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.grep_v expects exactly one pattern argument"
+  },
+  {
+    "name": "iteration_uniq_extra",
+    "source": "\ndef run(input)\n[1,2,3].uniq(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.uniq does not take arguments"
+  },
+  {
+    "name": "iteration_uniq_keyword",
+    "source": "\ndef run(input)\n[1,2,3].uniq(bad:7) {|v,i|v}\nend",
+    "go_error": "array.uniq does not take keyword arguments"
+  },
+  {
+    "name": "iteration_sum_extra",
+    "source": "\ndef run(input)\n[1,2,3].sum(1,2,3) {|v,i|v}\nend",
+    "go_error": "array.sum accepts at most an initial value"
+  },
+  {
+    "name": "iteration_sum_keyword",
+    "source": "\ndef run(input)\n[1,2,3].sum(0,bad:7) {|v,i|v}\nend",
+    "go_error": "array.sum does not take keyword arguments"
+  },
+  {
+    "name": "iteration_hash_each_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.each() \nend",
+    "go_error": "hash.each requires a block"
+  },
+  {
+    "name": "iteration_hash_each_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.each(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.each does not take arguments"
+  },
+  {
+    "name": "iteration_hash_each_with_index_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_with_index() \nend",
+    "go_error": "hash.each_with_index requires a block"
+  },
+  {
+    "name": "iteration_hash_each_with_index_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_with_index(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.each_with_index does not take arguments"
+  },
+  {
+    "name": "iteration_hash_each_with_index_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_with_index(bad:7) {|v,i|v}\nend",
+    "go_error": "hash.each_with_index does not take keyword arguments"
+  },
+  {
+    "name": "iteration_hash_each_key_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_key() \nend",
+    "go_error": "hash.each_key requires a block"
+  },
+  {
+    "name": "iteration_hash_each_key_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_key(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.each_key does not take arguments"
+  },
+  {
+    "name": "iteration_hash_each_value_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_value() \nend",
+    "go_error": "hash.each_value requires a block"
+  },
+  {
+    "name": "iteration_hash_each_value_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_value(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.each_value does not take arguments"
+  },
+  {
+    "name": "iteration_hash_map_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.map() \nend",
+    "go_error": "hash.map requires a block"
+  },
+  {
+    "name": "iteration_hash_map_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.map(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.map does not take arguments"
+  },
+  {
+    "name": "iteration_hash_map_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.map(bad:7) {|v,i|v}\nend",
+    "go_error": "hash.map does not take keyword arguments"
+  },
+  {
+    "name": "iteration_hash_map_with_index_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.map_with_index() \nend",
+    "go_error": "hash.map_with_index requires a block"
+  },
+  {
+    "name": "iteration_hash_map_with_index_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.map_with_index(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.map_with_index does not take arguments"
+  },
+  {
+    "name": "iteration_hash_map_with_index_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.map_with_index(bad:7) {|v,i|v}\nend",
+    "go_error": "hash.map_with_index does not take keyword arguments"
+  },
+  {
+    "name": "iteration_hash_select_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.select() \nend",
+    "go_error": "hash.select requires a block"
+  },
+  {
+    "name": "iteration_hash_select_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.select(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.select does not take arguments"
+  },
+  {
+    "name": "iteration_hash_reject_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.reject() \nend",
+    "go_error": "hash.reject requires a block"
+  },
+  {
+    "name": "iteration_hash_reject_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.reject(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.reject does not take arguments"
+  },
+  {
+    "name": "iteration_hash_transform_keys_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_keys() \nend",
+    "go_error": "hash.transform_keys requires a block"
+  },
+  {
+    "name": "iteration_hash_transform_keys_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_keys(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.transform_keys does not take arguments"
+  },
+  {
+    "name": "iteration_hash_transform_values_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_values() \nend",
+    "go_error": "hash.transform_values requires a block"
+  },
+  {
+    "name": "iteration_hash_transform_values_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_values(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.transform_values does not take arguments"
+  },
+  {
+    "name": "iteration_hash_fetch_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.fetch(:missing) \nend",
+    "go_error": "hash.fetch key not found: :missing"
+  },
+  {
+    "name": "iteration_hash_fetch_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.fetch(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.fetch expects key and optional default"
+  },
+  {
+    "name": "iteration_hash_fetch_values_missing_block",
+    "source": "\ndef run(input)\n{a:1,b:2}.fetch_values(:missing) \nend",
+    "go_error": "hash.fetch_values key not found: :missing"
+  },
+  {
+    "name": "iteration_hash_fetch_values_extra",
+    "source": "\ndef run(input)\n{a:1,b:2}.fetch_values(1,2,3) {|v,i|v}\nend",
+    "go_error": "hash.fetch_values key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "iteration_open_(1..)_each",
+    "source": "\ndef run(input)\n(1..).each() {|v|v}\nend",
+    "go_error": "cannot iterate an endless range"
+  },
+  {
+    "name": "iteration_open_(1..)_step",
+    "source": "\ndef run(input)\n(1..).step(2) {|v|v}\nend",
+    "go_error": "cannot iterate an endless range"
+  },
+  {
+    "name": "iteration_open_(1..)_map",
+    "source": "\ndef run(input)\n(1..).map() {|v|v}\nend",
+    "go_error": "cannot iterate an endless range"
+  },
+  {
+    "name": "iteration_open_(1..)_count",
+    "source": "\ndef run(input)\n(1..).count() {|v|v}\nend",
+    "go_error": "cannot iterate an endless range"
+  },
+  {
+    "name": "iteration_open_(..3)_each",
+    "source": "\ndef run(input)\n(..3).each() {|v|v}\nend",
+    "go_error": "cannot iterate a beginless range"
+  },
+  {
+    "name": "iteration_open_(..3)_step",
+    "source": "\ndef run(input)\n(..3).step(2) {|v|v}\nend",
+    "go_error": "cannot iterate a beginless range"
+  },
+  {
+    "name": "iteration_open_(..3)_map",
+    "source": "\ndef run(input)\n(..3).map() {|v|v}\nend",
+    "go_error": "cannot iterate a beginless range"
+  },
+  {
+    "name": "iteration_open_(..3)_count",
+    "source": "\ndef run(input)\n(..3).count() {|v|v}\nend",
+    "go_error": "cannot iterate a beginless range"
+  },
+  {
+    "name": "iteration_int_times_missing_block",
+    "source": "\ndef run(input)\n1.times() \nend",
+    "go_error": "int.times requires a block"
+  },
+  {
+    "name": "iteration_int_times_extra",
+    "source": "\ndef run(input)\n1.times(1,2,3) {|v|v}\nend",
+    "go_error": "int.times does not take arguments"
+  },
+  {
+    "name": "iteration_int_times_float",
+    "source": "\ndef run(input)\n1.times(2.5) {|v|v}\nend",
+    "go_error": "int.times does not take arguments"
+  },
+  {
+    "name": "iteration_int_upto_missing_block",
+    "source": "\ndef run(input)\n1.upto(3) \nend",
+    "go_error": "int.upto requires a block"
+  },
+  {
+    "name": "iteration_int_upto_extra",
+    "source": "\ndef run(input)\n1.upto(1,2,3) {|v|v}\nend",
+    "go_error": "int.upto expects one integer argument"
+  },
+  {
+    "name": "iteration_int_upto_keyword",
+    "source": "\ndef run(input)\n1.upto(3,bad:7) {|v|v}\nend",
+    "go_error": "int.upto does not take keyword arguments"
+  },
+  {
+    "name": "iteration_int_upto_float",
+    "source": "\ndef run(input)\n1.upto(2.5) {|v|v}\nend",
+    "go_error": "int.upto expects an integer limit"
+  },
+  {
+    "name": "iteration_int_downto_missing_block",
+    "source": "\ndef run(input)\n1.downto(0) \nend",
+    "go_error": "int.downto requires a block"
+  },
+  {
+    "name": "iteration_int_downto_extra",
+    "source": "\ndef run(input)\n1.downto(1,2,3) {|v|v}\nend",
+    "go_error": "int.downto expects one integer argument"
+  },
+  {
+    "name": "iteration_int_downto_keyword",
+    "source": "\ndef run(input)\n1.downto(0,bad:7) {|v|v}\nend",
+    "go_error": "int.downto does not take keyword arguments"
+  },
+  {
+    "name": "iteration_int_downto_float",
+    "source": "\ndef run(input)\n1.downto(2.5) {|v|v}\nend",
+    "go_error": "int.downto expects an integer limit"
+  },
+  {
+    "name": "iteration_int_step_missing_block",
+    "source": "\ndef run(input)\n1.step(5) \nend",
+    "go_error": "int.step requires a block"
+  },
+  {
+    "name": "iteration_int_step_extra",
+    "source": "\ndef run(input)\n1.step(1,2,3) {|v|v}\nend",
+    "go_error": "int.step expects a limit and an optional step"
+  },
+  {
+    "name": "iteration_int_step_keyword",
+    "source": "\ndef run(input)\n1.step(5,bad:7) {|v|v}\nend",
+    "go_error": "int.step does not take keyword arguments"
+  },
+  {
+    "name": "iteration_int_step_float",
+    "source": "\ndef run(input)\n1.step(2.5) {|v|v}\nend",
+    "go_error": "int.step expects an integer limit"
+  },
+  {
+    "name": "iteration_hash_key_call",
+    "source": "\ndef run(input)\n{tap:7}.tap {9}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "iteration_sum_incompatible",
+    "source": "\ndef run(input)\n[1,\"a\"].sum\nend",
+    "go_error": "array.sum cannot add incompatible values"
+  },
+  {
+    "name": "iteration_fetch_fraction",
+    "source": "\ndef run(input)\n[1].fetch(1.5){7}\nend",
+    "go_error": "array.fetch index must be integer"
+  },
+  {
+    "name": "iteration_zero_stride",
+    "source": "\ndef run(input)\n1.step(3,0){7}\nend",
+    "go_error": "int.step step must not be zero"
+  },
+  {
+    "name": "iteration_negative_range_stride",
+    "source": "\ndef run(input)\n(1..3).step(-1){7}\nend",
+    "go_error": "range.step step must be positive"
+  },
+  {
+    "name": "iteration_zero_window",
+    "source": "\ndef run(input)\n[1].each_cons(0){7}\nend",
+    "go_error": "array.each_cons invalid size"
+  },
+  {
+    "name": "iteration_range_size_overflow",
+    "source": "\ndef run(input)\n(-9223372036854775808..9223372036854775807).count\nend",
+    "go_error": "range.count overflow"
+  },
+  {
+    "name": "iteration_short_circuit_predicates",
+    "source": "\ndef run(input)\n[[1,2].any?{|v|v==1||missing},[1,2].all?{|v|v!=1&&missing},[1,2].none?{|v|v==1||missing},[1,2,3].one?{|v|v<3||missing}]\nend",
+    "go_error": "undefined variable missing"
   }
 ]

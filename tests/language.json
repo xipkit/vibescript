@@ -6185,5 +6185,3998 @@
     "name": "block_break_loop_expression",
     "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none(3){r=while true\nzero {break 7}\nbreak 9\nend\nr}\nend",
     "expected": 9
+  },
+  {
+    "name": "iteration_array_each",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].each() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_each",
+    "source": "\ndef run(input)\nseen=[];r=[].each() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_each_extra",
+    "source": "\ndef run(input)\n[1,2,3].each(1,2,3) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_each_keyword",
+    "source": "\ndef run(input)\n[1,2,3].each(bad:7) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_each_with_index",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].each_with_index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_each_with_index",
+    "source": "\ndef run(input)\nseen=[];r=[].each_with_index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_each_slice",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].each_slice(2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      [
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_each_slice",
+    "source": "\ndef run(input)\nseen=[];r=[].each_slice(2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_each_slice_keyword",
+    "source": "\ndef run(input)\n[1,2,3].each_slice(2,bad:7) {|v,i|v}\nend",
+    "expected": null
+  },
+  {
+    "name": "iteration_array_each_cons",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].each_cons(2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_each_cons",
+    "source": "\ndef run(input)\nseen=[];r=[].each_cons(2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_each_cons_keyword",
+    "source": "\ndef run(input)\n[1,2,3].each_cons(2,bad:7) {|v,i|v}\nend",
+    "expected": null
+  },
+  {
+    "name": "iteration_array_reverse_each",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].reverse_each() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_reverse_each",
+    "source": "\ndef run(input)\nseen=[];r=[].reverse_each() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_reverse_each_keyword",
+    "source": "\ndef run(input)\n[1,2,3].reverse_each(bad:7) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_cycle",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].cycle(2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_cycle",
+    "source": "\ndef run(input)\nseen=[];r=[].cycle(2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_cycle_keyword",
+    "source": "\ndef run(input)\n[1,2,3].cycle(2,bad:7) {|v,i|v}\nend",
+    "expected": null
+  },
+  {
+    "name": "iteration_array_map",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].map() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        null,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_map",
+    "source": "\ndef run(input)\nseen=[];r=[].map() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_map_extra",
+    "source": "\ndef run(input)\n[1,2,3].map(1,2,3) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_map_keyword",
+    "source": "\ndef run(input)\n[1,2,3].map(bad:7) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_map_with_index",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].map_with_index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        null,
+        3
+      ],
+      [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_map_with_index",
+    "source": "\ndef run(input)\nseen=[];r=[].map_with_index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_flat_map",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].flat_map() {|v,i|seen.push([v,i]);[v,[v+1]]};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        [
+          2
+        ],
+        2,
+        [
+          3
+        ],
+        3,
+        [
+          4
+        ]
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_flat_map",
+    "source": "\ndef run(input)\nseen=[];r=[].flat_map() {|v,i|seen.push([v,i]);[v,[v+1]]};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_collect_concat",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].collect_concat() {|v,i|seen.push([v,i]);[v,[v+1]]};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        [
+          2
+        ],
+        2,
+        [
+          3
+        ],
+        3,
+        [
+          4
+        ]
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_collect_concat",
+    "source": "\ndef run(input)\nseen=[];r=[].collect_concat() {|v,i|seen.push([v,i]);[v,[v+1]]};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_filter_map",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].filter_map() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_filter_map",
+    "source": "\ndef run(input)\nseen=[];r=[].filter_map() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_select",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].select() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_select",
+    "source": "\ndef run(input)\nseen=[];r=[].select() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_select_extra",
+    "source": "\ndef run(input)\n[1,2,3].select(1,2,3) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_select_keyword",
+    "source": "\ndef run(input)\n[1,2,3].select(bad:7) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_reject",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].reject() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        2
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_reject",
+    "source": "\ndef run(input)\nseen=[];r=[].reject() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_reject_keyword",
+    "source": "\ndef run(input)\n[1,2,3].reject(bad:7) {|v,i|v}\nend",
+    "expected": []
+  },
+  {
+    "name": "iteration_array_take_while",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].take_while() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_take_while",
+    "source": "\ndef run(input)\nseen=[];r=[].take_while() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_take_while_keyword",
+    "source": "\ndef run(input)\n[1,2,3].take_while(bad:7) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_drop_while",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].drop_while() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        2,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_drop_while",
+    "source": "\ndef run(input)\nseen=[];r=[].drop_while() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_drop_while_keyword",
+    "source": "\ndef run(input)\n[1,2,3].drop_while(bad:7) {|v,i|v}\nend",
+    "expected": []
+  },
+  {
+    "name": "iteration_array_find",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].find() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      1,
+      [
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_find",
+    "source": "\ndef run(input)\nseen=[];r=[].find() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_index",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      0,
+      [
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_index",
+    "source": "\ndef run(input)\nseen=[];r=[].index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_index_keyword",
+    "source": "\ndef run(input)\n[1,2,3].index(bad:7) {|v,i|v}\nend",
+    "expected": 0
+  },
+  {
+    "name": "iteration_array_find_index",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].find_index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      0,
+      [
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_find_index",
+    "source": "\ndef run(input)\nseen=[];r=[].find_index() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_find_index_keyword",
+    "source": "\ndef run(input)\n[1,2,3].find_index(bad:7) {|v,i|v}\nend",
+    "expected": 0
+  },
+  {
+    "name": "iteration_array_rindex",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].rindex() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      2,
+      [
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_rindex",
+    "source": "\ndef run(input)\nseen=[];r=[].rindex() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_rindex_keyword",
+    "source": "\ndef run(input)\n[1,2,3].rindex(bad:7) {|v,i|v}\nend",
+    "expected": 2
+  },
+  {
+    "name": "iteration_array_reduce",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].reduce(10) {|v,i|seen.push([v,i]);v+i};[r,seen]\nend",
+    "expected": [
+      16,
+      [
+        [
+          10,
+          1
+        ],
+        [
+          11,
+          2
+        ],
+        [
+          13,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_reduce",
+    "source": "\ndef run(input)\nseen=[];r=[].reduce(10) {|v,i|seen.push([v,i]);v+i};[r,seen]\nend",
+    "expected": [
+      10,
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_count",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].count() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      2,
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_count",
+    "source": "\ndef run(input)\nseen=[];r=[].count() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      0,
+      []
+    ]
+  },
+  {
+    "name": "iteration_count_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].count() \nend",
+    "expected": 3
+  },
+  {
+    "name": "iteration_count_keyword",
+    "source": "\ndef run(input)\n[1,2,3].count(bad:7) {|v,i|v}\nend",
+    "expected": 3
+  },
+  {
+    "name": "iteration_array_any?",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].any?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      true,
+      [
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_any?",
+    "source": "\ndef run(input)\nseen=[];r=[].any?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      false,
+      []
+    ]
+  },
+  {
+    "name": "iteration_any?_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].any?() \nend",
+    "expected": true
+  },
+  {
+    "name": "iteration_array_all?",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].all?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      false,
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_all?",
+    "source": "\ndef run(input)\nseen=[];r=[].all?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      true,
+      []
+    ]
+  },
+  {
+    "name": "iteration_all?_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].all?() \nend",
+    "expected": true
+  },
+  {
+    "name": "iteration_array_none?",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].none?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      false,
+      [
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_none?",
+    "source": "\ndef run(input)\nseen=[];r=[].none?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      true,
+      []
+    ]
+  },
+  {
+    "name": "iteration_none?_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].none?() \nend",
+    "expected": false
+  },
+  {
+    "name": "iteration_array_one?",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].one?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      false,
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_one?",
+    "source": "\ndef run(input)\nseen=[];r=[].one?() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      false,
+      []
+    ]
+  },
+  {
+    "name": "iteration_one?_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].one?() \nend",
+    "expected": false
+  },
+  {
+    "name": "iteration_one?_keyword",
+    "source": "\ndef run(input)\n[1,2,3].one?(bad:7) {|v,i|v}\nend",
+    "expected": false
+  },
+  {
+    "name": "iteration_array_partition",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].partition() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          1,
+          3
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_partition",
+    "source": "\ndef run(input)\nseen=[];r=[].partition() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        [],
+        []
+      ],
+      []
+    ]
+  },
+  {
+    "name": "iteration_partition_keyword",
+    "source": "\ndef run(input)\n[1,2,3].partition(bad:7) {|v,i|v}\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_group_by",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].group_by() {|v,i|seen.push([v,i]);(v%2).to_s};[r,seen]\nend",
+    "expected": [
+      {
+        "1": [
+          1,
+          3
+        ],
+        "0": [
+          2
+        ]
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_group_by",
+    "source": "\ndef run(input)\nseen=[];r=[].group_by() {|v,i|seen.push([v,i]);(v%2).to_s};[r,seen]\nend",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_group_by_stable",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].group_by_stable() {|v,i|seen.push([v,i]);(v%2).to_s};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "1",
+          [
+            1,
+            3
+          ]
+        ],
+        [
+          "0",
+          [
+            2
+          ]
+        ]
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_group_by_stable",
+    "source": "\ndef run(input)\nseen=[];r=[].group_by_stable() {|v,i|seen.push([v,i]);(v%2).to_s};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_tally",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].tally() {|v,i|seen.push([v,i]);(v%2).to_s};[r,seen]\nend",
+    "expected": [
+      {
+        "1": 2,
+        "0": 1
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_tally",
+    "source": "\ndef run(input)\nseen=[];r=[].tally() {|v,i|seen.push([v,i]);(v%2).to_s};[r,seen]\nend",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_to_h",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].to_h() {|v,i|seen.push([v,i]);[v.to_s,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "1": 1,
+        "2": 2,
+        "3": 3
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_to_h",
+    "source": "\ndef run(input)\nseen=[];r=[].to_h() {|v,i|seen.push([v,i]);[v.to_s,v]};[r,seen]\nend",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "iteration_array_fetch",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].fetch(9) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      9,
+      [
+        [
+          9,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_fetch",
+    "source": "\ndef run(input)\nseen=[];r=[].fetch(9) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      9,
+      [
+        [
+          9,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_fetch_keyword",
+    "source": "\ndef run(input)\n[1,2,3].fetch(9,bad:7) {|v,i|v}\nend",
+    "expected": 9
+  },
+  {
+    "name": "iteration_array_grep",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].grep(1..2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        null
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_grep",
+    "source": "\ndef run(input)\nseen=[];r=[].grep(1..2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_grep_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].grep(1..2) \nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "iteration_grep_keyword",
+    "source": "\ndef run(input)\n[1,2,3].grep(1..2,bad:7) {|v,i|v}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "iteration_array_grep_v",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].grep_v(1..2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        3
+      ],
+      [
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_grep_v",
+    "source": "\ndef run(input)\nseen=[];r=[].grep_v(1..2) {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_grep_v_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].grep_v(1..2) \nend",
+    "expected": [
+      3
+    ]
+  },
+  {
+    "name": "iteration_grep_v_keyword",
+    "source": "\ndef run(input)\n[1,2,3].grep_v(1..2,bad:7) {|v,i|v}\nend",
+    "expected": [
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_uniq",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].uniq() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_uniq",
+    "source": "\ndef run(input)\nseen=[];r=[].uniq() {|v,i|seen.push([v,i]);v==2 ? nil : v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_uniq_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].uniq() \nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_sum",
+    "source": "\ndef run(input)\nseen=[];r=[1,2,3].sum(0) {|v,i|seen.push([v,i]);v*2};[r,seen]\nend",
+    "expected": [
+      12,
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_empty_sum",
+    "source": "\ndef run(input)\nseen=[];r=[].sum(0) {|v,i|seen.push([v,i]);v*2};[r,seen]\nend",
+    "expected": [
+      0,
+      []
+    ]
+  },
+  {
+    "name": "iteration_sum_missing_block",
+    "source": "\ndef run(input)\n[1,2,3].sum(0) \nend",
+    "expected": 6
+  },
+  {
+    "name": "iteration_hash_each_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.each(bad:7) {|v,i|v}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "iteration_hash_each_with_index_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_with_index() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_with_index_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_with_index() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          [
+            "a",
+            1
+          ],
+          0
+        ],
+        [
+          [
+            "b",
+            2
+          ],
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_with_index_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_with_index() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_with_index_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_with_index() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          [
+            "a",
+            1
+          ],
+          0
+        ],
+        [
+          [
+            "b",
+            2
+          ],
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_key_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_key() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_key_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_key() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_key_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_key() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_key_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_key() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_key_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_key(bad:7) {|v,i|v}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "iteration_hash_each_value_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_value() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_value_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_value() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_value_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_value() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_value_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.each_value() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_each_value_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.each_value(bad:7) {|v,i|v}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "iteration_hash_map_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_with_index_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map_with_index() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_with_index_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map_with_index() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          [
+            "a",
+            1
+          ],
+          0
+        ],
+        [
+          [
+            "b",
+            2
+          ],
+          1
+        ]
+      ],
+      [
+        [
+          [
+            "a",
+            1
+          ],
+          0
+        ],
+        [
+          [
+            "b",
+            2
+          ],
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_with_index_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map_with_index() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_map_with_index_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.map_with_index() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          [
+            "a",
+            1
+          ],
+          0
+        ],
+        [
+          [
+            "b",
+            2
+          ],
+          1
+        ]
+      ],
+      [
+        [
+          [
+            "a",
+            1
+          ],
+          0
+        ],
+        [
+          [
+            "b",
+            2
+          ],
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_select_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.select() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_select_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.select() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_select_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.select() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_select_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.select() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_select_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.select(bad:7) {|v,i|v}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "iteration_hash_reject_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.reject() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {},
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_reject_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.reject() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {},
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_reject_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.reject() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {},
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_reject_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.reject() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {},
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_reject_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.reject(bad:7) {|v,i|v}\nend",
+    "expected": {}
+  },
+  {
+    "name": "iteration_hash_transform_keys_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_keys() {|v|seen.push(\"same\");\"same\"};[r,seen]\nend",
+    "expected": [
+      {
+        "same": 2
+      },
+      [
+        "same",
+        "same"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_keys_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_keys() {|k,v|seen.push(\"same\");\"same\"};[r,seen]\nend",
+    "expected": [
+      {
+        "same": 2
+      },
+      [
+        "same",
+        "same"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_keys_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_keys() {|(k,v)|seen.push(\"same\");\"same\"};[r,seen]\nend",
+    "expected": [
+      {
+        "same": 2
+      },
+      [
+        "same",
+        "same"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_keys_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_keys() {seen.push(\"same\");\"same\"};[r,seen]\nend",
+    "expected": [
+      {
+        "same": 2
+      },
+      [
+        "same",
+        "same"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_keys_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_keys(bad:7) {|v,i|v}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "iteration_hash_transform_values_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_values() {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_values_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_values() {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": [
+          1,
+          null
+        ],
+        "b": [
+          2,
+          null
+        ]
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_values_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_values() {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": [
+          1,
+          null
+        ],
+        "b": [
+          2,
+          null
+        ]
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_values_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.transform_values() {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      {
+        "a": [
+          1,
+          null
+        ],
+        "b": [
+          2,
+          null
+        ]
+      },
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_transform_values_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_values(bad:7) {|v,i|v}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "iteration_hash_fetch_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch(:missing) {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      "missing",
+      [
+        "missing"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch(:missing) {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        "missing",
+        null
+      ],
+      [
+        [
+          "missing",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch(:missing) {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        "missing",
+        null
+      ],
+      [
+        [
+          "missing",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch(:missing) {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      [
+        "missing",
+        null
+      ],
+      [
+        [
+          "missing",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.fetch(:missing,bad:7) {|v,i|v}\nend",
+    "expected": "missing"
+  },
+  {
+    "name": "iteration_hash_fetch_values_v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch_values(:missing) {|v|seen.push(v);v};[r,seen]\nend",
+    "expected": [
+      [
+        "missing"
+      ],
+      [
+        "missing"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_values_k,v",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch_values(:missing) {|k,v|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "missing",
+          null
+        ]
+      ],
+      [
+        [
+          "missing",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_values_(k,v)",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch_values(:missing) {|(k,v)|seen.push([k,v]);[k,v]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "missing",
+          null
+        ]
+      ],
+      [
+        [
+          "missing",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_values_",
+    "source": "\ndef run(input)\nseen=[];r={a:1,b:2}.fetch_values(:missing) {seen.push([_1,_2]);[_1,_2]};[r,seen]\nend",
+    "expected": [
+      [
+        [
+          "missing",
+          null
+        ]
+      ],
+      [
+        [
+          "missing",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_fetch_values_keyword",
+    "source": "\ndef run(input)\n{a:1,b:2}.fetch_values(:missing,bad:7) {|v,i|v}\nend",
+    "expected": [
+      "missing"
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_each",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).each() {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "1..3",
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_step",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).step(2) {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "1..3",
+      [
+        [
+          1,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_map",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).map() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_select",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).select() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_reject",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).reject() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        2
+      ],
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_find",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).find() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      1,
+      [
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_reduce",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).reduce() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      1,
+      [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1..3_count",
+    "source": "\ndef run(input)\nseen=[];r=(1..3).count() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_each",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).each() {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "3..1",
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_step",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).step(2) {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "3..1",
+      [
+        [
+          3,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_map",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).map() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      [
+        3,
+        2,
+        1
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_select",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).select() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        3,
+        1
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_reject",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).reject() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        2
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_find",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).find() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_reduce",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).reduce() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          1
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3..1_count",
+    "source": "\ndef run(input)\nseen=[];r=(3..1).count() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          1,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_each",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).each() {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "1...1",
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_step",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).step(2) {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "1...1",
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_map",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).map() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_select",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).select() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_reject",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).reject() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_find",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).find() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_reduce",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).reduce() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_1...1_count",
+    "source": "\ndef run(input)\nseen=[];r=(1...1).count() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      0,
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_each",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).each() {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "3...1",
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_step",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).step(2) {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "3...1",
+      [
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_map",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).map() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      [
+        3,
+        2
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_select",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).select() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        3
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_reject",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).reject() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        2
+      ],
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_find",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).find() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        [
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_reduce",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).reduce() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        [
+          3,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_3...1_count",
+    "source": "\ndef run(input)\nseen=[];r=(3...1).count() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      2,
+      [
+        [
+          3,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_each",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).each() {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "9223372036854775807..9223372036854775807",
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_step",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).step(2) {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "9223372036854775807..9223372036854775807",
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_map",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).map() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      [
+        9223372036854775807
+      ],
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_select",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).select() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        9223372036854775807
+      ],
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_reject",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).reject() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [],
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_find",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).find() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      9223372036854775807,
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_reduce",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).reduce() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      9223372036854775807,
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_9223372036854775807..9223372036854775807_count",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807..9223372036854775807).count() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      1,
+      [
+        [
+          9223372036854775807,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_each",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).each() {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "-9223372036854775808..-9223372036854775808",
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_step",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).step(2) {|v,i|seen.push([v,i]);v};[r.to_s,seen]\nend",
+    "expected": [
+      "-9223372036854775808..-9223372036854775808",
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_map",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).map() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      [
+        -9223372036854775808
+      ],
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_select",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).select() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [],
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_reject",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).reject() {|v,i|seen.push([v,i]);v%2==1};[r,seen]\nend",
+    "expected": [
+      [
+        -9223372036854775808
+      ],
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_find",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).find() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      -9223372036854775808,
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_reduce",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).reduce() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      -9223372036854775808,
+      []
+    ]
+  },
+  {
+    "name": "iteration_range_-9223372036854775808..-9223372036854775808_count",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808..-9223372036854775808).count() {|v,i|seen.push([v,i]);v};[r,seen]\nend",
+    "expected": [
+      1,
+      [
+        [
+          -9223372036854775808,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_3_times_",
+    "source": "\ndef run(input)\nseen=[];r=(3).times() {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      3,
+      [
+        0,
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_-2_times_",
+    "source": "\ndef run(input)\nseen=[];r=(-2).times() {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      -2,
+      []
+    ]
+  },
+  {
+    "name": "iteration_int_2_upto_4",
+    "source": "\ndef run(input)\nseen=[];r=(2).upto(4) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      2,
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_4_upto_2",
+    "source": "\ndef run(input)\nseen=[];r=(4).upto(2) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      4,
+      []
+    ]
+  },
+  {
+    "name": "iteration_int_4_downto_2",
+    "source": "\ndef run(input)\nseen=[];r=(4).downto(2) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      4,
+      [
+        4,
+        3,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_2_downto_4",
+    "source": "\ndef run(input)\nseen=[];r=(2).downto(4) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      2,
+      []
+    ]
+  },
+  {
+    "name": "iteration_int_1_step_6,2",
+    "source": "\ndef run(input)\nseen=[];r=(1).step(6,2) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      1,
+      [
+        1,
+        3,
+        5
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_6_step_1,-2",
+    "source": "\ndef run(input)\nseen=[];r=(6).step(1,-2) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      6,
+      [
+        6,
+        4,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_1_step_6,-2",
+    "source": "\ndef run(input)\nseen=[];r=(1).step(6,-2) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      1,
+      []
+    ]
+  },
+  {
+    "name": "iteration_int_9223372036854775807_upto_9223372036854775807",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775807).upto(9223372036854775807) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      9223372036854775807,
+      [
+        9223372036854775807
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_-9223372036854775808_downto_-9223372036854775808",
+    "source": "\ndef run(input)\nseen=[];r=(-9223372036854775808).downto(-9223372036854775808) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      -9223372036854775808,
+      [
+        -9223372036854775808
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_9223372036854775806_step_9223372036854775807,2",
+    "source": "\ndef run(input)\nseen=[];r=(9223372036854775806).step(9223372036854775807,2) {|v|seen.push(v)};[r,seen]\nend",
+    "expected": [
+      9223372036854775806,
+      [
+        9223372036854775806
+      ]
+    ]
+  },
+  {
+    "name": "iteration_int_times_keyword",
+    "source": "\ndef run(input)\n1.times(bad:7) {|v|v}\nend",
+    "expected": 1
+  },
+  {
+    "name": "iteration_universal_nil_tap",
+    "source": "\ndef run(input)\nseen=[];r=(nil).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      null,
+      [
+        null
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_nil_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=(nil).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        null
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_true_tap",
+    "source": "\ndef run(input)\nseen=[];r=(true).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      true,
+      [
+        true
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_true_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=(true).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        true
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_4_tap",
+    "source": "\ndef run(input)\nseen=[];r=(4).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      4,
+      [
+        4
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_4_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=(4).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        4
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_1.5_tap",
+    "source": "\ndef run(input)\nseen=[];r=(1.5).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      1.5,
+      [
+        1.5
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_1.5_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=(1.5).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        1.5
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_\"hello\"_tap",
+    "source": "\ndef run(input)\nseen=[];r=(\"hello\").tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      "hello",
+      [
+        "hello"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_\"hello\"_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=(\"hello\").yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        "hello"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_:symbol_tap",
+    "source": "\ndef run(input)\nseen=[];r=(:symbol).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      "symbol",
+      [
+        "symbol"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_:symbol_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=(:symbol).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        "symbol"
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_[1,2]_tap",
+    "source": "\ndef run(input)\nseen=[];r=([1,2]).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_[1,2]_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=([1,2]).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        [
+          1,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_{a:1}_tap",
+    "source": "\ndef run(input)\nseen=[];r=({a:1}).tap{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      {
+        "a": 1
+      },
+      [
+        {
+          "a": 1
+        }
+      ]
+    ]
+  },
+  {
+    "name": "iteration_universal_{a:1}_yield_self",
+    "source": "\ndef run(input)\nseen=[];r=({a:1}).yield_self{|v|seen.push(v);7};[r,seen]\nend",
+    "expected": [
+      7,
+      [
+        {
+          "a": 1
+        }
+      ]
+    ]
+  },
+  {
+    "name": "iteration_nested",
+    "source": "\ndef run(input)\n[1,2].map {|a|[3,4].map {|b|a+b}}\nend",
+    "expected": [
+      [
+        4,
+        5
+      ],
+      [
+        5,
+        6
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_implicit_one",
+    "source": "\ndef run(input)\n{a:1}.map {_1}\nend",
+    "expected": [
+      [
+        "a",
+        1
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_implicit_it",
+    "source": "\ndef run(input)\n{a:1}.map {it}\nend",
+    "expected": [
+      [
+        "a",
+        1
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_implicit_two",
+    "source": "\ndef run(input)\n{a:1}.map {_2}\nend",
+    "expected": [
+      1
+    ]
+  },
+  {
+    "name": "iteration_hash_key_shadow",
+    "source": "\ndef run(input)\nh={tap:7};[h.tap,h[:tap]]\nend",
+    "expected": [
+      7,
+      7
+    ]
+  },
+  {
+    "name": "iteration_block_given",
+    "source": "\ndef run(input)\n[1].map {block_given?}\nend",
+    "expected": [
+      false
+    ]
+  },
+  {
+    "name": "iteration_return",
+    "source": "\ndef run(input)\n[1,2].map {|v|return v};9\nend",
+    "expected": 1
+  },
+  {
+    "name": "iteration_break",
+    "source": "\ndef run(input)\nr=[1,2].map {|v|break 7};[r,9]\nend",
+    "expected": [
+      7,
+      9
+    ]
+  },
+  {
+    "name": "iteration_next",
+    "source": "\ndef run(input)\n[1,2].map {|v|next v+1;99}\nend",
+    "expected": [
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_nested_break",
+    "source": "\ndef run(input)\n[1,2].map {|v|r=[3,4].map {break 7};[v,r]}\nend",
+    "expected": [
+      [
+        1,
+        7
+      ],
+      [
+        2,
+        7
+      ]
+    ]
+  },
+  {
+    "name": "iteration_loop_break",
+    "source": "\ndef run(input)\nseen=[];while true\nr=[1].map {break 7};seen.push(r);break\nend\nseen\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "iteration_nested_return",
+    "source": "\ndef run(input)\n[1,2].map {[3,4].map {return 7}};9\nend",
+    "expected": 7
+  },
+  {
+    "name": "iteration_control_scopes",
+    "source": "\ndef run(input)\nx=0;3.times {|i|x+=i};[x,block_given?]\nend",
+    "expected": [
+      3,
+      false
+    ]
+  },
+  {
+    "name": "iteration_cycle_infinite",
+    "source": "\ndef run(input)\nseen=[];[1,2].cycle {|v|seen.push(v);break if seen.length==5};seen\nend",
+    "expected": [
+      1,
+      2,
+      1,
+      2,
+      1
+    ]
+  },
+  {
+    "name": "iteration_empty_infinite_cycle",
+    "source": "\ndef run(input)\n[].cycle {missing}\nend",
+    "expected": null
+  },
+  {
+    "name": "iteration_count_value",
+    "source": "\ndef run(input)\n[1,2,1].count(1) {missing}\nend",
+    "expected": 2
+  },
+  {
+    "name": "iteration_predicate_pattern",
+    "source": "\ndef run(input)\n[[1,2,3].any?(2..3){missing},[1,2].all?(0..5){missing},[1,2].none?(4..5){missing}]\nend",
+    "expected": [
+      true,
+      true,
+      true
+    ]
+  },
+  {
+    "name": "iteration_truthiness",
+    "source": "\ndef run(input)\na=[nil,false,0];[a.count,a.any?,a.all?,a.none?,a.one?]\nend",
+    "expected": [
+      3,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  {
+    "name": "iteration_reduce_operation",
+    "source": "\ndef run(input)\n[[1,2,3].reduce(:+),[].reduce(:+),[].reduce(7,:+),[1,2,3].reduce(10,:+){missing}]\nend",
+    "expected": [
+      6,
+      null,
+      7,
+      16
+    ]
+  },
+  {
+    "name": "iteration_reduce_string",
+    "source": "\ndef run(input)\n[\"a\",\"b\"].reduce(\"\"){|a,b|a+b}\nend",
+    "expected": "ab"
+  },
+  {
+    "name": "iteration_reduce_array",
+    "source": "\ndef run(input)\n[1,2,3].reduce([],\"push\")\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_reduce_symbol_seed",
+    "source": "\ndef run(input)\n[].reduce(:+){|a,b|a}\nend",
+    "expected": "+"
+  },
+  {
+    "name": "iteration_sum_strings",
+    "source": "\ndef run(input)\n[\"a\",\"b\"].sum(\"\")\nend",
+    "expected": "ab"
+  },
+  {
+    "name": "iteration_sum_arrays",
+    "source": "\ndef run(input)\n[[1],[2]].sum([])\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "iteration_uniq_keys",
+    "source": "\ndef run(input)\n[[1,2],[1,3],[2,4]].uniq {|v|v[0]}\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "iteration_tally_keys",
+    "source": "\ndef run(input)\n[:a,\"a\",:b].tally\nend",
+    "expected": {
+      "a": 2,
+      "b": 1
+    }
+  },
+  {
+    "name": "iteration_stable_symbol",
+    "source": "\ndef run(input)\n[:a,\"a\",:b].group_by_stable {|v|v}\nend",
+    "expected": [
+      [
+        "a",
+        [
+          "a",
+          "a"
+        ]
+      ],
+      [
+        "b",
+        [
+          "b"
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "iteration_fetch_default",
+    "source": "\ndef run(input)\n[[1].fetch(4,9){|v|v+1},{a:1}.fetch(:b,9){|v|v}]\nend",
+    "expected": [
+      5,
+      "b"
+    ]
+  },
+  {
+    "name": "iteration_fetch_hit",
+    "source": "\ndef run(input)\n[[1].fetch(0){missing},{a:1}.fetch(:a){missing}]\nend",
+    "expected": [
+      1,
+      1
+    ]
+  },
+  {
+    "name": "iteration_fetch_float",
+    "source": "\ndef run(input)\n[1].fetch(3.0){|v|v}\nend",
+    "expected": 3
+  },
+  {
+    "name": "iteration_fetch_values",
+    "source": "\ndef run(input)\n{a:1}.fetch_values(:a,:b,:c){|v|v.to_s}\nend",
+    "expected": [
+      1,
+      "b",
+      "c"
+    ]
+  },
+  {
+    "name": "iteration_find_nil",
+    "source": "\ndef run(input)\n[1,2].find(nil){|v|v==2}\nend",
+    "expected": 2
+  },
+  {
+    "name": "iteration_index_alias",
+    "source": "\ndef run(input)\n[1,2,3].find_index(2)\nend",
+    "expected": 1
+  },
+  {
+    "name": "iteration_ignored_args",
+    "source": "\ndef run(input)\n[1,2].map(7,8){|v|v}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "iteration_huge_window",
+    "source": "\ndef run(input)\n[1,2].each_slice(9223372036854775807){|v|v}\nend",
+    "expected": null
+  },
+  {
+    "name": "iteration_huge_cons",
+    "source": "\ndef run(input)\n[1,2].each_cons(9223372036854775807){|v|v}\nend",
+    "expected": null
+  },
+  {
+    "name": "iteration_range_size",
+    "source": "\ndef run(input)\n[(1..3).count,(3...1).count]\nend",
+    "expected": [
+      3,
+      2
+    ]
+  },
+  {
+    "name": "iteration_forward_yield",
+    "source": "def outer()\n[1,2].map {|v|yield v}\nend\ndef run(input)\nouter { |v|v*2 }\nend",
+    "expected": [
+      2,
+      4
+    ]
+  },
+  {
+    "name": "iteration_break_forward_yield",
+    "source": "def outer()\nr=[1,2].map {|v|yield v}\n[r,9]\nend\ndef run(input)\nouter {break 7}\nend",
+    "expected": [
+      7,
+      9
+    ]
+  },
+  {
+    "name": "iteration_symbol_+",
+    "source": "\ndef run(input)\n:+\nend",
+    "expected": "+"
+  },
+  {
+    "name": "iteration_symbol_-",
+    "source": "\ndef run(input)\n:-\nend",
+    "expected": "-"
+  },
+  {
+    "name": "iteration_symbol_*",
+    "source": "\ndef run(input)\n:*\nend",
+    "expected": "*"
+  },
+  {
+    "name": "iteration_symbol_/",
+    "source": "\ndef run(input)\n:/\nend",
+    "expected": "/"
+  },
+  {
+    "name": "iteration_symbol_%",
+    "source": "\ndef run(input)\n:%\nend",
+    "expected": "%"
+  },
+  {
+    "name": "iteration_symbol_**",
+    "source": "\ndef run(input)\n:**\nend",
+    "expected": "**"
+  },
+  {
+    "name": "iteration_symbol_<<",
+    "source": "\ndef run(input)\n:<<\nend",
+    "expected": "<<"
+  },
+  {
+    "name": "iteration_symbol_<",
+    "source": "\ndef run(input)\n:<\nend",
+    "expected": "<"
+  },
+  {
+    "name": "iteration_symbol_>",
+    "source": "\ndef run(input)\n:>\nend",
+    "expected": ">"
+  },
+  {
+    "name": "iteration_symbol_<=",
+    "source": "\ndef run(input)\n:<=\nend",
+    "expected": "<="
+  },
+  {
+    "name": "iteration_symbol_>=",
+    "source": "\ndef run(input)\n:>=\nend",
+    "expected": ">="
+  },
+  {
+    "name": "iteration_symbol_==",
+    "source": "\ndef run(input)\n:==\nend",
+    "expected": "=="
+  },
+  {
+    "name": "iteration_symbol_===",
+    "source": "\ndef run(input)\n:===\nend",
+    "expected": "==="
+  },
+  {
+    "name": "iteration_symbol_!=",
+    "source": "\ndef run(input)\n:!=\nend",
+    "expected": "!="
+  },
+  {
+    "name": "iteration_symbol_!",
+    "source": "\ndef run(input)\n:!\nend",
+    "expected": "!"
+  },
+  {
+    "name": "iteration_symbol_&&",
+    "source": "\ndef run(input)\n:&&\nend",
+    "expected": "&&"
+  },
+  {
+    "name": "iteration_symbol_||",
+    "source": "\ndef run(input)\n:||\nend",
+    "expected": "||"
+  },
+  {
+    "name": "iteration_symbol_[]",
+    "source": "\ndef run(input)\n:[]\nend",
+    "expected": "[]"
+  },
+  {
+    "name": "iteration_symbol_[]=",
+    "source": "\ndef run(input)\n:[]=\nend",
+    "expected": "[]="
+  },
+  {
+    "name": "iteration_symbol_<=>",
+    "source": "\ndef run(input)\n:<=>\nend",
+    "expected": "<=>"
+  },
+  {
+    "name": "iteration_minimum_-0x8000000000000000",
+    "source": "\ndef run(input)\n[-0x8000000000000000, (-0x8000000000000000)+1]\nend",
+    "expected": [
+      -9223372036854775808,
+      -9223372036854775807
+    ]
+  },
+  {
+    "name": "iteration_minimum_-0o1000000000000000000000",
+    "source": "\ndef run(input)\n[-0o1000000000000000000000, (-0o1000000000000000000000)+1]\nend",
+    "expected": [
+      -9223372036854775808,
+      -9223372036854775807
+    ]
+  },
+  {
+    "name": "iteration_minimum_-0b1000000000000000000000000000000000000000000000000000000000000000",
+    "source": "\ndef run(input)\n[-0b1000000000000000000000000000000000000000000000000000000000000000, (-0b1000000000000000000000000000000000000000000000000000000000000000)+1]\nend",
+    "expected": [
+      -9223372036854775808,
+      -9223372036854775807
+    ]
+  },
+  {
+    "name": "iteration_minimum_-9_223_372_036_854_775_808",
+    "source": "\ndef run(input)\n[-9_223_372_036_854_775_808, (-9_223_372_036_854_775_808)+1]\nend",
+    "expected": [
+      -9223372036854775808,
+      -9223372036854775807
+    ]
+  },
+  {
+    "name": "iteration_symbol_bare_reduce",
+    "source": "\ndef run(input)\n[1,2,3].reduce :+\nend",
+    "expected": 6
+  },
+  {
+    "name": "iteration_symbol_ternary",
+    "source": "\ndef run(input)\n[true ? :+ : :-, false ? :[] : :[]=]\nend",
+    "expected": [
+      "+",
+      "[]="
+    ]
+  },
+  {
+    "name": "iteration_group_first_symbol",
+    "source": "\ndef run(input)\nr=[:a,\"a\",:b].group_by_stable {|v|v};r[0][0]==:a\nend",
+    "expected": true
+  },
+  {
+    "name": "iteration_drop_only_prefix",
+    "source": "\ndef run(input)\n[1,2,3,4].drop_while{|v|v<2 ? true : v==2 ? false : missing}\nend",
+    "expected": [
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "name": "iteration_take_only_prefix",
+    "source": "\ndef run(input)\n[1,2,3,4].take_while{|v|v<2 ? true : v==2 ? false : missing}\nend",
+    "expected": [
+      1
+    ]
+  },
+  {
+    "name": "iteration_map_alias_values",
+    "source": "\ndef run(input)\n[1,2].map {|v|[v]}\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_to_hash_duplicates",
+    "source": "\ndef run(input)\n[1,2].to_h {|v|[:same,v]}\nend",
+    "expected": {
+      "same": 2
+    }
+  },
+  {
+    "name": "iteration_transform_key_duplicates",
+    "source": "\ndef run(input)\n{a:1,b:2}.transform_keys {\"same\"}\nend",
+    "expected": {
+      "same": 2
+    }
+  },
+  {
+    "name": "iteration_huge_stride",
+    "source": "\ndef run(input)\na=[];(-9223372036854775808..9223372036854775807).step(9223372036854775807){|v|a.push(v)};a\nend",
+    "expected": [
+      -9223372036854775808,
+      -1,
+      9223372036854775806
+    ]
+  },
+  {
+    "name": "iteration_empty_no_seed",
+    "source": "\ndef run(input)\n[(1...1).reduce{|a,b|missing},(1...1).reduce(nil){missing},[].reduce(nil){missing}]\nend",
+    "expected": [
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "iteration_pending_receiver",
+    "source": "\ndef run(input)\na=[];a.push([1,2].map{|v|a.push(v);v});a\nend",
+    "expected": [
+      1,
+      2,
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_pending_return",
+    "source": "\ndef run(input)\na=[];a.push([1].map{return 7});a\nend",
+    "expected": 7
+  },
+  {
+    "name": "iteration_pending_block_break",
+    "source": "\ndef run(input)\na=[];a.push([1].map{break 7});a\nend",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "iteration_default_iteration",
+    "source": "def defaulted(x:[1,2].map{|v|v+1})\nx\nend\ndef run(input)\ndefaulted()\nend",
+    "expected": [
+      2,
+      3
+    ]
+  },
+  {
+    "name": "iteration_array_mutation_find",
+    "source": "def run(input)\na=[1,2,3];seen=[];r=a.find {|v|seen.push(v);a[1]=9;v};[seen,a,r]\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      1
+    ]
+  },
+  {
+    "name": "iteration_hash_mutation_map",
+    "source": "def run(input)\nh={a:1,b:2};seen=[];r=h.map {|k,v|seen.push([k,v]);h.b=9;v};[seen,h,r]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_mutation_select",
+    "source": "def run(input)\nh={a:1,b:2};seen=[];r=h.select {|k,v|seen.push([k,v]);h.b=9;v};[seen,h,r]\nend",
+    "expected": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "iteration_hash_mutation_transform_values",
+    "source": "def run(input)\nh={a:1,b:2};seen=[];r=h.transform_values {|k,v|seen.push([k,v]);h.b=9;v};[seen,h,r]\nend",
+    "expected": [
+      [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": null,
+        "b": null
+      }
+    ]
+  },
+  {
+    "name": "iteration_any_short_circuit",
+    "source": "def run(input)\nseen=[];r=[1,2,3].any? {|v|seen.push(v);true};[r,seen]\nend",
+    "expected": [
+      true,
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "iteration_all_short_circuit",
+    "source": "def run(input)\nseen=[];r=[1,2,3].all? {|v|seen.push(v);false};[r,seen]\nend",
+    "expected": [
+      false,
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "iteration_none_short_circuit",
+    "source": "def run(input)\nseen=[];r=[1,2,3].none? {|v|seen.push(v);true};[r,seen]\nend",
+    "expected": [
+      false,
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "iteration_one_short_circuit",
+    "source": "def run(input)\nseen=[];r=[1,2,3].one? {|v|seen.push(v);true};[r,seen]\nend",
+    "expected": [
+      false,
+      [
+        1,
+        2
+      ]
+    ]
   }
 ]

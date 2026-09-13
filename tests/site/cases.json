@@ -735,6 +735,17 @@
     ]
   },
   {
+    "path": "rosettacode/popular/determine_if_a_string_is_squeezable.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "balloon": true,
+      "mississippi": true,
+      "no_change": true,
+      "mismatch": true
+    }
+  },
+  {
     "path": "rosettacode/popular/digital_root.vibe",
     "function": "run",
     "args": [],
@@ -2223,6 +2234,29 @@
     }
   },
   {
+    "path": "rosettacode/popular/run_length_encoding.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "sample": "AAABBCCCC",
+      "encoded": [
+        {
+          "char": "A",
+          "count": 3
+        },
+        {
+          "char": "B",
+          "count": 2
+        },
+        {
+          "char": "C",
+          "count": 4
+        }
+      ],
+      "decoded": "AAABBCCCC"
+    }
+  },
+  {
     "path": "rosettacode/popular/selection_sort.vibe",
     "function": "run",
     "args": [],
@@ -3143,6 +3177,45 @@
     ]
   },
   {
+    "path": "showcase/collections/matrix_report.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "by_metric": [
+        [
+          "signups",
+          31
+        ],
+        [
+          "errors",
+          10
+        ],
+        [
+          "refunds",
+          3
+        ]
+      ],
+      "daily_totals": [
+        14,
+        17,
+        13
+      ],
+      "grand_total": 44
+    }
+  },
+  {
+    "path": "showcase/language/synchronous_blocks.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "doubled_twice": 12,
+      "ready_ids": [
+        "a",
+        "c"
+      ]
+    }
+  },
+  {
     "path": "showcase/language/value_boundaries.vibe",
     "function": "run",
     "args": [],
@@ -3211,6 +3284,48 @@
           false,
           null
         ]
+      }
+    }
+  },
+  {
+    "path": "upstream/blocks/advanced.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "active_count": 3,
+      "max_score": 67,
+      "any_large": true
+    }
+  },
+  {
+    "path": "upstream/blocks/transformations.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "doubled": [
+        20,
+        40,
+        60
+      ],
+      "total": 600
+    }
+  },
+  {
+    "path": "upstream/blocks/yield_patterns.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "times": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "tap": 42,
+      "transform_keys": {
+        "name": "Alice",
+        "age": 30
       }
     }
   },
@@ -3386,10 +3501,45 @@
     ]
   },
   {
+    "path": "upstream/loops/advanced.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "sum_of_products": 60,
+      "accumulate": 15,
+      "first_div_by_7": 7,
+      "matrix_sum": 45
+    }
+  },
+  {
     "path": "upstream/loops/fizzbuzz.vibe",
     "function": "run",
     "args": [],
     "expected": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n17\nFizz\n19\nBuzz\n"
+  },
+  {
+    "path": "upstream/loops/iteration.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "sum_range": 55,
+      "product_range": 720,
+      "countdown": 15,
+      "total_each": 55,
+      "doubled": [
+        6,
+        14,
+        22
+      ],
+      "above_5": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "reduce": 55
+    }
   },
   {
     "path": "upstream/policies/access_control.vibe",

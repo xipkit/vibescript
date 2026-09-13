@@ -134,5 +134,201 @@
         3
       ]
     ]
+  },
+  {
+    "name": "iteration_array_mutation_each",
+    "body": "a=[1,2,3];seen=[];r=a.each {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "iteration_array_mutation_map",
+    "body": "a=[1,2,3];seen=[];r=a.map {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "iteration_array_mutation_select",
+    "body": "a=[1,2,3];seen=[];r=a.select {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "iteration_array_mutation_each_with_index",
+    "body": "a=[1,2,3];seen=[];r=a.each_with_index {|v|seen.push(v);a[1]=9;v};[seen,a,r]",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "iteration_hash_mutation_each",
+    "body": "h={a:1,b:2};seen=[];r=h.each {|k,v|seen.push([k,v]);h.b=9;v};[seen,h,r]",
+    "go": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 9
+      }
+    ],
+    "rust": [
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ],
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ]
   }
 ]

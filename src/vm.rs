@@ -5,14 +5,16 @@ use crate::{
     budget::Buffer,
     bytecode::{ArgumentOp, Invocation, Op, Program, Selection},
     hash::Hash,
+    iteration::{self, Iteration, Progress},
     json, members, ops,
     range::Range,
     value::Kind,
 };
 
 struct Frame {
-    function: usize,
+    function: Option<usize>,
     ip: usize,
+    iteration_base: usize,
     base: usize,
     local_base: usize,
     address_base: usize,
@@ -27,6 +29,7 @@ struct Frame {
 }
 
 struct Storage {
+    iterations: Buffer<Iteration>,
     locals: Buffer<Option<Value>>,
     addresses: Buffer<Address>,
     bypasses: Buffer<usize>,
@@ -99,6 +102,7 @@ pub(crate) fn execute(
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
     let mut storage = Storage {
+        iterations: Buffer::empty(),
         locals: Buffer::empty(),
         addresses: Buffer::empty(),
         bypasses: Buffer::empty(),
@@ -118,9 +122,36 @@ pub(crate) fn execute(
     loop {
         ctx.charge(1)?;
         let current = frames.data.len() - 1;
+        if frames.data[current].function.is_none() {
+            let iteration = &mut storage.iterations.data[frames.data[current].iteration_base];
+            let returned = if iteration.waiting {
+                Some(stack.data.pop().unwrap())
+            } else {
+                None
+            };
+            match iteration.advance(ctx, returned)? {
+                Progress::Yield(args, count) => {
+                    let block = frames.data[current].block.unwrap();
+                    enter_block(
+                        program,
+                        ctx,
+                        &mut frames,
+                        &mut storage,
+                        block,
+                        &args[..count],
+                        stack.data.len(),
+                    )?;
+                }
+                Progress::Done(value) => {
+                    unwind(&mut frames, &mut storage, &mut stack, current);
+                    stack.push(ctx, value)?;
+                }
+            }
+            continue;
+        }
         let op = {
             let frame = &mut frames.data[current];
-            let op = program.functions[frame.function].code[frame.ip];
+            let op = program.functions[frame.function.unwrap()].code[frame.ip];
             frame.ip += 1;
             op
         };
@@ -188,7 +219,7 @@ pub(crate) fn execute(
             }
             Op::Bind(param, next) => {
                 if let Some(value) = frame.binding.data[0].value(ctx, param)? {
-                    let slot = program.functions[frame.function].params[param].slot;
+                    let slot = program.functions[frame.function.unwrap()].params[param].slot;
                     storage.locals.data[frame.local_base + slot] = Some(value);
                     frame.ip = next;
                 }
@@ -713,6 +744,34 @@ pub(crate) fn execute(
                     }
                     Invocation::Member(site, mutating) => {
                         let name = &program.members[site.name];
+                        if !mutating {
+                            let receiver = stack.data.last().unwrap();
+                            let arity = args
+                                .block
+                                .map(|block| program.functions[block.function].block_arity);
+                            if let Some(iteration) = iteration::start(
+                                ctx,
+                                name,
+                                receiver,
+                                &args.positional.data,
+                                !args.keywords.buffer.data.is_empty(),
+                                arity,
+                            )? {
+                                stack.data.pop();
+                                ctx.charge(1)?;
+                                if frames.data.len() >= ctx.options.limits.recursion {
+                                    return ctx
+                                        .fail(ErrorKind::Recursion, "recursion limit exceeded");
+                                }
+                                let mut frame =
+                                    new_frame(ctx, program, &mut storage, None, stack.data.len())?;
+                                frame.block = args.block;
+                                frame.arguments.push(ctx, args)?;
+                                storage.iterations.push(ctx, iteration)?;
+                                frames.push(ctx, frame)?;
+                                continue;
+                            }
+                        }
                         let value = if mutating {
                             let address = storage.addresses.data.pop().unwrap();
                             address.apply(
@@ -869,7 +928,7 @@ fn enter(
             ),
         ));
     }
-    let mut frame = new_frame(ctx, program, storage, function, base)?;
+    let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0).then_some(frames.data.len());
     for (param, arg) in fun.params.iter().zip(args) {
         ctx.charge(1)?;
@@ -907,7 +966,7 @@ fn enter_arguments(
     }
     let block = arguments.block;
     let binding = Binding::new(ctx, &fun.params, arguments)?;
-    let mut frame = new_frame(ctx, program, storage, function, base)?;
+    let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0).then_some(frames.data.len());
     frame.block = block;
     if fun.defaults {
@@ -925,21 +984,23 @@ fn new_frame(
     ctx: &mut CallContext,
     program: &Program,
     storage: &mut Storage,
-    function: usize,
+    function: Option<usize>,
     base: usize,
 ) -> Result<Frame> {
     let local_base = storage.locals.data.len();
-    let Some(capacity) = local_base.checked_add(program.functions[function].locals) else {
+    let locals = function.map_or(0, |index| program.functions[index].locals);
+    let Some(capacity) = local_base.checked_add(locals) else {
         return ctx.fail(ErrorKind::Memory, "allocation size overflow");
     };
     storage.locals.ensure(ctx, capacity)?;
-    for _ in 0..program.functions[function].locals {
+    for _ in 0..locals {
         ctx.charge(1)?;
         storage.locals.data.push(None);
     }
     Ok(Frame {
         function,
         ip: 0,
+        iteration_base: storage.iterations.data.len(),
         base,
         local_base,
         address_base: storage.addresses.data.len(),
@@ -975,7 +1036,7 @@ fn resolve_slot(
                 return Ok(local);
             }
         }
-        let Some(capture) = program.functions[frames.data[frame].function]
+        let Some(capture) = program.functions[frames.data[frame].function.unwrap()]
             .captures
             .get(slot)
             .copied()
@@ -1004,7 +1065,7 @@ fn enter_block(
     if frames.data.len() >= ctx.options.limits.recursion {
         return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
     }
-    let mut frame = new_frame(ctx, program, storage, block.function, base)?;
+    let mut frame = new_frame(ctx, program, storage, Some(block.function), base)?;
     frame.parent = Some(block.parent);
     frame.home = frames.data[block.parent].home;
     frame.block = frames.data[block.parent].block;
@@ -1021,6 +1082,7 @@ fn unwind(
     let frame = &frames.data[target];
     stack.data.truncate(frame.base);
     storage.locals.data.truncate(frame.local_base);
+    storage.iterations.data.truncate(frame.iteration_base);
     storage.addresses.data.truncate(frame.address_base);
     storage.bypasses.data.truncate(frame.bypass_base);
     frames.data.truncate(target);

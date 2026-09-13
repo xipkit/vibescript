@@ -18,7 +18,7 @@ fn wrong_type() -> Error {
     )
 }
 
-fn lookup(
+pub(crate) fn lookup(
     ctx: &mut CallContext,
     value: &Value,
     key: &Value,

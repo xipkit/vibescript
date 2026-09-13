@@ -178,5 +178,25 @@
     "name": "block_yield_keyword_rejected",
     "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nyield(x:1)\nend\ndef run(input)\nf {|x|x}\nend",
     "go_error": "parse error at 19:8: expected \")\", got \":\""
+  },
+  {
+    "name": "iteration_symbol_=",
+    "source": "\ndef run(input)\n:=\nend",
+    "go_error": "parse error at 3:1: unexpected token \":\""
+  },
+  {
+    "name": "iteration_symbol_+=",
+    "source": "\ndef run(input)\n:+=\nend",
+    "go_error": "parse error at 3:3: unexpected token \"=\""
+  },
+  {
+    "name": "iteration_symbol_..",
+    "source": "\ndef run(input)\n:..\nend",
+    "go_error": "parse error at 3:1: unexpected token \":\""
+  },
+  {
+    "name": "iteration_symbol_...",
+    "source": "\ndef run(input)\n:...\nend",
+    "go_error": "parse error at 3:1: unexpected token \":\""
   }
 ]

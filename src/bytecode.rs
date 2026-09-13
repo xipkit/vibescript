@@ -191,7 +191,7 @@ pub(crate) enum Method {
     ToInt,
 }
 impl Method {
-    fn parse(name: &str) -> Option<Self> {
+    pub(crate) fn parse(name: &str) -> Option<Self> {
         Some(match name {
             "length" => Self::Length,
             "size" => Self::Size,
@@ -237,7 +237,7 @@ impl Method {
             "upcase" => Self::Upcase,
             "downcase" => Self::Downcase,
             "include?" => Self::Include,
-            "index" => Self::Index,
+            "index" | "find_index" => Self::Index,
             "rindex" => Self::Rindex,
             "strip" => Self::Strip,
             "split" => Self::Split,
@@ -272,6 +272,7 @@ pub(crate) struct Function {
     pub locals: usize,
     pub code: Vec<Op>,
     pub captures: Vec<Option<Capture>>,
+    pub block_arity: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -352,6 +353,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             locals: c.locals.len(),
             code: c.code,
             captures: Vec::new(),
+            block_arity: 0,
         };
         program.functions[index] = function;
     }
@@ -434,7 +436,7 @@ impl Compiler<'_> {
     }
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
-            Node::Literal(_) => (),
+            Node::Literal(_) | Node::Integer(_) => (),
             Node::Var(name) => {
                 self.reads.insert(name.clone());
                 self.capture_name(name);
@@ -805,6 +807,15 @@ impl Compiler<'_> {
     }
     fn expr(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
+            Node::Integer(n) => {
+                let n = i64::try_from(*n)
+                    .map_err(|_| syntax::unsupported("integer overflow is not implemented"))?;
+                self.constant(Value::int(n));
+            }
+            Node::Unary("-", value) if matches!(value.node, Node::Integer(n) if n == i64::MAX as u64 + 1) =>
+            {
+                self.constant(Value::int(i64::MIN));
+            }
             Node::Literal(v) => self.constant(v.clone()),
             Node::Var(name) if name == "block_given?" => {
                 self.emit(Op::BlockGiven(false, false));
@@ -1040,7 +1051,7 @@ impl Compiler<'_> {
                 self.expr(receiver)?;
             }
             let site = self.call_site(name, auto);
-            if expanded(args) || block.is_some() {
+            if expanded(args) || block.is_some() || crate::iteration::method(name) {
                 self.call_arguments(args)?;
                 if let Some(block) = block {
                     self.emit(Op::Attach(block));
@@ -1104,6 +1115,7 @@ impl Compiler<'_> {
         Ok(())
     }
     fn compile_block(&mut self, block: &Block) -> Result<usize> {
+        let mut block_arity = block.params.len();
         let mut outer = vec![self.locals.clone()];
         outer.extend(self.outer.iter().cloned());
         let mut child = Compiler {
@@ -1138,6 +1150,7 @@ impl Compiler<'_> {
                 .chain(block.infer_it.then_some(("it".to_owned(), 0)));
             for (name, index) in candidates {
                 if child.reads.contains(&name) && !child.assigned.contains(&name) {
+                    block_arity = block_arity.max(index + 1);
                     let slot = child.slot(&name);
                     child.parameters.insert(name);
                     child.emit(Op::Shadow(slot));
@@ -1161,6 +1174,7 @@ impl Compiler<'_> {
             locals: child.locals.len(),
             code: child.code,
             captures,
+            block_arity,
             ..Function::default()
         };
         let index = self.program.functions.len();
@@ -1240,7 +1254,7 @@ impl Compiler<'_> {
 
 fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
     match &expr.node {
-        Node::Literal(_) | Node::Var(_) => (),
+        Node::Literal(_) | Node::Integer(_) | Node::Var(_) => (),
         Node::Call(name, args) => {
             names.insert(name);
             for arg in args {

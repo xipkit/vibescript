@@ -7,7 +7,7 @@ const MAX_SOURCE: usize = 8 << 20;
 #[derive(Clone, Debug, PartialEq)]
 enum Token {
     Word(String),
-    Int(i64),
+    Int(u64),
     Float(f64),
     Bytes(Vec<u8>),
     P(char),
@@ -130,7 +130,7 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
                         return Err(Error::syntax(start, "invalid integer literal"));
                     }
                     Token::Int(
-                        i64::from_str_radix(&text.replace('_', ""), radix)
+                        u64::from_str_radix(&text.replace('_', ""), radix)
                             .map_err(|_| Error::syntax(start, "invalid or overflowing integer"))?,
                     )
                 } else {
@@ -253,6 +253,7 @@ pub(crate) struct Expr {
 }
 #[derive(Debug)]
 pub(crate) enum Node {
+    Integer(u64),
     Literal(Value),
     Var(String),
     Array(Vec<Expr>),
@@ -869,6 +870,13 @@ impl Parser {
                     }
                     nesting -= 1;
                 }
+                Token::Op("=")
+                    if i >= 3
+                        && self.tokens[self.pos + i - 3].token == Token::P(':')
+                        && self.symbol_start(self.pos + i - 3)
+                        && self.tokens[self.pos + i - 2].token == Token::P('[')
+                        && self.tokens[self.pos + i - 1].token == Token::P(']')
+                        && self.tokens[self.pos + i - 1].end == lexeme.offset => {}
                 Token::Op(op) if nesting == 0 && assignment(op) => return true,
                 Token::EndLine if nesting == 0 => {
                     if lexeme.line == lexeme.end_line {
@@ -1039,7 +1047,7 @@ impl Parser {
     // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
     fn prefix(&mut self) -> Result<Expr> {
         Ok(match self.bump() {
-            Token::Int(n) => self.make(Node::Literal(Value::int(n)), 1)?,
+            Token::Int(n) => self.make(Node::Integer(n), 1)?,
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1)?,
             Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1)?,
             Token::Word(w) => match w.as_str() {
@@ -1061,17 +1069,7 @@ impl Parser {
                 _ if reserved(&w) => return self.err("expected expression"),
                 _ => self.make(Node::Var(w), 1)?,
             },
-            Token::P(':') => {
-                if !self.symbol_start(self.pos - 1) {
-                    return self.err("expected symbol");
-                }
-                let bytes = match self.bump() {
-                    Token::Word(w) => w.into_bytes(),
-                    Token::Bytes(b) => b,
-                    _ => return self.err("expected symbol"),
-                };
-                self.make(Node::Literal(Value::symbol(bytes)), 1)?
-            }
+            Token::P(':') => self.symbol()?,
             Token::P('(') => {
                 self.groups += 1;
                 self.lines();
@@ -1130,6 +1128,39 @@ impl Parser {
             }
             _ => return self.err("expected expression"),
         })
+    }
+    fn symbol(&mut self) -> Result<Expr> {
+        if !self.symbol_start(self.pos - 1) {
+            return self.err("expected symbol");
+        }
+        let bytes = match self.bump() {
+            Token::Word(w) => w.into_bytes(),
+            Token::Bytes(b) => b,
+            Token::Op(op) => {
+                if op == "<="
+                    && self.token() == &Token::Op(">")
+                    && self.previous().end == self.tokens[self.pos].offset
+                {
+                    self.bump();
+                    b"<=>".to_vec()
+                } else {
+                    op.as_bytes().to_vec()
+                }
+            }
+            Token::P('[') => {
+                self.expect_p(']')?;
+                if self.token() == &Token::Op("=")
+                    && self.previous().end == self.tokens[self.pos].offset
+                {
+                    self.bump();
+                    b"[]=".to_vec()
+                } else {
+                    b"[]".to_vec()
+                }
+            }
+            _ => return self.err("expected symbol"),
+        };
+        self.make(Node::Literal(Value::symbol(bytes)), 1)
     }
     fn expr_tail(&mut self, mut lhs: Expr, min: u8) -> Result<Expr> {
         loop {
@@ -1542,7 +1573,34 @@ impl Parser {
             return false;
         }
         self.tokens.get(pos + 1).is_some_and(|t| {
-            t.offset == colon.end && matches!(t.token, Token::Word(_) | Token::Bytes(_))
+            t.offset == colon.end
+                && (matches!(t.token, Token::Word(_) | Token::Bytes(_))
+                    || matches!(
+                        t.token,
+                        Token::Op(
+                            "+" | "-"
+                                | "*"
+                                | "/"
+                                | "%"
+                                | "**"
+                                | "<<"
+                                | "<"
+                                | ">"
+                                | "<="
+                                | ">="
+                                | "=="
+                                | "==="
+                                | "!="
+                                | "!"
+                                | "&&"
+                                | "||"
+                        )
+                    )
+                    || (t.token == Token::P('[')
+                        && self
+                            .tokens
+                            .get(pos + 2)
+                            .is_some_and(|end| end.token == Token::P(']') && end.offset == t.end)))
         })
     }
     fn command_arguments(&mut self) -> Result<Vec<Argument>> {
