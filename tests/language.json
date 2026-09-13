@@ -582506,5 +582506,4501 @@
     "name": "array_set_terminators_88",
     "source": "def run(input)\n1 || \n 1\nend",
     "expected": 1
+  },
+  {
+    "name": "hash_shorthand_locals_0",
+    "source": "def run(input)\na=nil;{a:}\nend",
+    "expected": {
+      "a": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_1",
+    "source": "def run(input)\na=nil;{a:,last:7}\nend",
+    "expected": {
+      "a": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_2",
+    "source": "def run(input)\na=nil;{a:\n}\nend",
+    "expected": {
+      "a": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_3",
+    "source": "def run(input)\na=nil;{a:\n,last:7}\nend",
+    "expected": {
+      "a": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_4",
+    "source": "def run(input)\na=nil;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_5",
+    "source": "def run(input)\na=nil;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_6",
+    "source": "def run(input)\na=true;{a:}\nend",
+    "expected": {
+      "a": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_7",
+    "source": "def run(input)\na=true;{a:,last:7}\nend",
+    "expected": {
+      "a": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_8",
+    "source": "def run(input)\na=true;{a:\n}\nend",
+    "expected": {
+      "a": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_9",
+    "source": "def run(input)\na=true;{a:\n,last:7}\nend",
+    "expected": {
+      "a": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_10",
+    "source": "def run(input)\na=true;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_11",
+    "source": "def run(input)\na=true;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_12",
+    "source": "def run(input)\na=false;{a:}\nend",
+    "expected": {
+      "a": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_13",
+    "source": "def run(input)\na=false;{a:,last:7}\nend",
+    "expected": {
+      "a": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_14",
+    "source": "def run(input)\na=false;{a:\n}\nend",
+    "expected": {
+      "a": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_15",
+    "source": "def run(input)\na=false;{a:\n,last:7}\nend",
+    "expected": {
+      "a": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_16",
+    "source": "def run(input)\na=false;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_17",
+    "source": "def run(input)\na=false;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_18",
+    "source": "def run(input)\na=0;{a:}\nend",
+    "expected": {
+      "a": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_19",
+    "source": "def run(input)\na=0;{a:,last:7}\nend",
+    "expected": {
+      "a": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_20",
+    "source": "def run(input)\na=0;{a:\n}\nend",
+    "expected": {
+      "a": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_21",
+    "source": "def run(input)\na=0;{a:\n,last:7}\nend",
+    "expected": {
+      "a": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_22",
+    "source": "def run(input)\na=0;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_23",
+    "source": "def run(input)\na=0;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_24",
+    "source": "def run(input)\na=-1;{a:}\nend",
+    "expected": {
+      "a": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_25",
+    "source": "def run(input)\na=-1;{a:,last:7}\nend",
+    "expected": {
+      "a": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_26",
+    "source": "def run(input)\na=-1;{a:\n}\nend",
+    "expected": {
+      "a": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_27",
+    "source": "def run(input)\na=-1;{a:\n,last:7}\nend",
+    "expected": {
+      "a": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_28",
+    "source": "def run(input)\na=-1;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_29",
+    "source": "def run(input)\na=-1;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_30",
+    "source": "def run(input)\na=1.5;{a:}\nend",
+    "expected": {
+      "a": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_31",
+    "source": "def run(input)\na=1.5;{a:,last:7}\nend",
+    "expected": {
+      "a": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_32",
+    "source": "def run(input)\na=1.5;{a:\n}\nend",
+    "expected": {
+      "a": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_33",
+    "source": "def run(input)\na=1.5;{a:\n,last:7}\nend",
+    "expected": {
+      "a": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_34",
+    "source": "def run(input)\na=1.5;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_35",
+    "source": "def run(input)\na=1.5;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_36",
+    "source": "def run(input)\na=\"é\";{a:}\nend",
+    "expected": {
+      "a": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_37",
+    "source": "def run(input)\na=\"é\";{a:,last:7}\nend",
+    "expected": {
+      "a": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_38",
+    "source": "def run(input)\na=\"é\";{a:\n}\nend",
+    "expected": {
+      "a": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_39",
+    "source": "def run(input)\na=\"é\";{a:\n,last:7}\nend",
+    "expected": {
+      "a": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_40",
+    "source": "def run(input)\na=\"é\";{a:\n# comment\n}\nend",
+    "expected": {
+      "a": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_41",
+    "source": "def run(input)\na=\"é\";{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_42",
+    "source": "def run(input)\na=[1,2];{a:}\nend",
+    "expected": {
+      "a": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_43",
+    "source": "def run(input)\na=[1,2];{a:,last:7}\nend",
+    "expected": {
+      "a": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_44",
+    "source": "def run(input)\na=[1,2];{a:\n}\nend",
+    "expected": {
+      "a": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_45",
+    "source": "def run(input)\na=[1,2];{a:\n,last:7}\nend",
+    "expected": {
+      "a": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_46",
+    "source": "def run(input)\na=[1,2];{a:\n# comment\n}\nend",
+    "expected": {
+      "a": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_47",
+    "source": "def run(input)\na=[1,2];{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_48",
+    "source": "def run(input)\na={x:[1]};{a:}\nend",
+    "expected": {
+      "a": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_49",
+    "source": "def run(input)\na={x:[1]};{a:,last:7}\nend",
+    "expected": {
+      "a": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_50",
+    "source": "def run(input)\na={x:[1]};{a:\n}\nend",
+    "expected": {
+      "a": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_51",
+    "source": "def run(input)\na={x:[1]};{a:\n,last:7}\nend",
+    "expected": {
+      "a": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_52",
+    "source": "def run(input)\na={x:[1]};{a:\n# comment\n}\nend",
+    "expected": {
+      "a": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_53",
+    "source": "def run(input)\na={x:[1]};{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_54",
+    "source": "def run(input)\na=:name;{a:}\nend",
+    "expected": {
+      "a": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_55",
+    "source": "def run(input)\na=:name;{a:,last:7}\nend",
+    "expected": {
+      "a": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_56",
+    "source": "def run(input)\na=:name;{a:\n}\nend",
+    "expected": {
+      "a": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_57",
+    "source": "def run(input)\na=:name;{a:\n,last:7}\nend",
+    "expected": {
+      "a": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_58",
+    "source": "def run(input)\na=:name;{a:\n# comment\n}\nend",
+    "expected": {
+      "a": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_59",
+    "source": "def run(input)\na=:name;{a:\n# comment\n,last:7}\nend",
+    "expected": {
+      "a": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_60",
+    "source": "def run(input)\nname=nil;{name:}\nend",
+    "expected": {
+      "name": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_61",
+    "source": "def run(input)\nname=nil;{name:,last:7}\nend",
+    "expected": {
+      "name": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_62",
+    "source": "def run(input)\nname=nil;{name:\n}\nend",
+    "expected": {
+      "name": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_63",
+    "source": "def run(input)\nname=nil;{name:\n,last:7}\nend",
+    "expected": {
+      "name": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_64",
+    "source": "def run(input)\nname=nil;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_65",
+    "source": "def run(input)\nname=nil;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_66",
+    "source": "def run(input)\nname=true;{name:}\nend",
+    "expected": {
+      "name": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_67",
+    "source": "def run(input)\nname=true;{name:,last:7}\nend",
+    "expected": {
+      "name": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_68",
+    "source": "def run(input)\nname=true;{name:\n}\nend",
+    "expected": {
+      "name": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_69",
+    "source": "def run(input)\nname=true;{name:\n,last:7}\nend",
+    "expected": {
+      "name": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_70",
+    "source": "def run(input)\nname=true;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_71",
+    "source": "def run(input)\nname=true;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_72",
+    "source": "def run(input)\nname=false;{name:}\nend",
+    "expected": {
+      "name": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_73",
+    "source": "def run(input)\nname=false;{name:,last:7}\nend",
+    "expected": {
+      "name": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_74",
+    "source": "def run(input)\nname=false;{name:\n}\nend",
+    "expected": {
+      "name": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_75",
+    "source": "def run(input)\nname=false;{name:\n,last:7}\nend",
+    "expected": {
+      "name": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_76",
+    "source": "def run(input)\nname=false;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_77",
+    "source": "def run(input)\nname=false;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_78",
+    "source": "def run(input)\nname=0;{name:}\nend",
+    "expected": {
+      "name": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_79",
+    "source": "def run(input)\nname=0;{name:,last:7}\nend",
+    "expected": {
+      "name": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_80",
+    "source": "def run(input)\nname=0;{name:\n}\nend",
+    "expected": {
+      "name": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_81",
+    "source": "def run(input)\nname=0;{name:\n,last:7}\nend",
+    "expected": {
+      "name": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_82",
+    "source": "def run(input)\nname=0;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_83",
+    "source": "def run(input)\nname=0;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_84",
+    "source": "def run(input)\nname=-1;{name:}\nend",
+    "expected": {
+      "name": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_85",
+    "source": "def run(input)\nname=-1;{name:,last:7}\nend",
+    "expected": {
+      "name": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_86",
+    "source": "def run(input)\nname=-1;{name:\n}\nend",
+    "expected": {
+      "name": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_87",
+    "source": "def run(input)\nname=-1;{name:\n,last:7}\nend",
+    "expected": {
+      "name": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_88",
+    "source": "def run(input)\nname=-1;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_89",
+    "source": "def run(input)\nname=-1;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_90",
+    "source": "def run(input)\nname=1.5;{name:}\nend",
+    "expected": {
+      "name": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_91",
+    "source": "def run(input)\nname=1.5;{name:,last:7}\nend",
+    "expected": {
+      "name": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_92",
+    "source": "def run(input)\nname=1.5;{name:\n}\nend",
+    "expected": {
+      "name": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_93",
+    "source": "def run(input)\nname=1.5;{name:\n,last:7}\nend",
+    "expected": {
+      "name": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_94",
+    "source": "def run(input)\nname=1.5;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_95",
+    "source": "def run(input)\nname=1.5;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_96",
+    "source": "def run(input)\nname=\"é\";{name:}\nend",
+    "expected": {
+      "name": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_97",
+    "source": "def run(input)\nname=\"é\";{name:,last:7}\nend",
+    "expected": {
+      "name": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_98",
+    "source": "def run(input)\nname=\"é\";{name:\n}\nend",
+    "expected": {
+      "name": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_99",
+    "source": "def run(input)\nname=\"é\";{name:\n,last:7}\nend",
+    "expected": {
+      "name": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_100",
+    "source": "def run(input)\nname=\"é\";{name:\n# comment\n}\nend",
+    "expected": {
+      "name": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_101",
+    "source": "def run(input)\nname=\"é\";{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_102",
+    "source": "def run(input)\nname=[1,2];{name:}\nend",
+    "expected": {
+      "name": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_103",
+    "source": "def run(input)\nname=[1,2];{name:,last:7}\nend",
+    "expected": {
+      "name": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_104",
+    "source": "def run(input)\nname=[1,2];{name:\n}\nend",
+    "expected": {
+      "name": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_105",
+    "source": "def run(input)\nname=[1,2];{name:\n,last:7}\nend",
+    "expected": {
+      "name": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_106",
+    "source": "def run(input)\nname=[1,2];{name:\n# comment\n}\nend",
+    "expected": {
+      "name": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_107",
+    "source": "def run(input)\nname=[1,2];{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_108",
+    "source": "def run(input)\nname={x:[1]};{name:}\nend",
+    "expected": {
+      "name": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_109",
+    "source": "def run(input)\nname={x:[1]};{name:,last:7}\nend",
+    "expected": {
+      "name": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_110",
+    "source": "def run(input)\nname={x:[1]};{name:\n}\nend",
+    "expected": {
+      "name": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_111",
+    "source": "def run(input)\nname={x:[1]};{name:\n,last:7}\nend",
+    "expected": {
+      "name": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_112",
+    "source": "def run(input)\nname={x:[1]};{name:\n# comment\n}\nend",
+    "expected": {
+      "name": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_113",
+    "source": "def run(input)\nname={x:[1]};{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_114",
+    "source": "def run(input)\nname=:name;{name:}\nend",
+    "expected": {
+      "name": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_115",
+    "source": "def run(input)\nname=:name;{name:,last:7}\nend",
+    "expected": {
+      "name": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_116",
+    "source": "def run(input)\nname=:name;{name:\n}\nend",
+    "expected": {
+      "name": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_117",
+    "source": "def run(input)\nname=:name;{name:\n,last:7}\nend",
+    "expected": {
+      "name": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_118",
+    "source": "def run(input)\nname=:name;{name:\n# comment\n}\nend",
+    "expected": {
+      "name": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_119",
+    "source": "def run(input)\nname=:name;{name:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_120",
+    "source": "def run(input)\nvalue_1=nil;{value_1:}\nend",
+    "expected": {
+      "value_1": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_121",
+    "source": "def run(input)\nvalue_1=nil;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_122",
+    "source": "def run(input)\nvalue_1=nil;{value_1:\n}\nend",
+    "expected": {
+      "value_1": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_123",
+    "source": "def run(input)\nvalue_1=nil;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_124",
+    "source": "def run(input)\nvalue_1=nil;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_125",
+    "source": "def run(input)\nvalue_1=nil;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_126",
+    "source": "def run(input)\nvalue_1=true;{value_1:}\nend",
+    "expected": {
+      "value_1": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_127",
+    "source": "def run(input)\nvalue_1=true;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_128",
+    "source": "def run(input)\nvalue_1=true;{value_1:\n}\nend",
+    "expected": {
+      "value_1": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_129",
+    "source": "def run(input)\nvalue_1=true;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_130",
+    "source": "def run(input)\nvalue_1=true;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_131",
+    "source": "def run(input)\nvalue_1=true;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_132",
+    "source": "def run(input)\nvalue_1=false;{value_1:}\nend",
+    "expected": {
+      "value_1": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_133",
+    "source": "def run(input)\nvalue_1=false;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_134",
+    "source": "def run(input)\nvalue_1=false;{value_1:\n}\nend",
+    "expected": {
+      "value_1": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_135",
+    "source": "def run(input)\nvalue_1=false;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_136",
+    "source": "def run(input)\nvalue_1=false;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_137",
+    "source": "def run(input)\nvalue_1=false;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_138",
+    "source": "def run(input)\nvalue_1=0;{value_1:}\nend",
+    "expected": {
+      "value_1": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_139",
+    "source": "def run(input)\nvalue_1=0;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_140",
+    "source": "def run(input)\nvalue_1=0;{value_1:\n}\nend",
+    "expected": {
+      "value_1": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_141",
+    "source": "def run(input)\nvalue_1=0;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_142",
+    "source": "def run(input)\nvalue_1=0;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_143",
+    "source": "def run(input)\nvalue_1=0;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_144",
+    "source": "def run(input)\nvalue_1=-1;{value_1:}\nend",
+    "expected": {
+      "value_1": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_145",
+    "source": "def run(input)\nvalue_1=-1;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_146",
+    "source": "def run(input)\nvalue_1=-1;{value_1:\n}\nend",
+    "expected": {
+      "value_1": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_147",
+    "source": "def run(input)\nvalue_1=-1;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_148",
+    "source": "def run(input)\nvalue_1=-1;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_149",
+    "source": "def run(input)\nvalue_1=-1;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_150",
+    "source": "def run(input)\nvalue_1=1.5;{value_1:}\nend",
+    "expected": {
+      "value_1": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_151",
+    "source": "def run(input)\nvalue_1=1.5;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_152",
+    "source": "def run(input)\nvalue_1=1.5;{value_1:\n}\nend",
+    "expected": {
+      "value_1": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_153",
+    "source": "def run(input)\nvalue_1=1.5;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_154",
+    "source": "def run(input)\nvalue_1=1.5;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_155",
+    "source": "def run(input)\nvalue_1=1.5;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_156",
+    "source": "def run(input)\nvalue_1=\"é\";{value_1:}\nend",
+    "expected": {
+      "value_1": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_157",
+    "source": "def run(input)\nvalue_1=\"é\";{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_158",
+    "source": "def run(input)\nvalue_1=\"é\";{value_1:\n}\nend",
+    "expected": {
+      "value_1": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_159",
+    "source": "def run(input)\nvalue_1=\"é\";{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_160",
+    "source": "def run(input)\nvalue_1=\"é\";{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_161",
+    "source": "def run(input)\nvalue_1=\"é\";{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_162",
+    "source": "def run(input)\nvalue_1=[1,2];{value_1:}\nend",
+    "expected": {
+      "value_1": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_163",
+    "source": "def run(input)\nvalue_1=[1,2];{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_164",
+    "source": "def run(input)\nvalue_1=[1,2];{value_1:\n}\nend",
+    "expected": {
+      "value_1": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_165",
+    "source": "def run(input)\nvalue_1=[1,2];{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_166",
+    "source": "def run(input)\nvalue_1=[1,2];{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_167",
+    "source": "def run(input)\nvalue_1=[1,2];{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_168",
+    "source": "def run(input)\nvalue_1={x:[1]};{value_1:}\nend",
+    "expected": {
+      "value_1": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_169",
+    "source": "def run(input)\nvalue_1={x:[1]};{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_170",
+    "source": "def run(input)\nvalue_1={x:[1]};{value_1:\n}\nend",
+    "expected": {
+      "value_1": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_171",
+    "source": "def run(input)\nvalue_1={x:[1]};{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_172",
+    "source": "def run(input)\nvalue_1={x:[1]};{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_173",
+    "source": "def run(input)\nvalue_1={x:[1]};{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_174",
+    "source": "def run(input)\nvalue_1=:name;{value_1:}\nend",
+    "expected": {
+      "value_1": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_175",
+    "source": "def run(input)\nvalue_1=:name;{value_1:,last:7}\nend",
+    "expected": {
+      "value_1": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_176",
+    "source": "def run(input)\nvalue_1=:name;{value_1:\n}\nend",
+    "expected": {
+      "value_1": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_177",
+    "source": "def run(input)\nvalue_1=:name;{value_1:\n,last:7}\nend",
+    "expected": {
+      "value_1": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_178",
+    "source": "def run(input)\nvalue_1=:name;{value_1:\n# comment\n}\nend",
+    "expected": {
+      "value_1": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_179",
+    "source": "def run(input)\nvalue_1=:name;{value_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "value_1": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_180",
+    "source": "def run(input)\n_value=nil;{_value:}\nend",
+    "expected": {
+      "_value": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_181",
+    "source": "def run(input)\n_value=nil;{_value:,last:7}\nend",
+    "expected": {
+      "_value": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_182",
+    "source": "def run(input)\n_value=nil;{_value:\n}\nend",
+    "expected": {
+      "_value": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_183",
+    "source": "def run(input)\n_value=nil;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_184",
+    "source": "def run(input)\n_value=nil;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_185",
+    "source": "def run(input)\n_value=nil;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_186",
+    "source": "def run(input)\n_value=true;{_value:}\nend",
+    "expected": {
+      "_value": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_187",
+    "source": "def run(input)\n_value=true;{_value:,last:7}\nend",
+    "expected": {
+      "_value": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_188",
+    "source": "def run(input)\n_value=true;{_value:\n}\nend",
+    "expected": {
+      "_value": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_189",
+    "source": "def run(input)\n_value=true;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_190",
+    "source": "def run(input)\n_value=true;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_191",
+    "source": "def run(input)\n_value=true;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_192",
+    "source": "def run(input)\n_value=false;{_value:}\nend",
+    "expected": {
+      "_value": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_193",
+    "source": "def run(input)\n_value=false;{_value:,last:7}\nend",
+    "expected": {
+      "_value": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_194",
+    "source": "def run(input)\n_value=false;{_value:\n}\nend",
+    "expected": {
+      "_value": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_195",
+    "source": "def run(input)\n_value=false;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_196",
+    "source": "def run(input)\n_value=false;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_197",
+    "source": "def run(input)\n_value=false;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_198",
+    "source": "def run(input)\n_value=0;{_value:}\nend",
+    "expected": {
+      "_value": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_199",
+    "source": "def run(input)\n_value=0;{_value:,last:7}\nend",
+    "expected": {
+      "_value": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_200",
+    "source": "def run(input)\n_value=0;{_value:\n}\nend",
+    "expected": {
+      "_value": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_201",
+    "source": "def run(input)\n_value=0;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_202",
+    "source": "def run(input)\n_value=0;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_203",
+    "source": "def run(input)\n_value=0;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_204",
+    "source": "def run(input)\n_value=-1;{_value:}\nend",
+    "expected": {
+      "_value": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_205",
+    "source": "def run(input)\n_value=-1;{_value:,last:7}\nend",
+    "expected": {
+      "_value": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_206",
+    "source": "def run(input)\n_value=-1;{_value:\n}\nend",
+    "expected": {
+      "_value": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_207",
+    "source": "def run(input)\n_value=-1;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_208",
+    "source": "def run(input)\n_value=-1;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_209",
+    "source": "def run(input)\n_value=-1;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_210",
+    "source": "def run(input)\n_value=1.5;{_value:}\nend",
+    "expected": {
+      "_value": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_211",
+    "source": "def run(input)\n_value=1.5;{_value:,last:7}\nend",
+    "expected": {
+      "_value": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_212",
+    "source": "def run(input)\n_value=1.5;{_value:\n}\nend",
+    "expected": {
+      "_value": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_213",
+    "source": "def run(input)\n_value=1.5;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_214",
+    "source": "def run(input)\n_value=1.5;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_215",
+    "source": "def run(input)\n_value=1.5;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_216",
+    "source": "def run(input)\n_value=\"é\";{_value:}\nend",
+    "expected": {
+      "_value": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_217",
+    "source": "def run(input)\n_value=\"é\";{_value:,last:7}\nend",
+    "expected": {
+      "_value": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_218",
+    "source": "def run(input)\n_value=\"é\";{_value:\n}\nend",
+    "expected": {
+      "_value": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_219",
+    "source": "def run(input)\n_value=\"é\";{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_220",
+    "source": "def run(input)\n_value=\"é\";{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_221",
+    "source": "def run(input)\n_value=\"é\";{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_222",
+    "source": "def run(input)\n_value=[1,2];{_value:}\nend",
+    "expected": {
+      "_value": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_223",
+    "source": "def run(input)\n_value=[1,2];{_value:,last:7}\nend",
+    "expected": {
+      "_value": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_224",
+    "source": "def run(input)\n_value=[1,2];{_value:\n}\nend",
+    "expected": {
+      "_value": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_225",
+    "source": "def run(input)\n_value=[1,2];{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_226",
+    "source": "def run(input)\n_value=[1,2];{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_227",
+    "source": "def run(input)\n_value=[1,2];{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_228",
+    "source": "def run(input)\n_value={x:[1]};{_value:}\nend",
+    "expected": {
+      "_value": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_229",
+    "source": "def run(input)\n_value={x:[1]};{_value:,last:7}\nend",
+    "expected": {
+      "_value": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_230",
+    "source": "def run(input)\n_value={x:[1]};{_value:\n}\nend",
+    "expected": {
+      "_value": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_231",
+    "source": "def run(input)\n_value={x:[1]};{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_232",
+    "source": "def run(input)\n_value={x:[1]};{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_233",
+    "source": "def run(input)\n_value={x:[1]};{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_234",
+    "source": "def run(input)\n_value=:name;{_value:}\nend",
+    "expected": {
+      "_value": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_235",
+    "source": "def run(input)\n_value=:name;{_value:,last:7}\nend",
+    "expected": {
+      "_value": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_236",
+    "source": "def run(input)\n_value=:name;{_value:\n}\nend",
+    "expected": {
+      "_value": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_237",
+    "source": "def run(input)\n_value=:name;{_value:\n,last:7}\nend",
+    "expected": {
+      "_value": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_238",
+    "source": "def run(input)\n_value=:name;{_value:\n# comment\n}\nend",
+    "expected": {
+      "_value": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_239",
+    "source": "def run(input)\n_value=:name;{_value:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_value": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_240",
+    "source": "def run(input)\nname?=nil;{name?:}\nend",
+    "expected": {
+      "name?": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_241",
+    "source": "def run(input)\nname?=nil;{name?:,last:7}\nend",
+    "expected": {
+      "name?": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_242",
+    "source": "def run(input)\nname?=nil;{name?:\n}\nend",
+    "expected": {
+      "name?": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_243",
+    "source": "def run(input)\nname?=nil;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_244",
+    "source": "def run(input)\nname?=nil;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_245",
+    "source": "def run(input)\nname?=nil;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_246",
+    "source": "def run(input)\nname?=true;{name?:}\nend",
+    "expected": {
+      "name?": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_247",
+    "source": "def run(input)\nname?=true;{name?:,last:7}\nend",
+    "expected": {
+      "name?": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_248",
+    "source": "def run(input)\nname?=true;{name?:\n}\nend",
+    "expected": {
+      "name?": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_249",
+    "source": "def run(input)\nname?=true;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_250",
+    "source": "def run(input)\nname?=true;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_251",
+    "source": "def run(input)\nname?=true;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_252",
+    "source": "def run(input)\nname?=false;{name?:}\nend",
+    "expected": {
+      "name?": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_253",
+    "source": "def run(input)\nname?=false;{name?:,last:7}\nend",
+    "expected": {
+      "name?": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_254",
+    "source": "def run(input)\nname?=false;{name?:\n}\nend",
+    "expected": {
+      "name?": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_255",
+    "source": "def run(input)\nname?=false;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_256",
+    "source": "def run(input)\nname?=false;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_257",
+    "source": "def run(input)\nname?=false;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_258",
+    "source": "def run(input)\nname?=0;{name?:}\nend",
+    "expected": {
+      "name?": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_259",
+    "source": "def run(input)\nname?=0;{name?:,last:7}\nend",
+    "expected": {
+      "name?": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_260",
+    "source": "def run(input)\nname?=0;{name?:\n}\nend",
+    "expected": {
+      "name?": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_261",
+    "source": "def run(input)\nname?=0;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_262",
+    "source": "def run(input)\nname?=0;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_263",
+    "source": "def run(input)\nname?=0;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_264",
+    "source": "def run(input)\nname?=-1;{name?:}\nend",
+    "expected": {
+      "name?": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_265",
+    "source": "def run(input)\nname?=-1;{name?:,last:7}\nend",
+    "expected": {
+      "name?": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_266",
+    "source": "def run(input)\nname?=-1;{name?:\n}\nend",
+    "expected": {
+      "name?": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_267",
+    "source": "def run(input)\nname?=-1;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_268",
+    "source": "def run(input)\nname?=-1;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_269",
+    "source": "def run(input)\nname?=-1;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_270",
+    "source": "def run(input)\nname?=1.5;{name?:}\nend",
+    "expected": {
+      "name?": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_271",
+    "source": "def run(input)\nname?=1.5;{name?:,last:7}\nend",
+    "expected": {
+      "name?": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_272",
+    "source": "def run(input)\nname?=1.5;{name?:\n}\nend",
+    "expected": {
+      "name?": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_273",
+    "source": "def run(input)\nname?=1.5;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_274",
+    "source": "def run(input)\nname?=1.5;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_275",
+    "source": "def run(input)\nname?=1.5;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_276",
+    "source": "def run(input)\nname?=\"é\";{name?:}\nend",
+    "expected": {
+      "name?": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_277",
+    "source": "def run(input)\nname?=\"é\";{name?:,last:7}\nend",
+    "expected": {
+      "name?": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_278",
+    "source": "def run(input)\nname?=\"é\";{name?:\n}\nend",
+    "expected": {
+      "name?": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_279",
+    "source": "def run(input)\nname?=\"é\";{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_280",
+    "source": "def run(input)\nname?=\"é\";{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_281",
+    "source": "def run(input)\nname?=\"é\";{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_282",
+    "source": "def run(input)\nname?=[1,2];{name?:}\nend",
+    "expected": {
+      "name?": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_283",
+    "source": "def run(input)\nname?=[1,2];{name?:,last:7}\nend",
+    "expected": {
+      "name?": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_284",
+    "source": "def run(input)\nname?=[1,2];{name?:\n}\nend",
+    "expected": {
+      "name?": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_285",
+    "source": "def run(input)\nname?=[1,2];{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_286",
+    "source": "def run(input)\nname?=[1,2];{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_287",
+    "source": "def run(input)\nname?=[1,2];{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_288",
+    "source": "def run(input)\nname?={x:[1]};{name?:}\nend",
+    "expected": {
+      "name?": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_289",
+    "source": "def run(input)\nname?={x:[1]};{name?:,last:7}\nend",
+    "expected": {
+      "name?": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_290",
+    "source": "def run(input)\nname?={x:[1]};{name?:\n}\nend",
+    "expected": {
+      "name?": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_291",
+    "source": "def run(input)\nname?={x:[1]};{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_292",
+    "source": "def run(input)\nname?={x:[1]};{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_293",
+    "source": "def run(input)\nname?={x:[1]};{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_294",
+    "source": "def run(input)\nname?=:name;{name?:}\nend",
+    "expected": {
+      "name?": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_295",
+    "source": "def run(input)\nname?=:name;{name?:,last:7}\nend",
+    "expected": {
+      "name?": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_296",
+    "source": "def run(input)\nname?=:name;{name?:\n}\nend",
+    "expected": {
+      "name?": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_297",
+    "source": "def run(input)\nname?=:name;{name?:\n,last:7}\nend",
+    "expected": {
+      "name?": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_298",
+    "source": "def run(input)\nname?=:name;{name?:\n# comment\n}\nend",
+    "expected": {
+      "name?": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_299",
+    "source": "def run(input)\nname?=:name;{name?:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name?": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_300",
+    "source": "def run(input)\nname!=nil;{name!:}\nend",
+    "expected": {
+      "name!": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_301",
+    "source": "def run(input)\nname!=nil;{name!:,last:7}\nend",
+    "expected": {
+      "name!": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_302",
+    "source": "def run(input)\nname!=nil;{name!:\n}\nend",
+    "expected": {
+      "name!": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_303",
+    "source": "def run(input)\nname!=nil;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_304",
+    "source": "def run(input)\nname!=nil;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_305",
+    "source": "def run(input)\nname!=nil;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_306",
+    "source": "def run(input)\nname!=true;{name!:}\nend",
+    "expected": {
+      "name!": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_307",
+    "source": "def run(input)\nname!=true;{name!:,last:7}\nend",
+    "expected": {
+      "name!": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_308",
+    "source": "def run(input)\nname!=true;{name!:\n}\nend",
+    "expected": {
+      "name!": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_309",
+    "source": "def run(input)\nname!=true;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_310",
+    "source": "def run(input)\nname!=true;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_311",
+    "source": "def run(input)\nname!=true;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_312",
+    "source": "def run(input)\nname!=false;{name!:}\nend",
+    "expected": {
+      "name!": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_313",
+    "source": "def run(input)\nname!=false;{name!:,last:7}\nend",
+    "expected": {
+      "name!": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_314",
+    "source": "def run(input)\nname!=false;{name!:\n}\nend",
+    "expected": {
+      "name!": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_315",
+    "source": "def run(input)\nname!=false;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_316",
+    "source": "def run(input)\nname!=false;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_317",
+    "source": "def run(input)\nname!=false;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_318",
+    "source": "def run(input)\nname!=0;{name!:}\nend",
+    "expected": {
+      "name!": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_319",
+    "source": "def run(input)\nname!=0;{name!:,last:7}\nend",
+    "expected": {
+      "name!": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_320",
+    "source": "def run(input)\nname!=0;{name!:\n}\nend",
+    "expected": {
+      "name!": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_321",
+    "source": "def run(input)\nname!=0;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_322",
+    "source": "def run(input)\nname!=0;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_323",
+    "source": "def run(input)\nname!=0;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_324",
+    "source": "def run(input)\nname!=-1;{name!:}\nend",
+    "expected": {
+      "name!": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_325",
+    "source": "def run(input)\nname!=-1;{name!:,last:7}\nend",
+    "expected": {
+      "name!": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_326",
+    "source": "def run(input)\nname!=-1;{name!:\n}\nend",
+    "expected": {
+      "name!": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_327",
+    "source": "def run(input)\nname!=-1;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_328",
+    "source": "def run(input)\nname!=-1;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_329",
+    "source": "def run(input)\nname!=-1;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_330",
+    "source": "def run(input)\nname!=1.5;{name!:}\nend",
+    "expected": {
+      "name!": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_331",
+    "source": "def run(input)\nname!=1.5;{name!:,last:7}\nend",
+    "expected": {
+      "name!": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_332",
+    "source": "def run(input)\nname!=1.5;{name!:\n}\nend",
+    "expected": {
+      "name!": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_333",
+    "source": "def run(input)\nname!=1.5;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_334",
+    "source": "def run(input)\nname!=1.5;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_335",
+    "source": "def run(input)\nname!=1.5;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_336",
+    "source": "def run(input)\nname!=\"é\";{name!:}\nend",
+    "expected": {
+      "name!": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_337",
+    "source": "def run(input)\nname!=\"é\";{name!:,last:7}\nend",
+    "expected": {
+      "name!": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_338",
+    "source": "def run(input)\nname!=\"é\";{name!:\n}\nend",
+    "expected": {
+      "name!": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_339",
+    "source": "def run(input)\nname!=\"é\";{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_340",
+    "source": "def run(input)\nname!=\"é\";{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_341",
+    "source": "def run(input)\nname!=\"é\";{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_342",
+    "source": "def run(input)\nname!=[1,2];{name!:}\nend",
+    "expected": {
+      "name!": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_343",
+    "source": "def run(input)\nname!=[1,2];{name!:,last:7}\nend",
+    "expected": {
+      "name!": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_344",
+    "source": "def run(input)\nname!=[1,2];{name!:\n}\nend",
+    "expected": {
+      "name!": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_345",
+    "source": "def run(input)\nname!=[1,2];{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_346",
+    "source": "def run(input)\nname!=[1,2];{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_347",
+    "source": "def run(input)\nname!=[1,2];{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_348",
+    "source": "def run(input)\nname!={x:[1]};{name!:}\nend",
+    "expected": {
+      "name!": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_349",
+    "source": "def run(input)\nname!={x:[1]};{name!:,last:7}\nend",
+    "expected": {
+      "name!": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_350",
+    "source": "def run(input)\nname!={x:[1]};{name!:\n}\nend",
+    "expected": {
+      "name!": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_351",
+    "source": "def run(input)\nname!={x:[1]};{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_352",
+    "source": "def run(input)\nname!={x:[1]};{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_353",
+    "source": "def run(input)\nname!={x:[1]};{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_354",
+    "source": "def run(input)\nname!=:name;{name!:}\nend",
+    "expected": {
+      "name!": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_355",
+    "source": "def run(input)\nname!=:name;{name!:,last:7}\nend",
+    "expected": {
+      "name!": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_356",
+    "source": "def run(input)\nname!=:name;{name!:\n}\nend",
+    "expected": {
+      "name!": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_357",
+    "source": "def run(input)\nname!=:name;{name!:\n,last:7}\nend",
+    "expected": {
+      "name!": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_358",
+    "source": "def run(input)\nname!=:name;{name!:\n# comment\n}\nend",
+    "expected": {
+      "name!": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_359",
+    "source": "def run(input)\nname!=:name;{name!:\n# comment\n,last:7}\nend",
+    "expected": {
+      "name!": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_360",
+    "source": "def run(input)\nit=nil;{it:}\nend",
+    "expected": {
+      "it": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_361",
+    "source": "def run(input)\nit=nil;{it:,last:7}\nend",
+    "expected": {
+      "it": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_362",
+    "source": "def run(input)\nit=nil;{it:\n}\nend",
+    "expected": {
+      "it": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_363",
+    "source": "def run(input)\nit=nil;{it:\n,last:7}\nend",
+    "expected": {
+      "it": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_364",
+    "source": "def run(input)\nit=nil;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_365",
+    "source": "def run(input)\nit=nil;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_366",
+    "source": "def run(input)\nit=true;{it:}\nend",
+    "expected": {
+      "it": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_367",
+    "source": "def run(input)\nit=true;{it:,last:7}\nend",
+    "expected": {
+      "it": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_368",
+    "source": "def run(input)\nit=true;{it:\n}\nend",
+    "expected": {
+      "it": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_369",
+    "source": "def run(input)\nit=true;{it:\n,last:7}\nend",
+    "expected": {
+      "it": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_370",
+    "source": "def run(input)\nit=true;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_371",
+    "source": "def run(input)\nit=true;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_372",
+    "source": "def run(input)\nit=false;{it:}\nend",
+    "expected": {
+      "it": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_373",
+    "source": "def run(input)\nit=false;{it:,last:7}\nend",
+    "expected": {
+      "it": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_374",
+    "source": "def run(input)\nit=false;{it:\n}\nend",
+    "expected": {
+      "it": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_375",
+    "source": "def run(input)\nit=false;{it:\n,last:7}\nend",
+    "expected": {
+      "it": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_376",
+    "source": "def run(input)\nit=false;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_377",
+    "source": "def run(input)\nit=false;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_378",
+    "source": "def run(input)\nit=0;{it:}\nend",
+    "expected": {
+      "it": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_379",
+    "source": "def run(input)\nit=0;{it:,last:7}\nend",
+    "expected": {
+      "it": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_380",
+    "source": "def run(input)\nit=0;{it:\n}\nend",
+    "expected": {
+      "it": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_381",
+    "source": "def run(input)\nit=0;{it:\n,last:7}\nend",
+    "expected": {
+      "it": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_382",
+    "source": "def run(input)\nit=0;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_383",
+    "source": "def run(input)\nit=0;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_384",
+    "source": "def run(input)\nit=-1;{it:}\nend",
+    "expected": {
+      "it": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_385",
+    "source": "def run(input)\nit=-1;{it:,last:7}\nend",
+    "expected": {
+      "it": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_386",
+    "source": "def run(input)\nit=-1;{it:\n}\nend",
+    "expected": {
+      "it": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_387",
+    "source": "def run(input)\nit=-1;{it:\n,last:7}\nend",
+    "expected": {
+      "it": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_388",
+    "source": "def run(input)\nit=-1;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_389",
+    "source": "def run(input)\nit=-1;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_390",
+    "source": "def run(input)\nit=1.5;{it:}\nend",
+    "expected": {
+      "it": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_391",
+    "source": "def run(input)\nit=1.5;{it:,last:7}\nend",
+    "expected": {
+      "it": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_392",
+    "source": "def run(input)\nit=1.5;{it:\n}\nend",
+    "expected": {
+      "it": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_393",
+    "source": "def run(input)\nit=1.5;{it:\n,last:7}\nend",
+    "expected": {
+      "it": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_394",
+    "source": "def run(input)\nit=1.5;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_395",
+    "source": "def run(input)\nit=1.5;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_396",
+    "source": "def run(input)\nit=\"é\";{it:}\nend",
+    "expected": {
+      "it": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_397",
+    "source": "def run(input)\nit=\"é\";{it:,last:7}\nend",
+    "expected": {
+      "it": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_398",
+    "source": "def run(input)\nit=\"é\";{it:\n}\nend",
+    "expected": {
+      "it": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_399",
+    "source": "def run(input)\nit=\"é\";{it:\n,last:7}\nend",
+    "expected": {
+      "it": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_400",
+    "source": "def run(input)\nit=\"é\";{it:\n# comment\n}\nend",
+    "expected": {
+      "it": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_401",
+    "source": "def run(input)\nit=\"é\";{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_402",
+    "source": "def run(input)\nit=[1,2];{it:}\nend",
+    "expected": {
+      "it": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_403",
+    "source": "def run(input)\nit=[1,2];{it:,last:7}\nend",
+    "expected": {
+      "it": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_404",
+    "source": "def run(input)\nit=[1,2];{it:\n}\nend",
+    "expected": {
+      "it": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_405",
+    "source": "def run(input)\nit=[1,2];{it:\n,last:7}\nend",
+    "expected": {
+      "it": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_406",
+    "source": "def run(input)\nit=[1,2];{it:\n# comment\n}\nend",
+    "expected": {
+      "it": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_407",
+    "source": "def run(input)\nit=[1,2];{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_408",
+    "source": "def run(input)\nit={x:[1]};{it:}\nend",
+    "expected": {
+      "it": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_409",
+    "source": "def run(input)\nit={x:[1]};{it:,last:7}\nend",
+    "expected": {
+      "it": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_410",
+    "source": "def run(input)\nit={x:[1]};{it:\n}\nend",
+    "expected": {
+      "it": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_411",
+    "source": "def run(input)\nit={x:[1]};{it:\n,last:7}\nend",
+    "expected": {
+      "it": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_412",
+    "source": "def run(input)\nit={x:[1]};{it:\n# comment\n}\nend",
+    "expected": {
+      "it": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_413",
+    "source": "def run(input)\nit={x:[1]};{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_414",
+    "source": "def run(input)\nit=:name;{it:}\nend",
+    "expected": {
+      "it": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_415",
+    "source": "def run(input)\nit=:name;{it:,last:7}\nend",
+    "expected": {
+      "it": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_416",
+    "source": "def run(input)\nit=:name;{it:\n}\nend",
+    "expected": {
+      "it": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_417",
+    "source": "def run(input)\nit=:name;{it:\n,last:7}\nend",
+    "expected": {
+      "it": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_418",
+    "source": "def run(input)\nit=:name;{it:\n# comment\n}\nend",
+    "expected": {
+      "it": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_419",
+    "source": "def run(input)\nit=:name;{it:\n# comment\n,last:7}\nend",
+    "expected": {
+      "it": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_420",
+    "source": "def run(input)\n_1=nil;{_1:}\nend",
+    "expected": {
+      "_1": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_421",
+    "source": "def run(input)\n_1=nil;{_1:,last:7}\nend",
+    "expected": {
+      "_1": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_422",
+    "source": "def run(input)\n_1=nil;{_1:\n}\nend",
+    "expected": {
+      "_1": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_423",
+    "source": "def run(input)\n_1=nil;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_424",
+    "source": "def run(input)\n_1=nil;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": null
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_425",
+    "source": "def run(input)\n_1=nil;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": null,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_426",
+    "source": "def run(input)\n_1=true;{_1:}\nend",
+    "expected": {
+      "_1": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_427",
+    "source": "def run(input)\n_1=true;{_1:,last:7}\nend",
+    "expected": {
+      "_1": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_428",
+    "source": "def run(input)\n_1=true;{_1:\n}\nend",
+    "expected": {
+      "_1": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_429",
+    "source": "def run(input)\n_1=true;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_430",
+    "source": "def run(input)\n_1=true;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": true
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_431",
+    "source": "def run(input)\n_1=true;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": true,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_432",
+    "source": "def run(input)\n_1=false;{_1:}\nend",
+    "expected": {
+      "_1": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_433",
+    "source": "def run(input)\n_1=false;{_1:,last:7}\nend",
+    "expected": {
+      "_1": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_434",
+    "source": "def run(input)\n_1=false;{_1:\n}\nend",
+    "expected": {
+      "_1": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_435",
+    "source": "def run(input)\n_1=false;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_436",
+    "source": "def run(input)\n_1=false;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": false
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_437",
+    "source": "def run(input)\n_1=false;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": false,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_438",
+    "source": "def run(input)\n_1=0;{_1:}\nend",
+    "expected": {
+      "_1": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_439",
+    "source": "def run(input)\n_1=0;{_1:,last:7}\nend",
+    "expected": {
+      "_1": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_440",
+    "source": "def run(input)\n_1=0;{_1:\n}\nend",
+    "expected": {
+      "_1": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_441",
+    "source": "def run(input)\n_1=0;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_442",
+    "source": "def run(input)\n_1=0;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": 0
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_443",
+    "source": "def run(input)\n_1=0;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": 0,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_444",
+    "source": "def run(input)\n_1=-1;{_1:}\nend",
+    "expected": {
+      "_1": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_445",
+    "source": "def run(input)\n_1=-1;{_1:,last:7}\nend",
+    "expected": {
+      "_1": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_446",
+    "source": "def run(input)\n_1=-1;{_1:\n}\nend",
+    "expected": {
+      "_1": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_447",
+    "source": "def run(input)\n_1=-1;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_448",
+    "source": "def run(input)\n_1=-1;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": -1
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_449",
+    "source": "def run(input)\n_1=-1;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": -1,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_450",
+    "source": "def run(input)\n_1=1.5;{_1:}\nend",
+    "expected": {
+      "_1": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_451",
+    "source": "def run(input)\n_1=1.5;{_1:,last:7}\nend",
+    "expected": {
+      "_1": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_452",
+    "source": "def run(input)\n_1=1.5;{_1:\n}\nend",
+    "expected": {
+      "_1": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_453",
+    "source": "def run(input)\n_1=1.5;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_454",
+    "source": "def run(input)\n_1=1.5;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": 1.5
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_455",
+    "source": "def run(input)\n_1=1.5;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": 1.5,
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_456",
+    "source": "def run(input)\n_1=\"é\";{_1:}\nend",
+    "expected": {
+      "_1": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_457",
+    "source": "def run(input)\n_1=\"é\";{_1:,last:7}\nend",
+    "expected": {
+      "_1": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_458",
+    "source": "def run(input)\n_1=\"é\";{_1:\n}\nend",
+    "expected": {
+      "_1": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_459",
+    "source": "def run(input)\n_1=\"é\";{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_460",
+    "source": "def run(input)\n_1=\"é\";{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": "é"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_461",
+    "source": "def run(input)\n_1=\"é\";{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": "é",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_462",
+    "source": "def run(input)\n_1=[1,2];{_1:}\nend",
+    "expected": {
+      "_1": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_463",
+    "source": "def run(input)\n_1=[1,2];{_1:,last:7}\nend",
+    "expected": {
+      "_1": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_464",
+    "source": "def run(input)\n_1=[1,2];{_1:\n}\nend",
+    "expected": {
+      "_1": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_465",
+    "source": "def run(input)\n_1=[1,2];{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_466",
+    "source": "def run(input)\n_1=[1,2];{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_467",
+    "source": "def run(input)\n_1=[1,2];{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": [
+        1,
+        2
+      ],
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_468",
+    "source": "def run(input)\n_1={x:[1]};{_1:}\nend",
+    "expected": {
+      "_1": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_469",
+    "source": "def run(input)\n_1={x:[1]};{_1:,last:7}\nend",
+    "expected": {
+      "_1": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_470",
+    "source": "def run(input)\n_1={x:[1]};{_1:\n}\nend",
+    "expected": {
+      "_1": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_471",
+    "source": "def run(input)\n_1={x:[1]};{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_472",
+    "source": "def run(input)\n_1={x:[1]};{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": {
+        "x": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_473",
+    "source": "def run(input)\n_1={x:[1]};{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": {
+        "x": [
+          1
+        ]
+      },
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_474",
+    "source": "def run(input)\n_1=:name;{_1:}\nend",
+    "expected": {
+      "_1": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_475",
+    "source": "def run(input)\n_1=:name;{_1:,last:7}\nend",
+    "expected": {
+      "_1": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_476",
+    "source": "def run(input)\n_1=:name;{_1:\n}\nend",
+    "expected": {
+      "_1": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_477",
+    "source": "def run(input)\n_1=:name;{_1:\n,last:7}\nend",
+    "expected": {
+      "_1": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_478",
+    "source": "def run(input)\n_1=:name;{_1:\n# comment\n}\nend",
+    "expected": {
+      "_1": "name"
+    }
+  },
+  {
+    "name": "hash_shorthand_locals_479",
+    "source": "def run(input)\n_1=:name;{_1:\n# comment\n,last:7}\nend",
+    "expected": {
+      "_1": "name",
+      "last": 7
+    }
+  },
+  {
+    "name": "hash_shorthand_names_58",
+    "source": "def run(input)\n{block_given?:}\nend",
+    "expected": {
+      "block_given?": false
+    }
+  },
+  {
+    "name": "hash_shorthand_names_59",
+    "source": "def run(input)\n{block_given?:}.keys\nend",
+    "expected": [
+      "block_given?"
+    ]
+  },
+  {
+    "name": "hash_shorthand_names_61",
+    "source": "def run(input)\n{Time:}.keys\nend",
+    "expected": [
+      "Time"
+    ]
+  },
+  {
+    "name": "hash_shorthand_names_63",
+    "source": "def run(input)\n{Math:}.keys\nend",
+    "expected": [
+      "Math"
+    ]
+  },
+  {
+    "name": "hash_shorthand_names_65",
+    "source": "def run(input)\n{JSON:}.keys\nend",
+    "expected": [
+      "JSON"
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_1",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\nname=2;{name:}\nend",
+    "expected": {
+      "name": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_2",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\nif false;name=2;end;{name:}\nend",
+    "expected": {
+      "name": null
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_4",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n{block_given?:}\nend",
+    "expected": {
+      "block_given?": false
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_5",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\ncollect\nend",
+    "expected": {
+      "block_given?": false
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_6",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\ncollect{3}\nend",
+    "expected": {
+      "block_given?": true
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_7",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\nname=4;pack(value:{name:})\nend",
+    "expected": {
+      "value": {
+        "name": 4
+      }
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_8",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na,b=[1,2];{a:,b:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_9",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[1,2].map{|x|{x:}}\nend",
+    "expected": [
+      {
+        "x": 1
+      },
+      {
+        "x": 2
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_10",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[1,2].map{{it:}}\nend",
+    "expected": [
+      {
+        "it": 1
+      },
+      {
+        "it": 2
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_11",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[1,2].map{{_1:}}\nend",
+    "expected": [
+      {
+        "_1": 1
+      },
+      {
+        "_1": 2
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_12",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[[1,2]].map{{_1:,_2:}}\nend",
+    "expected": [
+      {
+        "_1": [
+          1,
+          2
+        ],
+        "_2": null
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_14",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[1].map{|it|{it:}}\nend",
+    "expected": [
+      {
+        "it": 1
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_15",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=[1];old=a;h={a:,updated:a.push(2)};[a,old,h]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        1
+      ],
+      {
+        "a": [
+          1
+        ],
+        "updated": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_16",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=[1];h={a:,updated:a.push(2)};[a,h]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      {
+        "a": [
+          1
+        ],
+        "updated": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "name": "hash_shorthand_lookup_17",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;h={a:,a:2};h\nend",
+    "expected": {
+      "a": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_18",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;h={a:2,a:};h\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_20",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;{a:\n2}\nend",
+    "expected": {
+      "a": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_21",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;{\"a\":a}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_22",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;{a:\n, a:\n}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_lookup_23",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;{a:\n}.a\nend",
+    "expected": 1
+  },
+  {
+    "name": "hash_shorthand_lookup_24",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;[\"#{ {a:}.a }\"]\nend",
+    "expected": [
+      "1"
+    ]
+  },
+  {
+    "name": "hash_shorthand_boundaries_0",
+    "source": "def run(input)\na=1;b=2;;{a:}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_1",
+    "source": "def run(input)\na=1;b=2;\n{a:}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_3",
+    "source": "def run(input)\na=1;b=2;{\na:}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_5",
+    "source": "def run(input)\na=1;b=2;{a\n:}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_7",
+    "source": "def run(input)\na=1;b=2;{a:\n}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_8",
+    "source": "def run(input)\na=1;b=2;{a:};\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_9",
+    "source": "def run(input)\na=1;b=2;{a:}\n\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_10",
+    "source": "def run(input)\na=1;b=2;;{a:,b:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_11",
+    "source": "def run(input)\na=1;b=2;\n{a:,b:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_13",
+    "source": "def run(input)\na=1;b=2;{\na:,b:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_15",
+    "source": "def run(input)\na=1;b=2;{a\n:,b:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_17",
+    "source": "def run(input)\na=1;b=2;{a:\n,b:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_19",
+    "source": "def run(input)\na=1;b=2;{a:,\nb:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_21",
+    "source": "def run(input)\na=1;b=2;{a:,b\n:}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_23",
+    "source": "def run(input)\na=1;b=2;{a:,b:\n}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_24",
+    "source": "def run(input)\na=1;b=2;{a:,b:};\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_25",
+    "source": "def run(input)\na=1;b=2;{a:,b:}\n\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_40",
+    "source": "def run(input)\na=1;b=2;;{a:1}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_41",
+    "source": "def run(input)\na=1;b=2;\n{a:1}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_43",
+    "source": "def run(input)\na=1;b=2;{\na:1}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_45",
+    "source": "def run(input)\na=1;b=2;{a\n:1}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_47",
+    "source": "def run(input)\na=1;b=2;{a:\n1}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_49",
+    "source": "def run(input)\na=1;b=2;{a:1\n}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_50",
+    "source": "def run(input)\na=1;b=2;{a:1};\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_51",
+    "source": "def run(input)\na=1;b=2;{a:1}\n\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_52",
+    "source": "def run(input)\na=1;b=2;;{a:1,b:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_53",
+    "source": "def run(input)\na=1;b=2;\n{a:1,b:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_55",
+    "source": "def run(input)\na=1;b=2;{\na:1,b:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_57",
+    "source": "def run(input)\na=1;b=2;{a\n:1,b:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_59",
+    "source": "def run(input)\na=1;b=2;{a:\n1,b:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_61",
+    "source": "def run(input)\na=1;b=2;{a:1\n,b:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_63",
+    "source": "def run(input)\na=1;b=2;{a:1,\nb:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_65",
+    "source": "def run(input)\na=1;b=2;{a:1,b\n:2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_67",
+    "source": "def run(input)\na=1;b=2;{a:1,b:\n2}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_69",
+    "source": "def run(input)\na=1;b=2;{a:1,b:2\n}\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_70",
+    "source": "def run(input)\na=1;b=2;{a:1,b:2};\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_71",
+    "source": "def run(input)\na=1;b=2;{a:1,b:2}\n\nend",
+    "expected": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "name": "hash_shorthand_boundaries_72",
+    "source": "def run(input)\na=1;b=2;;{}\nend",
+    "expected": {}
+  },
+  {
+    "name": "hash_shorthand_boundaries_73",
+    "source": "def run(input)\na=1;b=2;\n{}\nend",
+    "expected": {}
+  },
+  {
+    "name": "hash_shorthand_boundaries_75",
+    "source": "def run(input)\na=1;b=2;{\n}\nend",
+    "expected": {}
+  },
+  {
+    "name": "hash_shorthand_boundaries_76",
+    "source": "def run(input)\na=1;b=2;{};\nend",
+    "expected": {}
+  },
+  {
+    "name": "hash_shorthand_boundaries_77",
+    "source": "def run(input)\na=1;b=2;{}\n\nend",
+    "expected": {}
+  },
+  {
+    "name": "hash_shorthand_syntax_10",
+    "source": "def run(input)\na=1;{a:,}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_syntax_11",
+    "source": "def run(input)\na=1;{a:\n#last comment\n}\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "hash_shorthand_syntax_12",
+    "source": "def run(input)\na=1;{a:\n#last comment\n,a:2}\nend",
+    "expected": {
+      "a": 2
+    }
   }
 ]

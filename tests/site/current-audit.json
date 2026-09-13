@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "b24b5c667576b7446ddaaf8e49bef798b6102f69",
-  "dirty": " M README.md\n M src/members.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/text/charset.rs\n?? tests/string_charsets.rs\n",
+  "source_revision": "7a6a3c27a7a12bae4188bcfb80dc23163e326a35",
+  "dirty": " M src/syntax.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? tests/hash_shorthand.rs\n",
   "binary_sha256": {
-    "go-simd": "304715ef40f5da97f0a9b3d058b9c9429b14b910c2cc9b13a2d9179b9290ee5d",
-    "rust-simd": "1a433e49e9f94893ed32af2a2ef277b7dcca3260cd7a3357120a5ca1806b5942"
+    "go-simd": "815aa367396b1cc3371214a7d4430cc21eba411ed9d942f9dae9dbd128c615bc",
+    "rust-simd": "af7250d61915deb2979527398a6311753c70ab009a828793d69322d47521ae5c"
   },
   "counts": {
-    "match": 160,
-    "rust_gap": 28,
+    "match": 166,
+    "rust_gap": 22,
     "harness_gap": 15
   },
   "examples": [
@@ -488,10 +488,47 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(1196) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "start": 6,
+            "classification": "perfect",
+            "sequence": [
+              6,
+              6
+            ]
+          },
+          {
+            "start": 10,
+            "classification": "looping",
+            "sequence": [
+              10,
+              8,
+              7,
+              1,
+              0,
+              1
+            ]
+          },
+          {
+            "start": 12,
+            "classification": "looping",
+            "sequence": [
+              12,
+              16,
+              15,
+              9,
+              4,
+              3,
+              1,
+              0,
+              1
+            ]
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/anagrams.vibe",
@@ -2270,10 +2307,22 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(959) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": 1,
+            "binary": "1",
+            "ternary": "1"
+          },
+          {
+            "value": 6643,
+            "binary": "1100111110011",
+            "ternary": "100010001"
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/find_words_which_contain_the_most_consonants.vibe",
@@ -3000,10 +3049,44 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(1490) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "sides": [
+              3,
+              4,
+              5
+            ],
+            "area": 6
+          },
+          {
+            "sides": [
+              5,
+              5,
+              6
+            ],
+            "area": 12
+          },
+          {
+            "sides": [
+              5,
+              12,
+              13
+            ],
+            "area": 30
+          },
+          {
+            "sides": [
+              8,
+              15,
+              17
+            ],
+            "area": 60
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/humble_numbers.vibe",
@@ -4306,10 +4389,28 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(484) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "value": 153,
+            "narcissistic": true
+          },
+          {
+            "value": 370,
+            "narcissistic": true
+          },
+          {
+            "value": 407,
+            "narcissistic": true
+          },
+          {
+            "value": 408,
+            "narcissistic": false
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/natural_sorting.vibe",
@@ -5422,10 +5523,28 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Type, message: \"unsupported operand types\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "union": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "intersection": [
+            3,
+            4
+          ],
+          "difference": [
+            1,
+            2
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/show_ascii_table.vibe",
@@ -8317,10 +8436,191 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(740) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "first_two": [
+            2,
+            4
+          ],
+          "last_three": [
+            7,
+            12,
+            15
+          ],
+          "numeric_sum": 44,
+          "double_sum": 88,
+          "push_and_pop": {
+            "array": [
+              2,
+              4,
+              4,
+              7,
+              12,
+              15
+            ],
+            "popped": 20
+          },
+          "uniq_values": [
+            2,
+            4,
+            7,
+            12,
+            15
+          ],
+          "concat_values": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "subtract_values": [
+            2,
+            7,
+            12
+          ],
+          "shovel_value": [
+            1,
+            2,
+            3
+          ],
+          "accumulate_with_shovel": [
+            2,
+            4,
+            4,
+            7,
+            12,
+            15
+          ],
+          "intersect_values": [
+            2,
+            4
+          ],
+          "include_value": true,
+          "first_match": 12,
+          "first_match_index": 4,
+          "count_value": 2,
+          "count_large": 3,
+          "predicate_snapshot": {
+            "any_large": true,
+            "all_positive": true,
+            "none_negative": true
+          },
+          "sort_values": [
+            1,
+            2,
+            5,
+            9
+          ],
+          "sort_desc": [
+            9,
+            5,
+            2,
+            1
+          ],
+          "sort_words_by_length": [
+            "fig",
+            "pear",
+            "kiwi",
+            "banana"
+          ],
+          "partition_even": [
+            [
+              2,
+              4,
+              4,
+              12
+            ],
+            [
+              7,
+              15
+            ]
+          ],
+          "group_by_status": {
+            "active": [
+              {
+                "name": "Ada",
+                "status": "active"
+              },
+              {
+                "name": "Sol",
+                "status": "active"
+              }
+            ],
+            "inactive": [
+              {
+                "name": "Lin",
+                "status": "inactive"
+              }
+            ]
+          },
+          "tally_statuses": {
+            "active": 2,
+            "inactive": 1
+          },
+          "chunk_values": [
+            [
+              2,
+              4
+            ],
+            [
+              4,
+              7
+            ],
+            [
+              12,
+              15
+            ]
+          ],
+          "window_values": [
+            [
+              2,
+              4,
+              4
+            ],
+            [
+              4,
+              4,
+              7
+            ],
+            [
+              4,
+              7,
+              12
+            ],
+            [
+              7,
+              12,
+              15
+            ]
+          ],
+          "group_by_stable_status": [
+            [
+              "active",
+              [
+                {
+                  "name": "Ada",
+                  "status": "active"
+                },
+                {
+                  "name": "Sol",
+                  "status": "active"
+                }
+              ]
+            ],
+            [
+              "inactive",
+              [
+                {
+                  "name": "Lin",
+                  "status": "inactive"
+                }
+              ]
+            ]
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/background/jobs_and_events.vibe",

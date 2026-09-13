@@ -901,23 +901,32 @@ impl Parser<'_> {
     fn hash_expr(&mut self) -> Result<Expr> {
         self.groups += 1;
         let mut entries = Vec::new();
-        self.lines();
+        self.line_breaks();
         if !self.take_p('}') {
             loop {
-                let key = match self.bump() {
-                    Token::Word(w) => w.into_bytes(),
-                    Token::Bytes(b) => b,
+                let (key, label) = match self.bump() {
+                    Token::Word(w) => (w.as_bytes().to_vec(), Some(w)),
+                    Token::Bytes(b) => (b, None),
                     _ => return self.err("expected hash label"),
                 };
+                self.line_breaks();
                 self.expect_p(':')?;
-                self.lines();
-                entries.push((key, self.expr(0)?));
-                self.lines();
+                self.line_breaks();
+                let value = if matches!(self.token(), Token::P(',' | '}') | Token::Eof) {
+                    let Some(name) = label else {
+                        return self.err("missing value for hash key");
+                    };
+                    self.make(Node::Var(name), 1)?
+                } else {
+                    self.expr(0)?
+                };
+                entries.push((key, value));
+                self.line_breaks();
                 if self.take_p('}') {
                     break;
                 }
                 self.expect_p(',')?;
-                self.lines();
+                self.line_breaks();
                 if self.take_p('}') {
                     break;
                 }

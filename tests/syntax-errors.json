@@ -993,5 +993,240 @@
     "name": "array_set_terminators_89",
     "source": "def run(input)\n1 ||\n;\n 1\nend",
     "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_lookup_19",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\na=1;h={a:,b:(a=2),c:{a:}};[a,h]\nend",
+    "go_error": "parse error at 17:15: expected \")\", got \"=\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_2",
+    "source": "def run(input)\na=1;b=2;{;a:}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_4",
+    "source": "def run(input)\na=1;b=2;{a;:}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_6",
+    "source": "def run(input)\na=1;b=2;{a:;}\nend",
+    "go_error": "parse error at 2:12: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_12",
+    "source": "def run(input)\na=1;b=2;{;a:,b:}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_14",
+    "source": "def run(input)\na=1;b=2;{a;:,b:}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_16",
+    "source": "def run(input)\na=1;b=2;{a:;,b:}\nend",
+    "go_error": "parse error at 2:12: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_18",
+    "source": "def run(input)\na=1;b=2;{a:,;b:}\nend",
+    "go_error": "parse error at 2:13: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_20",
+    "source": "def run(input)\na=1;b=2;{a:,b;:}\nend",
+    "go_error": "parse error at 2:13: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_22",
+    "source": "def run(input)\na=1;b=2;{a:,b:;}\nend",
+    "go_error": "parse error at 2:15: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_26",
+    "source": "def run(input)\na=1;b=2;;{\"a\":}\nend",
+    "go_error": "parse error at 2:15: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_27",
+    "source": "def run(input)\na=1;b=2;\n{\"a\":}\nend",
+    "go_error": "parse error at 3:6: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_28",
+    "source": "def run(input)\na=1;b=2;{;\"a\":}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_29",
+    "source": "def run(input)\na=1;b=2;{\n\"a\":}\nend",
+    "go_error": "parse error at 3:5: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_30",
+    "source": "def run(input)\na=1;b=2;{\";a\":}\nend",
+    "go_error": "parse error at 2:15: missing value for hash key ;a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_31",
+    "source": "def run(input)\na=1;b=2;{\"\na\":}\nend",
+    "go_error": "parse error at 3:4: missing value for hash key "
+  },
+  {
+    "name": "hash_shorthand_boundaries_32",
+    "source": "def run(input)\na=1;b=2;{\"a;\":}\nend",
+    "go_error": "parse error at 2:15: missing value for hash key a;"
+  },
+  {
+    "name": "hash_shorthand_boundaries_33",
+    "source": "def run(input)\na=1;b=2;{\"a\n\":}\nend",
+    "go_error": "parse error at 3:3: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_34",
+    "source": "def run(input)\na=1;b=2;{\"a\";:}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_35",
+    "source": "def run(input)\na=1;b=2;{\"a\"\n:}\nend",
+    "go_error": "parse error at 3:2: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_36",
+    "source": "def run(input)\na=1;b=2;{\"a\":;}\nend",
+    "go_error": "parse error at 2:14: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_37",
+    "source": "def run(input)\na=1;b=2;{\"a\":\n}\nend",
+    "go_error": "parse error at 3:1: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_38",
+    "source": "def run(input)\na=1;b=2;{\"a\":};\nend",
+    "go_error": "parse error at 2:14: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_39",
+    "source": "def run(input)\na=1;b=2;{\"a\":}\n\nend",
+    "go_error": "parse error at 2:14: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_boundaries_42",
+    "source": "def run(input)\na=1;b=2;{;a:1}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_44",
+    "source": "def run(input)\na=1;b=2;{a;:1}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_46",
+    "source": "def run(input)\na=1;b=2;{a:;1}\nend",
+    "go_error": "parse error at 2:12: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_48",
+    "source": "def run(input)\na=1;b=2;{a:1;}\nend",
+    "go_error": "parse error at 2:13: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_54",
+    "source": "def run(input)\na=1;b=2;{;a:1,b:2}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_56",
+    "source": "def run(input)\na=1;b=2;{a;:1,b:2}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_58",
+    "source": "def run(input)\na=1;b=2;{a:;1,b:2}\nend",
+    "go_error": "parse error at 2:12: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_60",
+    "source": "def run(input)\na=1;b=2;{a:1;,b:2}\nend",
+    "go_error": "parse error at 2:13: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_62",
+    "source": "def run(input)\na=1;b=2;{a:1,;b:2}\nend",
+    "go_error": "parse error at 2:14: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_64",
+    "source": "def run(input)\na=1;b=2;{a:1,b;:2}\nend",
+    "go_error": "parse error at 2:14: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_66",
+    "source": "def run(input)\na=1;b=2;{a:1,b:;2}\nend",
+    "go_error": "parse error at 2:16: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_boundaries_68",
+    "source": "def run(input)\na=1;b=2;{a:1,b:2;}\nend",
+    "go_error": "parse error at 2:17: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_boundaries_74",
+    "source": "def run(input)\na=1;b=2;{;}\nend",
+    "go_error": "parse error at 2:10: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_syntax_0",
+    "source": "def run(input)\na=1;{a:\nend",
+    "go_error": "parse error at 3:1: unexpected token 'end'"
+  },
+  {
+    "name": "hash_shorthand_syntax_1",
+    "source": "def run(input)\na=1;{a:,\nend",
+    "go_error": "parse error at 3:1: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_syntax_2",
+    "source": "def run(input)\na=1;{\"a\":}\nend",
+    "go_error": "parse error at 2:10: missing value for hash key a"
+  },
+  {
+    "name": "hash_shorthand_syntax_3",
+    "source": "def run(input)\na=1;{:a:}\nend",
+    "go_error": "parse error at 2:6: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_syntax_4",
+    "source": "def run(input)\na=1;{a::}\nend",
+    "go_error": "parse error at 2:6: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_syntax_5",
+    "source": "def run(input)\na=1;{a:,,:}\nend",
+    "go_error": "parse error at 2:9: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_syntax_6",
+    "source": "def run(input)\na=1;{a:;}\nend",
+    "go_error": "parse error at 2:8: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_syntax_7",
+    "source": "def run(input)\na=1;{a:\n;}\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "hash_shorthand_syntax_8",
+    "source": "def run(input)\na=1;{a:\n b:}\nend",
+    "go_error": "parse error at 3:3: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "hash_shorthand_syntax_9",
+    "source": "def run(input)\na=1;{a:\n b:2}\nend",
+    "go_error": "parse error at 3:3: invalid hash pair: expected key like name: or \"name\":"
   }
 ]

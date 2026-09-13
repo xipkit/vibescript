@@ -3877,5 +3877,335 @@
       },
       "to_i_math": 8
     }
+  },
+  {
+    "path": "rosettacode/popular/aliquot_sequence_classifications.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "start": 6,
+        "classification": "perfect",
+        "sequence": [
+          6,
+          6
+        ]
+      },
+      {
+        "start": 10,
+        "classification": "looping",
+        "sequence": [
+          10,
+          8,
+          7,
+          1,
+          0,
+          1
+        ]
+      },
+      {
+        "start": 12,
+        "classification": "looping",
+        "sequence": [
+          12,
+          16,
+          15,
+          9,
+          4,
+          3,
+          1,
+          0,
+          1
+        ]
+      }
+    ]
+  },
+  {
+    "path": "rosettacode/popular/find_palindromic_numbers_in_both_binary_and_ternary_bases.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "value": 1,
+        "binary": "1",
+        "ternary": "1"
+      },
+      {
+        "value": 6643,
+        "binary": "1100111110011",
+        "ternary": "100010001"
+      }
+    ]
+  },
+  {
+    "path": "rosettacode/popular/heronian_triangles.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "sides": [
+          3,
+          4,
+          5
+        ],
+        "area": 6
+      },
+      {
+        "sides": [
+          5,
+          5,
+          6
+        ],
+        "area": 12
+      },
+      {
+        "sides": [
+          5,
+          12,
+          13
+        ],
+        "area": 30
+      },
+      {
+        "sides": [
+          8,
+          15,
+          17
+        ],
+        "area": 60
+      }
+    ]
+  },
+  {
+    "path": "rosettacode/popular/narcissistic_decimal_number.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "value": 153,
+        "narcissistic": true
+      },
+      {
+        "value": 370,
+        "narcissistic": true
+      },
+      {
+        "value": 407,
+        "narcissistic": true
+      },
+      {
+        "value": 408,
+        "narcissistic": false
+      }
+    ]
+  },
+  {
+    "path": "rosettacode/popular/set.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "union": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "intersection": [
+        3,
+        4
+      ],
+      "difference": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "path": "upstream/arrays/extras.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "first_two": [
+        2,
+        4
+      ],
+      "last_three": [
+        7,
+        12,
+        15
+      ],
+      "numeric_sum": 44,
+      "double_sum": 88,
+      "push_and_pop": {
+        "array": [
+          2,
+          4,
+          4,
+          7,
+          12,
+          15
+        ],
+        "popped": 20
+      },
+      "uniq_values": [
+        2,
+        4,
+        7,
+        12,
+        15
+      ],
+      "concat_values": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "subtract_values": [
+        2,
+        7,
+        12
+      ],
+      "shovel_value": [
+        1,
+        2,
+        3
+      ],
+      "accumulate_with_shovel": [
+        2,
+        4,
+        4,
+        7,
+        12,
+        15
+      ],
+      "intersect_values": [
+        2,
+        4
+      ],
+      "include_value": true,
+      "first_match": 12,
+      "first_match_index": 4,
+      "count_value": 2,
+      "count_large": 3,
+      "predicate_snapshot": {
+        "any_large": true,
+        "all_positive": true,
+        "none_negative": true
+      },
+      "sort_values": [
+        1,
+        2,
+        5,
+        9
+      ],
+      "sort_desc": [
+        9,
+        5,
+        2,
+        1
+      ],
+      "sort_words_by_length": [
+        "fig",
+        "pear",
+        "kiwi",
+        "banana"
+      ],
+      "partition_even": [
+        [
+          2,
+          4,
+          4,
+          12
+        ],
+        [
+          7,
+          15
+        ]
+      ],
+      "group_by_status": {
+        "active": [
+          {
+            "name": "Ada",
+            "status": "active"
+          },
+          {
+            "name": "Sol",
+            "status": "active"
+          }
+        ],
+        "inactive": [
+          {
+            "name": "Lin",
+            "status": "inactive"
+          }
+        ]
+      },
+      "tally_statuses": {
+        "active": 2,
+        "inactive": 1
+      },
+      "chunk_values": [
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          7
+        ],
+        [
+          12,
+          15
+        ]
+      ],
+      "window_values": [
+        [
+          2,
+          4,
+          4
+        ],
+        [
+          4,
+          4,
+          7
+        ],
+        [
+          4,
+          7,
+          12
+        ],
+        [
+          7,
+          12,
+          15
+        ]
+      ],
+      "group_by_stable_status": [
+        [
+          "active",
+          [
+            {
+              "name": "Ada",
+              "status": "active"
+            },
+            {
+              "name": "Sol",
+              "status": "active"
+            }
+          ]
+        ],
+        [
+          "inactive",
+          [
+            {
+              "name": "Lin",
+              "status": "inactive"
+            }
+          ]
+        ]
+      ]
+    }
   }
 ]

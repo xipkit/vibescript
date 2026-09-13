@@ -65473,5 +65473,325 @@
     "name": "array_set_terminators_38",
     "source": "def run(input)\n1 << \n 1\nend",
     "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "hash_shorthand_names_0",
+    "source": "def run(input)\n{undefined:}\nend",
+    "go_error": "undefined variable undefined"
+  },
+  {
+    "name": "hash_shorthand_names_1",
+    "source": "def run(input)\n{undefined:}.keys\nend",
+    "go_error": "undefined variable undefined"
+  },
+  {
+    "name": "hash_shorthand_names_2",
+    "source": "def run(input)\n{nil:}\nend",
+    "go_error": "undefined variable nil"
+  },
+  {
+    "name": "hash_shorthand_names_3",
+    "source": "def run(input)\n{nil:}.keys\nend",
+    "go_error": "undefined variable nil"
+  },
+  {
+    "name": "hash_shorthand_names_4",
+    "source": "def run(input)\n{true:}\nend",
+    "go_error": "undefined variable true"
+  },
+  {
+    "name": "hash_shorthand_names_5",
+    "source": "def run(input)\n{true:}.keys\nend",
+    "go_error": "undefined variable true"
+  },
+  {
+    "name": "hash_shorthand_names_6",
+    "source": "def run(input)\n{false:}\nend",
+    "go_error": "undefined variable false"
+  },
+  {
+    "name": "hash_shorthand_names_7",
+    "source": "def run(input)\n{false:}.keys\nend",
+    "go_error": "undefined variable false"
+  },
+  {
+    "name": "hash_shorthand_names_8",
+    "source": "def run(input)\n{class:}\nend",
+    "go_error": "undefined variable class"
+  },
+  {
+    "name": "hash_shorthand_names_9",
+    "source": "def run(input)\n{class:}.keys\nend",
+    "go_error": "undefined variable class"
+  },
+  {
+    "name": "hash_shorthand_names_10",
+    "source": "def run(input)\n{def:}\nend",
+    "go_error": "undefined variable def"
+  },
+  {
+    "name": "hash_shorthand_names_11",
+    "source": "def run(input)\n{def:}.keys\nend",
+    "go_error": "undefined variable def"
+  },
+  {
+    "name": "hash_shorthand_names_12",
+    "source": "def run(input)\n{self:}\nend",
+    "go_error": "undefined variable self"
+  },
+  {
+    "name": "hash_shorthand_names_13",
+    "source": "def run(input)\n{self:}.keys\nend",
+    "go_error": "undefined variable self"
+  },
+  {
+    "name": "hash_shorthand_names_14",
+    "source": "def run(input)\n{begin:}\nend",
+    "go_error": "undefined variable begin"
+  },
+  {
+    "name": "hash_shorthand_names_15",
+    "source": "def run(input)\n{begin:}.keys\nend",
+    "go_error": "undefined variable begin"
+  },
+  {
+    "name": "hash_shorthand_names_16",
+    "source": "def run(input)\n{end:}\nend",
+    "go_error": "undefined variable end"
+  },
+  {
+    "name": "hash_shorthand_names_17",
+    "source": "def run(input)\n{end:}.keys\nend",
+    "go_error": "undefined variable end"
+  },
+  {
+    "name": "hash_shorthand_names_18",
+    "source": "def run(input)\n{rescue:}\nend",
+    "go_error": "undefined variable rescue"
+  },
+  {
+    "name": "hash_shorthand_names_19",
+    "source": "def run(input)\n{rescue:}.keys\nend",
+    "go_error": "undefined variable rescue"
+  },
+  {
+    "name": "hash_shorthand_names_20",
+    "source": "def run(input)\n{ensure:}\nend",
+    "go_error": "undefined variable ensure"
+  },
+  {
+    "name": "hash_shorthand_names_21",
+    "source": "def run(input)\n{ensure:}.keys\nend",
+    "go_error": "undefined variable ensure"
+  },
+  {
+    "name": "hash_shorthand_names_22",
+    "source": "def run(input)\n{raise:}\nend",
+    "go_error": "undefined variable raise"
+  },
+  {
+    "name": "hash_shorthand_names_23",
+    "source": "def run(input)\n{raise:}.keys\nend",
+    "go_error": "undefined variable raise"
+  },
+  {
+    "name": "hash_shorthand_names_24",
+    "source": "def run(input)\n{return:}\nend",
+    "go_error": "undefined variable return"
+  },
+  {
+    "name": "hash_shorthand_names_25",
+    "source": "def run(input)\n{return:}.keys\nend",
+    "go_error": "undefined variable return"
+  },
+  {
+    "name": "hash_shorthand_names_26",
+    "source": "def run(input)\n{yield:}\nend",
+    "go_error": "undefined variable yield"
+  },
+  {
+    "name": "hash_shorthand_names_27",
+    "source": "def run(input)\n{yield:}.keys\nend",
+    "go_error": "undefined variable yield"
+  },
+  {
+    "name": "hash_shorthand_names_28",
+    "source": "def run(input)\n{do:}\nend",
+    "go_error": "undefined variable do"
+  },
+  {
+    "name": "hash_shorthand_names_29",
+    "source": "def run(input)\n{do:}.keys\nend",
+    "go_error": "undefined variable do"
+  },
+  {
+    "name": "hash_shorthand_names_30",
+    "source": "def run(input)\n{then:}\nend",
+    "go_error": "undefined variable then"
+  },
+  {
+    "name": "hash_shorthand_names_31",
+    "source": "def run(input)\n{then:}.keys\nend",
+    "go_error": "undefined variable then"
+  },
+  {
+    "name": "hash_shorthand_names_32",
+    "source": "def run(input)\n{for:}\nend",
+    "go_error": "undefined variable for"
+  },
+  {
+    "name": "hash_shorthand_names_33",
+    "source": "def run(input)\n{for:}.keys\nend",
+    "go_error": "undefined variable for"
+  },
+  {
+    "name": "hash_shorthand_names_34",
+    "source": "def run(input)\n{while:}\nend",
+    "go_error": "undefined variable while"
+  },
+  {
+    "name": "hash_shorthand_names_35",
+    "source": "def run(input)\n{while:}.keys\nend",
+    "go_error": "undefined variable while"
+  },
+  {
+    "name": "hash_shorthand_names_36",
+    "source": "def run(input)\n{until:}\nend",
+    "go_error": "undefined variable until"
+  },
+  {
+    "name": "hash_shorthand_names_37",
+    "source": "def run(input)\n{until:}.keys\nend",
+    "go_error": "undefined variable until"
+  },
+  {
+    "name": "hash_shorthand_names_38",
+    "source": "def run(input)\n{break:}\nend",
+    "go_error": "undefined variable break"
+  },
+  {
+    "name": "hash_shorthand_names_39",
+    "source": "def run(input)\n{break:}.keys\nend",
+    "go_error": "undefined variable break"
+  },
+  {
+    "name": "hash_shorthand_names_40",
+    "source": "def run(input)\n{next:}\nend",
+    "go_error": "undefined variable next"
+  },
+  {
+    "name": "hash_shorthand_names_41",
+    "source": "def run(input)\n{next:}.keys\nend",
+    "go_error": "undefined variable next"
+  },
+  {
+    "name": "hash_shorthand_names_42",
+    "source": "def run(input)\n{retry:}\nend",
+    "go_error": "undefined variable retry"
+  },
+  {
+    "name": "hash_shorthand_names_43",
+    "source": "def run(input)\n{retry:}.keys\nend",
+    "go_error": "undefined variable retry"
+  },
+  {
+    "name": "hash_shorthand_names_44",
+    "source": "def run(input)\n{in:}\nend",
+    "go_error": "undefined variable in"
+  },
+  {
+    "name": "hash_shorthand_names_45",
+    "source": "def run(input)\n{in:}.keys\nend",
+    "go_error": "undefined variable in"
+  },
+  {
+    "name": "hash_shorthand_names_46",
+    "source": "def run(input)\n{if:}\nend",
+    "go_error": "undefined variable if"
+  },
+  {
+    "name": "hash_shorthand_names_47",
+    "source": "def run(input)\n{if:}.keys\nend",
+    "go_error": "undefined variable if"
+  },
+  {
+    "name": "hash_shorthand_names_48",
+    "source": "def run(input)\n{unless:}\nend",
+    "go_error": "undefined variable unless"
+  },
+  {
+    "name": "hash_shorthand_names_49",
+    "source": "def run(input)\n{unless:}.keys\nend",
+    "go_error": "undefined variable unless"
+  },
+  {
+    "name": "hash_shorthand_names_50",
+    "source": "def run(input)\n{case:}\nend",
+    "go_error": "undefined variable case"
+  },
+  {
+    "name": "hash_shorthand_names_51",
+    "source": "def run(input)\n{case:}.keys\nend",
+    "go_error": "undefined variable case"
+  },
+  {
+    "name": "hash_shorthand_names_52",
+    "source": "def run(input)\n{when:}\nend",
+    "go_error": "undefined variable when"
+  },
+  {
+    "name": "hash_shorthand_names_53",
+    "source": "def run(input)\n{when:}.keys\nend",
+    "go_error": "undefined variable when"
+  },
+  {
+    "name": "hash_shorthand_names_54",
+    "source": "def run(input)\n{elsif:}\nend",
+    "go_error": "undefined variable elsif"
+  },
+  {
+    "name": "hash_shorthand_names_55",
+    "source": "def run(input)\n{elsif:}.keys\nend",
+    "go_error": "undefined variable elsif"
+  },
+  {
+    "name": "hash_shorthand_names_56",
+    "source": "def run(input)\n{else:}\nend",
+    "go_error": "undefined variable else"
+  },
+  {
+    "name": "hash_shorthand_names_57",
+    "source": "def run(input)\n{else:}.keys\nend",
+    "go_error": "undefined variable else"
+  },
+  {
+    "name": "hash_shorthand_names_60",
+    "source": "def run(input)\nJSON.stringify({Time:})\nend",
+    "go_error": "JSON.stringify key \"Time\": JSON.stringify key \"at\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "hash_shorthand_names_62",
+    "source": "def run(input)\nJSON.stringify({Math:})\nend",
+    "go_error": "JSON.stringify key \"Math\": JSON.stringify key \"acos\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "hash_shorthand_names_64",
+    "source": "def run(input)\nJSON.stringify({JSON:})\nend",
+    "go_error": "JSON.stringify key \"JSON\": JSON.stringify key \"parse\": JSON.stringify unsupported value type builtin"
+  },
+  {
+    "name": "hash_shorthand_lookup_0",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n{name:,greet:}\nend",
+    "go_error": "greet is a function and cannot be used as a value; call it with greet(...)"
+  },
+  {
+    "name": "hash_shorthand_lookup_3",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n{required:}\nend",
+    "go_error": "required is a function and cannot be used as a value; call it with required(...)"
+  },
+  {
+    "name": "hash_shorthand_lookup_13",
+    "source": "def name\n7\nend\ndef greet(x:3)\nx\nend\ndef required(x)\nx\nend\ndef pack(**kw)\nkw\nend\ndef collect\n{block_given?:}\nend\ndef run(input)\n[1].map{|x|{x:,it:}}\nend",
+    "go_error": "undefined variable it"
   }
 ]
