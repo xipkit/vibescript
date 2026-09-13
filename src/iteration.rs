@@ -4,7 +4,7 @@ use crate::{
     bytecode::{CallSite, Method},
     collections,
     hash::Hash,
-    members, mutate, ops, ordering,
+    hash_blocks, members, mutate, ops, ordering,
     value::Kind,
 };
 
@@ -28,6 +28,8 @@ enum MethodKind {
     Reject,
     TakeWhile,
     DropWhile,
+    SliceWhen,
+    ChunkWhile,
     Find,
     Index,
     Rindex,
@@ -81,6 +83,8 @@ impl MethodKind {
             "reject" => Self::Reject,
             "take_while" => Self::TakeWhile,
             "drop_while" => Self::DropWhile,
+            "slice_when" => Self::SliceWhen,
+            "chunk_while" => Self::ChunkWhile,
             "find" => Self::Find,
             "index" | "find_index" => Self::Index,
             "rindex" => Self::Rindex,
@@ -117,11 +121,11 @@ impl MethodKind {
 }
 
 pub(crate) fn method(name: &str) -> bool {
-    MethodKind::parse(name).is_some() || ordering::method(name)
+    MethodKind::parse(name).is_some() || ordering::method(name) || hash_blocks::method(name)
 }
 
 pub(crate) enum Progress {
-    Yield([Value; 2], usize),
+    Yield([Value; 3], usize),
     Done(Value),
 }
 
@@ -153,6 +157,7 @@ impl Mutation {
 pub(crate) enum Iteration {
     Loop(Loop),
     Order(ordering::Driver),
+    Hash(hash_blocks::Driver),
 }
 
 impl Iteration {
@@ -160,13 +165,14 @@ impl Iteration {
         match self {
             Self::Loop(state) => state.waiting,
             Self::Order(state) => state.waiting,
+            Self::Hash(state) => state.waiting(),
         }
     }
 
     pub fn take_mutation(&mut self) -> Option<Mutation> {
         match self {
             Self::Loop(state) => state.mutation.take(),
-            Self::Order(_) => None,
+            Self::Order(_) | Self::Hash(_) => None,
         }
     }
 
@@ -174,6 +180,7 @@ impl Iteration {
         match self {
             Self::Loop(state) => state.advance(ctx, returned),
             Self::Order(state) => state.advance(ctx, returned),
+            Self::Hash(state) => state.advance(ctx, returned),
         }
     }
 }
@@ -220,6 +227,17 @@ pub(crate) fn start(
     if ordering::method(name) {
         return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some())
             .map(|state| state.map(Iteration::Order));
+    }
+    if hash_blocks::method(name) {
+        return hash_blocks::Driver::new(
+            ctx,
+            name,
+            receiver,
+            args,
+            keywords,
+            block_arity.is_some(),
+        )
+        .map(|state| state.map(Iteration::Hash));
     }
     let Some(method) = MethodKind::parse(name) else {
         return Ok(None);
@@ -309,6 +327,8 @@ pub(crate) fn start(
                 | KeepIf
                 | Fill
                 | Delete
+                | SliceWhen
+                | ChunkWhile
         )
         || (is_hash && method == Map);
     if keywords && rejects_keywords {
@@ -458,6 +478,9 @@ pub(crate) fn start(
     if method == EachCons {
         state.length = (state.length - state.width as i128 + 1).max(0);
     }
+    if matches!(method, SliceWhen | ChunkWhile) && state.length != 0 {
+        state.position = 1;
+    }
     if method == Cycle && state.cycles == Some(0) {
         state.length = 0;
     }
@@ -585,7 +608,8 @@ impl Loop {
                     (args, count)
                 };
                 self.waiting = true;
-                return Ok(Progress::Yield(args, count));
+                let [first, second] = args;
+                return Ok(Progress::Yield([first, second, Value::nil()], count));
             }
             let value = if let Some(operation) = &self.operation {
                 reduce(
@@ -622,6 +646,13 @@ impl Loop {
         self.pending_index = index;
         if matches!(self.method, Tap | YieldSelf) {
             args[0] = self.receiver.clone();
+        } else if matches!(self.method, SliceWhen | ChunkWhile) {
+            let array = self.receiver.as_array().unwrap();
+            args = [
+                array[index as usize - 1].clone(),
+                array[index as usize].clone(),
+            ];
+            count = 2;
         } else if self.method == Fill {
             args[0] = Value::int(index as i64);
         } else if matches!(self.method, Fetch | FetchValues | Delete) {
@@ -737,6 +768,11 @@ impl Loop {
                     self.output.push(ctx, self.pending[0].clone())?;
                 }
             }
+            SliceWhen | ChunkWhile => {
+                if truthy == (self.method == SliceWhen) {
+                    self.flush_adjacent(ctx, self.pending_index as usize)?;
+                }
+            }
             Find | Index | Rindex if truthy => {
                 self.accumulator = Some(if self.method == Find {
                     self.pending[0].clone()
@@ -846,8 +882,22 @@ impl Loop {
         Ok(false)
     }
 
+    fn flush_adjacent(&mut self, ctx: &mut CallContext, end: usize) -> Result<()> {
+        let array = self.receiver.as_array().unwrap();
+        let part = array_copy(ctx, &array[self.start as usize..end])?;
+        if part.depth() + 1 > MAX_VALUE_DEPTH {
+            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+        }
+        self.output.push(ctx, part)?;
+        self.start = end as i128;
+        Ok(())
+    }
+
     fn finish(&mut self, ctx: &mut CallContext) -> Result<Value> {
         use MethodKind::*;
+        if matches!(self.method, SliceWhen | ChunkWhile) && self.length != 0 {
+            self.flush_adjacent(ctx, self.length as usize)?;
+        }
         match self.method {
             Tap | Each | EachIndex | EachKey | EachValue | ReverseEach | Times | Upto | Downto
             | Step => Ok(self.receiver.clone()),

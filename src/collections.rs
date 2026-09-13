@@ -106,6 +106,66 @@ pub(crate) fn method(
             }
             Ok(Value::boolean(false))
         }
+        Except => {
+            let Kind::Hash(hash) = &value.0 else {
+                return Err(wrong_type());
+            };
+            let mut excluded = Hash::empty();
+            for key in args {
+                ctx.charge(1)?;
+                if hash.find(ctx, key.require_bytes()?)?.is_some() {
+                    excluded.insert(ctx, key.clone(), Value::nil())?;
+                }
+            }
+            let mut out = Hash::empty();
+            for (key, value) in &hash.buffer.data {
+                ctx.charge(1)?;
+                if excluded.find(ctx, key.require_bytes()?)?.is_none() {
+                    out.insert(ctx, key.clone(), value.clone())?;
+                }
+            }
+            Value::from_hash(ctx, out)
+        }
+        Flatten if matches!(value.0, Kind::Hash(_)) => {
+            if args.len() > 1 {
+                return Err(argument("hash.flatten accepts at most a depth"));
+            }
+            let depth = args.first().map(integer).transpose()?.unwrap_or(1);
+            let mut out = Buffer::empty();
+            for (key, value) in value.as_hash().unwrap() {
+                ctx.charge(1)?;
+                if depth == 0 {
+                    let pair = ctx.array(&[key.clone(), value.clone()])?;
+                    if pair.depth() + 1 > MAX_VALUE_DEPTH {
+                        return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+                    }
+                    out.push(ctx, pair)?;
+                } else {
+                    out.push(ctx, key.clone())?;
+                    let remaining = if depth < 0 { -1 } else { depth - 1 };
+                    flatten(ctx, std::slice::from_ref(value), remaining, 0, &mut out)?;
+                }
+            }
+            Value::from_array(ctx, out)
+        }
+        RemapKeys => {
+            ops::arity(args, 1)?;
+            let entries = value.as_hash().ok_or_else(wrong_type)?;
+            let Kind::Hash(mapping) = &args[0].0 else {
+                return Err(wrong_type());
+            };
+            let mut out = Hash::empty();
+            for (key, value) in entries {
+                ctx.charge(1)?;
+                let key = if let Some(index) = mapping.find(ctx, key.require_bytes()?)? {
+                    ctx.bytes(mapping.buffer.data[index].1.require_bytes()?)?
+                } else {
+                    key.clone()
+                };
+                out.insert(ctx, key, value.clone())?;
+            }
+            Value::from_hash(ctx, out)
+        }
         Compact if matches!(value.0, Kind::Hash(_)) => {
             ops::arity(args, 0)?;
             let mut out = Hash::empty();

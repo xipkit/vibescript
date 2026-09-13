@@ -10,9 +10,9 @@
     "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
   },
   "counts": {
-    "cases": 19,
+    "cases": 24,
     "rust_matches_normal": 0,
-    "rust_matches_copy": 15
+    "rust_matches_copy": 20
   },
   "cases": [
     {
@@ -780,12 +780,313 @@
       ],
       "rust_matches_normal": false,
       "rust_matches_copy": true
+    },
+    {
+      "name": "collection_blocks_slice_when_mutation_0_False",
+      "go_normal": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          [
+            1,
+            9
+          ],
+          [
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            9,
+            3
+          ]
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          [
+            1,
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "collection_blocks_chunk_while_mutation_0_False",
+      "go_normal": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          [
+            1
+          ],
+          [
+            9,
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            9,
+            3
+          ]
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ],
+      "rust": [
+        [
+          1,
+          9,
+          3
+        ],
+        [
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "collection_blocks_merge_mutates_later_argument",
+      "go_normal": [
+        {
+          "a": 9,
+          "b": 4
+        },
+        {
+          "a": 12,
+          "b": 4
+        }
+      ],
+      "go_always_copy": [
+        {
+          "a": 9,
+          "b": 4
+        },
+        {
+          "a": 6,
+          "b": 4
+        }
+      ],
+      "rust": [
+        {
+          "a": 9,
+          "b": 4
+        },
+        {
+          "a": 6,
+          "b": 4
+        }
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "collection_blocks_deep_mutation_1_False",
+      "go_normal": [
+        {
+          "a": [
+            9,
+            2
+          ],
+          "b": 2
+        },
+        {
+          "a": [
+            9,
+            2
+          ],
+          "b": 2
+        }
+      ],
+      "go_always_copy": [
+        {
+          "a": [
+            9,
+            2
+          ],
+          "b": 2
+        },
+        {
+          "a": [
+            1,
+            2
+          ],
+          "b": 2
+        }
+      ],
+      "rust": [
+        {
+          "a": [
+            9,
+            2
+          ],
+          "b": 2
+        },
+        {
+          "a": [
+            1,
+            2
+          ],
+          "b": 2
+        }
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "collection_blocks_deep_mutation_3_False",
+      "go_normal": [
+        {
+          "a": {
+            "b": 9
+          },
+          "b": 2
+        },
+        {
+          "a": {
+            "b": 9
+          },
+          "b": 2
+        }
+      ],
+      "go_always_copy": [
+        {
+          "a": {
+            "b": 9
+          },
+          "b": 2
+        },
+        {
+          "a": {
+            "b": 1
+          },
+          "b": 2
+        }
+      ],
+      "rust": [
+        {
+          "a": {
+            "b": 9
+          },
+          "b": 2
+        },
+        {
+          "a": {
+            "b": 1
+          },
+          "b": 2
+        }
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
     }
   ],
   "probe_sha256": "ea603804b5cbf71f21ec35dad654758486aea526e3b322a27d2e91d376e3a218",
   "binary_sha256": {
-    "go-test": "1650b9c84bda1585456797f8b51cffdea9f6aca8c3bfc6671e8057ac8e8532fd",
-    "rust-portable": "197fdc9d82392411af3383b4fc2345f6178bc2d169b5ce260205bc9858ec2e24",
-    "rust-simd": "44abe3818c4c29be38aba64c49e69c4995546935d4aaf1b95e95b168ff6eebe0"
+    "go-test": "427a450020dbf222c976b60c42c17ad17c53492a546179094709cb29fe961726",
+    "rust-portable": "e3bd7faf69552040236a2d200b0e5fe1e0ef6483d5ba5f9645e0e475d97a571b",
+    "rust-simd": "dbc2c94d0dbe0ee85e993d30692388c375b83e1aea1da380d6d91ac36732037d"
   }
 }

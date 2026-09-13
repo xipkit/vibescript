@@ -400,7 +400,7 @@ pub(crate) fn method(
             crate::text::method(ctx, method, value, args)
         }
         Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose
-        | ToHash | Fetch | Dig | Key | HasValue | Member => {
+        | ToHash | Fetch | Dig | Key | HasValue | Member | RemapKeys | Except => {
             crate::collections::method(ctx, method, value, args)
         }
         Slice if matches!(value.0, Kind::Hash(_)) => {

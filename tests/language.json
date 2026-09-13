@@ -35971,5 +35971,7419 @@
         2
       ]
     ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_0",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_1",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_2",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_3",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_4",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_5",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_6",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_0_7",
+    "body": "seen=[];r=[].slice_when {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_0",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_1",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_2",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_3",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_4",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_5",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_6",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_1_7",
+    "body": "seen=[];r=[1].slice_when {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_0",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_1",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_2",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_3",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_4",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_5",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_6",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_2_7",
+    "body": "seen=[];r=[1,2,4,5,5,2].slice_when {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_0",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          null
+        ],
+        [
+          false
+        ],
+        [
+          true
+        ],
+        [
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_1",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          null,
+          false,
+          true,
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_2",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          null,
+          false,
+          true,
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_3",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          null
+        ],
+        [
+          false
+        ],
+        [
+          true
+        ],
+        [
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_4",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          null
+        ],
+        [
+          false
+        ],
+        [
+          true
+        ],
+        [
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_5",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          null,
+          false,
+          true,
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_0",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_1",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_2",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_3",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_4",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_5",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_call_5",
+    "body": "[1,2,3].slice_when{break 7}",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_slice_when_call_6",
+    "body": "[1,2,3].slice_when{break}",
+    "expected": null
+  },
+  {
+    "name": "collection_blocks_slice_when_call_7",
+    "body": "[1,2,3].slice_when{return 7}",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_slice_when_call_8",
+    "body": "[1,2,3].slice_when{next true}",
+    "expected": [
+      [
+        1
+      ],
+      [
+        2
+      ],
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_arity_0",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].slice_when {|a|seen.push([a]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_arity_1",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].slice_when {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_arity_2",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].slice_when {|a,b,c|seen.push([a,b,c]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          null
+        ],
+        [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_arity_3",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].slice_when {|(a,b),(c,d)|seen.push([a,b,c,d]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          1,
+          2,
+          3,
+          4
+        ],
+        [
+          3,
+          4,
+          5,
+          6
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_arity_4",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].slice_when {seen.push([_1,_2,_3]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          null
+        ],
+        [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_0_True",
+    "body": "a=[1,2,3];b=a;seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_1_False",
+    "body": "a=[1,2,3];seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a.push(9);x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        9,
+        9
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_1_True",
+    "body": "a=[1,2,3];b=a;seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a.push(9);x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        9,
+        9
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_2_False",
+    "body": "a=[1,2,3];seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a=[9];x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        9
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_2_True",
+    "body": "a=[1,2,3];b=a;seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a=[9];x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        9
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_0",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_1",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_2",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_3",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_4",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_5",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_6",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_0_7",
+    "body": "seen=[];r=[].chunk_while {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "expected": [
+      [],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_0",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_1",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_2",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_3",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_4",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_5",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_6",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_1_7",
+    "body": "seen=[];r=[1].chunk_while {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_0",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_1",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_2",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_3",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_4",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5,
+          5,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_5",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          4
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_6",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_2_7",
+    "body": "seen=[];r=[1,2,4,5,5,2].chunk_while {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          4,
+          5
+        ],
+        [
+          5
+        ],
+        [
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          5
+        ],
+        [
+          5,
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_0",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          null,
+          false,
+          true,
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_1",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          null
+        ],
+        [
+          false
+        ],
+        [
+          true
+        ],
+        [
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_2",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          null
+        ],
+        [
+          false
+        ],
+        [
+          true
+        ],
+        [
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_3",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          null,
+          false,
+          true,
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_4",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          null,
+          false,
+          true,
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_5",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          null
+        ],
+        [
+          false
+        ],
+        [
+          true
+        ],
+        [
+          0
+        ]
+      ],
+      [
+        [
+          null,
+          false
+        ],
+        [
+          false,
+          true
+        ],
+        [
+          true,
+          0
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_0",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_1",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);false};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_2",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);nil};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_3",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);0};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_4",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);\"\"};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_5",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);a==b};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        [
+          [
+            2,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_5",
+    "body": "[1,2,3].chunk_while{break 7}",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_6",
+    "body": "[1,2,3].chunk_while{break}",
+    "expected": null
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_7",
+    "body": "[1,2,3].chunk_while{return 7}",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_8",
+    "body": "[1,2,3].chunk_while{next true}",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_arity_0",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].chunk_while {|a|seen.push([a]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_arity_1",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].chunk_while {|a,b|seen.push([a,b]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_arity_2",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].chunk_while {|a,b,c|seen.push([a,b,c]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          null
+        ],
+        [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_arity_3",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].chunk_while {|(a,b),(c,d)|seen.push([a,b,c,d]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          1,
+          2,
+          3,
+          4
+        ],
+        [
+          3,
+          4,
+          5,
+          6
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_arity_4",
+    "body": "seen=[];r=[[1,2],[3,4],[5,6]].chunk_while {seen.push([_1,_2,_3]);true};[r,seen]",
+    "expected": [
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          null
+        ],
+        [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_0_True",
+    "body": "a=[1,2,3];b=a;seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_1_False",
+    "body": "a=[1,2,3];seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a.push(9);x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        9,
+        9
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_1_True",
+    "body": "a=[1,2,3];b=a;seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a.push(9);x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        9,
+        9
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_2_False",
+    "body": "a=[1,2,3];seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a=[9];x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        9
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_2_True",
+    "body": "a=[1,2,3];b=a;seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a=[9];x+1!=y};[a,r,seen]",
+    "expected": [
+      [
+        9
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_0_0",
+    "body": "h={};before=h;r=h.merge();[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_0_1",
+    "body": "h={};before=h;r=h.merge(){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_0_2",
+    "body": "h={};before=h;r=h.merge(){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_1_0",
+    "body": "h={};before=h;r=h.merge({});[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_1_1",
+    "body": "h={};before=h;r=h.merge({}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_1_2",
+    "body": "h={};before=h;r=h.merge({}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_2_0",
+    "body": "h={};before=h;r=h.merge({a:9,c:3});[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 9,
+        "c": 3
+      },
+      [
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_2_1",
+    "body": "h={};before=h;r=h.merge({a:9,c:3}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 9,
+        "c": 3
+      },
+      [
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_2_2",
+    "body": "h={};before=h;r=h.merge({a:9,c:3}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 9,
+        "c": 3
+      },
+      [
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_3_0",
+    "body": "h={};before=h;r=h.merge({a:2},{a:3,d:4});[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 3,
+        "d": 4
+      },
+      [
+        "a",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_3_1",
+    "body": "h={};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": [
+          "a",
+          2,
+          3
+        ],
+        "d": 4
+      },
+      [
+        "a",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_3_2",
+    "body": "h={};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 5,
+        "d": 4
+      },
+      [
+        "a",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_8_0",
+    "body": "h={};before=h;r=h.merge(*[{a:2},{a:3}]);[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 3
+      },
+      [
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_8_1",
+    "body": "h={};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": [
+          "a",
+          2,
+          3
+        ]
+      },
+      [
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_0_8_2",
+    "body": "h={};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      {
+        "a": 5
+      },
+      [
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_0_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge();[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_0_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge(){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_0_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge(){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_1_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge({});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_1_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge({}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_1_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge({}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_2_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:9,c:3});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 9,
+        "b": 2,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_2_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:9,c:3}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": [
+          "a",
+          1,
+          9
+        ],
+        "b": 2,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_2_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:9,c:3}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 10,
+        "b": 2,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_3_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:2},{a:3,d:4});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 3,
+        "b": 2,
+        "d": 4
+      },
+      [
+        "a",
+        "b",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_3_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": [
+          "a",
+          [
+            "a",
+            1,
+            2
+          ],
+          3
+        ],
+        "b": 2,
+        "d": 4
+      },
+      [
+        "a",
+        "b",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_3_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 6,
+        "b": 2,
+        "d": 4
+      },
+      [
+        "a",
+        "b",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_8_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge(*[{a:2},{a:3}]);[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 3,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_8_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": [
+          "a",
+          [
+            "a",
+            1,
+            2
+          ],
+          3
+        ],
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_1_8_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 6,
+        "b": 2
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_0_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge();[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_0_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_0_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_1_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_1_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_1_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_2_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:9,c:3});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": 9,
+        "b": false,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_2_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:9,c:3}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": [
+          "a",
+          null,
+          9
+        ],
+        "b": false,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_3_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:2},{a:3,d:4});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": 3,
+        "b": false,
+        "d": 4
+      },
+      [
+        "a",
+        "b",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_3_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": [
+          "a",
+          [
+            "a",
+            null,
+            2
+          ],
+          3
+        ],
+        "b": false,
+        "d": 4
+      },
+      [
+        "a",
+        "b",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_8_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(*[{a:2},{a:3}]);[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": 3,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_2_8_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": [
+          "a",
+          [
+            "a",
+            null,
+            2
+          ],
+          3
+        ],
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_0_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge();[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_0_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge(){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_0_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge(){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_1_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge({});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_1_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge({}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_1_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge({}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_2_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:9,c:3});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 9,
+        "c": 3
+      },
+      [
+        "b",
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_2_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:9,c:3}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": [
+          "a",
+          1,
+          9
+        ],
+        "c": 3
+      },
+      [
+        "b",
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_2_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:9,c:3}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 10,
+        "c": 3
+      },
+      [
+        "b",
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_3_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:2},{a:3,d:4});[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 3,
+        "d": 4
+      },
+      [
+        "b",
+        "a",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_3_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": [
+          "a",
+          [
+            "a",
+            1,
+            2
+          ],
+          3
+        ],
+        "d": 4
+      },
+      [
+        "b",
+        "a",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_3_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 6,
+        "d": 4
+      },
+      [
+        "b",
+        "a",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_8_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge(*[{a:2},{a:3}]);[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 3
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_8_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": [
+          "a",
+          [
+            "a",
+            1,
+            2
+          ],
+          3
+        ]
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_3_8_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|old+new};[h,before,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 6
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_0",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){|k,o,n|k};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": "b",
+        "a": "a",
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_1",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){|k,o,n|o};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1,
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_2",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){|k,o,n|n};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 3,
+        "a": 4,
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_3",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){nil};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": null,
+        "a": null,
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_4",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){false};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": false,
+        "a": false,
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_5",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){[1,2]};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": [
+          1,
+          2
+        ],
+        "a": [
+          1,
+          2
+        ],
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_6",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){{a:1}};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": {
+          "a": 1
+        },
+        "a": {
+          "a": 1
+        },
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_7",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){break 7};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_8",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){break};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      null
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_block_9",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){return 7};[a,r]",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_merge_block_10",
+    "body": "a={b:2,a:1};r=a.merge({b:3,a:4,c:5}){|k,o,n|next n*2};[a,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 6,
+        "a": 8,
+        "c": 5
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_arity_0",
+    "body": "seen=[];r={b:2,a:1}.merge({a:4,b:3}){|key|seen.push([key]);7};[r,seen]",
+    "expected": [
+      {
+        "b": 7,
+        "a": 7
+      },
+      [
+        [
+          "a"
+        ],
+        [
+          "b"
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_arity_1",
+    "body": "seen=[];r={b:2,a:1}.merge({a:4,b:3}){|key,old|seen.push([key,old]);7};[r,seen]",
+    "expected": [
+      {
+        "b": 7,
+        "a": 7
+      },
+      [
+        [
+          "a",
+          1
+        ],
+        [
+          "b",
+          2
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_arity_2",
+    "body": "seen=[];r={b:2,a:1}.merge({a:4,b:3}){|key,old,new|seen.push([key,old,new]);7};[r,seen]",
+    "expected": [
+      {
+        "b": 7,
+        "a": 7
+      },
+      [
+        [
+          "a",
+          1,
+          4
+        ],
+        [
+          "b",
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_arity_3",
+    "body": "seen=[];r={b:2,a:1}.merge({a:4,b:3}){|key,old,new,extra|seen.push([key,old,new,extra]);7};[r,seen]",
+    "expected": [
+      {
+        "b": 7,
+        "a": 7
+      },
+      [
+        [
+          "a",
+          1,
+          4,
+          null
+        ],
+        [
+          "b",
+          2,
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_arity_4",
+    "body": "seen=[];r={b:2,a:1}.merge({a:4,b:3}){|(a,b),old,new|seen.push([a,b,old,new]);7};[r,seen]",
+    "expected": [
+      {
+        "b": 7,
+        "a": 7
+      },
+      [
+        [
+          "a",
+          null,
+          1,
+          4
+        ],
+        [
+          "b",
+          null,
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_arity_5",
+    "body": "seen=[];r={b:2,a:1}.merge({a:4,b:3}){seen.push([_1,_2,_3,_4]);7};[r,seen]",
+    "expected": [
+      {
+        "b": 7,
+        "a": 7
+      },
+      [
+        [
+          "a",
+          1,
+          4,
+          null
+        ],
+        [
+          "b",
+          2,
+          3,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_0",
+    "body": "h={b:2,a:1};h.merge",
+    "expected": {
+      "b": 2,
+      "a": 1
+    }
+  },
+  {
+    "name": "collection_blocks_merge_order_1",
+    "body": "h={merge:7};[h.merge,h[\"merge\"]]",
+    "expected": [
+      {
+        "merge": 7
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_2",
+    "body": "seen=[];r={a:1}.merge({a:2},{a:3}){|k,o,n|seen.push([k,o,n]);o*10+n};[r,seen]",
+    "expected": [
+      {
+        "a": 123
+      },
+      [
+        [
+          "a",
+          1,
+          2
+        ],
+        [
+          "a",
+          12,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_3",
+    "body": "seen=[];r={a:1}.merge({b:2}){seen.push(9)};[r,seen]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_4",
+    "body": "r={a:1}.merge{missing};r",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "collection_blocks_merge_order_5",
+    "body": "a={x:[1]};b={y:[2]};r=a.merge(b);r.x.push(9);r.y.push(8);[a,b,r]",
+    "expected": [
+      {
+        "x": [
+          1
+        ]
+      },
+      {
+        "y": [
+          2
+        ]
+      },
+      {
+        "x": [
+          1,
+          9
+        ],
+        "y": [
+          2,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_6",
+    "body": "h={a:1,b:2};r=h.merge({a:3}){|k,o,n|h.b=9;o+n};[h,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 9
+      },
+      {
+        "a": 4,
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_7",
+    "body": "h={a:1};a={a:2,b:3};r=h.merge(a){a.b=9;7};[a,r]",
+    "expected": [
+      {
+        "a": 2,
+        "b": 9
+      },
+      {
+        "a": 7,
+        "b": 3
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_8",
+    "body": "a={a:1};r=a.merge({a:2}){a={z:9};7};[a,r]",
+    "expected": [
+      {
+        "z": 9
+      },
+      {
+        "a": 7
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_9",
+    "body": "a=[];a.push({a:1}.merge({a:2}){break 7});a",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_order_10",
+    "body": "{a:1}.merge({a:2}){|k,o,n|{a:3}.merge({a:4}){|k,o,n|o+n}}",
+    "expected": {
+      "a": {
+        "a": 7
+      }
+    }
+  },
+  {
+    "name": "collection_blocks_deep_0_0",
+    "body": "h={};before=h;r=h.deep_transform_keys{|k|k};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_1",
+    "body": "h={};before=h;r=h.deep_transform_keys{|k|k.upcase};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_2",
+    "body": "h={};before=h;r=h.deep_transform_keys{|k|:x};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_3",
+    "body": "h={};before=h;r=h.deep_transform_keys{|k|\"\"};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_4",
+    "body": "h={};before=h;r=h.deep_transform_keys{nil};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_5",
+    "body": "h={};before=h;r=h.deep_transform_keys{1};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_6",
+    "body": "h={};before=h;r=h.deep_transform_keys{true};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_7",
+    "body": "h={};before=h;r=h.deep_transform_keys{[]};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_8",
+    "body": "h={};before=h;r=h.deep_transform_keys{{a:1}};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_9",
+    "body": "h={};before=h;r=h.deep_transform_keys{break 7};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_10",
+    "body": "h={};before=h;r=h.deep_transform_keys{return 7};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_0_11",
+    "body": "h={};before=h;r=h.deep_transform_keys{|k|next k};[h,before,r]",
+    "expected": [
+      {},
+      {},
+      {}
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_1_0",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{|k|k};[h,before,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_1_1",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{|k|k.upcase};[h,before,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "A": 1,
+        "B": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_1_2",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{|k|:x};[h,before,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "x": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_1_3",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{|k|\"\"};[h,before,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_1_9",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{break 7};[h,before,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_1_10",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{return 7};[h,before,r]",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_deep_1_11",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{|k|next k};[h,before,r]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      },
+      {
+        "a": 1,
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_2_0",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{|k|k};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_2_1",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{|k|k.upcase};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "A": {
+          "B": 1
+        },
+        "C": [
+          {
+            "D": 2
+          },
+          [
+            {
+              "E": 3
+            }
+          ]
+        ],
+        "F": null
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_2_2",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{|k|:x};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "x": null
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_2_3",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{|k|\"\"};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "": null
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_2_9",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{break 7};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_2_10",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{return 7};[h,before,r]",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_deep_2_11",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{|k|next k};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": [
+          {
+            "d": 2
+          },
+          [
+            {
+              "e": 3
+            }
+          ]
+        ],
+        "f": null
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_3_0",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{|k|k};[h,before,r]",
+    "expected": [
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_3_1",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{|k|k.upcase};[h,before,r]",
+    "expected": [
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "Z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "Y": {
+          "X": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_3_2",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{|k|:x};[h,before,r]",
+    "expected": [
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "x": {
+          "x": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_3_3",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{|k|\"\"};[h,before,r]",
+    "expected": [
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "": {
+          "": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_3_9",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{break 7};[h,before,r]",
+    "expected": [
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_3_10",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{return 7};[h,before,r]",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_deep_3_11",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{|k|next k};[h,before,r]",
+    "expected": [
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      },
+      {
+        "z": [
+          1,
+          null,
+          false,
+          [],
+          {}
+        ],
+        "y": {
+          "x": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_4_0",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{|k|k};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_4_1",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{|k|k.upcase};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "A": {
+          "B": 1
+        },
+        "C": {
+          "D": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_4_2",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{|k|:x};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "x": {
+          "x": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_4_3",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{|k|\"\"};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "": {
+          "": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_4_9",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{break 7};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_4_10",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{return 7};[h,before,r]",
+    "expected": 7
+  },
+  {
+    "name": "collection_blocks_deep_4_11",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{|k|next k};[h,before,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "c": {
+          "d": 2
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_0",
+    "body": "seen=[];r={b:{c:1,d:2},a:[{e:3},{f:4}]}.deep_transform_keys {|k|seen.push(k);k.upcase};[r,seen]",
+    "expected": [
+      {
+        "B": {
+          "C": 1,
+          "D": 2
+        },
+        "A": [
+          {
+            "E": 3
+          },
+          {
+            "F": 4
+          }
+        ]
+      },
+      [
+        "b",
+        "c",
+        "d",
+        "a",
+        "e",
+        "f"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_1",
+    "body": "n=0;child={a:1};h={x:child,y:[child]};r=h.deep_transform_keys {|k|n+=1;k+n.to_s};[h,r,n]",
+    "expected": [
+      {
+        "x": {
+          "a": 1
+        },
+        "y": [
+          {
+            "a": 1
+          }
+        ]
+      },
+      {
+        "x1": {
+          "a2": 1
+        },
+        "y3": [
+          {
+            "a4": 1
+          }
+        ]
+      },
+      4
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_2",
+    "body": "seen=[];r={a:{b:1},c:{d:2}}.deep_transform_keys {|k|seen.push(k);:x};[r,seen]",
+    "expected": [
+      {
+        "x": {
+          "x": 2
+        }
+      },
+      [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_3",
+    "body": "seen=[];r={a:{b:1},c:2}.deep_transform_keys {|k|seen.push(k);break seen if k==\"b\";k};r",
+    "expected": [
+      "a",
+      "b"
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_4",
+    "body": "h={a:{b:1}};r=h.deep_transform_keys {|k|h={x:9};k};[h,r]",
+    "expected": [
+      {
+        "x": 9
+      },
+      {
+        "a": {
+          "b": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_5",
+    "body": "h={a:[1]};r=h.deep_transform_keys {|k|k};r.a.push(2);[h,r]",
+    "expected": [
+      {
+        "a": [
+          1
+        ]
+      },
+      {
+        "a": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_6",
+    "body": "a=[];a.push({a:{b:1}}.deep_transform_keys {|k|break 7 if k==\"b\";k});a",
+    "expected": [
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_order_7",
+    "body": "h={deep_transform_keys:7};h.deep_transform_keys {|k|k}",
+    "expected": {
+      "deep_transform_keys": 7
+    }
+  },
+  {
+    "name": "collection_blocks_deep_order_8",
+    "body": "{a:1}.deep_transform_keys {|k|[1,2].map {|x|x};k}",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "collection_blocks_deep_signature_3",
+    "body": "{a:1}.deep_transform_keys(bad:7){|k|k}",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "collection_blocks_deep_arity_0",
+    "body": "seen=[];r={b:{a:1}}.deep_transform_keys {|key|seen.push([key]);\"x\"};[r,seen]",
+    "expected": [
+      {
+        "x": {
+          "x": 1
+        }
+      },
+      [
+        [
+          "b"
+        ],
+        [
+          "a"
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_arity_1",
+    "body": "seen=[];r={b:{a:1}}.deep_transform_keys {|key,extra|seen.push([key,extra]);\"x\"};[r,seen]",
+    "expected": [
+      {
+        "x": {
+          "x": 1
+        }
+      },
+      [
+        [
+          "b",
+          null
+        ],
+        [
+          "a",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_arity_2",
+    "body": "seen=[];r={b:{a:1}}.deep_transform_keys {|(a,b)|seen.push([a,b]);\"x\"};[r,seen]",
+    "expected": [
+      {
+        "x": {
+          "x": 1
+        }
+      },
+      [
+        [
+          "b",
+          null
+        ],
+        [
+          "a",
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_arity_3",
+    "body": "seen=[];r={b:{a:1}}.deep_transform_keys {seen.push([_1,_2,_3]);\"x\"};[r,seen]",
+    "expected": [
+      {
+        "x": {
+          "x": 1
+        }
+      },
+      [
+        [
+          "b",
+          null,
+          null
+        ],
+        [
+          "a",
+          null,
+          null
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_0_False",
+    "body": "h={a:[1,2],b:2};r=h.deep_transform_keys {|k|h.b=9;k};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 9
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_0_True",
+    "body": "h={a:[1,2],b:2};before=h;r=h.deep_transform_keys {|k|h.b=9;k};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 9
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_1_True",
+    "body": "h={a:[1,2],b:2};before=h;r=h.deep_transform_keys {|k|h.a[0]=9;k};[h,r]",
+    "expected": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_2_False",
+    "body": "h={a:[1,2],b:2};r=h.deep_transform_keys {|k|h.z=7;k};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2,
+        "z": 7
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_2_True",
+    "body": "h={a:[1,2],b:2};before=h;r=h.deep_transform_keys {|k|h.z=7;k};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2,
+        "z": 7
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_3_True",
+    "body": "h={a:{b:1},b:2};before=h;r=h.deep_transform_keys {|k|h.a.b=9;k};[h,r]",
+    "expected": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_0",
+    "body": "h={};r=h.remap_keys({});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_1",
+    "body": "h={};r=h.remap_keys({a: :x});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_2",
+    "body": "h={};r=h.remap_keys({a: :x,b:\"x\"});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_3",
+    "body": "h={};r=h.remap_keys({a:nil});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_4",
+    "body": "h={};r=h.remap_keys({z:nil});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_5",
+    "body": "h={};r=h.remap_keys({a:1});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_0_6",
+    "body": "h={};r=h.remap_keys({a:[]});[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_1_0",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({});[h,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_1_1",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({a: :x});[h,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      {
+        "x": 1,
+        "b": 2,
+        "c": 3
+      },
+      [
+        "x",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_1_2",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({a: :x,b:\"x\"});[h,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      {
+        "x": 2,
+        "c": 3
+      },
+      [
+        "x",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_1_4",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({z:nil});[h,r,r.keys]",
+    "expected": [
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      [
+        "a",
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_2_0",
+    "body": "h={b:2,a:1};r=h.remap_keys({});[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_2_1",
+    "body": "h={b:2,a:1};r=h.remap_keys({a: :x});[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "x": 1
+      },
+      [
+        "b",
+        "x"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_2_2",
+    "body": "h={b:2,a:1};r=h.remap_keys({a: :x,b:\"x\"});[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "x": 1
+      },
+      [
+        "x"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_2_4",
+    "body": "h={b:2,a:1};r=h.remap_keys({z:nil});[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1
+      },
+      {
+        "b": 2,
+        "a": 1
+      },
+      [
+        "b",
+        "a"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_remap_signature_3",
+    "body": "{a:1}.remap_keys({a: :x},ignored:7)",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "collection_blocks_remap_signature_4",
+    "body": "{a:1}.remap_keys({a: :x}){missing}",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "collection_blocks_zip_block_0_0",
+    "body": "[].zip(){missing}",
+    "expected": []
+  },
+  {
+    "name": "collection_blocks_zip_block_0_1",
+    "body": "[].zip([]){missing}",
+    "expected": []
+  },
+  {
+    "name": "collection_blocks_zip_block_0_2",
+    "body": "[].zip([4,5]){missing}",
+    "expected": []
+  },
+  {
+    "name": "collection_blocks_zip_block_0_3",
+    "body": "[].zip([4,5], [6]){missing}",
+    "expected": []
+  },
+  {
+    "name": "collection_blocks_zip_block_0_4",
+    "body": "[].zip([4],ignored:7){missing}",
+    "expected": []
+  },
+  {
+    "name": "collection_blocks_zip_block_1_0",
+    "body": "[1].zip(){missing}",
+    "expected": [
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_1_1",
+    "body": "[1].zip([]){missing}",
+    "expected": [
+      [
+        1,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_1_2",
+    "body": "[1].zip([4,5]){missing}",
+    "expected": [
+      [
+        1,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_1_3",
+    "body": "[1].zip([4,5], [6]){missing}",
+    "expected": [
+      [
+        1,
+        4,
+        6
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_1_4",
+    "body": "[1].zip([4],ignored:7){missing}",
+    "expected": [
+      [
+        1,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_2_0",
+    "body": "[1,2,3].zip(){missing}",
+    "expected": [
+      [
+        1
+      ],
+      [
+        2
+      ],
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_2_1",
+    "body": "[1,2,3].zip([]){missing}",
+    "expected": [
+      [
+        1,
+        null
+      ],
+      [
+        2,
+        null
+      ],
+      [
+        3,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_2_2",
+    "body": "[1,2,3].zip([4,5]){missing}",
+    "expected": [
+      [
+        1,
+        4
+      ],
+      [
+        2,
+        5
+      ],
+      [
+        3,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_2_3",
+    "body": "[1,2,3].zip([4,5], [6]){missing}",
+    "expected": [
+      [
+        1,
+        4,
+        6
+      ],
+      [
+        2,
+        5,
+        null
+      ],
+      [
+        3,
+        null,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_zip_block_2_4",
+    "body": "[1,2,3].zip([4],ignored:7){missing}",
+    "expected": [
+      [
+        1,
+        4
+      ],
+      [
+        2,
+        null
+      ],
+      [
+        3,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_0_0",
+    "body": "h={};r=h.except(){missing};[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_0_1",
+    "body": "h={};r=h.except(:a){missing};[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_0_2",
+    "body": "h={};r=h.except(\"b\",:a){missing};[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_0_3",
+    "body": "h={};r=h.except(:a,:a,:missing){missing};[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_0_9",
+    "body": "h={};r=h.except(bad:7){missing};[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_0_10",
+    "body": "h={};r=h.except(:a,ignored:7){missing};[h,r,r.keys]",
+    "expected": [
+      {},
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_0",
+    "body": "h={};r=h.flatten(){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_1",
+    "body": "h={};r=h.flatten(0){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_2",
+    "body": "h={};r=h.flatten(1){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_3",
+    "body": "h={};r=h.flatten(2){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_4",
+    "body": "h={};r=h.flatten(3){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_5",
+    "body": "h={};r=h.flatten(-1){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_6",
+    "body": "h={};r=h.flatten(-2){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_7",
+    "body": "h={};r=h.flatten(1.9){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_8",
+    "body": "h={};r=h.flatten(-0.9){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_16",
+    "body": "h={};r=h.flatten(9223372036854775807){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_17",
+    "body": "h={};r=h.flatten(-9223372036854775808){missing};[h,r]",
+    "expected": [
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_1_0",
+    "body": "h={b:2,a:1,c:3};r=h.except(){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_1_1",
+    "body": "h={b:2,a:1,c:3};r=h.except(:a){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      {
+        "b": 2,
+        "c": 3
+      },
+      [
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_1_2",
+    "body": "h={b:2,a:1,c:3};r=h.except(\"b\",:a){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      {
+        "c": 3
+      },
+      [
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_1_3",
+    "body": "h={b:2,a:1,c:3};r=h.except(:a,:a,:missing){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      {
+        "b": 2,
+        "c": 3
+      },
+      [
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_1_9",
+    "body": "h={b:2,a:1,c:3};r=h.except(bad:7){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_1_10",
+    "body": "h={b:2,a:1,c:3};r=h.except(:a,ignored:7){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      {
+        "b": 2,
+        "c": 3
+      },
+      [
+        "b",
+        "c"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_0",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_1",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(0){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        [
+          "b",
+          2
+        ],
+        [
+          "a",
+          1
+        ],
+        [
+          "c",
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_2",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(1){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_3",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(2){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_4",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(3){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_5",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(-1){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_6",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(-2){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_7",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(1.9){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_8",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(-0.9){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        [
+          "b",
+          2
+        ],
+        [
+          "a",
+          1
+        ],
+        [
+          "c",
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_16",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(9223372036854775807){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_17",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(-9223372036854775808){missing};[h,r]",
+    "expected": [
+      {
+        "b": 2,
+        "a": 1,
+        "c": 3
+      },
+      [
+        "b",
+        2,
+        "a",
+        1,
+        "c",
+        3
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_2_0",
+    "body": "h={a:nil,b:false};r=h.except(){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_2_1",
+    "body": "h={a:nil,b:false};r=h.except(:a){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "b": false
+      },
+      [
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_2_2",
+    "body": "h={a:nil,b:false};r=h.except(\"b\",:a){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_2_3",
+    "body": "h={a:nil,b:false};r=h.except(:a,:a,:missing){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "b": false
+      },
+      [
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_2_9",
+    "body": "h={a:nil,b:false};r=h.except(bad:7){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_2_10",
+    "body": "h={a:nil,b:false};r=h.except(:a,ignored:7){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      {
+        "b": false
+      },
+      [
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_0",
+    "body": "h={a:nil,b:false};r=h.flatten(){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_1",
+    "body": "h={a:nil,b:false};r=h.flatten(0){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          false
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_2",
+    "body": "h={a:nil,b:false};r=h.flatten(1){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_3",
+    "body": "h={a:nil,b:false};r=h.flatten(2){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_4",
+    "body": "h={a:nil,b:false};r=h.flatten(3){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_5",
+    "body": "h={a:nil,b:false};r=h.flatten(-1){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_6",
+    "body": "h={a:nil,b:false};r=h.flatten(-2){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_7",
+    "body": "h={a:nil,b:false};r=h.flatten(1.9){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_8",
+    "body": "h={a:nil,b:false};r=h.flatten(-0.9){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        [
+          "a",
+          null
+        ],
+        [
+          "b",
+          false
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_16",
+    "body": "h={a:nil,b:false};r=h.flatten(9223372036854775807){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_17",
+    "body": "h={a:nil,b:false};r=h.flatten(-9223372036854775808){missing};[h,r]",
+    "expected": [
+      {
+        "a": null,
+        "b": false
+      },
+      [
+        "a",
+        null,
+        "b",
+        false
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_3_0",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_3_1",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(:a){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      {
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_3_2",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(\"b\",:a){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      {},
+      []
+    ]
+  },
+  {
+    "name": "collection_blocks_except_3_3",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(:a,:a,:missing){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      {
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_3_9",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(bad:7){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_3_10",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(:a,ignored:7){missing};[h,r,r.keys]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      {
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "b"
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_0",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_1",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(0){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        [
+          "a",
+          [
+            1,
+            [
+              2,
+              [
+                3
+              ]
+            ]
+          ]
+        ],
+        [
+          "b",
+          {
+            "x": 4
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_2",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(1){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_3",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(2){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        1,
+        [
+          2,
+          [
+            3
+          ]
+        ],
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_4",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(3){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        1,
+        2,
+        [
+          3
+        ],
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_5",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(-1){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        1,
+        2,
+        3,
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_6",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(-2){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        1,
+        2,
+        3,
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_7",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(1.9){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_8",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(-0.9){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        [
+          "a",
+          [
+            1,
+            [
+              2,
+              [
+                3
+              ]
+            ]
+          ]
+        ],
+        [
+          "b",
+          {
+            "x": 4
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_16",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(9223372036854775807){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        1,
+        2,
+        3,
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_17",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(-9223372036854775808){missing};[h,r]",
+    "expected": [
+      {
+        "a": [
+          1,
+          [
+            2,
+            [
+              3
+            ]
+          ]
+        ],
+        "b": {
+          "x": 4
+        }
+      },
+      [
+        "a",
+        1,
+        2,
+        3,
+        "b",
+        {
+          "x": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_except_bare",
+    "body": "{b:2,a:1}.except",
+    "expected": {
+      "b": 2,
+      "a": 1
+    }
+  },
+  {
+    "name": "collection_blocks_except_stored",
+    "body": "h={except:7};[h.except,h[\"except\"]]",
+    "expected": [
+      {
+        "except": 7
+      },
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_except_alias",
+    "body": "h={a:[1],b:2};r=h.except(:b);r.a.push(3);[h,r]",
+    "expected": [
+      {
+        "a": [
+          1
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          1,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_flatten_bare",
+    "body": "{b:[1,[2]],a:3}.flatten",
+    "expected": [
+      "b",
+      [
+        1,
+        [
+          2
+        ]
+      ],
+      "a",
+      3
+    ]
+  },
+  {
+    "name": "collection_blocks_flatten_stored",
+    "body": "h={flatten:7};[h.flatten,h[\"flatten\"]]",
+    "expected": [
+      [
+        "flatten",
+        7
+      ],
+      7
+    ]
+  },
+  {
+    "name": "collection_blocks_flatten_alias",
+    "body": "h={a:[1]};r=h.flatten;r[1].push(3);[h,r]",
+    "expected": [
+      {
+        "a": [
+          1
+        ]
+      },
+      [
+        "a",
+        [
+          1,
+          3
+        ]
+      ]
+    ]
   }
 ]

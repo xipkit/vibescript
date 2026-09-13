@@ -3584,6 +3584,52 @@
     ]
   },
   {
+    "path": "upstream/hashes/transformations.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "compact": {
+        "a": 1,
+        "c": 3
+      },
+      "select_keys": {
+        "name": "Alice",
+        "goal": 100
+      },
+      "public": {
+        "name": "Alice",
+        "raised": 500,
+        "goal": 1000
+      },
+      "without_private": {
+        "name": "Alice",
+        "status": "active",
+        "score": 0,
+        "goal": 100
+      },
+      "normalize": {
+        "a": 1,
+        "b": 0,
+        "c": 3
+      },
+      "active_only": {
+        "a": "active",
+        "c": "active"
+      },
+      "non_zero": {
+        "y": 5,
+        "w": 3
+      },
+      "deep_transform": {
+        "playerId": 1,
+        "totalRaised": 500,
+        "meta": {
+          "amountCents": 100
+        }
+      }
+    }
+  },
+  {
     "path": "upstream/loops/advanced.vibe",
     "function": "run",
     "args": [],

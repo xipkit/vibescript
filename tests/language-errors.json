@@ -2873,5 +2873,950 @@
     "name": "ordering_nan_max_by",
     "body": "inf=1e308*1e308;n=inf-inf;a=[n];[1,2].max_by {n}",
     "go_error": "array.max_by block values are not comparable"
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_6",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_slice_when_value_3_7",
+    "body": "seen=[];r=[nil,false,true,0].slice_when {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_6",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_slice_when_value_4_7",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].slice_when {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "collection_blocks_slice_when_call_0",
+    "body": "[1,2,3].slice_when",
+    "go_error": "array.slice_when requires a block"
+  },
+  {
+    "name": "collection_blocks_slice_when_call_1",
+    "body": "[1,2,3].slice_when()",
+    "go_error": "array.slice_when requires a block"
+  },
+  {
+    "name": "collection_blocks_slice_when_call_2",
+    "body": "[1,2,3].slice_when(1){true}",
+    "go_error": "array.slice_when does not take arguments"
+  },
+  {
+    "name": "collection_blocks_slice_when_call_3",
+    "body": "[1,2,3].slice_when(bad:1){true}",
+    "go_error": "array.slice_when does not take keyword arguments"
+  },
+  {
+    "name": "collection_blocks_slice_when_call_4",
+    "body": "[1,2,3].slice_when(1,bad:1){true}",
+    "go_error": "array.slice_when does not take arguments"
+  },
+  {
+    "name": "collection_blocks_slice_when_receiver_0",
+    "body": "nil.slice_when {true}",
+    "go_error": "unknown nil method slice_when"
+  },
+  {
+    "name": "collection_blocks_slice_when_receiver_1",
+    "body": "1.slice_when {true}",
+    "go_error": "unknown int method slice_when"
+  },
+  {
+    "name": "collection_blocks_slice_when_receiver_2",
+    "body": "\"a\".slice_when {true}",
+    "go_error": "unknown string method slice_when"
+  },
+  {
+    "name": "collection_blocks_slice_when_receiver_3",
+    "body": "{}.slice_when {true}",
+    "go_error": "unknown hash method slice_when"
+  },
+  {
+    "name": "collection_blocks_slice_when_receiver_4",
+    "body": "(1..3).slice_when {true}",
+    "go_error": "unknown range method slice_when"
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_6",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_3_7",
+    "body": "seen=[];r=[nil,false,true,0].chunk_while {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_6",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);a+1==b};[r,seen]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_chunk_while_value_4_7",
+    "body": "seen=[];r=[[1,2],[2,3],[2,4]].chunk_while {|a,b|seen.push([a,b]);a<b};[r,seen]",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_0",
+    "body": "[1,2,3].chunk_while",
+    "go_error": "array.chunk_while requires a block"
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_1",
+    "body": "[1,2,3].chunk_while()",
+    "go_error": "array.chunk_while requires a block"
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_2",
+    "body": "[1,2,3].chunk_while(1){true}",
+    "go_error": "array.chunk_while does not take arguments"
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_3",
+    "body": "[1,2,3].chunk_while(bad:1){true}",
+    "go_error": "array.chunk_while does not take keyword arguments"
+  },
+  {
+    "name": "collection_blocks_chunk_while_call_4",
+    "body": "[1,2,3].chunk_while(1,bad:1){true}",
+    "go_error": "array.chunk_while does not take arguments"
+  },
+  {
+    "name": "collection_blocks_chunk_while_receiver_0",
+    "body": "nil.chunk_while {true}",
+    "go_error": "unknown nil method chunk_while"
+  },
+  {
+    "name": "collection_blocks_chunk_while_receiver_1",
+    "body": "1.chunk_while {true}",
+    "go_error": "unknown int method chunk_while"
+  },
+  {
+    "name": "collection_blocks_chunk_while_receiver_2",
+    "body": "\"a\".chunk_while {true}",
+    "go_error": "unknown string method chunk_while"
+  },
+  {
+    "name": "collection_blocks_chunk_while_receiver_3",
+    "body": "{}.chunk_while {true}",
+    "go_error": "unknown hash method chunk_while"
+  },
+  {
+    "name": "collection_blocks_chunk_while_receiver_4",
+    "body": "(1..3).chunk_while {true}",
+    "go_error": "unknown range method chunk_while"
+  },
+  {
+    "name": "collection_blocks_merge_0_4_0",
+    "body": "h={};before=h;r=h.merge(nil);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_0_4_1",
+    "body": "h={};before=h;r=h.merge(nil){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_0_4_2",
+    "body": "h={};before=h;r=h.merge(nil){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_0_5_0",
+    "body": "h={};before=h;r=h.merge({a:2},9);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_0_5_1",
+    "body": "h={};before=h;r=h.merge({a:2},9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_0_5_2",
+    "body": "h={};before=h;r=h.merge({a:2},9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_0_6_0",
+    "body": "h={};before=h;r=h.merge(a:9);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_0_6_1",
+    "body": "h={};before=h;r=h.merge(a:9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_0_6_2",
+    "body": "h={};before=h;r=h.merge(a:9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_0_7_0",
+    "body": "h={};before=h;r=h.merge({a:9},extra:2);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_0_7_1",
+    "body": "h={};before=h;r=h.merge({a:9},extra:2){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_0_7_2",
+    "body": "h={};before=h;r=h.merge({a:9},extra:2){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_1_4_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge(nil);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_1_4_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge(nil){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_1_4_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge(nil){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_1_5_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:2},9);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_1_5_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:2},9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_1_5_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:2},9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_1_6_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge(a:9);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_1_6_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge(a:9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_1_6_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge(a:9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_1_7_0",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:9},extra:2);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_1_7_1",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:9},extra:2){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_1_7_2",
+    "body": "h={a:1,b:2};before=h;r=h.merge({a:9},extra:2){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_2_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:9,c:3}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_merge_2_3_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:2},{a:3,d:4}){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_merge_2_4_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(nil);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_2_4_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(nil){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_2_4_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(nil){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_2_5_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:2},9);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_2_5_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:2},9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_2_5_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:2},9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_2_6_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(a:9);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_6_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(a:9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_6_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(a:9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_7_0",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:9},extra:2);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_7_1",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:9},extra:2){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_7_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge({a:9},extra:2){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_2_8_2",
+    "body": "h={a:nil,b:false};before=h;r=h.merge(*[{a:2},{a:3}]){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "collection_blocks_merge_3_4_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge(nil);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_3_4_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge(nil){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_3_4_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge(nil){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 1 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_3_5_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:2},9);[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_3_5_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:2},9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_3_5_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:2},9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge argument 2 must be a hash"
+  },
+  {
+    "name": "collection_blocks_merge_3_6_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge(a:9);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_3_6_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge(a:9){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_3_6_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge(a:9){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_3_7_0",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:9},extra:2);[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_3_7_1",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:9},extra:2){|key,old,new|[key,old,new]};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_merge_3_7_2",
+    "body": "h={b:2,a:1};before=h;r=h.merge({a:9},extra:2){|key,old,new|old+new};[h,before,r,r.keys]",
+    "go_error": "hash.merge does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_deep_1_4",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{nil};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_1_5",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{1};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_1_6",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{true};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_1_7",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{[]};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_1_8",
+    "body": "h={a:1,b:2};before=h;r=h.deep_transform_keys{{a:1}};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_2_4",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{nil};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_2_5",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{1};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_2_6",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{true};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_2_7",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{[]};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_2_8",
+    "body": "h={a:{b:1},c:[{d:2},[{e:3}]],f:nil};before=h;r=h.deep_transform_keys{{a:1}};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_3_4",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{nil};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_3_5",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{1};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_3_6",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{true};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_3_7",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{[]};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_3_8",
+    "body": "h={z:[1,nil,false,[],{}],y:{x:2}};before=h;r=h.deep_transform_keys{{a:1}};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_4_4",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{nil};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_4_5",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{1};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_4_6",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{true};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_4_7",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{[]};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_4_8",
+    "body": "h={a:{b:1},c:{d:2}};before=h;r=h.deep_transform_keys{{a:1}};[h,before,r]",
+    "go_error": "hash.deep_transform_keys block returned an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_deep_signature_0",
+    "body": "{a:1}.deep_transform_keys",
+    "go_error": "hash.deep_transform_keys requires a block"
+  },
+  {
+    "name": "collection_blocks_deep_signature_1",
+    "body": "{a:1}.deep_transform_keys()",
+    "go_error": "hash.deep_transform_keys requires a block"
+  },
+  {
+    "name": "collection_blocks_deep_signature_2",
+    "body": "{a:1}.deep_transform_keys(1){|k|k}",
+    "go_error": "hash.deep_transform_keys does not take arguments"
+  },
+  {
+    "name": "collection_blocks_deep_signature_4",
+    "body": "{a:1}.deep_transform_keys(1,bad:7){|k|k}",
+    "go_error": "hash.deep_transform_keys does not take arguments"
+  },
+  {
+    "name": "collection_blocks_remap_0_7",
+    "body": "h={};r=h.remap_keys([]);[h,r,r.keys]",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_0_8",
+    "body": "h={};r=h.remap_keys(nil);[h,r,r.keys]",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_1_3",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({a:nil});[h,r,r.keys]",
+    "go_error": "hash.remap_keys mapping value is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_remap_1_5",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({a:1});[h,r,r.keys]",
+    "go_error": "hash.remap_keys mapping value is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_remap_1_6",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys({a:[]});[h,r,r.keys]",
+    "go_error": "hash.remap_keys mapping value is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_remap_1_7",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys([]);[h,r,r.keys]",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_1_8",
+    "body": "h={a:1,b:2,c:3};r=h.remap_keys(nil);[h,r,r.keys]",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_2_3",
+    "body": "h={b:2,a:1};r=h.remap_keys({a:nil});[h,r,r.keys]",
+    "go_error": "hash.remap_keys mapping value is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_remap_2_5",
+    "body": "h={b:2,a:1};r=h.remap_keys({a:1});[h,r,r.keys]",
+    "go_error": "hash.remap_keys mapping value is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_remap_2_6",
+    "body": "h={b:2,a:1};r=h.remap_keys({a:[]});[h,r,r.keys]",
+    "go_error": "hash.remap_keys mapping value is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_remap_2_7",
+    "body": "h={b:2,a:1};r=h.remap_keys([]);[h,r,r.keys]",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_2_8",
+    "body": "h={b:2,a:1};r=h.remap_keys(nil);[h,r,r.keys]",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_signature_0",
+    "body": "{a:1}.remap_keys",
+    "go_error": "remap_keys is a method and cannot be used as a value; call it with remap_keys(...)"
+  },
+  {
+    "name": "collection_blocks_remap_signature_1",
+    "body": "{a:1}.remap_keys()",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_remap_signature_2",
+    "body": "{a:1}.remap_keys({a: :x}, {})",
+    "go_error": "hash.remap_keys expects a key mapping hash"
+  },
+  {
+    "name": "collection_blocks_merge_receiver_0",
+    "body": "nil.merge({}){0}",
+    "go_error": "unknown nil method merge"
+  },
+  {
+    "name": "collection_blocks_merge_receiver_1",
+    "body": "1.merge({}){0}",
+    "go_error": "unknown int method merge"
+  },
+  {
+    "name": "collection_blocks_merge_receiver_2",
+    "body": "\"a\".merge({}){0}",
+    "go_error": "unknown string method merge"
+  },
+  {
+    "name": "collection_blocks_merge_receiver_3",
+    "body": "[].merge({}){0}",
+    "go_error": "unknown array method merge"
+  },
+  {
+    "name": "collection_blocks_merge_receiver_4",
+    "body": "(1..3).merge({}){0}",
+    "go_error": "unknown range method merge"
+  },
+  {
+    "name": "collection_blocks_deep_transform_keys_receiver_0",
+    "body": "nil.deep_transform_keys({}){0}",
+    "go_error": "unknown nil method deep_transform_keys"
+  },
+  {
+    "name": "collection_blocks_deep_transform_keys_receiver_1",
+    "body": "1.deep_transform_keys({}){0}",
+    "go_error": "unknown int method deep_transform_keys"
+  },
+  {
+    "name": "collection_blocks_deep_transform_keys_receiver_2",
+    "body": "\"a\".deep_transform_keys({}){0}",
+    "go_error": "unknown string method deep_transform_keys"
+  },
+  {
+    "name": "collection_blocks_deep_transform_keys_receiver_3",
+    "body": "[].deep_transform_keys({}){0}",
+    "go_error": "unknown array method deep_transform_keys"
+  },
+  {
+    "name": "collection_blocks_deep_transform_keys_receiver_4",
+    "body": "(1..3).deep_transform_keys({}){0}",
+    "go_error": "unknown range method deep_transform_keys"
+  },
+  {
+    "name": "collection_blocks_remap_keys_receiver_0",
+    "body": "nil.remap_keys({}){0}",
+    "go_error": "unknown nil method remap_keys"
+  },
+  {
+    "name": "collection_blocks_remap_keys_receiver_1",
+    "body": "1.remap_keys({}){0}",
+    "go_error": "unknown int method remap_keys"
+  },
+  {
+    "name": "collection_blocks_remap_keys_receiver_2",
+    "body": "\"a\".remap_keys({}){0}",
+    "go_error": "unknown string method remap_keys"
+  },
+  {
+    "name": "collection_blocks_remap_keys_receiver_3",
+    "body": "[].remap_keys({}){0}",
+    "go_error": "unknown array method remap_keys"
+  },
+  {
+    "name": "collection_blocks_remap_keys_receiver_4",
+    "body": "(1..3).remap_keys({}){0}",
+    "go_error": "unknown range method remap_keys"
+  },
+  {
+    "name": "collection_blocks_zip_block_0_5",
+    "body": "[].zip(9){missing}",
+    "go_error": "array.zip arguments must be arrays"
+  },
+  {
+    "name": "collection_blocks_zip_block_1_5",
+    "body": "[1].zip(9){missing}",
+    "go_error": "array.zip arguments must be arrays"
+  },
+  {
+    "name": "collection_blocks_zip_block_2_5",
+    "body": "[1,2,3].zip(9){missing}",
+    "go_error": "array.zip arguments must be arrays"
+  },
+  {
+    "name": "collection_blocks_except_0_4",
+    "body": "h={};r=h.except(nil){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_0_5",
+    "body": "h={};r=h.except(1){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_0_6",
+    "body": "h={};r=h.except([]){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_0_7",
+    "body": "h={};r=h.except({}){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_0_8",
+    "body": "h={};r=h.except(true){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_9",
+    "body": "h={};r=h.flatten(nil){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_10",
+    "body": "h={};r=h.flatten(\"1\"){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_11",
+    "body": "h={};r=h.flatten(true){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_12",
+    "body": "h={};r=h.flatten([]){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_13",
+    "body": "h={};r=h.flatten(1,2){missing};[h,r]",
+    "go_error": "hash.flatten accepts at most one depth argument"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_14",
+    "body": "h={};r=h.flatten(bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_0_15",
+    "body": "h={};r=h.flatten(1,bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_except_1_4",
+    "body": "h={b:2,a:1,c:3};r=h.except(nil){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_1_5",
+    "body": "h={b:2,a:1,c:3};r=h.except(1){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_1_6",
+    "body": "h={b:2,a:1,c:3};r=h.except([]){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_1_7",
+    "body": "h={b:2,a:1,c:3};r=h.except({}){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_1_8",
+    "body": "h={b:2,a:1,c:3};r=h.except(true){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_9",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(nil){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_10",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(\"1\"){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_11",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(true){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_12",
+    "body": "h={b:2,a:1,c:3};r=h.flatten([]){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_13",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(1,2){missing};[h,r]",
+    "go_error": "hash.flatten accepts at most one depth argument"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_14",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_1_15",
+    "body": "h={b:2,a:1,c:3};r=h.flatten(1,bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_except_2_4",
+    "body": "h={a:nil,b:false};r=h.except(nil){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_2_5",
+    "body": "h={a:nil,b:false};r=h.except(1){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_2_6",
+    "body": "h={a:nil,b:false};r=h.except([]){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_2_7",
+    "body": "h={a:nil,b:false};r=h.except({}){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_2_8",
+    "body": "h={a:nil,b:false};r=h.except(true){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_9",
+    "body": "h={a:nil,b:false};r=h.flatten(nil){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_10",
+    "body": "h={a:nil,b:false};r=h.flatten(\"1\"){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_11",
+    "body": "h={a:nil,b:false};r=h.flatten(true){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_12",
+    "body": "h={a:nil,b:false};r=h.flatten([]){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_13",
+    "body": "h={a:nil,b:false};r=h.flatten(1,2){missing};[h,r]",
+    "go_error": "hash.flatten accepts at most one depth argument"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_14",
+    "body": "h={a:nil,b:false};r=h.flatten(bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_2_15",
+    "body": "h={a:nil,b:false};r=h.flatten(1,bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_except_3_4",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(nil){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_3_5",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(1){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type int: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_3_6",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except([]){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type array: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_3_7",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except({}){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type hash: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_except_3_8",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.except(true){missing};[h,r,r.keys]",
+    "go_error": "hash.except key is an unsupported hash key: unsupported hash key type bool: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_9",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(nil){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_10",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(\"1\"){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_11",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(true){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_12",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten([]){missing};[h,r]",
+    "go_error": "hash.flatten depth must be integer"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_13",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(1,2){missing};[h,r]",
+    "go_error": "hash.flatten accepts at most one depth argument"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_14",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_hash_flatten_3_15",
+    "body": "h={a:[1,[2,[3]]],b:{x:4}};r=h.flatten(1,bad:7){missing};[h,r]",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "collection_blocks_except_receiver_0",
+    "body": "nil.except(:a)",
+    "go_error": "unknown nil method except"
+  },
+  {
+    "name": "collection_blocks_except_receiver_1",
+    "body": "1.except(:a)",
+    "go_error": "unknown int method except"
+  },
+  {
+    "name": "collection_blocks_except_receiver_2",
+    "body": "\"a\".except(:a)",
+    "go_error": "unknown string method except"
+  },
+  {
+    "name": "collection_blocks_except_receiver_3",
+    "body": "[].except(:a)",
+    "go_error": "unknown array method except"
+  },
+  {
+    "name": "collection_blocks_except_receiver_4",
+    "body": "(1..3).except(:a)",
+    "go_error": "unknown range method except"
   }
 ]

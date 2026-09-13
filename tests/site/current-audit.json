@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "445e0dea35b85ecdd3b963b014d0db8fe9078ea0",
-  "dirty": " M Cargo.toml\n M README.md\n M docs/compatibility-cases.json\n M docs/compatibility.md\n M src/iteration.rs\n M src/lib.rs\n M src/ops.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n?? licenses/\n?? src/ordering.rs\n?? src/sort.rs\n?? tests/ordering.rs\n",
+  "source_revision": "531e4b44b4825bdddc35bc7d398cb58cff2e8daf",
+  "dirty": " M docs/compatibility-cases.json\n M src/bytecode.rs\n M src/collections.rs\n M src/iteration.rs\n M src/lib.rs\n M src/ops.rs\n M src/ordering.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/hash_blocks.rs\n?? tests/hash_blocks.rs\n",
   "binary_sha256": {
-    "go-simd": "669379f24268042cf221b8cf0a079bbd1413410b819a92af80e07fa13d189156",
-    "rust-simd": "44abe3818c4c29be38aba64c49e69c4995546935d4aaf1b95e95b168ff6eebe0"
+    "go-simd": "7857b433a266d275f85d516c0b793ecb716955c3c7bceaeb29b56999689dc483",
+    "rust-simd": "dbc2c94d0dbe0ee85e993d30692388c375b83e1aea1da380d6d91ac36732037d"
   },
   "counts": {
-    "match": 148,
-    "rust_gap": 40,
+    "match": 149,
+    "rust_gap": 39,
     "harness_gap": 15
   },
   "examples": [
@@ -8914,10 +8914,51 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method except is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "compact": {
+            "a": 1,
+            "c": 3
+          },
+          "select_keys": {
+            "name": "Alice",
+            "goal": 100
+          },
+          "public": {
+            "name": "Alice",
+            "raised": 500,
+            "goal": 1000
+          },
+          "without_private": {
+            "name": "Alice",
+            "status": "active",
+            "score": 0,
+            "goal": 100
+          },
+          "normalize": {
+            "a": 1,
+            "b": 0,
+            "c": 3
+          },
+          "active_only": {
+            "a": "active",
+            "c": "active"
+          },
+          "non_zero": {
+            "y": 5,
+            "w": 3
+          },
+          "deep_transform": {
+            "playerId": 1,
+            "totalRaised": 500,
+            "meta": {
+              "amountCents": 100
+            }
+          }
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/loops/advanced.vibe",

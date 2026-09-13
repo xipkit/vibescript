@@ -312,7 +312,7 @@ impl Driver {
             let value = array[self.position].clone();
             self.position += 1;
             self.waiting = true;
-            return Ok(Progress::Yield([value, Value::nil()], 1));
+            return Ok(Progress::Yield([value, Value::nil(), Value::nil()], 1));
         }
         if matches!(self.method, Method::Sort | Method::SortBy) {
             loop {
@@ -321,7 +321,11 @@ impl Driver {
                         if self.method == Method::Sort && self.block {
                             self.waiting = true;
                             return Ok(Progress::Yield(
-                                [self.values.data[a].clone(), self.values.data[b].clone()],
+                                [
+                                    self.values.data[a].clone(),
+                                    self.values.data[b].clone(),
+                                    Value::nil(),
+                                ],
                                 2,
                             ));
                         }

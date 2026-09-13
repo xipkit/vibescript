@@ -522,5 +522,209 @@
       ],
       3
     ]
+  },
+  {
+    "name": "collection_blocks_slice_when_mutation_0_False",
+    "body": "a=[1,2,3];seen=[];r=a.slice_when {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          9
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9,
+          3
+        ]
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_chunk_while_mutation_0_False",
+    "body": "a=[1,2,3];seen=[];r=a.chunk_while {|x,y|seen.push([x,y]);a[1]=9;x+1!=y};[a,r,seen]",
+    "go": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          9,
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9,
+          3
+        ]
+      ]
+    ],
+    "rust": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "collection_blocks_merge_mutates_later_argument",
+    "body": "h={a:1};later={a:3,b:4};r=h.merge({a:2},later){|k,o,n|later.a=9;o+n};[later,r]",
+    "go": [
+      {
+        "a": 9,
+        "b": 4
+      },
+      {
+        "a": 12,
+        "b": 4
+      }
+    ],
+    "rust": [
+      {
+        "a": 9,
+        "b": 4
+      },
+      {
+        "a": 6,
+        "b": 4
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_1_False",
+    "body": "h={a:[1,2],b:2};r=h.deep_transform_keys {|k|h.a[0]=9;k};[h,r]",
+    "go": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      }
+    ],
+    "rust": [
+      {
+        "a": [
+          9,
+          2
+        ],
+        "b": 2
+      },
+      {
+        "a": [
+          1,
+          2
+        ],
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "collection_blocks_deep_mutation_3_False",
+    "body": "h={a:{b:1},b:2};r=h.deep_transform_keys {|k|h.a.b=9;k};[h,r]",
+    "go": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      }
+    ],
+    "rust": [
+      {
+        "a": {
+          "b": 9
+        },
+        "b": 2
+      },
+      {
+        "a": {
+          "b": 1
+        },
+        "b": 2
+      }
+    ]
   }
 ]

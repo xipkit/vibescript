@@ -17,6 +17,7 @@ mod bytecode;
 mod collections;
 mod error;
 mod hash;
+mod hash_blocks;
 mod iteration;
 mod json;
 mod members;
