@@ -80,6 +80,7 @@ The [SMS preview example](examples/sms.rs) captures a Rust client in a registere
 - Scalar string concatenation, recursive joining, array/range display, character and byte extraction, affix predicates, integer parity, and numeric `abs`.
 - String `prepend`, character-position `insert`, `replace`, and `clear` return new strings while preserving the receiver's binding.
 - String trimming, Unicode `squish`, `chomp`/`chop`, prefix/suffix removal and their bang forms, plus `reverse!`, character-counted `center`/`ljust`/`rjust`, and byte-oriented `partition`/`rpartition`. Bang forms return the changed value or nil without modifying the receiver. Proper string windows copy their bytes, and padding reserves its projected output before writing.
+- String `count`, `delete`, `tr` and `squeeze` support character ranges, escapes, complements and set intersections, including distinct invalid bytes. Transform bang forms preserve receiver values. Parsed ranges and output storage are accounted, and every set comparison consumes work.
 - Explicitly registered synchronous host functions.
 - Stable array `sort` with comparator blocks, `sort_by`, `min`, `max`, `minmax`, `min_by`, and `max_by`. Array `<=>` compares nested values lexicographically; incomparable pairs return nil. Sort scratch, retained keys and comparison state are accounted, and block exits unwind through VM frames.
 

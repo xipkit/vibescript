@@ -61073,5 +61073,1370 @@
     "name": "string_transform_padding_pad_53",
     "body": "\"x\".rjust(9,{})",
     "go_error": "string.rjust pad must be string"
+  },
+  {
+    "name": "string_charset_intersection_6",
+    "body": "s=\"\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_7",
+    "body": "s=\"\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_8",
+    "body": "s=\"\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_33",
+    "body": "s=\"\\x62\\x61\\x6e\\x61\\x6e\\x61\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_34",
+    "body": "s=\"\\x62\\x61\\x6e\\x61\\x6e\\x61\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_35",
+    "body": "s=\"\\x62\\x61\\x6e\\x61\\x6e\\x61\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_60",
+    "body": "s=\"\\x61\\x62\\x63\\x31\\x32\\x33\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_61",
+    "body": "s=\"\\x61\\x62\\x63\\x31\\x32\\x33\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_62",
+    "body": "s=\"\\x61\\x62\\x63\\x31\\x32\\x33\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_87",
+    "body": "s=\"\\x62\\x6f\\x6f\\x6b\\x6b\\x65\\x65\\x70\\x65\\x72\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_88",
+    "body": "s=\"\\x62\\x6f\\x6f\\x6b\\x6b\\x65\\x65\\x70\\x65\\x72\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_89",
+    "body": "s=\"\\x62\\x6f\\x6f\\x6b\\x6b\\x65\\x65\\x70\\x65\\x72\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_114",
+    "body": "s=\"\\x5e\\x5e\\x2d\\x2d\\x2d\\x5c\\x61\\x62\\x63\\x63\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_115",
+    "body": "s=\"\\x5e\\x5e\\x2d\\x2d\\x2d\\x5c\\x61\\x62\\x63\\x63\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_116",
+    "body": "s=\"\\x5e\\x5e\\x2d\\x2d\\x2d\\x5c\\x61\\x62\\x63\\x63\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_141",
+    "body": "s=\"\\xff\\xff\\xfe\\x61\\x80\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_142",
+    "body": "s=\"\\xff\\xff\\xfe\\x61\\x80\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_143",
+    "body": "s=\"\\xff\\xff\\xfe\\x61\\x80\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_168",
+    "body": "s=\"\\xc3\\xa9\\xc3\\xa9\\xc3\\xaa\\xce\\xa3\\xce\\xa3\\xce\\xa9\\xf0\\x90\\x90\\x80\\xf0\\x90\\x90\\x81\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_169",
+    "body": "s=\"\\xc3\\xa9\\xc3\\xa9\\xc3\\xaa\\xce\\xa3\\xce\\xa3\\xce\\xa9\\xf0\\x90\\x90\\x80\\xf0\\x90\\x90\\x81\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_170",
+    "body": "s=\"\\xc3\\xa9\\xc3\\xa9\\xc3\\xaa\\xce\\xa3\\xce\\xa3\\xce\\xa9\\xf0\\x90\\x90\\x80\\xf0\\x90\\x90\\x81\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_195",
+    "body": "s=\"\\xff\\xef\\xbf\\xbd\\xef\\xbf\\xbd\\xfe\\xfe\";r=s.count(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_196",
+    "body": "s=\"\\xff\\xef\\xbf\\xbd\\xef\\xbf\\xbd\\xfe\\xfe\";r=s.delete(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_intersection_197",
+    "body": "s=\"\\xff\\xef\\xbf\\xbd\\xef\\xbf\\xbd\\xfe\\xfe\";r=s.squeeze(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x61\\x2d\\x7a\",\"\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_0",
+    "body": "s=\"\";r=s.count(\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_1",
+    "body": "s=\"\";r=s.delete(\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_2",
+    "body": "s=\"\";r=s.squeeze(\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_source_0",
+    "body": "s=\"\";r=s.tr(\"\\x7a\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\x7a\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_replacement_0",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\x7a\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_3",
+    "body": "s=\"\";r=s.count(\"\\x61\\x2d\\x2d\");[r,s.bytes]",
+    "go_error": "string.count invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_4",
+    "body": "s=\"\";r=s.delete(\"\\x61\\x2d\\x2d\");b=s.delete!(\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_5",
+    "body": "s=\"\";r=s.squeeze(\"\\x61\\x2d\\x2d\");b=s.squeeze!(\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_source_1",
+    "body": "s=\"\";r=s.tr(\"\\x61\\x2d\\x2d\",\"\\x58\");b=s.tr!(\"\\x61\\x2d\\x2d\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_replacement_1",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\x61\\x2d\\x2d\");b=s.tr!(\"\\x61\",\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_6",
+    "body": "s=\"\";r=s.count(\"\\xff\\x2d\\x80\");[r,s.bytes]",
+    "go_error": "string.count invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_7",
+    "body": "s=\"\";r=s.delete(\"\\xff\\x2d\\x80\");b=s.delete!(\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_8",
+    "body": "s=\"\";r=s.squeeze(\"\\xff\\x2d\\x80\");b=s.squeeze!(\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_source_2",
+    "body": "s=\"\";r=s.tr(\"\\xff\\x2d\\x80\",\"\\x58\");b=s.tr!(\"\\xff\\x2d\\x80\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_replacement_2",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\xff\\x2d\\x80\");b=s.tr!(\"\\x61\",\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_9",
+    "body": "s=\"\";r=s.count(\"\\xff\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_10",
+    "body": "s=\"\";r=s.delete(\"\\xff\\x2d\\x61\");b=s.delete!(\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_11",
+    "body": "s=\"\";r=s.squeeze(\"\\xff\\x2d\\x61\");b=s.squeeze!(\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_3",
+    "body": "s=\"\";r=s.tr(\"\\xff\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\xff\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_3",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\xff\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_12",
+    "body": "s=\"\";r=s.count(\"\\x61\\x2d\\xff\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_13",
+    "body": "s=\"\";r=s.delete(\"\\x61\\x2d\\xff\");b=s.delete!(\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_14",
+    "body": "s=\"\";r=s.squeeze(\"\\x61\\x2d\\xff\");b=s.squeeze!(\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_4",
+    "body": "s=\"\";r=s.tr(\"\\x61\\x2d\\xff\",\"\\x58\");b=s.tr!(\"\\x61\\x2d\\xff\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_4",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\x61\\x2d\\xff\");b=s.tr!(\"\\x61\",\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_15",
+    "body": "s=\"\";r=s.count(\"\\x80\\x2d\\xc3\\xa9\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_16",
+    "body": "s=\"\";r=s.delete(\"\\x80\\x2d\\xc3\\xa9\");b=s.delete!(\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_17",
+    "body": "s=\"\";r=s.squeeze(\"\\x80\\x2d\\xc3\\xa9\");b=s.squeeze!(\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_5",
+    "body": "s=\"\";r=s.tr(\"\\x80\\x2d\\xc3\\xa9\",\"\\x58\");b=s.tr!(\"\\x80\\x2d\\xc3\\xa9\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_5",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\x80\\x2d\\xc3\\xa9\");b=s.tr!(\"\\x61\",\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_18",
+    "body": "s=\"\";r=s.count(\"\\x5e\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_19",
+    "body": "s=\"\";r=s.delete(\"\\x5e\\x7a\\x2d\\x61\");b=s.delete!(\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_20",
+    "body": "s=\"\";r=s.squeeze(\"\\x5e\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_source_6",
+    "body": "s=\"\";r=s.tr(\"\\x5e\\x7a\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\x5e\\x7a\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_replacement_6",
+    "body": "s=\"\";r=s.tr(\"\\x61\",\"\\x5e\\x7a\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_21",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_22",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_23",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_source_7",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x7a\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\x7a\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_replacement_7",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\x7a\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_24",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\x61\\x2d\\x2d\");[r,s.bytes]",
+    "go_error": "string.count invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_25",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\x61\\x2d\\x2d\");b=s.delete!(\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_26",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\x61\\x2d\\x2d\");b=s.squeeze!(\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_source_8",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\\x2d\\x2d\",\"\\x58\");b=s.tr!(\"\\x61\\x2d\\x2d\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_replacement_8",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\x61\\x2d\\x2d\");b=s.tr!(\"\\x61\",\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_27",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\xff\\x2d\\x80\");[r,s.bytes]",
+    "go_error": "string.count invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_28",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\xff\\x2d\\x80\");b=s.delete!(\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_29",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\xff\\x2d\\x80\");b=s.squeeze!(\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_source_9",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\xff\\x2d\\x80\",\"\\x58\");b=s.tr!(\"\\xff\\x2d\\x80\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_replacement_9",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\xff\\x2d\\x80\");b=s.tr!(\"\\x61\",\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_30",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\xff\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_31",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\xff\\x2d\\x61\");b=s.delete!(\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_32",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\xff\\x2d\\x61\");b=s.squeeze!(\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_10",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\xff\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\xff\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_10",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\xff\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_33",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\x61\\x2d\\xff\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_34",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\x61\\x2d\\xff\");b=s.delete!(\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_35",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\x61\\x2d\\xff\");b=s.squeeze!(\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_11",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\\x2d\\xff\",\"\\x58\");b=s.tr!(\"\\x61\\x2d\\xff\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_11",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\x61\\x2d\\xff\");b=s.tr!(\"\\x61\",\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_36",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\x80\\x2d\\xc3\\xa9\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_37",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\x80\\x2d\\xc3\\xa9\");b=s.delete!(\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_38",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\x80\\x2d\\xc3\\xa9\");b=s.squeeze!(\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_12",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x80\\x2d\\xc3\\xa9\",\"\\x58\");b=s.tr!(\"\\x80\\x2d\\xc3\\xa9\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_12",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\x80\\x2d\\xc3\\xa9\");b=s.tr!(\"\\x61\",\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_39",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.count(\"\\x5e\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_40",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.delete(\"\\x5e\\x7a\\x2d\\x61\");b=s.delete!(\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_41",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.squeeze(\"\\x5e\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_source_13",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x5e\\x7a\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\x5e\\x7a\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_replacement_13",
+    "body": "s=\"\\x61\\x62\\x63\";r=s.tr(\"\\x61\",\"\\x5e\\x7a\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_42",
+    "body": "s=\"\\xff\";r=s.count(\"\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_43",
+    "body": "s=\"\\xff\";r=s.delete(\"\\x7a\\x2d\\x61\");b=s.delete!(\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_44",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_source_14",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x7a\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\x7a\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_replacement_14",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\x7a\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_45",
+    "body": "s=\"\\xff\";r=s.count(\"\\x61\\x2d\\x2d\");[r,s.bytes]",
+    "go_error": "string.count invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_46",
+    "body": "s=\"\\xff\";r=s.delete(\"\\x61\\x2d\\x2d\");b=s.delete!(\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_47",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\x61\\x2d\\x2d\");b=s.squeeze!(\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_source_15",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\\x2d\\x2d\",\"\\x58\");b=s.tr!(\"\\x61\\x2d\\x2d\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_replacement_15",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\x61\\x2d\\x2d\");b=s.tr!(\"\\x61\",\"\\x61\\x2d\\x2d\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range a--"
+  },
+  {
+    "name": "string_charset_invalid_range_48",
+    "body": "s=\"\\xff\";r=s.count(\"\\xff\\x2d\\x80\");[r,s.bytes]",
+    "go_error": "string.count invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_49",
+    "body": "s=\"\\xff\";r=s.delete(\"\\xff\\x2d\\x80\");b=s.delete!(\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_50",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\xff\\x2d\\x80\");b=s.squeeze!(\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_source_16",
+    "body": "s=\"\\xff\";r=s.tr(\"\\xff\\x2d\\x80\",\"\\x58\");b=s.tr!(\"\\xff\\x2d\\x80\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_replacement_16",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\xff\\x2d\\x80\");b=s.tr!(\"\\x61\",\"\\xff\\x2d\\x80\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range ff-80"
+  },
+  {
+    "name": "string_charset_invalid_range_51",
+    "body": "s=\"\\xff\";r=s.count(\"\\xff\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_52",
+    "body": "s=\"\\xff\";r=s.delete(\"\\xff\\x2d\\x61\");b=s.delete!(\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_53",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\xff\\x2d\\x61\");b=s.squeeze!(\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_17",
+    "body": "s=\"\\xff\";r=s.tr(\"\\xff\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\xff\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_17",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\xff\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\xff\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_54",
+    "body": "s=\"\\xff\";r=s.count(\"\\x61\\x2d\\xff\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_55",
+    "body": "s=\"\\xff\";r=s.delete(\"\\x61\\x2d\\xff\");b=s.delete!(\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_56",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\x61\\x2d\\xff\");b=s.squeeze!(\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_18",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\\x2d\\xff\",\"\\x58\");b=s.tr!(\"\\x61\\x2d\\xff\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_18",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\x61\\x2d\\xff\");b=s.tr!(\"\\x61\",\"\\x61\\x2d\\xff\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_57",
+    "body": "s=\"\\xff\";r=s.count(\"\\x80\\x2d\\xc3\\xa9\");[r,s.bytes]",
+    "go_error": "string.count invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_58",
+    "body": "s=\"\\xff\";r=s.delete(\"\\x80\\x2d\\xc3\\xa9\");b=s.delete!(\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_59",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\x80\\x2d\\xc3\\xa9\");b=s.squeeze!(\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_source_19",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x80\\x2d\\xc3\\xa9\",\"\\x58\");b=s.tr!(\"\\x80\\x2d\\xc3\\xa9\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_replacement_19",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\x80\\x2d\\xc3\\xa9\");b=s.tr!(\"\\x61\",\"\\x80\\x2d\\xc3\\xa9\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid mixed byte/rune character range"
+  },
+  {
+    "name": "string_charset_invalid_range_60",
+    "body": "s=\"\\xff\";r=s.count(\"\\x5e\\x7a\\x2d\\x61\");[r,s.bytes]",
+    "go_error": "string.count invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_61",
+    "body": "s=\"\\xff\";r=s.delete(\"\\x5e\\x7a\\x2d\\x61\");b=s.delete!(\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.delete invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_range_62",
+    "body": "s=\"\\xff\";r=s.squeeze(\"\\x5e\\x7a\\x2d\\x61\");b=s.squeeze!(\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.squeeze invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_source_20",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x5e\\x7a\\x2d\\x61\",\"\\x58\");b=s.tr!(\"\\x5e\\x7a\\x2d\\x61\",\"\\x58\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_invalid_replacement_20",
+    "body": "s=\"\\xff\";r=s.tr(\"\\x61\",\"\\x5e\\x7a\\x2d\\x61\");b=s.tr!(\"\\x61\",\"\\x5e\\x7a\\x2d\\x61\");[r.bytes,b.nil? ? nil : b.bytes,s.bytes]",
+    "go_error": "string.tr invalid character range z-a"
+  },
+  {
+    "name": "string_charset_args_0",
+    "body": "\"banana\".count()",
+    "go_error": "string.count expects at least one character set"
+  },
+  {
+    "name": "string_charset_args_1",
+    "body": "\"banana\".count(nil)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_2",
+    "body": "\"banana\".count(false)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_3",
+    "body": "\"banana\".count(1)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_4",
+    "body": "\"banana\".count(1.0)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_5",
+    "body": "\"banana\".count(:a)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_6",
+    "body": "\"banana\".count([])",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_7",
+    "body": "\"banana\".count({})",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_8",
+    "body": "\"banana\".count(\"a\",nil)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_args_9",
+    "body": "\"banana\".count(\"a\",:b)",
+    "go_error": "string.count character set must be string"
+  },
+  {
+    "name": "string_charset_calls_3",
+    "body": "\"banana\".count(\"a\",unused:1)",
+    "go_error": "string.count does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_4",
+    "body": "\"banana\".count(\"a\",**{unused:1})",
+    "go_error": "string.count does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_0",
+    "body": "n=0;s=\"banana\";r=s.count(\"a\"){n+=1};[r,n,s]",
+    "go_error": "string.count does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_0",
+    "body": "\"banana\".count(\"a\"){1/0}",
+    "go_error": "string.count does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_0",
+    "body": ":banana.count(\"a\")",
+    "go_error": "unknown symbol method count"
+  },
+  {
+    "name": "string_charset_receivers_1",
+    "body": "nil.count(\"a\")",
+    "go_error": "unknown nil method count"
+  },
+  {
+    "name": "string_charset_receivers_2",
+    "body": "false.count(\"a\")",
+    "go_error": "unknown bool method count"
+  },
+  {
+    "name": "string_charset_receivers_3",
+    "body": "1.count(\"a\")",
+    "go_error": "unknown int method count (did you mean \"round\"?)"
+  },
+  {
+    "name": "string_charset_receivers_4",
+    "body": "1.0.count(\"a\")",
+    "go_error": "unknown float method count (did you mean \"round\"?)"
+  },
+  {
+    "name": "string_charset_receivers_6",
+    "body": "{}.count(\"a\")",
+    "go_error": "unknown hash method count"
+  },
+  {
+    "name": "string_charset_args_11",
+    "body": "\"banana\".delete()",
+    "go_error": "string.delete expects at least one character set"
+  },
+  {
+    "name": "string_charset_args_12",
+    "body": "\"banana\".delete(nil)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_13",
+    "body": "\"banana\".delete(false)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_14",
+    "body": "\"banana\".delete(1)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_15",
+    "body": "\"banana\".delete(1.0)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_16",
+    "body": "\"banana\".delete(:a)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_17",
+    "body": "\"banana\".delete([])",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_18",
+    "body": "\"banana\".delete({})",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_19",
+    "body": "\"banana\".delete(\"a\",nil)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_args_20",
+    "body": "\"banana\".delete(\"a\",:b)",
+    "go_error": "string.delete character set must be string"
+  },
+  {
+    "name": "string_charset_calls_8",
+    "body": "\"banana\".delete(\"a\",unused:1)",
+    "go_error": "string.delete does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_9",
+    "body": "\"banana\".delete(\"a\",**{unused:1})",
+    "go_error": "string.delete does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_1",
+    "body": "n=0;s=\"banana\";r=s.delete(\"a\"){n+=1};[r,n,s]",
+    "go_error": "string.delete does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_1",
+    "body": "\"banana\".delete(\"a\"){1/0}",
+    "go_error": "string.delete does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_7",
+    "body": ":banana.delete(\"a\")",
+    "go_error": "unknown symbol method delete"
+  },
+  {
+    "name": "string_charset_receivers_8",
+    "body": "nil.delete(\"a\")",
+    "go_error": "unknown nil method delete"
+  },
+  {
+    "name": "string_charset_receivers_9",
+    "body": "false.delete(\"a\")",
+    "go_error": "unknown bool method delete"
+  },
+  {
+    "name": "string_charset_receivers_10",
+    "body": "1.delete(\"a\")",
+    "go_error": "unknown int method delete"
+  },
+  {
+    "name": "string_charset_receivers_11",
+    "body": "1.0.delete(\"a\")",
+    "go_error": "unknown float method delete"
+  },
+  {
+    "name": "string_charset_args_22",
+    "body": "\"banana\".delete!()",
+    "go_error": "string.delete! expects at least one character set"
+  },
+  {
+    "name": "string_charset_args_23",
+    "body": "\"banana\".delete!(nil)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_24",
+    "body": "\"banana\".delete!(false)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_25",
+    "body": "\"banana\".delete!(1)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_26",
+    "body": "\"banana\".delete!(1.0)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_27",
+    "body": "\"banana\".delete!(:a)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_28",
+    "body": "\"banana\".delete!([])",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_29",
+    "body": "\"banana\".delete!({})",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_30",
+    "body": "\"banana\".delete!(\"a\",nil)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_args_31",
+    "body": "\"banana\".delete!(\"a\",:b)",
+    "go_error": "string.delete! character set must be string"
+  },
+  {
+    "name": "string_charset_calls_13",
+    "body": "\"banana\".delete!(\"a\",unused:1)",
+    "go_error": "string.delete! does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_14",
+    "body": "\"banana\".delete!(\"a\",**{unused:1})",
+    "go_error": "string.delete! does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_2",
+    "body": "n=0;s=\"banana\";r=s.delete!(\"a\"){n+=1};[r,n,s]",
+    "go_error": "string.delete! does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_2",
+    "body": "\"banana\".delete!(\"a\"){1/0}",
+    "go_error": "string.delete! does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_14",
+    "body": ":banana.delete!(\"a\")",
+    "go_error": "unknown symbol method delete!"
+  },
+  {
+    "name": "string_charset_receivers_15",
+    "body": "nil.delete!(\"a\")",
+    "go_error": "unknown nil method delete!"
+  },
+  {
+    "name": "string_charset_receivers_16",
+    "body": "false.delete!(\"a\")",
+    "go_error": "unknown bool method delete!"
+  },
+  {
+    "name": "string_charset_receivers_17",
+    "body": "1.delete!(\"a\")",
+    "go_error": "unknown int method delete!"
+  },
+  {
+    "name": "string_charset_receivers_18",
+    "body": "1.0.delete!(\"a\")",
+    "go_error": "unknown float method delete!"
+  },
+  {
+    "name": "string_charset_receivers_19",
+    "body": "[].delete!(\"a\")",
+    "go_error": "unknown array method delete! (did you mean \"delete\"?)"
+  },
+  {
+    "name": "string_charset_receivers_20",
+    "body": "{}.delete!(\"a\")",
+    "go_error": "unknown hash method delete! (did you mean \"delete\"?)"
+  },
+  {
+    "name": "string_charset_args_33",
+    "body": "\"banana\".tr()",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_34",
+    "body": "\"banana\".tr(nil)",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_35",
+    "body": "\"banana\".tr(false)",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_36",
+    "body": "\"banana\".tr(1)",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_37",
+    "body": "\"banana\".tr(1.0)",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_38",
+    "body": "\"banana\".tr(:a)",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_39",
+    "body": "\"banana\".tr([])",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_40",
+    "body": "\"banana\".tr({})",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_41",
+    "body": "\"banana\".tr(\"a\",nil)",
+    "go_error": "string.tr character sets must be strings"
+  },
+  {
+    "name": "string_charset_args_42",
+    "body": "\"banana\".tr(\"a\",:b)",
+    "go_error": "string.tr character sets must be strings"
+  },
+  {
+    "name": "string_charset_args_43",
+    "body": "\"banana\".tr(\"a\",\"b\",\"c\")",
+    "go_error": "string.tr expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_calls_18",
+    "body": "\"banana\".tr(\"a\",\"X\",unused:1)",
+    "go_error": "string.tr does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_19",
+    "body": "\"banana\".tr(\"a\",\"X\",**{unused:1})",
+    "go_error": "string.tr does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_3",
+    "body": "n=0;s=\"banana\";r=s.tr(\"a\",\"X\"){n+=1};[r,n,s]",
+    "go_error": "string.tr does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_3",
+    "body": "\"banana\".tr(\"a\",\"X\"){1/0}",
+    "go_error": "string.tr does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_21",
+    "body": ":banana.tr(\"a\",\"X\")",
+    "go_error": "unknown symbol method tr"
+  },
+  {
+    "name": "string_charset_receivers_22",
+    "body": "nil.tr(\"a\",\"X\")",
+    "go_error": "unknown nil method tr"
+  },
+  {
+    "name": "string_charset_receivers_23",
+    "body": "false.tr(\"a\",\"X\")",
+    "go_error": "unknown bool method tr"
+  },
+  {
+    "name": "string_charset_receivers_24",
+    "body": "1.tr(\"a\",\"X\")",
+    "go_error": "unknown int method tr"
+  },
+  {
+    "name": "string_charset_receivers_25",
+    "body": "1.0.tr(\"a\",\"X\")",
+    "go_error": "unknown float method tr"
+  },
+  {
+    "name": "string_charset_receivers_26",
+    "body": "[].tr(\"a\",\"X\")",
+    "go_error": "unknown array method tr"
+  },
+  {
+    "name": "string_charset_receivers_27",
+    "body": "{}.tr(\"a\",\"X\")",
+    "go_error": "unknown hash method tr"
+  },
+  {
+    "name": "string_charset_args_44",
+    "body": "\"banana\".tr!()",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_45",
+    "body": "\"banana\".tr!(nil)",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_46",
+    "body": "\"banana\".tr!(false)",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_47",
+    "body": "\"banana\".tr!(1)",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_48",
+    "body": "\"banana\".tr!(1.0)",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_49",
+    "body": "\"banana\".tr!(:a)",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_50",
+    "body": "\"banana\".tr!([])",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_51",
+    "body": "\"banana\".tr!({})",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_args_52",
+    "body": "\"banana\".tr!(\"a\",nil)",
+    "go_error": "string.tr! character sets must be strings"
+  },
+  {
+    "name": "string_charset_args_53",
+    "body": "\"banana\".tr!(\"a\",:b)",
+    "go_error": "string.tr! character sets must be strings"
+  },
+  {
+    "name": "string_charset_args_54",
+    "body": "\"banana\".tr!(\"a\",\"b\",\"c\")",
+    "go_error": "string.tr! expects source and replacement character sets"
+  },
+  {
+    "name": "string_charset_calls_23",
+    "body": "\"banana\".tr!(\"a\",\"X\",unused:1)",
+    "go_error": "string.tr! does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_24",
+    "body": "\"banana\".tr!(\"a\",\"X\",**{unused:1})",
+    "go_error": "string.tr! does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_4",
+    "body": "n=0;s=\"banana\";r=s.tr!(\"a\",\"X\"){n+=1};[r,n,s]",
+    "go_error": "string.tr! does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_4",
+    "body": "\"banana\".tr!(\"a\",\"X\"){1/0}",
+    "go_error": "string.tr! does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_28",
+    "body": ":banana.tr!(\"a\",\"X\")",
+    "go_error": "unknown symbol method tr!"
+  },
+  {
+    "name": "string_charset_receivers_29",
+    "body": "nil.tr!(\"a\",\"X\")",
+    "go_error": "unknown nil method tr!"
+  },
+  {
+    "name": "string_charset_receivers_30",
+    "body": "false.tr!(\"a\",\"X\")",
+    "go_error": "unknown bool method tr!"
+  },
+  {
+    "name": "string_charset_receivers_31",
+    "body": "1.tr!(\"a\",\"X\")",
+    "go_error": "unknown int method tr!"
+  },
+  {
+    "name": "string_charset_receivers_32",
+    "body": "1.0.tr!(\"a\",\"X\")",
+    "go_error": "unknown float method tr!"
+  },
+  {
+    "name": "string_charset_receivers_33",
+    "body": "[].tr!(\"a\",\"X\")",
+    "go_error": "unknown array method tr!"
+  },
+  {
+    "name": "string_charset_receivers_34",
+    "body": "{}.tr!(\"a\",\"X\")",
+    "go_error": "unknown hash method tr!"
+  },
+  {
+    "name": "string_charset_args_56",
+    "body": "\"banana\".squeeze(nil)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_57",
+    "body": "\"banana\".squeeze(false)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_58",
+    "body": "\"banana\".squeeze(1)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_59",
+    "body": "\"banana\".squeeze(1.0)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_60",
+    "body": "\"banana\".squeeze(:a)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_61",
+    "body": "\"banana\".squeeze([])",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_62",
+    "body": "\"banana\".squeeze({})",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_63",
+    "body": "\"banana\".squeeze(\"a\",nil)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_args_64",
+    "body": "\"banana\".squeeze(\"a\",:b)",
+    "go_error": "string.squeeze character set must be string"
+  },
+  {
+    "name": "string_charset_calls_28",
+    "body": "\"banana\".squeeze(\"a\",unused:1)",
+    "go_error": "string.squeeze does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_29",
+    "body": "\"banana\".squeeze(\"a\",**{unused:1})",
+    "go_error": "string.squeeze does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_5",
+    "body": "n=0;s=\"banana\";r=s.squeeze(\"a\"){n+=1};[r,n,s]",
+    "go_error": "string.squeeze does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_5",
+    "body": "\"banana\".squeeze(\"a\"){1/0}",
+    "go_error": "string.squeeze does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_35",
+    "body": ":banana.squeeze(\"a\")",
+    "go_error": "unknown symbol method squeeze"
+  },
+  {
+    "name": "string_charset_receivers_36",
+    "body": "nil.squeeze(\"a\")",
+    "go_error": "unknown nil method squeeze"
+  },
+  {
+    "name": "string_charset_receivers_37",
+    "body": "false.squeeze(\"a\")",
+    "go_error": "unknown bool method squeeze"
+  },
+  {
+    "name": "string_charset_receivers_38",
+    "body": "1.squeeze(\"a\")",
+    "go_error": "unknown int method squeeze"
+  },
+  {
+    "name": "string_charset_receivers_39",
+    "body": "1.0.squeeze(\"a\")",
+    "go_error": "unknown float method squeeze"
+  },
+  {
+    "name": "string_charset_receivers_40",
+    "body": "[].squeeze(\"a\")",
+    "go_error": "unknown array method squeeze"
+  },
+  {
+    "name": "string_charset_receivers_41",
+    "body": "{}.squeeze(\"a\")",
+    "go_error": "unknown hash method squeeze"
+  },
+  {
+    "name": "string_charset_args_67",
+    "body": "\"banana\".squeeze!(nil)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_68",
+    "body": "\"banana\".squeeze!(false)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_69",
+    "body": "\"banana\".squeeze!(1)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_70",
+    "body": "\"banana\".squeeze!(1.0)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_71",
+    "body": "\"banana\".squeeze!(:a)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_72",
+    "body": "\"banana\".squeeze!([])",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_73",
+    "body": "\"banana\".squeeze!({})",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_74",
+    "body": "\"banana\".squeeze!(\"a\",nil)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_args_75",
+    "body": "\"banana\".squeeze!(\"a\",:b)",
+    "go_error": "string.squeeze! character set must be string"
+  },
+  {
+    "name": "string_charset_calls_33",
+    "body": "\"banana\".squeeze!(\"a\",unused:1)",
+    "go_error": "string.squeeze! does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_calls_34",
+    "body": "\"banana\".squeeze!(\"a\",**{unused:1})",
+    "go_error": "string.squeeze! does not take keyword arguments"
+  },
+  {
+    "name": "string_charset_block_6",
+    "body": "n=0;s=\"banana\";r=s.squeeze!(\"a\"){n+=1};[r,n,s]",
+    "go_error": "string.squeeze! does not accept a block"
+  },
+  {
+    "name": "string_charset_block_error_6",
+    "body": "\"banana\".squeeze!(\"a\"){1/0}",
+    "go_error": "string.squeeze! does not accept a block"
+  },
+  {
+    "name": "string_charset_receivers_42",
+    "body": ":banana.squeeze!(\"a\")",
+    "go_error": "unknown symbol method squeeze!"
+  },
+  {
+    "name": "string_charset_receivers_43",
+    "body": "nil.squeeze!(\"a\")",
+    "go_error": "unknown nil method squeeze!"
+  },
+  {
+    "name": "string_charset_receivers_44",
+    "body": "false.squeeze!(\"a\")",
+    "go_error": "unknown bool method squeeze!"
+  },
+  {
+    "name": "string_charset_receivers_45",
+    "body": "1.squeeze!(\"a\")",
+    "go_error": "unknown int method squeeze!"
+  },
+  {
+    "name": "string_charset_receivers_46",
+    "body": "1.0.squeeze!(\"a\")",
+    "go_error": "unknown float method squeeze!"
+  },
+  {
+    "name": "string_charset_receivers_47",
+    "body": "[].squeeze!(\"a\")",
+    "go_error": "unknown array method squeeze!"
+  },
+  {
+    "name": "string_charset_receivers_48",
+    "body": "{}.squeeze!(\"a\")",
+    "go_error": "unknown hash method squeeze!"
   }
 ]

@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "1e7ffc48e3458cc1ec58de2db8b4f4ec2ddd4432",
-  "dirty": " M README.md\n M src/bytecode.rs\n M src/members.rs\n M src/ops.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/site/cases.json\n?? src/text/transform.rs\n?? tests/string_transforms.rs\n",
+  "source_revision": "b24b5c667576b7446ddaaf8e49bef798b6102f69",
+  "dirty": " M README.md\n M src/members.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/text/charset.rs\n?? tests/string_charsets.rs\n",
   "binary_sha256": {
-    "go-simd": "f6a92f7fc089b61e4b5f7bf8e58504d1ba729f26f570ca06fc314d484cb97735",
-    "rust-simd": "d16b96e29d3d6ae1b6d19bac32062073d2cf3f53a1154d54ef14bb05d291c238"
+    "go-simd": "304715ef40f5da97f0a9b3d058b9c9429b14b910c2cc9b13a2d9179b9290ee5d",
+    "rust-simd": "1a433e49e9f94893ed32af2a2ef277b7dcca3260cd7a3357120a5ca1806b5942"
   },
   "counts": {
     "match": 160,
