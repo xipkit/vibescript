@@ -449,6 +449,46 @@ impl Zone {
         }
         Ok(unix)
     }
+
+    pub fn equal_name(ctx: &mut CallContext, left: &[u8], right: &[u8]) -> Result<bool> {
+        if left.len() != right.len() {
+            return Ok(false);
+        }
+        for (a, b) in left.chunks(1024).zip(right.chunks(1024)) {
+            ctx.charge(1)?;
+            ctx.checkpoint()?;
+            if a != b {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    pub fn lookup_name(
+        &self,
+        ctx: &mut CallContext,
+        name: &[u8],
+        seconds: i64,
+    ) -> Result<Option<i32>> {
+        let bytes = self.bytes.as_bytes().unwrap();
+        let Some(info) = self.info else {
+            return Ok(Self::equal_name(ctx, bytes, name)?.then_some(self.offset));
+        };
+        let mut fallback = None;
+        for index in 0..info.zone_count {
+            ctx.charge(1)?;
+            let candidate = info.offset(ctx, bytes, index)?;
+            if Self::equal_name(ctx, candidate.name, name)? {
+                fallback.get_or_insert(candidate.seconds);
+                let active =
+                    self.lookup(ctx, seconds.wrapping_sub(i64::from(candidate.seconds)))?;
+                if Self::equal_name(ctx, active.name, name)? {
+                    return Ok(Some(active.seconds));
+                }
+            }
+        }
+        Ok(fallback)
+    }
 }
 
 #[cfg(test)]
@@ -597,6 +637,68 @@ mod tests {
         assert_eq!(
             Zone::import(&mut small, &host).unwrap_err().kind,
             ErrorKind::Memory
+        );
+    }
+
+    #[test]
+    fn duplicate_abbreviations_resolve_the_active_offset_before_falling_back() {
+        let mut bytes = vec![0; 44];
+        bytes[..4].copy_from_slice(b"TZif");
+        bytes[32..36].copy_from_slice(&2u32.to_be_bytes());
+        bytes[36..40].copy_from_slice(&3u32.to_be_bytes());
+        bytes[40..44].copy_from_slice(&8u32.to_be_bytes());
+        bytes.extend_from_slice(&0i32.to_be_bytes());
+        bytes.extend_from_slice(&1710000000i32.to_be_bytes());
+        bytes.extend_from_slice(&[0, 1]);
+        for (offset, dst, name) in [(3600i32, 0, 0), (7200, 1, 0), (1800, 0, 4)] {
+            bytes.extend_from_slice(&offset.to_be_bytes());
+            bytes.extend_from_slice(&[dst, name]);
+        }
+        bytes.extend_from_slice(b"XXX\0YYY\0");
+        let mut ctx = CallContext::new(CallOptions::default());
+        let (info, rules) = Tzif::parse(&mut ctx, &bytes).unwrap();
+        let bytes = ctx.bytes(&bytes).unwrap();
+        let zone = Zone::new(&mut ctx, bytes, Some(info), rules, 0).unwrap();
+        for (name, seconds, expected) in [
+            (b"XXX", 1704067200, Some(3600)),
+            (b"XXX", 1719792000, Some(7200)),
+            (b"YYY", 1719792000, Some(1800)),
+            (b"ZZZ", 1719792000, None),
+        ] {
+            assert_eq!(zone.lookup_name(&mut ctx, name, seconds).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn abbreviation_lookup_bounds_long_names_and_zone_tables() {
+        let mut setup = CallContext::new(CallOptions::default());
+        let options = CallOptions {
+            limits: Limits {
+                steps: Some(64),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        };
+        let name = vec![b'X'; 131072];
+        let zone = Zone::fixed(&mut setup, &name, 0).unwrap();
+        let mut ctx = CallContext::new(options.clone());
+        assert_eq!(
+            zone.lookup_name(&mut ctx, &name, 0).unwrap_err().kind,
+            ErrorKind::Steps
+        );
+
+        let mut bytes = data(0, "");
+        bytes[36..40].copy_from_slice(&10000u32.to_be_bytes());
+        bytes.truncate(44);
+        bytes.extend_from_slice(&[0; 60000]);
+        bytes.extend_from_slice(b"STD\0");
+        let (info, rules) = Tzif::parse(&mut setup, &bytes).unwrap();
+        let bytes = setup.bytes(&bytes).unwrap();
+        let zone = Zone::new(&mut setup, bytes, Some(info), rules, 0).unwrap();
+        let mut ctx = CallContext::new(options);
+        assert_eq!(
+            zone.lookup_name(&mut ctx, b"XXX", 0).unwrap_err().kind,
+            ErrorKind::Steps
         );
     }
 }

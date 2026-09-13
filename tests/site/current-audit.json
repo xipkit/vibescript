@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "27cf99fbe17e8cfc43a793fcd05421c1b92d264b",
-  "dirty": " M src/error.rs\n M src/lib.rs\n M src/time.rs\n M tests/language-errors.json\n M tests/language.json\n?? scripts/generate-casing.py\n?? src/casing.rs\n?? src/time/format.rs\n?? src/time/strftime.rs\n?? tests/time_format.rs\n",
+  "source_revision": "03c09ad7ce36ec37ebd1a3cd9a9843216ee6c7ac",
+  "dirty": " M README.md\n M docs/language-port.md\n M src/builtin.rs\n M src/time.rs\n M src/time/parse.rs\n M src/time/zone.rs\n M tests/language-errors.json\n M tests/language.json\n?? tests/time_parse.rs\n",
   "binary_sha256": {
-    "go-simd": "0a96710f585a9a8b711349893ad08441f807965866b7da64812aed58ff04fe4b",
-    "rust-simd": "59f0cdfa6aa761b9f6bd93e0a9c28155d10b1f1023637f118f3f936f23906fa0"
+    "go-simd": "32d0b7b9ce7a8519992a1142b67948651874f9b52b27909e76397db8312576c8",
+    "rust-simd": "a69a40791d2dd1fe8b6dbc78856b01935c3404527254c479d32b3710b47a4070"
   },
   "counts": {
     "match": 158,

@@ -77,6 +77,7 @@ impl Global {
                 crate::time::Constructor::Gm,
                 crate::time::Constructor::At,
                 crate::time::Constructor::Now,
+                crate::time::Constructor::Parse,
             ]
             .into_iter()
             .map(|constructor| {

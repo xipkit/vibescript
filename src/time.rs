@@ -225,6 +225,7 @@ pub(crate) enum Constructor {
     Gm,
     At,
     Now,
+    Parse,
 }
 
 impl Constructor {
@@ -237,6 +238,7 @@ impl Constructor {
             Self::Gm => "Time.gm",
             Self::At => "Time.at",
             Self::Now => "Time.now",
+            Self::Parse => "Time.parse",
         }
     }
     pub fn auto(self) -> bool {
@@ -248,14 +250,20 @@ impl Constructor {
         args: &[Value],
         keywords: &[(Value, Value)],
     ) -> Result<Value> {
+        if self == Self::Parse && !(1..=2).contains(&args.len()) {
+            return Err(invalid());
+        }
         let mut zone_input = None;
         for (key, val) in keywords {
             ctx.charge(1)?;
             if key.as_bytes() == Some(b"in") {
                 zone_input = Some(val);
-            } else if self == Self::At {
+            } else if matches!(self, Self::At | Self::Parse) {
                 return Err(invalid());
             }
+        }
+        if self == Self::Parse {
+            return parse::call(ctx, args, zone_input);
         }
         if self == Self::Now {
             ops::arity(args, 0)?;
