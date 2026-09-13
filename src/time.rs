@@ -14,6 +14,7 @@ use std::{
 };
 
 mod calendar;
+mod parse;
 mod zone;
 
 const NANOS: i64 = 1_000_000_000;
@@ -373,6 +374,35 @@ pub(crate) fn now(ctx: &mut CallContext, args: &[Value]) -> Result<Value> {
     ops::arity(args, 0)?;
     ctx.checkpoint()?;
     text(ctx, &Value(Kind::Time(Stamp::now())), Some(0))
+}
+
+pub(crate) fn anchor(
+    ctx: &mut CallContext,
+    seconds: i64,
+    args: &[Value],
+    before: bool,
+) -> Result<Value> {
+    ctx.checkpoint()?;
+    let start = match args {
+        [] => Stamp::now(),
+        [input] => match &input.0 {
+            Kind::Bytes(bytes) => parse::rfc3339(ctx, &bytes.data)?,
+            _ => stamp(input).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Type,
+                    "duration anchor expects a Time or RFC3339 string",
+                )
+            })?,
+        },
+        _ => return Err(invalid()),
+    };
+    // Duration anchors retain Go's wrapping nanosecond conversion, unlike Time arithmetic.
+    let delta = seconds.wrapping_mul(NANOS);
+    Ok(Value(Kind::Time(start.add(if before {
+        delta.wrapping_neg()
+    } else {
+        delta
+    }))))
 }
 
 fn year(out: &mut json::Number, year: i64) {

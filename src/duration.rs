@@ -284,6 +284,26 @@ pub(crate) fn member(
         return Ok(None);
     };
     let value = match name {
+        "after" | "since" | "from_now" | "ago" | "before" | "until" => {
+            if site.auto && !block {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "duration anchor is a method and requires a call",
+                ));
+            }
+            if keywords {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "duration anchor requires a call without keyword arguments",
+                ));
+            }
+            crate::time::anchor(
+                ctx,
+                seconds,
+                args,
+                matches!(name, "ago" | "before" | "until"),
+            )?
+        }
         "nil?" | "itself" | "dup" | "equal?" | "eql?" => {
             if keywords || (block && name != "eql?") {
                 return Err(Error::new(
