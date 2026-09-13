@@ -208,5 +208,175 @@
     "name": "address_nested_out_of_bounds",
     "body": "a=[[1]]\na[0][3]=7",
     "go_error": "array index out of bounds"
+  },
+  {
+    "name": "member_pop_negative",
+    "body": "[1].pop(-1)",
+    "go_error": "non-negative"
+  },
+  {
+    "name": "member_pop_nil",
+    "body": "[1].pop(nil)",
+    "go_error": "non-negative integer"
+  },
+  {
+    "name": "member_pop_arity",
+    "body": "[1].pop(1,2)",
+    "go_error": "at most"
+  },
+  {
+    "name": "member_shift_negative",
+    "body": "[1].shift(-1)",
+    "go_error": "non-negative"
+  },
+  {
+    "name": "member_shift_nil",
+    "body": "[1].shift(nil)",
+    "go_error": "non-negative integer"
+  },
+  {
+    "name": "member_shift_arity",
+    "body": "[1].shift(1,2)",
+    "go_error": "at most"
+  },
+  {
+    "name": "member_field_call",
+    "body": "{answer:7}.answer()",
+    "go_error": "non-callable"
+  },
+  {
+    "name": "member_unknown",
+    "body": "{}.missing",
+    "go_error": "unknown hash method"
+  },
+  {
+    "name": "member_missing_compound",
+    "body": "h={};h.missing+=1",
+    "go_error": "unknown hash method"
+  },
+  {
+    "name": "member_missing_parent",
+    "body": "h={};h.missing.child=1",
+    "go_error": "unknown hash method"
+  },
+  {
+    "name": "member_array_field",
+    "body": "[1].answer",
+    "go_error": "unknown array method"
+  },
+  {
+    "name": "member_array_member_write",
+    "body": "a=[1];a.length=2",
+    "go_error": "cannot assign to array"
+  },
+  {
+    "name": "member_array_replace",
+    "body": "[1].replace([2])",
+    "go_error": "unknown array method"
+  },
+  {
+    "name": "member_insert_negative",
+    "body": "[1].insert(-3,2)",
+    "go_error": "out of range"
+  },
+  {
+    "name": "member_insert_nil",
+    "body": "[1].insert(nil)",
+    "go_error": "must be integer"
+  },
+  {
+    "name": "member_insert_no_index",
+    "body": "[1].insert()",
+    "go_error": "expects an index"
+  },
+  {
+    "name": "member_fill_no_value",
+    "body": "[1].fill()",
+    "go_error": "requires a value"
+  },
+  {
+    "name": "member_fill_negative_range",
+    "body": "[1].fill(9,-3..0)",
+    "go_error": "out of range"
+  },
+  {
+    "name": "member_fill_type",
+    "body": "[1].fill(9,\"0\")",
+    "go_error": "must be integer"
+  },
+  {
+    "name": "member_fill_range_count",
+    "body": "[1].fill(9,0..1,2)",
+    "go_error": "does not accept a length"
+  },
+  {
+    "name": "member_fill_arity",
+    "body": "[1].fill(9,0,1,2)",
+    "go_error": "at most"
+  },
+  {
+    "name": "member_array_delete_arity",
+    "body": "[1].delete()",
+    "go_error": "expects"
+  },
+  {
+    "name": "member_hash_delete_type",
+    "body": "{a:1}.delete(1)",
+    "go_error": "strings or symbols"
+  },
+  {
+    "name": "member_hash_replace_type",
+    "body": "{a:1}.replace([])",
+    "go_error": "hash"
+  },
+  {
+    "name": "member_hash_store_arity",
+    "body": "{}.store(:a)",
+    "go_error": "expects"
+  },
+  {
+    "name": "member_hash_store_type",
+    "body": "{}.store(1,2)",
+    "go_error": "strings or symbols"
+  },
+  {
+    "name": "member_clear_arity",
+    "body": "[1].clear(2)",
+    "go_error": "does not take"
+  },
+  {
+    "name": "member_string_unshift",
+    "body": "\"ab\".unshift(\"c\")",
+    "go_error": "unknown string method"
+  },
+  {
+    "name": "member_string_append",
+    "body": "\"ab\".append(\"c\")",
+    "go_error": "unknown string method"
+  },
+  {
+    "name": "member_string_prepend_symbol",
+    "body": "\"ab\".prepend(:c)",
+    "go_error": "string arguments"
+  },
+  {
+    "name": "member_string_insert_bounds",
+    "body": "\"ab\".insert(-4,\"c\")",
+    "go_error": "out of string"
+  },
+  {
+    "name": "member_string_insert_type",
+    "body": "\"ab\".insert(1,:c)",
+    "go_error": "must be string"
+  },
+  {
+    "name": "member_string_replace_type",
+    "body": "\"ab\".replace(:c)",
+    "go_error": "must be string"
+  },
+  {
+    "name": "member_dup_arity",
+    "body": "[1].dup(2)",
+    "go_error": "does not take"
   }
 ]

@@ -346,7 +346,7 @@ pub(crate) fn method(
             arity(args, 0)?;
             return Ok(Value::boolean(matches!(value.0, Kind::Nil)));
         }
-        Itself => {
+        Itself | Dup => {
             arity(args, 0)?;
             return Ok(value);
         }
@@ -363,7 +363,10 @@ pub(crate) fn method(
         return crate::range::method(ctx, method, range, args);
     }
     match method {
-        IsNil | Itself | ToString => unreachable!(),
+        IsNil | Itself | Dup | ToString => unreachable!(),
+        Prepend | Pop | Shift | Delete | Insert | Clear | Fill | Store | Replace => {
+            crate::mutate::call(ctx, method, value, args).map(|(_, result)| result)
+        }
         Empty => {
             arity(args, 0)?;
             Ok(Value::boolean(match &value.0 {

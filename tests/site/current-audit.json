@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "e4d42c4b3d46d8a875373597686a2acd332a1d7e",
-  "dirty": " M src/bytecode.rs\n M src/lib.rs\n M src/ops.rs\n M src/vm.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/compatibility-cases.json\n?? src/address.rs\n?? tests/address.rs\n",
+  "source_revision": "2f5e8ecec1ad83d4cdb91430f23beabf89aeed51",
+  "dirty": " M src/bytecode.rs\n M src/hash.rs\n M src/lib.rs\n M src/ops.rs\n M src/syntax.rs\n M src/value.rs\n M src/vm.rs\n M tests/hashes.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/members.rs\n?? src/mutate.rs\n?? tests/members.rs\n",
   "binary_sha256": {
-    "go-simd": "61a30b405192526f22a51024a7dc2bdabc85c71695a9a04634bfa6ff3a553b82",
-    "rust-simd": "4191085bb1fb03dcee990c6d4075c0d82fa34bbf383d2d13a8047c27857eca63"
+    "go-simd": "4ec24af255e1fb206be1402f3184a0a2039ca9cb5d2546bb1f94584580aeac5c",
+    "rust-simd": "2be0b20ad8c5ed85e649a2da48410f5507b741540fd4c073b5aa9e51fee8cfda"
   },
   "counts": {
-    "match": 126,
-    "rust_gap": 62,
+    "match": 129,
+    "rust_gap": 59,
     "harness_gap": 15
   },
   "examples": [
@@ -57,7 +57,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method capitalize is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method capitalize is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -580,10 +580,29 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method dup is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "original": [
+            3,
+            1,
+            4
+          ],
+          "expanded": [
+            3,
+            1,
+            4,
+            1,
+            5,
+            9
+          ],
+          "first": 3,
+          "last": 9,
+          "count": 6,
+          "total": 23
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/bacon_cipher.vibe",
@@ -618,10 +637,16 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method pop is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "nested_true": true,
+          "mixed_true": true,
+          "crossed_false": false,
+          "incomplete_false": false
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/balanced_ternary.vibe",
@@ -5654,10 +5679,20 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method pop is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "peek_before_pop": "blue",
+          "popped": "blue",
+          "peek_after_pop": "green",
+          "size_after_pop": 2,
+          "contents": [
+            "red",
+            "green"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/string_comparison.vibe",
@@ -8556,7 +8591,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"method minutes is not implemented\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method minutes is not implemented\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8931,7 +8966,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"reserved name\", offset: Some(381) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"unknown variable Duration\", offset: None }\n"
       },
       "status": "rust_gap"
     }

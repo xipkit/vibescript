@@ -17,6 +17,8 @@ mod collections;
 mod error;
 mod hash;
 mod json;
+mod members;
+mod mutate;
 mod ops;
 mod range;
 mod scan;

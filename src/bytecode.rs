@@ -23,9 +23,11 @@ pub(crate) enum Op {
     AddressValue,
     AddressIndex(usize),
     AddressTarget(usize, bool),
+    AddressMember(CallSite),
+    AddressMemberTarget(CallSite, bool),
     AddressStore,
     AddressDrop,
-    Mutate(Method, usize),
+    Mutate(CallSite, usize),
     Extract(Selection),
     CaseCompare(bool, bool),
     LoopStart {
@@ -42,13 +44,20 @@ pub(crate) enum Op {
     Next,
     Call(usize, usize),
     Host(usize, usize),
-    Method(Method, usize),
+    Method(CallSite, usize),
     JsonParse,
     JsonStringify,
     Jump(usize),
     JumpFalse(usize),
     JumpTrue(usize),
     Return,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CallSite {
+    pub name: usize,
+    pub method: Option<Method>,
+    pub auto: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -117,6 +126,16 @@ pub(crate) enum Method {
     Split,
     Join,
     Push,
+    Prepend,
+    Pop,
+    Shift,
+    Delete,
+    Insert,
+    Clear,
+    Fill,
+    Store,
+    Replace,
+    Dup,
     Sum,
     Keys,
     Values,
@@ -124,8 +143,8 @@ pub(crate) enum Method {
     ToInt,
 }
 impl Method {
-    fn parse(name: &str) -> Result<Self> {
-        Ok(match name {
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
             "length" => Self::Length,
             "size" => Self::Size,
             "at" => Self::At,
@@ -175,17 +194,23 @@ impl Method {
             "strip" => Self::Strip,
             "split" => Self::Split,
             "join" => Self::Join,
-            "push" => Self::Push,
+            "push" | "append" => Self::Push,
+            "prepend" | "unshift" => Self::Prepend,
+            "pop" => Self::Pop,
+            "shift" => Self::Shift,
+            "delete" => Self::Delete,
+            "insert" => Self::Insert,
+            "clear" => Self::Clear,
+            "fill" => Self::Fill,
+            "store" => Self::Store,
+            "replace" => Self::Replace,
+            "dup" => Self::Dup,
             "sum" => Self::Sum,
             "keys" => Self::Keys,
             "values" => Self::Values,
             "to_s" | "string" => Self::ToString,
             "to_i" => Self::ToInt,
-            _ => {
-                return Err(syntax::unsupported(&format!(
-                    "method {name} is not implemented"
-                )));
-            }
+            _ => return None,
         })
     }
 }
@@ -203,6 +228,7 @@ pub(crate) struct Program {
     pub constants: Vec<Value>,
     pub names: HashMap<String, usize>,
     pub hosts: Vec<String>,
+    pub members: Vec<String>,
 }
 
 pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
@@ -217,6 +243,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         constants: Vec::new(),
         names,
         hosts,
+        members: Vec::new(),
     };
     for def in defs {
         let mut c = Compiler {
@@ -312,7 +339,7 @@ impl Compiler<'_> {
                     self.declare_expr(value);
                 }
             }
-            Node::Unary(_, value) => self.declare_expr(value),
+            Node::Unary(_, value) | Node::Member(value, _) => self.declare_expr(value),
             Node::Binary(_, a, b) => {
                 self.declare_expr(a);
                 self.declare_expr(b);
@@ -437,7 +464,7 @@ impl Compiler<'_> {
                         }
                         self.emit(Op::Store(slot));
                     }
-                    Node::Index(..) => {
+                    Node::Index(..) | Node::Member(..) => {
                         if binary.is_none() && !matches!(*op, "||=" | "&&=") {
                             self.expr(rhs)?;
                             self.address_target(target, false)?;
@@ -552,7 +579,7 @@ impl Compiler<'_> {
             }
             Target::Value(
                 target @ Expr {
-                    node: Node::Index(..),
+                    node: Node::Index(..) | Node::Member(..),
                     ..
                 },
             ) => {
@@ -675,7 +702,8 @@ impl Compiler<'_> {
             Node::Binary("<<", a, b) => {
                 self.address(a)?;
                 self.expr(b)?;
-                self.emit(Op::Mutate(Method::Push, 1));
+                let site = self.call_site("push", false);
+                self.emit(Op::Mutate(site, 1));
             }
             Node::Binary(op, a, b) => {
                 self.expr(a)?;
@@ -706,34 +734,8 @@ impl Compiler<'_> {
                     return Err(syntax::unsupported(&format!("unknown function {name}")));
                 }
             }
-            Node::Method(recv, name, args) => {
-                if matches!(&recv.node,Node::Var(v) if v=="JSON") {
-                    if args.len() != 1 {
-                        return Err(syntax::unsupported("JSON methods require one argument"));
-                    }
-                    self.expr(&args[0])?;
-                    self.emit(match name.as_str() {
-                        "parse" => Op::JsonParse,
-                        "stringify" => Op::JsonStringify,
-                        _ => return Err(syntax::unsupported("unknown JSON method")),
-                    });
-                } else {
-                    if name == "push" {
-                        self.address(recv)?;
-                    } else {
-                        self.expr(recv)?;
-                    }
-                    for a in args {
-                        self.expr(a)?;
-                    }
-                    let method = Method::parse(name)?;
-                    self.emit(if name == "push" {
-                        Op::Mutate(method, args.len())
-                    } else {
-                        Op::Method(method, args.len())
-                    });
-                }
-            }
+            Node::Member(recv, name) => self.member_call(recv, name, &[], true)?,
+            Node::Method(recv, name, args) => self.member_call(recv, name, args, false)?,
             Node::Index(value, index) => {
                 self.expr(value)?;
                 for index in index {
@@ -744,21 +746,92 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn address_target(&mut self, target: &Expr, read: bool) -> Result<()> {
-        let Node::Index(receiver, indices) = &target.node else {
-            return Err(syntax::unsupported("invalid assignment target"));
-        };
-        self.address(receiver)?;
-        for index in indices {
-            self.expr(index)?;
+    fn call_site(&mut self, name: &str, auto: bool) -> CallSite {
+        let index = self.program.members.len();
+        self.program.members.push(name.to_owned());
+        CallSite {
+            name: index,
+            method: Method::parse(name),
+            auto,
         }
-        self.emit(Op::AddressTarget(indices.len(), read));
+    }
+    fn member_call(
+        &mut self,
+        receiver: &Expr,
+        name: &str,
+        args: &[Expr],
+        auto: bool,
+    ) -> Result<()> {
+        if matches!(&receiver.node, Node::Var(v) if v == "JSON") {
+            if args.len() != 1 {
+                return Err(syntax::unsupported("JSON methods require one argument"));
+            }
+            self.expr(&args[0])?;
+            self.emit(match name {
+                "parse" => Op::JsonParse,
+                "stringify" => Op::JsonStringify,
+                _ => return Err(syntax::unsupported("unknown JSON method")),
+            });
+        } else {
+            let mutating = matches!(
+                name,
+                "push"
+                    | "append"
+                    | "prepend"
+                    | "unshift"
+                    | "pop"
+                    | "shift"
+                    | "delete"
+                    | "insert"
+                    | "clear"
+                    | "fill"
+                    | "store"
+                    | "replace"
+            );
+            if mutating {
+                self.address(receiver)?;
+            } else {
+                self.expr(receiver)?;
+            }
+            for arg in args {
+                self.expr(arg)?;
+            }
+            let site = self.call_site(name, auto);
+            self.emit(if mutating {
+                Op::Mutate(site, args.len())
+            } else {
+                Op::Method(site, args.len())
+            });
+        }
+        Ok(())
+    }
+    fn address_target(&mut self, target: &Expr, read: bool) -> Result<()> {
+        match &target.node {
+            Node::Index(receiver, indices) => {
+                self.address(receiver)?;
+                for index in indices {
+                    self.expr(index)?;
+                }
+                self.emit(Op::AddressTarget(indices.len(), read));
+            }
+            Node::Member(receiver, name) => {
+                self.address(receiver)?;
+                let site = self.call_site(name, true);
+                self.emit(Op::AddressMemberTarget(site, read));
+            }
+            _ => return Err(syntax::unsupported("invalid assignment target")),
+        }
         Ok(())
     }
     fn address(&mut self, receiver: &Expr) -> Result<()> {
         match &receiver.node {
             Node::Var(name) if self.locals.contains_key(name) => {
                 self.emit(Op::AddressLocal(self.locals[name]));
+            }
+            Node::Member(root, name) => {
+                self.address(root)?;
+                let site = self.call_site(name, true);
+                self.emit(Op::AddressMember(site));
             }
             Node::Index(root, indices) => {
                 self.address(root)?;

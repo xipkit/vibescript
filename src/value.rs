@@ -288,6 +288,57 @@ impl Value {
         }
         Ok(Self(Kind::Array(heap)))
     }
+    pub(crate) fn keep_array_range(
+        self,
+        ctx: &mut CallContext,
+        start: usize,
+        end: usize,
+    ) -> Result<Self> {
+        let Kind::Array(mut heap) = self.0 else {
+            unreachable!()
+        };
+        let length = end - start;
+        if start == 0 && end == heap.buffer.data.len() {
+            return Ok(Self(Kind::Array(heap)));
+        }
+        if length == 0
+            || length < heap.buffer.data.capacity() / 2
+            || Arc::get_mut(&mut heap).is_none()
+        {
+            let mut buffer = Buffer::with_capacity(ctx, length)?;
+            buffer.extend(ctx, &heap.buffer.data[start..end])?;
+            return Self::from_array(ctx, buffer);
+        }
+        let writable = Arc::get_mut(&mut heap).unwrap();
+        if start != 0 {
+            for i in 0..length {
+                ctx.charge(1)?;
+                writable.buffer.data[i] = std::mem::take(&mut writable.buffer.data[start + i]);
+            }
+        }
+        while writable.buffer.data.len() > length {
+            ctx.charge(1)?;
+            writable.buffer.data.pop();
+        }
+        if writable.depth > 1 {
+            writable.depth = 1;
+            for value in &writable.buffer.data {
+                ctx.charge(1)?;
+                writable.depth = writable.depth.max(value.depth() + 1);
+            }
+        }
+        Ok(Self(Kind::Array(heap)))
+    }
+    pub(crate) fn delete_hash(self, ctx: &mut CallContext, key: &Value) -> Result<(Self, Self)> {
+        let Kind::Hash(mut hash) = self.0 else {
+            unreachable!()
+        };
+        let Some(index) = hash.find(ctx, key.require_bytes()?)? else {
+            return Ok((Self(Kind::Hash(hash)), Self::nil()));
+        };
+        let removed = Hash::make_mut(ctx, &mut hash)?.remove(ctx, index)?;
+        Ok((Self(Kind::Hash(hash)), removed))
+    }
     pub(crate) fn set_array_index(
         self,
         ctx: &mut CallContext,

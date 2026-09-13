@@ -1682,5 +1682,894 @@
       3,
       6
     ]
+  },
+  {
+    "name": "member_fields",
+    "body": "h={answer:7,inner:{items:[1,2]},true:3,return:4};[h.answer,h.inner.items,h.true,h.return]",
+    "expected": [
+      7,
+      [
+        1,
+        2
+      ],
+      3,
+      4
+    ]
+  },
+  {
+    "name": "member_builtin_names",
+    "body": "h={size:[1],keys:7};[h.size,h.length,h.keys,h[:size],h[:keys]]",
+    "expected": [
+      2,
+      2,
+      [
+        "size",
+        "keys"
+      ],
+      [
+        1
+      ],
+      7
+    ]
+  },
+  {
+    "name": "member_write",
+    "body": "h={a:1};old=h;h.b=2;h.a=3;[h,old]",
+    "expected": [
+      {
+        "a": 3,
+        "b": 2
+      },
+      {
+        "a": 1
+      }
+    ]
+  },
+  {
+    "name": "member_nested_write",
+    "body": "h={inner:{items:[1,2]}};old=h;h.inner.items[0]=9;h.inner.extra=3;[h,old]",
+    "expected": [
+      {
+        "inner": {
+          "items": [
+            9,
+            2
+          ],
+          "extra": 3
+        }
+      },
+      {
+        "inner": {
+          "items": [
+            1,
+            2
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "member_compound",
+    "body": "h={n:2,flag:nil,no:false,yes:0};h.n+=3;h.flag||=7;h.no&&=1/0;h.yes||=1/0;h",
+    "expected": {
+      "n": 5,
+      "flag": 7,
+      "no": false,
+      "yes": 0
+    }
+  },
+  {
+    "name": "member_compound_builtin",
+    "body": "h={size:[1]};h.size+=1;h",
+    "expected": {
+      "size": 2
+    }
+  },
+  {
+    "name": "member_destructure",
+    "body": "h={};h.a,(h.b,*h.c)=[1,[2,3,4]];h",
+    "expected": {
+      "a": 1,
+      "b": 2,
+      "c": [
+        3,
+        4
+      ]
+    }
+  },
+  {
+    "name": "member_reserved_write",
+    "body": "h={};h.return=3;h.true=4;[h.return,h.true]",
+    "expected": [
+      3,
+      4
+    ]
+  },
+  {
+    "name": "member_stored_builtin_path",
+    "body": "h={size:[1],clear:[2]};x=h.size.push(3);h.clear[0]=4;[h,x,h.size]",
+    "expected": [
+      {
+        "size": [
+          1,
+          3
+        ],
+        "clear": [
+          4
+        ]
+      },
+      [
+        1,
+        3
+      ],
+      2
+    ]
+  },
+  {
+    "name": "member_builtin_receiver_side_effect",
+    "body": "h={a:1};h.clear ||= 1/0;h",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "member_nested_push",
+    "body": "h={items:[1]};old=h;x=h.items.push(2);[h,old,x]",
+    "expected": [
+      {
+        "items": [
+          1,
+          2
+        ]
+      },
+      {
+        "items": [
+          1
+        ]
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_nested_pending_push",
+    "body": "h={items:[1]};x=h.items.push(h.items.push(2).length);[h,x]",
+    "expected": [
+      {
+        "items": [
+          1,
+          2,
+          2
+        ]
+      },
+      [
+        1,
+        2,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_nested_pending_rebind",
+    "body": "h={items:[1]};x=h.items.push((while true\nh.items=[9]\nbreak 2\nend));[h,x]",
+    "expected": [
+      {
+        "items": [
+          9
+        ]
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_nested_other_field",
+    "body": "h={items:[1],other:0};x=h.items.push((while true\nh.other=9\nbreak 2\nend));[h,x]",
+    "expected": [
+      {
+        "items": [
+          1,
+          2
+        ],
+        "other": 9
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_temporary_field",
+    "body": "h={items:[1]};x=h.dup.items.push(2);[h,x]",
+    "expected": [
+      {
+        "items": [
+          1
+        ]
+      },
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_dup",
+    "body": "a=[1];b=a.dup;b.push(2);h={a:[1]};g=h.dup;g.a.push(2);[a,b,h,g,\"ab\".dup,1.dup,nil.dup]",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      {
+        "a": [
+          1
+        ]
+      },
+      {
+        "a": [
+          1,
+          2
+        ]
+      },
+      "ab",
+      1,
+      null
+    ]
+  },
+  {
+    "name": "member_pop",
+    "body": "a=[1,2,3];old=a;x=a.pop;y=a.pop(1);[a,old,x,y]",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      3,
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_pop_boundaries",
+    "body": "a=[1,2];x=a.pop(0);y=a.pop(99);z=a.pop;w=a.pop(2);[a,x,y,z,w]",
+    "expected": [
+      [],
+      [],
+      [
+        1,
+        2
+      ],
+      null,
+      []
+    ]
+  },
+  {
+    "name": "member_pop_fractional",
+    "body": "a=[1,2,3];x=a.pop(1.9);[a,x]",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_shift",
+    "body": "a=[1,2,3];old=a;x=a.shift;y=a.shift(1);[a,old,x,y]",
+    "expected": [
+      [
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      1,
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_shift_boundaries",
+    "body": "a=[1,2];x=a.shift(0);y=a.shift(99);z=a.shift;w=a.shift(2);[a,x,y,z,w]",
+    "expected": [
+      [],
+      [],
+      [
+        1,
+        2
+      ],
+      null,
+      []
+    ]
+  },
+  {
+    "name": "member_shift_fractional",
+    "body": "a=[1,2,3];x=a.shift(1.9);[a,x]",
+    "expected": [
+      [
+        2,
+        3
+      ],
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "member_removed_receiver",
+    "body": "a=[[1],[2]];x=a.pop.push(3);y=a.shift.prepend(4);[a,x,y]",
+    "expected": [
+      [],
+      [
+        2,
+        3
+      ],
+      [
+        4,
+        1
+      ]
+    ]
+  },
+  {
+    "name": "member_removed_receiver_explicit",
+    "body": "a=[[1],[2]];x=a.pop().push(3);[a,x]",
+    "expected": [
+      [
+        [
+          1
+        ]
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_member_removed_receiver",
+    "body": "h={items:[[1],[2]]};x=h.items.pop.push(3);[h,x]",
+    "expected": [
+      {
+        "items": [
+          [
+            1
+          ]
+        ]
+      },
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_pop_argument_mutation",
+    "body": "a=[1,2,3];x=a.pop(a.shift);[a,x]",
+    "expected": [
+      [
+        2
+      ],
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_prepend",
+    "body": "a=[3];old=a;x=a.prepend(1,2);a.unshift(0);a.append(4,5);[a,old,x]",
+    "expected": [
+      [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      [
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_prepend_empty",
+    "body": "a=[1];[a.prepend,a.unshift(),a]",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "member_prepend_self",
+    "body": "a=[1];a.prepend(a);a",
+    "expected": [
+      [
+        1
+      ],
+      1
+    ]
+  },
+  {
+    "name": "member_insert",
+    "body": "a=[1,4];old=a;x=a.insert(1,2,3);a.insert(-1,5);a.insert(-6,0);[a,old,x]",
+    "expected": [
+      [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      [
+        1,
+        4
+      ],
+      [
+        1,
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "member_insert_padding",
+    "body": "a=[1];x=a.insert(3,4,5);[a,x]",
+    "expected": [
+      [
+        1,
+        null,
+        null,
+        4,
+        5
+      ],
+      [
+        1,
+        null,
+        null,
+        4,
+        5
+      ]
+    ]
+  },
+  {
+    "name": "member_insert_fractional",
+    "body": "a=[1,3];a.insert(1.9,2);a",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "member_insert_empty",
+    "body": "a=[1];[a.insert(999),a.insert(-999),a]",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "member_array_clear",
+    "body": "a=[1,[2]];old=a;x=a.clear;a.push(3);[a,old,x]",
+    "expected": [
+      [
+        3
+      ],
+      [
+        1,
+        [
+          2
+        ]
+      ],
+      []
+    ]
+  },
+  {
+    "name": "member_delete",
+    "body": "a=[1,2,1.0,3];old=a;x=a.delete(1);y=a.delete(7);[a,old,x,y]",
+    "expected": [
+      [
+        2,
+        3
+      ],
+      [
+        1,
+        2,
+        1,
+        3
+      ],
+      1,
+      null
+    ]
+  },
+  {
+    "name": "member_delete_nested",
+    "body": "a=[[1],{a:2},[1],{a:2},3];x=a.delete([1]);y=a.delete({a:2});[a,x,y]",
+    "expected": [
+      [
+        3
+      ],
+      [
+        1
+      ],
+      {
+        "a": 2
+      }
+    ]
+  },
+  {
+    "name": "member_delete_alias",
+    "body": "x=[1];a=[x,2];r=a.delete(x);r.push(3);[a,x,r]",
+    "expected": [
+      [
+        2
+      ],
+      [
+        1
+      ],
+      [
+        1,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_fill",
+    "body": "a=[1,2,3];old=a;x=a.fill(9,1,1);[a,old,x]",
+    "expected": [
+      [
+        1,
+        9,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        9,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "member_fill_all",
+    "body": "a=[1,2,3];x=a.fill([9]);a[0].push(10);[a,x]",
+    "expected": [
+      [
+        [
+          9,
+          10
+        ],
+        [
+          9
+        ],
+        [
+          9
+        ]
+      ],
+      [
+        [
+          9
+        ],
+        [
+          9
+        ],
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "member_fill_nil",
+    "body": "a=[1,2,3];a.fill(7,nil,nil);a",
+    "expected": [
+      7,
+      7,
+      7
+    ]
+  },
+  {
+    "name": "member_fill_negative",
+    "body": "a=[1,2,3];a.fill(9,-9,2);a.fill(8,-1);a",
+    "expected": [
+      9,
+      9,
+      8
+    ]
+  },
+  {
+    "name": "member_fill_zero_growth",
+    "body": "a=[1];a.fill(9,3,0);a",
+    "expected": [
+      1,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "member_fill_negative_length",
+    "body": "a=[1];[a.fill(9,3,-1),a.fill(9,3),a]",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "member_fill_growth",
+    "body": "a=[1];a.fill(9,3,2);a",
+    "expected": [
+      1,
+      null,
+      null,
+      9,
+      9
+    ]
+  },
+  {
+    "name": "member_fill_range",
+    "body": "a=[1,2,3,4];a.fill(9,1..2);a.fill(8,-1..-1);a",
+    "expected": [
+      1,
+      9,
+      9,
+      8
+    ]
+  },
+  {
+    "name": "member_fill_exclusive",
+    "body": "a=[1,2,3,4];a.fill(9,1...3);a",
+    "expected": [
+      1,
+      9,
+      9,
+      4
+    ]
+  },
+  {
+    "name": "member_fill_open",
+    "body": "a=[1,2,3];a.fill(9,..1);a.fill(8,2..);a",
+    "expected": [
+      9,
+      9,
+      8
+    ]
+  },
+  {
+    "name": "member_fill_reverse",
+    "body": "a=[1];a.fill(9,3..1);a",
+    "expected": [
+      1,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "member_fill_empty",
+    "body": "a=[];a.fill(1,0..);a",
+    "expected": []
+  },
+  {
+    "name": "member_hash_delete",
+    "body": "h={a:1,b:2,c:3};old=h;x=h.delete(:b);y=h.delete(\"missing\");h[:b]=4;[h.keys,h.values,old,x,y]",
+    "expected": [
+      [
+        "a",
+        "c",
+        "b"
+      ],
+      [
+        1,
+        3,
+        4
+      ],
+      {
+        "a": 1,
+        "b": 2,
+        "c": 3
+      },
+      2,
+      null
+    ]
+  },
+  {
+    "name": "member_hash_store",
+    "body": "h={a:1};old=h;x=h.store(:a,2);y=h.store(\"b\",[3]);y.push(4);[h,old,x,y]",
+    "expected": [
+      {
+        "a": 2,
+        "b": [
+          3
+        ]
+      },
+      {
+        "a": 1
+      },
+      2,
+      [
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "member_hash_clear",
+    "body": "h={a:[1]};old=h;x=h.clear;h.b=2;[h,old,x]",
+    "expected": [
+      {
+        "b": 2
+      },
+      {
+        "a": [
+          1
+        ]
+      },
+      {}
+    ]
+  },
+  {
+    "name": "member_hash_replace",
+    "body": "h={a:1};g={b:[2]};old=h;x=h.replace(g);h.b.push(3);g.c=4;[h,g,old,x]",
+    "expected": [
+      {
+        "b": [
+          2,
+          3
+        ]
+      },
+      {
+        "b": [
+          2
+        ],
+        "c": 4
+      },
+      {
+        "a": 1
+      },
+      {
+        "b": [
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "name": "member_hash_replace_self",
+    "body": "h={a:1};h.replace(h);h.a=2;h",
+    "expected": {
+      "a": 2
+    }
+  },
+  {
+    "name": "member_hash_delete_receiver",
+    "body": "h={items:[1]};x=h.delete(:items).push(2);[h,x]",
+    "expected": [
+      {},
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "member_nested_hash_replace",
+    "body": "h={inner:{a:1}};old=h;x=h.inner.replace({b:2});[h,old,x]",
+    "expected": [
+      {
+        "inner": {
+          "b": 2
+        }
+      },
+      {
+        "inner": {
+          "a": 1
+        }
+      },
+      {
+        "b": 2
+      }
+    ]
+  },
+  {
+    "name": "member_strings",
+    "body": "s=\"ab\";[s.prepend(\"c\",\"d\"),s.insert(1,\"é\"),s.replace(\"xy\"),s.clear,s]",
+    "expected": [
+      "cdab",
+      "aéb",
+      "xy",
+      "",
+      "ab"
+    ]
+  },
+  {
+    "name": "member_string_insert_runes",
+    "body": "s=\"aé🙂\";[s.insert(2,\"X\"),s.insert(-1,\"X\"),s.insert(-4,\"X\"),s.insert(1.9,\"X\"),s]",
+    "expected": [
+      "aéX🙂",
+      "aé🙂X",
+      "Xaé🙂",
+      "aXé🙂",
+      "aé🙂"
+    ]
+  },
+  {
+    "name": "member_nested_string",
+    "body": "h={text:\"ab\"};x=h.text.prepend(\"c\");y=h.text.clear;[h,x,y]",
+    "expected": [
+      {
+        "text": "ab"
+      },
+      "cab",
+      ""
+    ]
+  },
+  {
+    "name": "member_string_chain",
+    "body": "s=\"ab\";x=s.clear.prepend(\"xy\");[s,x]",
+    "expected": [
+      "ab",
+      "xy"
+    ]
+  },
+  {
+    "name": "member_hash_mutator_named_field",
+    "body": "h={push:[1],prepend:2};[h.push,h.prepend]",
+    "expected": [
+      [
+        1
+      ],
+      2
+    ]
   }
 ]

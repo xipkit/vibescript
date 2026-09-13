@@ -4,7 +4,7 @@ use crate::{
     budget::Buffer,
     bytecode::{Op, Program, Selection},
     hash::Hash,
-    json, ops,
+    json, members, ops,
     range::Range,
     value::Kind,
 };
@@ -201,6 +201,38 @@ pub(crate) fn execute(
                     .index(ctx, &stack.data[base..])?;
                 stack.data.truncate(base);
             }
+            Op::AddressMember(site) => {
+                let name = &program.members[site.name];
+                let address = frame.addresses.data.last_mut().unwrap();
+                let key = ctx.bytes(name.as_bytes())?;
+                let data = if let Kind::Hash(hash) = &address.value.0 {
+                    hash.find(ctx, name.as_bytes())?.is_some()
+                } else {
+                    false
+                };
+                if data {
+                    address.index(ctx, &[key])?;
+                } else {
+                    let address = frame.addresses.data.pop().unwrap();
+                    let value = address.apply(
+                        ctx,
+                        &mut frame.locals.data,
+                        &mut frame.addresses.data,
+                        |ctx, receiver| members::call(ctx, site, name, receiver, &[]),
+                    )?;
+                    frame.addresses.push(ctx, Address::new(None, value))?;
+                }
+            }
+            Op::AddressMemberTarget(site, read) => {
+                let address = frame.addresses.data.last_mut().unwrap();
+                let name = &program.members[site.name];
+                let key = ctx.bytes(name.as_bytes())?;
+                address.selectors.push(ctx, key)?;
+                if read {
+                    let (_, value) = members::call(ctx, site, name, address.value.clone(), &[])?;
+                    stack.push(ctx, value)?;
+                }
+            }
             Op::AddressTarget(n, read) => {
                 let base = stack.data.len() - n;
                 let address = frame.addresses.data.last_mut().unwrap();
@@ -228,7 +260,7 @@ pub(crate) fn execute(
             Op::AddressDrop => {
                 frame.addresses.data.pop().unwrap();
             }
-            Op::Mutate(method, n) => {
+            Op::Mutate(site, n) => {
                 let base = stack.data.len() - n;
                 let address = frame.addresses.data.pop().unwrap();
                 let value = address.apply(
@@ -236,8 +268,13 @@ pub(crate) fn execute(
                     &mut frame.locals.data,
                     &mut frame.addresses.data,
                     |ctx, receiver| {
-                        let value = ops::method(ctx, method, receiver, &stack.data[base..])?;
-                        Ok((value.clone(), value))
+                        members::call(
+                            ctx,
+                            site,
+                            &program.members[site.name],
+                            receiver,
+                            &stack.data[base..],
+                        )
                     },
                 )?;
                 stack.data.truncate(base);
@@ -392,10 +429,16 @@ pub(crate) fn execute(
                 stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }
-            Op::Method(method, n) => {
+            Op::Method(site, n) => {
                 let base = stack.data.len() - n - 1;
                 let root = std::mem::take(&mut stack.data[base]);
-                let value = ops::method(ctx, method, root, &stack.data[base + 1..])?;
+                let (_, value) = members::call(
+                    ctx,
+                    site,
+                    &program.members[site.name],
+                    root,
+                    &stack.data[base + 1..],
+                )?;
                 stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }

@@ -199,6 +199,31 @@ impl Hash {
         Ok(())
     }
 
+    pub fn remove(&mut self, ctx: &mut CallContext, index: usize) -> Result<Value> {
+        self.index = None;
+        for i in index..self.buffer.data.len() - 1 {
+            ctx.charge(1)?;
+            self.buffer.data.swap(i, i + 1);
+        }
+        let (_, removed) = self.buffer.data.pop().unwrap();
+        if self.buffer.data.is_empty() {
+            self.buffer = Buffer::empty();
+        } else if self.buffer.data.len() < self.buffer.data.capacity() / 2 {
+            let mut buffer = Buffer::with_capacity(ctx, self.buffer.data.len())?;
+            buffer.extend(ctx, &self.buffer.data)?;
+            self.buffer = buffer;
+        }
+        if removed.depth() + 1 == self.depth {
+            self.depth = 1;
+            for (_, value) in &self.buffer.data {
+                ctx.charge(1)?;
+                self.depth = self.depth.max(value.depth() + 1);
+            }
+        }
+        self.ensure_index(ctx, self.buffer.data.len())?;
+        Ok(removed)
+    }
+
     fn check_depth(&self, ctx: &mut CallContext) -> Result<()> {
         if self.depth > MAX_VALUE_DEPTH {
             return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
@@ -275,6 +300,18 @@ mod tests {
             assert_eq!(hash.find(&mut ctx, key.as_bytes()).unwrap(), Some(i));
         }
         assert_eq!(hash.find(&mut ctx, keys[100].as_bytes()).unwrap(), None);
+
+        for i in (0..100).step_by(2) {
+            let index = hash.find(&mut ctx, keys[i].as_bytes()).unwrap().unwrap();
+            assert_eq!(
+                hash.remove(&mut ctx, index).unwrap().as_int(),
+                Some(i as i64)
+            );
+        }
+        for (i, key) in keys[..100].iter().enumerate() {
+            let expected = (i % 2 == 1).then_some(i / 2);
+            assert_eq!(hash.find(&mut ctx, key.as_bytes()).unwrap(), expected);
+        }
 
         let used = ctx.stats().steps;
         ctx.options.limits.steps = Some(used + 32);

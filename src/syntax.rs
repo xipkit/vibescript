@@ -253,6 +253,7 @@ pub(crate) enum Node {
     Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
     Loop(Box<Stmt>),
     Call(String, Vec<Expr>),
+    Member(Box<Expr>, String),
     Method(Box<Expr>, String, Vec<Expr>),
     Index(Box<Expr>, Vec<Expr>),
 }
@@ -676,7 +677,13 @@ impl Parser {
                         return false;
                     }
                 }
-                Token::Word(w) if nesting == 0 && reserved(w) => return false,
+                Token::Word(w)
+                    if nesting == 0
+                        && reserved(w)
+                        && (i == 0 || self.tokens[self.pos + i - 1].token != Token::P('.')) =>
+                {
+                    return false;
+                }
                 Token::Eof => return false,
                 _ => (),
             }
@@ -917,16 +924,19 @@ impl Parser {
                 continue;
             }
             if self.take_p('.') {
-                let name = self.name()?;
-                let args = if self.take_p('(') {
-                    self.arguments(')')?
-                } else {
-                    Vec::new()
+                let Token::Word(name) = self.bump() else {
+                    return self.err("expected member name");
                 };
-                let d = 1 + lhs
-                    .depth
-                    .max(args.iter().map(|e| e.depth).max().unwrap_or(0));
-                lhs = self.make(Node::Method(Box::new(lhs), name, args), d)?;
+                lhs = if self.take_p('(') {
+                    let args = self.arguments(')')?;
+                    let depth = 1 + lhs
+                        .depth
+                        .max(args.iter().map(|e| e.depth).max().unwrap_or(0));
+                    self.make(Node::Method(Box::new(lhs), name, args), depth)?
+                } else {
+                    let depth = lhs.depth + 1;
+                    self.make(Node::Member(Box::new(lhs), name), depth)?
+                };
                 continue;
             }
             if self.take_p('[') {

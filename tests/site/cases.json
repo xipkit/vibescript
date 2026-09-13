@@ -200,12 +200,47 @@
     }
   },
   {
+    "path": "rosettacode/popular/arrays.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "original": [
+        3,
+        1,
+        4
+      ],
+      "expanded": [
+        3,
+        1,
+        4,
+        1,
+        5,
+        9
+      ],
+      "first": 3,
+      "last": 9,
+      "count": 6,
+      "total": 23
+    }
+  },
+  {
     "path": "rosettacode/popular/bacon_cipher.vibe",
     "function": "run",
     "args": [],
     "expected": {
       "encoded": "BABAB ABAAA AAAAB AABAA / AAABA ABBBA AAABB AABAA",
       "decoded": "VIBE CODE"
+    }
+  },
+  {
+    "path": "rosettacode/popular/balanced_brackets.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "nested_true": true,
+      "mixed_true": true,
+      "crossed_false": false,
+      "incomplete_false": false
     }
   },
   {
@@ -2448,6 +2483,21 @@
       29,
       30
     ]
+  },
+  {
+    "path": "rosettacode/popular/stack.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "peek_before_pop": "blue",
+      "popped": "blue",
+      "peek_after_pop": "green",
+      "size_after_pop": 2,
+      "contents": [
+        "red",
+        "green"
+      ]
+    }
   },
   {
     "path": "rosettacode/popular/string_comparison.vibe",

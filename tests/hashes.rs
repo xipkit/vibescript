@@ -122,3 +122,77 @@ fn ordered_hash_equality_uses_values_and_ignores_order() {
     let encoded = stringify_json(&output.value, CallOptions::default()).unwrap();
     assert_eq!(encoded.value.as_bytes(), Some(b"[true,false]".as_slice()));
 }
+
+#[test]
+fn removals_and_reinsertion_preserve_lookup_order_and_snapshots() {
+    let source = "def run(h)\nold=h\nkeys=h.keys\nremoved=[]\ni=0\nwhile i<keys.length\nremoved.push(h.delete(keys[i]))\ni+=2\nend\nh.store(:k00000,-1)\n[h.keys,h.values,removed,old]\nend";
+    let script = Engine::new().compile(source).unwrap();
+    for size in [0, 1, 15, 16, 17, 24, 25, 128, 512] {
+        let input = object(size);
+        let result = script
+            .call(
+                "run",
+                std::slice::from_ref(&input),
+                CallOptions {
+                    limits: Limits {
+                        steps: Some(5_000_000),
+                        ..Limits::default()
+                    },
+                    ..CallOptions::default()
+                },
+            )
+            .unwrap();
+        let values = result.value.as_array().unwrap();
+        let keys = values[0].as_array().unwrap();
+        let remaining = values[1].as_array().unwrap();
+        for (slot, i) in (1..size).step_by(2).enumerate() {
+            assert_eq!(keys[slot].as_bytes(), Some(format!("k{i:05}").as_bytes()));
+            assert_eq!(remaining[slot].as_int(), Some(i as i64));
+        }
+        assert_eq!(keys.len(), size / 2 + 1);
+        assert_eq!(remaining.len(), keys.len());
+        assert_eq!(keys.last().unwrap().as_bytes(), Some(b"k00000".as_slice()));
+        assert_eq!(remaining.last().unwrap().as_int(), Some(-1));
+        assert_eq!(
+            values[2]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(Value::as_int)
+                .collect::<Vec<_>>(),
+            (0..size)
+                .step_by(2)
+                .map(|i| Some(i as i64))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(values[3].as_hash().unwrap().len(), size);
+        for (i, (_, value)) in input.as_hash().unwrap().iter().enumerate() {
+            assert_eq!(value.as_int(), Some(i as i64));
+        }
+    }
+}
+
+#[test]
+fn removing_deepest_values_releases_nesting_depth() {
+    let mut deep = Value::nil();
+    for _ in 0..100 {
+        deep = Value::array(vec![deep]);
+    }
+    for (input, removal) in [
+        (
+            Value::hash(vec![(b"deep".to_vec(), deep.clone())]),
+            "h.delete(:deep)",
+        ),
+        (Value::array(vec![deep.clone()]), "h.pop"),
+        (Value::array(vec![deep]), "h.shift"),
+    ] {
+        let script = Engine::new()
+            .compile(&format!(
+                "def run(h)\n{removal}\nfor i in 1..127\nh=[h]\nend\nh\nend"
+            ))
+            .unwrap();
+        script
+            .call("run", &[input], CallOptions::default())
+            .unwrap();
+    }
+}
