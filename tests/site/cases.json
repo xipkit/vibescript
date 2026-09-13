@@ -175,6 +175,26 @@
     }
   },
   {
+    "path": "rosettacode/popular/anagrams.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      [
+        "acre",
+        "care",
+        "race"
+      ],
+      [
+        "dog",
+        "god"
+      ],
+      [
+        "note",
+        "tone"
+      ]
+    ]
+  },
+  {
     "path": "rosettacode/popular/angle_difference_between_two_bearings.vibe",
     "function": "run",
     "args": [],
@@ -253,6 +273,28 @@
       "positive_forty_two": "1TTT0",
       "negative_ten": "T0T"
     }
+  },
+  {
+    "path": "rosettacode/popular/best_shuffle.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      {
+        "original": "abracadabra",
+        "shuffled": "bcdrraaaaab",
+        "fixed_points": 2
+      },
+      {
+        "original": "seesaw",
+        "shuffled": "esswae",
+        "fixed_points": 1
+      },
+      {
+        "original": "vibescript",
+        "shuffled": "ceiiprstvb",
+        "fixed_points": 0
+      }
+    ]
   },
   {
     "path": "rosettacode/popular/binary_digits.vibe",
@@ -1852,6 +1894,18 @@
     ]
   },
   {
+    "path": "rosettacode/popular/natural_sorting.vibe",
+    "function": "run",
+    "args": [],
+    "expected": [
+      "file1.txt",
+      "file2.txt",
+      "file3.txt",
+      "file10.txt",
+      "file20.txt"
+    ]
+  },
+  {
     "path": "rosettacode/popular/number_names.vibe",
     "function": "run",
     "args": [],
@@ -2120,6 +2174,35 @@
         11,
         13,
         17
+      ]
+    }
+  },
+  {
+    "path": "rosettacode/popular/priority_queue.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "peek_before_dequeue": {
+        "priority": 5,
+        "value": "ship feature"
+      },
+      "first_out": {
+        "priority": 5,
+        "value": "ship feature"
+      },
+      "second_out": {
+        "priority": 5,
+        "value": "answer support"
+      },
+      "remaining": [
+        {
+          "priority": 2,
+          "value": "write tests"
+        },
+        {
+          "priority": 3,
+          "value": "review docs"
+        }
       ]
     }
   },

@@ -125,7 +125,7 @@ pub(crate) fn execute(
         let current = frames.data.len() - 1;
         if frames.data[current].function.is_none() {
             let iteration = &mut storage.iterations.data[frames.data[current].iteration_base];
-            let returned = if iteration.waiting {
+            let returned = if iteration.waiting() {
                 Some(stack.data.pop().unwrap())
             } else {
                 None
@@ -144,7 +144,7 @@ pub(crate) fn execute(
                     )?;
                 }
                 Progress::Done(mut value) => {
-                    let mutation = iteration.mutation.take();
+                    let mutation = iteration.take_mutation();
                     if frames.data[current].mutating {
                         let address = storage.addresses.data.pop().unwrap();
                         if let Some(mutation) = mutation {

@@ -196,8 +196,8 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
             _ => {
                 let mut found = None;
                 for op in [
-                    "...", "..", "===", "||=", "&&=", "**=", "==", "!=", "<=", ">=", "&&", "||",
-                    "+=", "-=", "*=", "/=", "%=", "**", "<<",
+                    "...", "..", "===", "<=>", "||=", "&&=", "**=", "==", "!=", "<=", ">=", "&&",
+                    "||", "+=", "-=", "*=", "/=", "%=", "**", "<<",
                 ] {
                     if s[i..].starts_with(op.as_bytes()) {
                         found = Some(op);
@@ -1136,17 +1136,7 @@ impl Parser {
         let bytes = match self.bump() {
             Token::Word(w) => w.into_bytes(),
             Token::Bytes(b) => b,
-            Token::Op(op) => {
-                if op == "<="
-                    && self.token() == &Token::Op(">")
-                    && self.previous().end == self.tokens[self.pos].offset
-                {
-                    self.bump();
-                    b"<=>".to_vec()
-                } else {
-                    op.as_bytes().to_vec()
-                }
-            }
+            Token::Op(op) => op.as_bytes().to_vec(),
             Token::P('[') => {
                 self.expect_p(']')?;
                 if self.token() == &Token::Op("=")
@@ -1213,8 +1203,10 @@ impl Parser {
                 continue;
             }
             if self.take_p('.') {
-                let Token::Word(name) = self.bump() else {
-                    return self.err("expected member name");
+                let name = match self.bump() {
+                    Token::Word(name) => name,
+                    Token::Op("<=>") => "<=>".to_owned(),
+                    _ => return self.err("expected member name"),
                 };
                 lhs = if self.take_p('(') {
                     let args = self.call_arguments()?;
@@ -1587,6 +1579,7 @@ impl Parser {
                                 | "<"
                                 | ">"
                                 | "<="
+                                | "<=>"
                                 | ">="
                                 | "=="
                                 | "==="
@@ -1764,7 +1757,7 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
         "||" => (3, 4),
         "&&" => (4, 5),
         "==" | "!=" | "===" => (5, 6),
-        "<" | "<=" | ">" | ">=" => (6, 7),
+        "<" | "<=" | ">" | ">=" | "<=>" => (6, 7),
         ".." | "..." => (7, 8),
         "<<" => (10, 11),
         "+" | "-" => (11, 12),

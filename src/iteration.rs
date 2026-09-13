@@ -4,7 +4,7 @@ use crate::{
     bytecode::{CallSite, Method},
     collections,
     hash::Hash,
-    members, mutate, ops,
+    members, mutate, ops, ordering,
     value::Kind,
 };
 
@@ -117,7 +117,7 @@ impl MethodKind {
 }
 
 pub(crate) fn method(name: &str) -> bool {
-    MethodKind::parse(name).is_some()
+    MethodKind::parse(name).is_some() || ordering::method(name)
 }
 
 pub(crate) enum Progress {
@@ -150,7 +150,35 @@ impl Mutation {
     }
 }
 
-pub(crate) struct Iteration {
+pub(crate) enum Iteration {
+    Loop(Loop),
+    Order(ordering::Driver),
+}
+
+impl Iteration {
+    pub fn waiting(&self) -> bool {
+        match self {
+            Self::Loop(state) => state.waiting,
+            Self::Order(state) => state.waiting,
+        }
+    }
+
+    pub fn take_mutation(&mut self) -> Option<Mutation> {
+        match self {
+            Self::Loop(state) => state.mutation.take(),
+            Self::Order(_) => None,
+        }
+    }
+
+    pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
+        match self {
+            Self::Loop(state) => state.advance(ctx, returned),
+            Self::Order(state) => state.advance(ctx, returned),
+        }
+    }
+}
+
+pub(crate) struct Loop {
     method: MethodKind,
     receiver: Value,
     position: i128,
@@ -189,6 +217,10 @@ pub(crate) fn start(
     block_arity: Option<usize>,
 ) -> Result<Option<Iteration>> {
     use MethodKind::*;
+    if ordering::method(name) {
+        return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some())
+            .map(|state| state.map(Iteration::Order));
+    }
     let Some(method) = MethodKind::parse(name) else {
         return Ok(None);
     };
@@ -303,7 +335,7 @@ pub(crate) fn start(
     if method == Find && args.first().is_some_and(|v| !matches!(v.0, Kind::Nil)) {
         return Err(argument("find takes no fallback; a miss returns nil"));
     }
-    let mut state = Iteration {
+    let mut state = Loop {
         method,
         receiver: receiver.clone(),
         position: 0,
@@ -487,10 +519,10 @@ pub(crate) fn start(
         state.count = i64::try_from(state.length).map_err(|_| argument("count overflow"))?;
         state.length = 0;
     }
-    Ok(Some(state))
+    Ok(Some(Iteration::Loop(state)))
 }
 
-impl Iteration {
+impl Loop {
     pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         if let Some(value) = returned {
             self.waiting = false;

@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate, verified differences discovered during the language port; they are not included in the matching-case count. The four-build compatibility audit covers all seventeen recorded cases, and `tests/control.rs` also checks the original loop differences.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate, verified differences discovered during the language port; they are not included in the matching-case count. The four-build compatibility audit covers all nineteen recorded cases, and `tests/control.rs` also checks the original loop differences.
 
 ## Inclusive range endpoints
 
@@ -41,6 +41,8 @@ Builtin block iteration exposes the same gap. For `a=[1,2,3]; a.map {|v| a[1]=9;
 
 Mutating blocks add five observations of the same distinction: filling a prefix after a callback edits the captured tail, filtering after an index write, the receiver returned by a filter that removes nothing, and filling a captured negative-index child after its parent grows. These remain separate from the matching cases. Hash filters also have a distinct commit rule that both Go modes agree on: they remove the selected keys from the current captured hash, preserving callback writes to other keys. Rust implements and tests that rule.
 
+Key blocks in `sort_by`, `min_by`, and `max_by` also traverse the captured array. Two ordering audit records show how a callback writing the last element affects Go's sorted output and selected maximum while Rust retains the original values. Creating an alias before the call makes the examined mutation cases agree; these matching cases also record the key callback sequence. Comparator-form `sort` copies its input before calling the block and agrees in the examined mutation case.
+
 Matching this allocation-dependent behavior would require a deliberate compatibility policy. It remains an open item in the full-port checklist; the current Rust behavior is recorded explicitly so ordinary success counts cannot conceal the difference.
 
 ## Evaluated collection values
@@ -63,7 +65,7 @@ The audit returns a failure status while any recorded case differs, preserves co
 
 The reference's `docs/adr/006-slim-language-for-predictable-sandboxing.md` specifies logical collection values and states that sharing is not observable. Its `internal/runtime/collection_values.go` tracks durable script bindings separately from temporary values held by the evaluator. The test-only `VIBES_COW_ALWAYS_COPY` mode forces addressed writes to copy, bypassing the durable-reference optimization. Rust's immutable snapshots remain the working value-semantics policy while the observed Go differences stay open.
 
-The [recorded oracle results](reference-view-results.json) compare both Go modes with the Rust builds. Rust matches Go's copy mode on thirteen of seventeen cases. The compound indexed assignment produces three different results: normal Go returns `[[1,2,1,2]]`, copying Go returns `[[1,2]]`, and Rust returns `[[1,1,2]]`. Integer endpoint wrapping and hash-loop break results are also unaffected by copy mode. These results characterize the source of the differences; they do not establish full language compatibility or resolve the records.
+The [recorded oracle results](reference-view-results.json) compare both Go modes with the Rust builds. Rust matches Go's copy mode on fifteen of nineteen cases. The compound indexed assignment produces three different results: normal Go returns `[[1,2,1,2]]`, copying Go returns `[[1,2]]`, and Rust returns `[[1,1,2]]`. Integer endpoint wrapping and hash-loop break results are also unaffected by copy mode. These results characterize the source of the differences; they do not establish full language compatibility or resolve the records.
 
 After building the comparison binaries, reproduce the investigation with:
 
@@ -71,4 +73,4 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit continues to report seventeen open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit continues to report nineteen open cases.

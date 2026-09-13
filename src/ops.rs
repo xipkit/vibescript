@@ -29,6 +29,9 @@ pub(crate) fn unary(op: &str, value: Value) -> Result<Value> {
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
+    if op == "<=>" {
+        return crate::ordering::spaceship(ctx, &a, &b);
+    }
     if op == "===" {
         return Ok(Value::boolean(case_matches(ctx, Some(&b), &a, false)?));
     }
@@ -169,7 +172,7 @@ pub(crate) fn case_matches(
     Ok(false)
 }
 
-fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
+pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Option<Ordering>> {
     match (&a.0, &b.0) {
         (Kind::Int(a), Kind::Int(b)) => Ok(Some(a.cmp(b))),
         (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => {

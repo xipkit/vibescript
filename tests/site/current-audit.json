@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "f75df328b2a5635fc80416a54664b2f4cccd0709",
-  "dirty": " M docs/compatibility-cases.json\n M src/bytecode.rs\n M src/iteration.rs\n M src/mutate.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? scripts/audit-reference-views.py\n?? tests/mutable_blocks.rs\n",
+  "source_revision": "445e0dea35b85ecdd3b963b014d0db8fe9078ea0",
+  "dirty": " M Cargo.toml\n M README.md\n M docs/compatibility-cases.json\n M docs/compatibility.md\n M src/iteration.rs\n M src/lib.rs\n M src/ops.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n?? licenses/\n?? src/ordering.rs\n?? src/sort.rs\n?? tests/ordering.rs\n",
   "binary_sha256": {
-    "go-simd": "7f39096c21d1d1b03305d4e0f03520f6d192b6b294338e346e711132644b0c0a",
-    "rust-simd": "145398d390f28b2e610f768f9695595ffea248d8bdd9c8368bf9db9d7caf4ca6"
+    "go-simd": "669379f24268042cf221b8cf0a079bbd1413410b819a92af80e07fa13d189156",
+    "rust-simd": "44abe3818c4c29be38aba64c49e69c4995546935d4aaf1b95e95b168ff6eebe0"
   },
   "counts": {
-    "match": 144,
-    "rust_gap": 44,
+    "match": 148,
+    "rust_gap": 40,
     "harness_gap": 15
   },
   "examples": [
@@ -495,10 +495,25 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          [
+            "acre",
+            "care",
+            "race"
+          ],
+          [
+            "dog",
+            "god"
+          ],
+          [
+            "note",
+            "tone"
+          ]
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/angle_difference_between_two_bearings.vibe",
@@ -696,10 +711,27 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          {
+            "original": "abracadabra",
+            "shuffled": "bcdrraaaaab",
+            "fixed_points": 2
+          },
+          {
+            "original": "seesaw",
+            "shuffled": "esswae",
+            "fixed_points": 1
+          },
+          {
+            "original": "vibescript",
+            "shuffled": "ceiiprstvb",
+            "fixed_points": 0
+          }
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/binary_digits.vibe",
@@ -4222,10 +4254,17 @@
         ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "file1.txt",
+          "file2.txt",
+          "file3.txt",
+          "file10.txt",
+          "file20.txt"
+        ]
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/number_names.vibe",
@@ -4824,10 +4863,34 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "peek_before_dequeue": {
+            "priority": 5,
+            "value": "ship feature"
+          },
+          "first_out": {
+            "priority": 5,
+            "value": "ship feature"
+          },
+          "second_out": {
+            "priority": 5,
+            "value": "answer support"
+          },
+          "remaining": [
+            {
+              "priority": 2,
+              "value": "write tests"
+            },
+            {
+              "priority": 3,
+              "value": "review docs"
+            }
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/pythagorean_triples.vibe",

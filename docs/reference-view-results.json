@@ -1,17 +1,19 @@
 {
-  "reference_version": "v0.70.0",
-  "reference_revision": "5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "reference_module": {
+    "Path": "github.com/mgomes/vibescript",
+    "Version": "v0.70.0",
+    "Time": "2026-09-11T02:07:28Z",
+    "Dir": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/github.com/mgomes/vibescript@v0.70.0",
+    "GoMod": "/Volumes/m2/Work/xipkit/vibescript.rs/.cache/gomod/cache/download/github.com/mgomes/vibescript/@v/v0.70.0.mod",
+    "GoVersion": "1.26",
+    "Sum": "h1:cqb56SkwtZ7BPASNBwFcd/aXOYNaylBPS6arxavWjhg=",
+    "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
+  },
   "counts": {
-    "cases": 17,
+    "cases": 19,
     "rust_matches_normal": 0,
-    "rust_matches_copy": 13
+    "rust_matches_copy": 15
   },
-  "binary_sha256": {
-    "go-test": "f1a57347d87a6d5142751bcdd6aa25fe4dc43cedb3a85fe06711840596beb48e",
-    "rust-portable": "993887eae9cc50d47461d4d0f1dfc162ef4b6c64ddda02cc5f101839adca2703",
-    "rust-simd": "145398d390f28b2e610f768f9695595ffea248d8bdd9c8368bf9db9d7caf4ca6"
-  },
-  "probe_sha256": "ea603804b5cbf71f21ec35dad654758486aea526e3b322a27d2e91d376e3a218",
   "cases": [
     {
       "name": "negative_receiver_growth",
@@ -708,6 +710,82 @@
       ],
       "rust_matches_normal": false,
       "rust_matches_copy": true
+    },
+    {
+      "name": "ordering_sort_by_callback_mutation",
+      "go_normal": [
+        [
+          3,
+          1,
+          9
+        ],
+        [
+          1,
+          3,
+          9
+        ]
+      ],
+      "go_always_copy": [
+        [
+          3,
+          1,
+          9
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust": [
+        [
+          3,
+          1,
+          9
+        ],
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "ordering_max_by_callback_mutation",
+      "go_normal": [
+        [
+          3,
+          1,
+          9
+        ],
+        9
+      ],
+      "go_always_copy": [
+        [
+          3,
+          1,
+          9
+        ],
+        3
+      ],
+      "rust": [
+        [
+          3,
+          1,
+          9
+        ],
+        3
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
     }
-  ]
+  ],
+  "probe_sha256": "ea603804b5cbf71f21ec35dad654758486aea526e3b322a27d2e91d376e3a218",
+  "binary_sha256": {
+    "go-test": "1650b9c84bda1585456797f8b51cffdea9f6aca8c3bfc6671e8057ac8e8532fd",
+    "rust-portable": "197fdc9d82392411af3383b4fc2345f6178bc2d169b5ce260205bc9858ec2e24",
+    "rust-simd": "44abe3818c4c29be38aba64c49e69c4995546935d4aaf1b95e95b168ff6eebe0"
+  }
 }

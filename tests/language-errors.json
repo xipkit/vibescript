@@ -2218,5 +2218,660 @@
     "name": "mutable_block_range_delete",
     "source": "\ndef run(input)\n(1..3).delete(:missing){7}\nend",
     "go_error": "unknown range method delete"
+  },
+  {
+    "name": "ordering_sort_incomparable",
+    "body": "[1,\"x\"].sort",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "ordering_sort_mixed_symbol",
+    "body": "[\"a\",:a].sort",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "ordering_sort_mixed_nil",
+    "body": "[1,nil].sort",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "ordering_sort_hash",
+    "body": "[{},{}].sort",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "ordering_sort_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].sort",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "ordering_sort_argument_signature",
+    "body": "[3,1,2].sort(1)",
+    "go_error": "array.sort does not take arguments"
+  },
+  {
+    "name": "ordering_sort_many_arguments_signature",
+    "body": "[3,1,2].sort(1,2)",
+    "go_error": "array.sort does not take arguments"
+  },
+  {
+    "name": "ordering_sort_nil_block_signature",
+    "body": "[3,1,2].sort {nil}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_sort_block_with_args_signature",
+    "body": "[3,1,2].sort(1){0}",
+    "go_error": "array.sort does not take arguments"
+  },
+  {
+    "name": "ordering_sort_receiver_nil",
+    "body": "nil.sort {0}",
+    "go_error": "unknown nil method sort"
+  },
+  {
+    "name": "ordering_sort_receiver_1",
+    "body": "1.sort {0}",
+    "go_error": "unknown int method sort"
+  },
+  {
+    "name": "ordering_sort_receiver_\"a\"",
+    "body": "\"a\".sort {0}",
+    "go_error": "unknown string method sort"
+  },
+  {
+    "name": "ordering_sort_receiver_{}",
+    "body": "{}.sort {0}",
+    "go_error": "unknown hash method sort"
+  },
+  {
+    "name": "ordering_sort_receiver_(1..3)",
+    "body": "(1..3).sort {0}",
+    "go_error": "unknown range method sort"
+  },
+  {
+    "name": "ordering_sort_by_incomparable",
+    "body": "[1,\"x\"].sort_by {|v|v}",
+    "go_error": "array.sort_by block values are not comparable"
+  },
+  {
+    "name": "ordering_sort_by_mixed_symbol",
+    "body": "[\"a\",:a].sort_by {|v|v}",
+    "go_error": "array.sort_by block values are not comparable"
+  },
+  {
+    "name": "ordering_sort_by_mixed_nil",
+    "body": "[1,nil].sort_by {|v|v}",
+    "go_error": "array.sort_by block values are not comparable"
+  },
+  {
+    "name": "ordering_sort_by_hash",
+    "body": "[{},{}].sort_by {|v|v}",
+    "go_error": "array.sort_by block values are not comparable"
+  },
+  {
+    "name": "ordering_sort_by_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].sort_by {|v|v}",
+    "go_error": "array.sort_by block values are not comparable"
+  },
+  {
+    "name": "ordering_sort_by_argument_signature",
+    "body": "[3,1,2].sort_by(1)",
+    "go_error": "array.sort_by does not take arguments"
+  },
+  {
+    "name": "ordering_sort_by_many_arguments_signature",
+    "body": "[3,1,2].sort_by(1,2)",
+    "go_error": "array.sort_by does not take arguments"
+  },
+  {
+    "name": "ordering_sort_by_keyword_signature",
+    "body": "[3,1,2].sort_by(ignored:7)",
+    "go_error": "array.sort_by requires a block"
+  },
+  {
+    "name": "ordering_sort_by_no_block_signature",
+    "body": "[3,1,2].sort_by",
+    "go_error": "array.sort_by requires a block"
+  },
+  {
+    "name": "ordering_sort_by_numeric_block_signature",
+    "body": "[3,1,2].sort_by {|a,b|a-b}",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "ordering_sort_by_block_with_args_signature",
+    "body": "[3,1,2].sort_by(1){0}",
+    "go_error": "array.sort_by does not take arguments"
+  },
+  {
+    "name": "ordering_sort_by_receiver_nil",
+    "body": "nil.sort_by {0}",
+    "go_error": "unknown nil method sort_by"
+  },
+  {
+    "name": "ordering_sort_by_receiver_1",
+    "body": "1.sort_by {0}",
+    "go_error": "unknown int method sort_by"
+  },
+  {
+    "name": "ordering_sort_by_receiver_\"a\"",
+    "body": "\"a\".sort_by {0}",
+    "go_error": "unknown string method sort_by"
+  },
+  {
+    "name": "ordering_sort_by_receiver_{}",
+    "body": "{}.sort_by {0}",
+    "go_error": "unknown hash method sort_by"
+  },
+  {
+    "name": "ordering_sort_by_receiver_(1..3)",
+    "body": "(1..3).sort_by {0}",
+    "go_error": "unknown range method sort_by"
+  },
+  {
+    "name": "ordering_min_incomparable",
+    "body": "[1,\"x\"].min",
+    "go_error": "array.min values are not comparable"
+  },
+  {
+    "name": "ordering_min_mixed_symbol",
+    "body": "[\"a\",:a].min",
+    "go_error": "array.min values are not comparable"
+  },
+  {
+    "name": "ordering_min_mixed_nil",
+    "body": "[1,nil].min",
+    "go_error": "array.min values are not comparable"
+  },
+  {
+    "name": "ordering_min_hash",
+    "body": "[{},{}].min",
+    "go_error": "array.min values are not comparable"
+  },
+  {
+    "name": "ordering_min_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].min",
+    "go_error": "array.min values are not comparable"
+  },
+  {
+    "name": "ordering_min_argument_signature",
+    "body": "[3,1,2].min(1)",
+    "go_error": "array.min does not take arguments"
+  },
+  {
+    "name": "ordering_min_many_arguments_signature",
+    "body": "[3,1,2].min(1,2)",
+    "go_error": "array.min does not take arguments"
+  },
+  {
+    "name": "ordering_min_block_signature",
+    "body": "[3,1,2].min {0}",
+    "go_error": "array.min does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_min_numeric_block_signature",
+    "body": "[3,1,2].min {|a,b|a-b}",
+    "go_error": "array.min does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_min_nil_block_signature",
+    "body": "[3,1,2].min {nil}",
+    "go_error": "array.min does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_min_block_with_args_signature",
+    "body": "[3,1,2].min(1){0}",
+    "go_error": "array.min does not take arguments"
+  },
+  {
+    "name": "ordering_min_keyword_block_signature",
+    "body": "[3,1,2].min(ignored:7){0}",
+    "go_error": "array.min does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_min_receiver_nil",
+    "body": "nil.min {0}",
+    "go_error": "unknown nil method min"
+  },
+  {
+    "name": "ordering_min_receiver_1",
+    "body": "1.min {0}",
+    "go_error": "unknown int method min"
+  },
+  {
+    "name": "ordering_min_receiver_\"a\"",
+    "body": "\"a\".min {0}",
+    "go_error": "unknown string method min"
+  },
+  {
+    "name": "ordering_min_receiver_{}",
+    "body": "{}.min {0}",
+    "go_error": "unknown hash method min"
+  },
+  {
+    "name": "ordering_min_receiver_(1..3)",
+    "body": "(1..3).min {0}",
+    "go_error": "range.min does not accept a block"
+  },
+  {
+    "name": "ordering_max_incomparable",
+    "body": "[1,\"x\"].max",
+    "go_error": "array.max values are not comparable"
+  },
+  {
+    "name": "ordering_max_mixed_symbol",
+    "body": "[\"a\",:a].max",
+    "go_error": "array.max values are not comparable"
+  },
+  {
+    "name": "ordering_max_mixed_nil",
+    "body": "[1,nil].max",
+    "go_error": "array.max values are not comparable"
+  },
+  {
+    "name": "ordering_max_hash",
+    "body": "[{},{}].max",
+    "go_error": "array.max values are not comparable"
+  },
+  {
+    "name": "ordering_max_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].max",
+    "go_error": "array.max values are not comparable"
+  },
+  {
+    "name": "ordering_max_argument_signature",
+    "body": "[3,1,2].max(1)",
+    "go_error": "array.max does not take arguments"
+  },
+  {
+    "name": "ordering_max_many_arguments_signature",
+    "body": "[3,1,2].max(1,2)",
+    "go_error": "array.max does not take arguments"
+  },
+  {
+    "name": "ordering_max_block_signature",
+    "body": "[3,1,2].max {0}",
+    "go_error": "array.max does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_max_numeric_block_signature",
+    "body": "[3,1,2].max {|a,b|a-b}",
+    "go_error": "array.max does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_max_nil_block_signature",
+    "body": "[3,1,2].max {nil}",
+    "go_error": "array.max does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_max_block_with_args_signature",
+    "body": "[3,1,2].max(1){0}",
+    "go_error": "array.max does not take arguments"
+  },
+  {
+    "name": "ordering_max_keyword_block_signature",
+    "body": "[3,1,2].max(ignored:7){0}",
+    "go_error": "array.max does not accept a block; use min_by or max_by for block-based selection"
+  },
+  {
+    "name": "ordering_max_receiver_nil",
+    "body": "nil.max {0}",
+    "go_error": "unknown nil method max"
+  },
+  {
+    "name": "ordering_max_receiver_1",
+    "body": "1.max {0}",
+    "go_error": "unknown int method max"
+  },
+  {
+    "name": "ordering_max_receiver_\"a\"",
+    "body": "\"a\".max {0}",
+    "go_error": "unknown string method max"
+  },
+  {
+    "name": "ordering_max_receiver_{}",
+    "body": "{}.max {0}",
+    "go_error": "unknown hash method max (did you mean \"map\"?)"
+  },
+  {
+    "name": "ordering_max_receiver_(1..3)",
+    "body": "(1..3).max {0}",
+    "go_error": "range.max does not accept a block"
+  },
+  {
+    "name": "ordering_minmax_incomparable",
+    "body": "[1,\"x\"].minmax",
+    "go_error": "array.minmax values are not comparable"
+  },
+  {
+    "name": "ordering_minmax_mixed_symbol",
+    "body": "[\"a\",:a].minmax",
+    "go_error": "array.minmax values are not comparable"
+  },
+  {
+    "name": "ordering_minmax_mixed_nil",
+    "body": "[1,nil].minmax",
+    "go_error": "array.minmax values are not comparable"
+  },
+  {
+    "name": "ordering_minmax_hash",
+    "body": "[{},{}].minmax",
+    "go_error": "array.minmax values are not comparable"
+  },
+  {
+    "name": "ordering_minmax_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].minmax",
+    "go_error": "array.minmax values are not comparable"
+  },
+  {
+    "name": "ordering_minmax_argument_signature",
+    "body": "[3,1,2].minmax(1)",
+    "go_error": "array.minmax does not take arguments"
+  },
+  {
+    "name": "ordering_minmax_many_arguments_signature",
+    "body": "[3,1,2].minmax(1,2)",
+    "go_error": "array.minmax does not take arguments"
+  },
+  {
+    "name": "ordering_minmax_block_signature",
+    "body": "[3,1,2].minmax {0}",
+    "go_error": "array.minmax does not accept a block"
+  },
+  {
+    "name": "ordering_minmax_numeric_block_signature",
+    "body": "[3,1,2].minmax {|a,b|a-b}",
+    "go_error": "array.minmax does not accept a block"
+  },
+  {
+    "name": "ordering_minmax_nil_block_signature",
+    "body": "[3,1,2].minmax {nil}",
+    "go_error": "array.minmax does not accept a block"
+  },
+  {
+    "name": "ordering_minmax_block_with_args_signature",
+    "body": "[3,1,2].minmax(1){0}",
+    "go_error": "array.minmax does not take arguments"
+  },
+  {
+    "name": "ordering_minmax_keyword_block_signature",
+    "body": "[3,1,2].minmax(ignored:7){0}",
+    "go_error": "array.minmax does not accept a block"
+  },
+  {
+    "name": "ordering_minmax_receiver_nil",
+    "body": "nil.minmax {0}",
+    "go_error": "unknown nil method minmax"
+  },
+  {
+    "name": "ordering_minmax_receiver_1",
+    "body": "1.minmax {0}",
+    "go_error": "unknown int method minmax"
+  },
+  {
+    "name": "ordering_minmax_receiver_\"a\"",
+    "body": "\"a\".minmax {0}",
+    "go_error": "unknown string method minmax"
+  },
+  {
+    "name": "ordering_minmax_receiver_{}",
+    "body": "{}.minmax {0}",
+    "go_error": "unknown hash method minmax"
+  },
+  {
+    "name": "ordering_minmax_receiver_(1..3)",
+    "body": "(1..3).minmax {0}",
+    "go_error": "unknown range method minmax"
+  },
+  {
+    "name": "ordering_min_by_incomparable",
+    "body": "[1,\"x\"].min_by {|v|v}",
+    "go_error": "array.min_by block values are not comparable"
+  },
+  {
+    "name": "ordering_min_by_mixed_symbol",
+    "body": "[\"a\",:a].min_by {|v|v}",
+    "go_error": "array.min_by block values are not comparable"
+  },
+  {
+    "name": "ordering_min_by_mixed_nil",
+    "body": "[1,nil].min_by {|v|v}",
+    "go_error": "array.min_by block values are not comparable"
+  },
+  {
+    "name": "ordering_min_by_hash",
+    "body": "[{},{}].min_by {|v|v}",
+    "go_error": "array.min_by block values are not comparable"
+  },
+  {
+    "name": "ordering_min_by_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].min_by {|v|v}",
+    "go_error": "array.min_by block values are not comparable"
+  },
+  {
+    "name": "ordering_min_by_argument_signature",
+    "body": "[3,1,2].min_by(1)",
+    "go_error": "array.min_by does not take arguments"
+  },
+  {
+    "name": "ordering_min_by_many_arguments_signature",
+    "body": "[3,1,2].min_by(1,2)",
+    "go_error": "array.min_by does not take arguments"
+  },
+  {
+    "name": "ordering_min_by_keyword_signature",
+    "body": "[3,1,2].min_by(ignored:7)",
+    "go_error": "array.min_by requires a block"
+  },
+  {
+    "name": "ordering_min_by_no_block_signature",
+    "body": "[3,1,2].min_by",
+    "go_error": "array.min_by requires a block"
+  },
+  {
+    "name": "ordering_min_by_numeric_block_signature",
+    "body": "[3,1,2].min_by {|a,b|a-b}",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "ordering_min_by_block_with_args_signature",
+    "body": "[3,1,2].min_by(1){0}",
+    "go_error": "array.min_by does not take arguments"
+  },
+  {
+    "name": "ordering_min_by_receiver_nil",
+    "body": "nil.min_by {0}",
+    "go_error": "unknown nil method min_by"
+  },
+  {
+    "name": "ordering_min_by_receiver_1",
+    "body": "1.min_by {0}",
+    "go_error": "unknown int method min_by"
+  },
+  {
+    "name": "ordering_min_by_receiver_\"a\"",
+    "body": "\"a\".min_by {0}",
+    "go_error": "unknown string method min_by"
+  },
+  {
+    "name": "ordering_min_by_receiver_{}",
+    "body": "{}.min_by {0}",
+    "go_error": "unknown hash method min_by"
+  },
+  {
+    "name": "ordering_min_by_receiver_(1..3)",
+    "body": "(1..3).min_by {0}",
+    "go_error": "unknown range method min_by"
+  },
+  {
+    "name": "ordering_max_by_incomparable",
+    "body": "[1,\"x\"].max_by {|v|v}",
+    "go_error": "array.max_by block values are not comparable"
+  },
+  {
+    "name": "ordering_max_by_mixed_symbol",
+    "body": "[\"a\",:a].max_by {|v|v}",
+    "go_error": "array.max_by block values are not comparable"
+  },
+  {
+    "name": "ordering_max_by_mixed_nil",
+    "body": "[1,nil].max_by {|v|v}",
+    "go_error": "array.max_by block values are not comparable"
+  },
+  {
+    "name": "ordering_max_by_hash",
+    "body": "[{},{}].max_by {|v|v}",
+    "go_error": "array.max_by block values are not comparable"
+  },
+  {
+    "name": "ordering_max_by_incomparable_nested",
+    "body": "[[1,2],[1,\"a\"]].max_by {|v|v}",
+    "go_error": "array.max_by block values are not comparable"
+  },
+  {
+    "name": "ordering_max_by_argument_signature",
+    "body": "[3,1,2].max_by(1)",
+    "go_error": "array.max_by does not take arguments"
+  },
+  {
+    "name": "ordering_max_by_many_arguments_signature",
+    "body": "[3,1,2].max_by(1,2)",
+    "go_error": "array.max_by does not take arguments"
+  },
+  {
+    "name": "ordering_max_by_keyword_signature",
+    "body": "[3,1,2].max_by(ignored:7)",
+    "go_error": "array.max_by requires a block"
+  },
+  {
+    "name": "ordering_max_by_no_block_signature",
+    "body": "[3,1,2].max_by",
+    "go_error": "array.max_by requires a block"
+  },
+  {
+    "name": "ordering_max_by_numeric_block_signature",
+    "body": "[3,1,2].max_by {|a,b|a-b}",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "ordering_max_by_block_with_args_signature",
+    "body": "[3,1,2].max_by(1){0}",
+    "go_error": "array.max_by does not take arguments"
+  },
+  {
+    "name": "ordering_max_by_receiver_nil",
+    "body": "nil.max_by {0}",
+    "go_error": "unknown nil method max_by"
+  },
+  {
+    "name": "ordering_max_by_receiver_1",
+    "body": "1.max_by {0}",
+    "go_error": "unknown int method max_by"
+  },
+  {
+    "name": "ordering_max_by_receiver_\"a\"",
+    "body": "\"a\".max_by {0}",
+    "go_error": "unknown string method max_by"
+  },
+  {
+    "name": "ordering_max_by_receiver_{}",
+    "body": "{}.max_by {0}",
+    "go_error": "unknown hash method max_by"
+  },
+  {
+    "name": "ordering_max_by_receiver_(1..3)",
+    "body": "(1..3).max_by {0}",
+    "go_error": "unknown range method max_by"
+  },
+  {
+    "name": "ordering_comparator_nil",
+    "body": "[3,1,2].sort {nil}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_comparator_true",
+    "body": "[3,1,2].sort {true}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_comparator_\"x\"",
+    "body": "[3,1,2].sort {\"x\"}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_comparator_[]",
+    "body": "[3,1,2].sort {[]}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_comparator_:a",
+    "body": "[3,1,2].sort {:a}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_comparator_{}",
+    "body": "[3,1,2].sort {{}}",
+    "go_error": "array.sort block must return numeric comparator"
+  },
+  {
+    "name": "ordering_spaceship_explicit",
+    "body": "1.<=>(2)",
+    "go_error": "unknown int method <=>"
+  },
+  {
+    "name": "ordering_spaceship_missing_arg",
+    "body": "1.<=>",
+    "go_error": "unknown int method <=>"
+  },
+  {
+    "name": "ordering_spaceship_nil_relational",
+    "body": "nil < nil",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "ordering_spaceship_bool_relational",
+    "body": "false < true",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "ordering_spaceship_array_relational",
+    "body": "[1] < [2]",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "ordering_nan_sort",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[n,1].sort",
+    "go_error": "array.sort values are not comparable"
+  },
+  {
+    "name": "ordering_nan_min",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[n,1].min",
+    "go_error": "array.min values are not comparable"
+  },
+  {
+    "name": "ordering_nan_max",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[n,1].max",
+    "go_error": "array.max values are not comparable"
+  },
+  {
+    "name": "ordering_nan_minmax",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[n,1].minmax",
+    "go_error": "array.minmax values are not comparable"
+  },
+  {
+    "name": "ordering_nan_sort_by",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[1,2].sort_by {n}",
+    "go_error": "array.sort_by block values are not comparable"
+  },
+  {
+    "name": "ordering_nan_min_by",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[1,2].min_by {n}",
+    "go_error": "array.min_by block values are not comparable"
+  },
+  {
+    "name": "ordering_nan_max_by",
+    "body": "inf=1e308*1e308;n=inf-inf;a=[n];[1,2].max_by {n}",
+    "go_error": "array.max_by block values are not comparable"
   }
 ]
