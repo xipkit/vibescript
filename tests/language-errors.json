@@ -62438,5 +62438,3040 @@
     "name": "string_charset_receivers_48",
     "body": "{}.squeeze!(\"a\")",
     "go_error": "unknown hash method squeeze!"
+  },
+  {
+    "name": "array_set_syntax_9",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\n[1]&[1]..[2]\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "array_set_syntax_14",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\n[[1,2],[2]].inject(:&)\nend",
+    "go_error": "unknown array method inject (did you mean \"insert\", \"inspect\", or \"reject\"?)"
+  },
+  {
+    "name": "array_set_syntax_26",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\nvalues & :itself\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_signature_4",
+    "source": "def run(input)\nr=([]).union([],nil);r.length\nend",
+    "go_error": "array.union arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_5",
+    "source": "def run(input)\nr=([]).union(nil,[]);r.length\nend",
+    "go_error": "array.union arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_8",
+    "source": "def run(input)\nr=([]).union(bad:1);r.length\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_9",
+    "source": "def run(input)\nr=([]).union([],bad:1);r.length\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_16",
+    "source": "def run(input)\nr=([1,2,1]).union([],nil);r.length\nend",
+    "go_error": "array.union arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_17",
+    "source": "def run(input)\nr=([1,2,1]).union(nil,[]);r.length\nend",
+    "go_error": "array.union arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_20",
+    "source": "def run(input)\nr=([1,2,1]).union(bad:1);r.length\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_21",
+    "source": "def run(input)\nr=([1,2,1]).union([],bad:1);r.length\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_28",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).union([],nil);r.length\nend",
+    "go_error": "array.union arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_29",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).union(nil,[]);r.length\nend",
+    "go_error": "array.union arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_32",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).union(bad:1);r.length\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_33",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).union([],bad:1);r.length\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_36",
+    "source": "def run(input)\nr=(nil).union();r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_37",
+    "source": "def run(input)\nr=(nil).union([]);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_38",
+    "source": "def run(input)\nr=(nil).union([1]);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_39",
+    "source": "def run(input)\nr=(nil).union([1],[2]);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_40",
+    "source": "def run(input)\nr=(nil).union([],nil);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_41",
+    "source": "def run(input)\nr=(nil).union(nil,[]);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_42",
+    "source": "def run(input)\nr=(nil).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_43",
+    "source": "def run(input)\nr=(nil).union(**{});r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_44",
+    "source": "def run(input)\nr=(nil).union(bad:1);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_45",
+    "source": "def run(input)\nr=(nil).union([],bad:1);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_46",
+    "source": "def run(input)\nr=(nil).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_47",
+    "source": "def run(input)\nr=(nil).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown nil method union"
+  },
+  {
+    "name": "array_set_signature_48",
+    "source": "def run(input)\nr=(1).union();r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_49",
+    "source": "def run(input)\nr=(1).union([]);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_50",
+    "source": "def run(input)\nr=(1).union([1]);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_51",
+    "source": "def run(input)\nr=(1).union([1],[2]);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_52",
+    "source": "def run(input)\nr=(1).union([],nil);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_53",
+    "source": "def run(input)\nr=(1).union(nil,[]);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_54",
+    "source": "def run(input)\nr=(1).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_55",
+    "source": "def run(input)\nr=(1).union(**{});r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_56",
+    "source": "def run(input)\nr=(1).union(bad:1);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_57",
+    "source": "def run(input)\nr=(1).union([],bad:1);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_58",
+    "source": "def run(input)\nr=(1).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_59",
+    "source": "def run(input)\nr=(1).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown int method union"
+  },
+  {
+    "name": "array_set_signature_60",
+    "source": "def run(input)\nr=(1.0).union();r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_61",
+    "source": "def run(input)\nr=(1.0).union([]);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_62",
+    "source": "def run(input)\nr=(1.0).union([1]);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_63",
+    "source": "def run(input)\nr=(1.0).union([1],[2]);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_64",
+    "source": "def run(input)\nr=(1.0).union([],nil);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_65",
+    "source": "def run(input)\nr=(1.0).union(nil,[]);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_66",
+    "source": "def run(input)\nr=(1.0).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_67",
+    "source": "def run(input)\nr=(1.0).union(**{});r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_68",
+    "source": "def run(input)\nr=(1.0).union(bad:1);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_69",
+    "source": "def run(input)\nr=(1.0).union([],bad:1);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_70",
+    "source": "def run(input)\nr=(1.0).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_71",
+    "source": "def run(input)\nr=(1.0).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown float method union"
+  },
+  {
+    "name": "array_set_signature_72",
+    "source": "def run(input)\nr=(\"x\").union();r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_73",
+    "source": "def run(input)\nr=(\"x\").union([]);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_74",
+    "source": "def run(input)\nr=(\"x\").union([1]);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_75",
+    "source": "def run(input)\nr=(\"x\").union([1],[2]);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_76",
+    "source": "def run(input)\nr=(\"x\").union([],nil);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_77",
+    "source": "def run(input)\nr=(\"x\").union(nil,[]);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_78",
+    "source": "def run(input)\nr=(\"x\").union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_79",
+    "source": "def run(input)\nr=(\"x\").union(**{});r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_80",
+    "source": "def run(input)\nr=(\"x\").union(bad:1);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_81",
+    "source": "def run(input)\nr=(\"x\").union([],bad:1);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_82",
+    "source": "def run(input)\nr=(\"x\").union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_83",
+    "source": "def run(input)\nr=(\"x\").union(*[[]],**{});r.length\nend",
+    "go_error": "unknown string method union"
+  },
+  {
+    "name": "array_set_signature_84",
+    "source": "def run(input)\nr=(:x).union();r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_85",
+    "source": "def run(input)\nr=(:x).union([]);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_86",
+    "source": "def run(input)\nr=(:x).union([1]);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_87",
+    "source": "def run(input)\nr=(:x).union([1],[2]);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_88",
+    "source": "def run(input)\nr=(:x).union([],nil);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_89",
+    "source": "def run(input)\nr=(:x).union(nil,[]);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_90",
+    "source": "def run(input)\nr=(:x).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_91",
+    "source": "def run(input)\nr=(:x).union(**{});r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_92",
+    "source": "def run(input)\nr=(:x).union(bad:1);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_93",
+    "source": "def run(input)\nr=(:x).union([],bad:1);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_94",
+    "source": "def run(input)\nr=(:x).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_95",
+    "source": "def run(input)\nr=(:x).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown symbol method union"
+  },
+  {
+    "name": "array_set_signature_96",
+    "source": "def run(input)\nr=(false).union();r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_97",
+    "source": "def run(input)\nr=(false).union([]);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_98",
+    "source": "def run(input)\nr=(false).union([1]);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_99",
+    "source": "def run(input)\nr=(false).union([1],[2]);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_100",
+    "source": "def run(input)\nr=(false).union([],nil);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_101",
+    "source": "def run(input)\nr=(false).union(nil,[]);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_102",
+    "source": "def run(input)\nr=(false).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_103",
+    "source": "def run(input)\nr=(false).union(**{});r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_104",
+    "source": "def run(input)\nr=(false).union(bad:1);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_105",
+    "source": "def run(input)\nr=(false).union([],bad:1);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_106",
+    "source": "def run(input)\nr=(false).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_107",
+    "source": "def run(input)\nr=(false).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown bool method union"
+  },
+  {
+    "name": "array_set_signature_108",
+    "source": "def run(input)\nr=({}).union();r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_109",
+    "source": "def run(input)\nr=({}).union([]);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_110",
+    "source": "def run(input)\nr=({}).union([1]);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_111",
+    "source": "def run(input)\nr=({}).union([1],[2]);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_112",
+    "source": "def run(input)\nr=({}).union([],nil);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_113",
+    "source": "def run(input)\nr=({}).union(nil,[]);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_114",
+    "source": "def run(input)\nr=({}).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_115",
+    "source": "def run(input)\nr=({}).union(**{});r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_116",
+    "source": "def run(input)\nr=({}).union(bad:1);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_117",
+    "source": "def run(input)\nr=({}).union([],bad:1);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_118",
+    "source": "def run(input)\nr=({}).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_119",
+    "source": "def run(input)\nr=({}).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown hash method union"
+  },
+  {
+    "name": "array_set_signature_120",
+    "source": "def run(input)\nr=((1..2)).union();r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_121",
+    "source": "def run(input)\nr=((1..2)).union([]);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_122",
+    "source": "def run(input)\nr=((1..2)).union([1]);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_123",
+    "source": "def run(input)\nr=((1..2)).union([1],[2]);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_124",
+    "source": "def run(input)\nr=((1..2)).union([],nil);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_125",
+    "source": "def run(input)\nr=((1..2)).union(nil,[]);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_126",
+    "source": "def run(input)\nr=((1..2)).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_127",
+    "source": "def run(input)\nr=((1..2)).union(**{});r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_128",
+    "source": "def run(input)\nr=((1..2)).union(bad:1);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_129",
+    "source": "def run(input)\nr=((1..2)).union([],bad:1);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_130",
+    "source": "def run(input)\nr=((1..2)).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_131",
+    "source": "def run(input)\nr=((1..2)).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown range method union"
+  },
+  {
+    "name": "array_set_signature_132",
+    "source": "def run(input)\nr=(1.second).union();r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_133",
+    "source": "def run(input)\nr=(1.second).union([]);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_134",
+    "source": "def run(input)\nr=(1.second).union([1]);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_135",
+    "source": "def run(input)\nr=(1.second).union([1],[2]);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_136",
+    "source": "def run(input)\nr=(1.second).union([],nil);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_137",
+    "source": "def run(input)\nr=(1.second).union(nil,[]);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_138",
+    "source": "def run(input)\nr=(1.second).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_139",
+    "source": "def run(input)\nr=(1.second).union(**{});r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_140",
+    "source": "def run(input)\nr=(1.second).union(bad:1);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_141",
+    "source": "def run(input)\nr=(1.second).union([],bad:1);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_142",
+    "source": "def run(input)\nr=(1.second).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_143",
+    "source": "def run(input)\nr=(1.second).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown duration method union"
+  },
+  {
+    "name": "array_set_signature_144",
+    "source": "def run(input)\nr=(Time.at(0)).union();r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_145",
+    "source": "def run(input)\nr=(Time.at(0)).union([]);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_146",
+    "source": "def run(input)\nr=(Time.at(0)).union([1]);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_147",
+    "source": "def run(input)\nr=(Time.at(0)).union([1],[2]);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_148",
+    "source": "def run(input)\nr=(Time.at(0)).union([],nil);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_149",
+    "source": "def run(input)\nr=(Time.at(0)).union(nil,[]);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_150",
+    "source": "def run(input)\nr=(Time.at(0)).union([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_151",
+    "source": "def run(input)\nr=(Time.at(0)).union(**{});r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_152",
+    "source": "def run(input)\nr=(Time.at(0)).union(bad:1);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_153",
+    "source": "def run(input)\nr=(Time.at(0)).union([],bad:1);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_154",
+    "source": "def run(input)\nr=(Time.at(0)).union(*[[],[1]]);r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_signature_155",
+    "source": "def run(input)\nr=(Time.at(0)).union(*[[]],**{});r.length\nend",
+    "go_error": "unknown time method union"
+  },
+  {
+    "name": "array_set_blocks_20",
+    "source": "def run(input)\n[1,2,1].union(bad:1){|x|1/0}\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_21",
+    "source": "def run(input)\n[1,2,1].union(bad:1){break 4}\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_22",
+    "source": "def run(input)\n[1,2,1].union(bad:1){next 4}\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_23",
+    "source": "def run(input)\n[1,2,1].union(bad:1) do |x|\n1/0\nend\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_24",
+    "source": "def run(input)\n[1,2,1].union([],bad:1){|x|1/0}\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_25",
+    "source": "def run(input)\n[1,2,1].union([],bad:1){break 4}\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_26",
+    "source": "def run(input)\n[1,2,1].union([],bad:1){next 4}\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_27",
+    "source": "def run(input)\n[1,2,1].union([],bad:1) do |x|\n1/0\nend\nend",
+    "go_error": "array.union does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_160",
+    "source": "def run(input)\nr=([]).difference([],nil);r.length\nend",
+    "go_error": "array.difference arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_161",
+    "source": "def run(input)\nr=([]).difference(nil,[]);r.length\nend",
+    "go_error": "array.difference arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_164",
+    "source": "def run(input)\nr=([]).difference(bad:1);r.length\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_165",
+    "source": "def run(input)\nr=([]).difference([],bad:1);r.length\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_172",
+    "source": "def run(input)\nr=([1,2,1]).difference([],nil);r.length\nend",
+    "go_error": "array.difference arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_173",
+    "source": "def run(input)\nr=([1,2,1]).difference(nil,[]);r.length\nend",
+    "go_error": "array.difference arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_176",
+    "source": "def run(input)\nr=([1,2,1]).difference(bad:1);r.length\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_177",
+    "source": "def run(input)\nr=([1,2,1]).difference([],bad:1);r.length\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_184",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).difference([],nil);r.length\nend",
+    "go_error": "array.difference arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_185",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).difference(nil,[]);r.length\nend",
+    "go_error": "array.difference arguments must be arrays"
+  },
+  {
+    "name": "array_set_signature_188",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).difference(bad:1);r.length\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_189",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]).difference([],bad:1);r.length\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_signature_192",
+    "source": "def run(input)\nr=(nil).difference();r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_193",
+    "source": "def run(input)\nr=(nil).difference([]);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_194",
+    "source": "def run(input)\nr=(nil).difference([1]);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_195",
+    "source": "def run(input)\nr=(nil).difference([1],[2]);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_196",
+    "source": "def run(input)\nr=(nil).difference([],nil);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_197",
+    "source": "def run(input)\nr=(nil).difference(nil,[]);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_198",
+    "source": "def run(input)\nr=(nil).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_199",
+    "source": "def run(input)\nr=(nil).difference(**{});r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_200",
+    "source": "def run(input)\nr=(nil).difference(bad:1);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_201",
+    "source": "def run(input)\nr=(nil).difference([],bad:1);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_202",
+    "source": "def run(input)\nr=(nil).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_203",
+    "source": "def run(input)\nr=(nil).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown nil method difference"
+  },
+  {
+    "name": "array_set_signature_204",
+    "source": "def run(input)\nr=(1).difference();r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_205",
+    "source": "def run(input)\nr=(1).difference([]);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_206",
+    "source": "def run(input)\nr=(1).difference([1]);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_207",
+    "source": "def run(input)\nr=(1).difference([1],[2]);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_208",
+    "source": "def run(input)\nr=(1).difference([],nil);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_209",
+    "source": "def run(input)\nr=(1).difference(nil,[]);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_210",
+    "source": "def run(input)\nr=(1).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_211",
+    "source": "def run(input)\nr=(1).difference(**{});r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_212",
+    "source": "def run(input)\nr=(1).difference(bad:1);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_213",
+    "source": "def run(input)\nr=(1).difference([],bad:1);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_214",
+    "source": "def run(input)\nr=(1).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_215",
+    "source": "def run(input)\nr=(1).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown int method difference"
+  },
+  {
+    "name": "array_set_signature_216",
+    "source": "def run(input)\nr=(1.0).difference();r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_217",
+    "source": "def run(input)\nr=(1.0).difference([]);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_218",
+    "source": "def run(input)\nr=(1.0).difference([1]);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_219",
+    "source": "def run(input)\nr=(1.0).difference([1],[2]);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_220",
+    "source": "def run(input)\nr=(1.0).difference([],nil);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_221",
+    "source": "def run(input)\nr=(1.0).difference(nil,[]);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_222",
+    "source": "def run(input)\nr=(1.0).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_223",
+    "source": "def run(input)\nr=(1.0).difference(**{});r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_224",
+    "source": "def run(input)\nr=(1.0).difference(bad:1);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_225",
+    "source": "def run(input)\nr=(1.0).difference([],bad:1);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_226",
+    "source": "def run(input)\nr=(1.0).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_227",
+    "source": "def run(input)\nr=(1.0).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown float method difference"
+  },
+  {
+    "name": "array_set_signature_228",
+    "source": "def run(input)\nr=(\"x\").difference();r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_229",
+    "source": "def run(input)\nr=(\"x\").difference([]);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_230",
+    "source": "def run(input)\nr=(\"x\").difference([1]);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_231",
+    "source": "def run(input)\nr=(\"x\").difference([1],[2]);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_232",
+    "source": "def run(input)\nr=(\"x\").difference([],nil);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_233",
+    "source": "def run(input)\nr=(\"x\").difference(nil,[]);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_234",
+    "source": "def run(input)\nr=(\"x\").difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_235",
+    "source": "def run(input)\nr=(\"x\").difference(**{});r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_236",
+    "source": "def run(input)\nr=(\"x\").difference(bad:1);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_237",
+    "source": "def run(input)\nr=(\"x\").difference([],bad:1);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_238",
+    "source": "def run(input)\nr=(\"x\").difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_239",
+    "source": "def run(input)\nr=(\"x\").difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown string method difference"
+  },
+  {
+    "name": "array_set_signature_240",
+    "source": "def run(input)\nr=(:x).difference();r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_241",
+    "source": "def run(input)\nr=(:x).difference([]);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_242",
+    "source": "def run(input)\nr=(:x).difference([1]);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_243",
+    "source": "def run(input)\nr=(:x).difference([1],[2]);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_244",
+    "source": "def run(input)\nr=(:x).difference([],nil);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_245",
+    "source": "def run(input)\nr=(:x).difference(nil,[]);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_246",
+    "source": "def run(input)\nr=(:x).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_247",
+    "source": "def run(input)\nr=(:x).difference(**{});r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_248",
+    "source": "def run(input)\nr=(:x).difference(bad:1);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_249",
+    "source": "def run(input)\nr=(:x).difference([],bad:1);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_250",
+    "source": "def run(input)\nr=(:x).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_251",
+    "source": "def run(input)\nr=(:x).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown symbol method difference"
+  },
+  {
+    "name": "array_set_signature_252",
+    "source": "def run(input)\nr=(false).difference();r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_253",
+    "source": "def run(input)\nr=(false).difference([]);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_254",
+    "source": "def run(input)\nr=(false).difference([1]);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_255",
+    "source": "def run(input)\nr=(false).difference([1],[2]);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_256",
+    "source": "def run(input)\nr=(false).difference([],nil);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_257",
+    "source": "def run(input)\nr=(false).difference(nil,[]);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_258",
+    "source": "def run(input)\nr=(false).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_259",
+    "source": "def run(input)\nr=(false).difference(**{});r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_260",
+    "source": "def run(input)\nr=(false).difference(bad:1);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_261",
+    "source": "def run(input)\nr=(false).difference([],bad:1);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_262",
+    "source": "def run(input)\nr=(false).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_263",
+    "source": "def run(input)\nr=(false).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown bool method difference"
+  },
+  {
+    "name": "array_set_signature_264",
+    "source": "def run(input)\nr=({}).difference();r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_265",
+    "source": "def run(input)\nr=({}).difference([]);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_266",
+    "source": "def run(input)\nr=({}).difference([1]);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_267",
+    "source": "def run(input)\nr=({}).difference([1],[2]);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_268",
+    "source": "def run(input)\nr=({}).difference([],nil);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_269",
+    "source": "def run(input)\nr=({}).difference(nil,[]);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_270",
+    "source": "def run(input)\nr=({}).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_271",
+    "source": "def run(input)\nr=({}).difference(**{});r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_272",
+    "source": "def run(input)\nr=({}).difference(bad:1);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_273",
+    "source": "def run(input)\nr=({}).difference([],bad:1);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_274",
+    "source": "def run(input)\nr=({}).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_275",
+    "source": "def run(input)\nr=({}).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown hash method difference"
+  },
+  {
+    "name": "array_set_signature_276",
+    "source": "def run(input)\nr=((1..2)).difference();r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_277",
+    "source": "def run(input)\nr=((1..2)).difference([]);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_278",
+    "source": "def run(input)\nr=((1..2)).difference([1]);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_279",
+    "source": "def run(input)\nr=((1..2)).difference([1],[2]);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_280",
+    "source": "def run(input)\nr=((1..2)).difference([],nil);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_281",
+    "source": "def run(input)\nr=((1..2)).difference(nil,[]);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_282",
+    "source": "def run(input)\nr=((1..2)).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_283",
+    "source": "def run(input)\nr=((1..2)).difference(**{});r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_284",
+    "source": "def run(input)\nr=((1..2)).difference(bad:1);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_285",
+    "source": "def run(input)\nr=((1..2)).difference([],bad:1);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_286",
+    "source": "def run(input)\nr=((1..2)).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_287",
+    "source": "def run(input)\nr=((1..2)).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown range method difference"
+  },
+  {
+    "name": "array_set_signature_288",
+    "source": "def run(input)\nr=(1.second).difference();r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_289",
+    "source": "def run(input)\nr=(1.second).difference([]);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_290",
+    "source": "def run(input)\nr=(1.second).difference([1]);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_291",
+    "source": "def run(input)\nr=(1.second).difference([1],[2]);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_292",
+    "source": "def run(input)\nr=(1.second).difference([],nil);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_293",
+    "source": "def run(input)\nr=(1.second).difference(nil,[]);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_294",
+    "source": "def run(input)\nr=(1.second).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_295",
+    "source": "def run(input)\nr=(1.second).difference(**{});r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_296",
+    "source": "def run(input)\nr=(1.second).difference(bad:1);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_297",
+    "source": "def run(input)\nr=(1.second).difference([],bad:1);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_298",
+    "source": "def run(input)\nr=(1.second).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_299",
+    "source": "def run(input)\nr=(1.second).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown duration method difference"
+  },
+  {
+    "name": "array_set_signature_300",
+    "source": "def run(input)\nr=(Time.at(0)).difference();r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_301",
+    "source": "def run(input)\nr=(Time.at(0)).difference([]);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_302",
+    "source": "def run(input)\nr=(Time.at(0)).difference([1]);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_303",
+    "source": "def run(input)\nr=(Time.at(0)).difference([1],[2]);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_304",
+    "source": "def run(input)\nr=(Time.at(0)).difference([],nil);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_305",
+    "source": "def run(input)\nr=(Time.at(0)).difference(nil,[]);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_306",
+    "source": "def run(input)\nr=(Time.at(0)).difference([] ,[] ,[]);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_307",
+    "source": "def run(input)\nr=(Time.at(0)).difference(**{});r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_308",
+    "source": "def run(input)\nr=(Time.at(0)).difference(bad:1);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_309",
+    "source": "def run(input)\nr=(Time.at(0)).difference([],bad:1);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_310",
+    "source": "def run(input)\nr=(Time.at(0)).difference(*[[],[1]]);r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_signature_311",
+    "source": "def run(input)\nr=(Time.at(0)).difference(*[[]],**{});r.length\nend",
+    "go_error": "unknown time method difference"
+  },
+  {
+    "name": "array_set_blocks_48",
+    "source": "def run(input)\n[1,2,1].difference(bad:1){|x|1/0}\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_49",
+    "source": "def run(input)\n[1,2,1].difference(bad:1){break 4}\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_50",
+    "source": "def run(input)\n[1,2,1].difference(bad:1){next 4}\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_51",
+    "source": "def run(input)\n[1,2,1].difference(bad:1) do |x|\n1/0\nend\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_52",
+    "source": "def run(input)\n[1,2,1].difference([],bad:1){|x|1/0}\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_53",
+    "source": "def run(input)\n[1,2,1].difference([],bad:1){break 4}\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_54",
+    "source": "def run(input)\n[1,2,1].difference([],bad:1){next 4}\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_blocks_55",
+    "source": "def run(input)\n[1,2,1].difference([],bad:1) do |x|\n1/0\nend\nend",
+    "go_error": "array.difference does not take keyword arguments"
+  },
+  {
+    "name": "array_set_operands_6",
+    "source": "def run(input)\nr=([]) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_7",
+    "source": "def run(input)\nr=([]) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_8",
+    "source": "def run(input)\nr=([]) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_9",
+    "source": "def run(input)\nr=([]) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_10",
+    "source": "def run(input)\nr=([]) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_11",
+    "source": "def run(input)\nr=([]) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_12",
+    "source": "def run(input)\nr=([]) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_13",
+    "source": "def run(input)\nr=([]) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_14",
+    "source": "def run(input)\nr=([]) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_15",
+    "source": "def run(input)\nr=([]) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_16",
+    "source": "def run(input)\nr=([]) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_17",
+    "source": "def run(input)\nr=([]) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_18",
+    "source": "def run(input)\nr=([]) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_19",
+    "source": "def run(input)\nr=([]) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_20",
+    "source": "def run(input)\nr=([]) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_21",
+    "source": "def run(input)\nr=([]) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_22",
+    "source": "def run(input)\nr=([]) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_23",
+    "source": "def run(input)\nr=([]) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_24",
+    "source": "def run(input)\nr=([]) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_25",
+    "source": "def run(input)\nr=([]) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_32",
+    "source": "def run(input)\nr=([1,2,1]) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_33",
+    "source": "def run(input)\nr=([1,2,1]) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_34",
+    "source": "def run(input)\nr=([1,2,1]) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_35",
+    "source": "def run(input)\nr=([1,2,1]) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_36",
+    "source": "def run(input)\nr=([1,2,1]) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_37",
+    "source": "def run(input)\nr=([1,2,1]) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_38",
+    "source": "def run(input)\nr=([1,2,1]) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_39",
+    "source": "def run(input)\nr=([1,2,1]) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_40",
+    "source": "def run(input)\nr=([1,2,1]) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_41",
+    "source": "def run(input)\nr=([1,2,1]) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_42",
+    "source": "def run(input)\nr=([1,2,1]) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_43",
+    "source": "def run(input)\nr=([1,2,1]) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_44",
+    "source": "def run(input)\nr=([1,2,1]) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_45",
+    "source": "def run(input)\nr=([1,2,1]) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_46",
+    "source": "def run(input)\nr=([1,2,1]) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_47",
+    "source": "def run(input)\nr=([1,2,1]) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_48",
+    "source": "def run(input)\nr=([1,2,1]) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_49",
+    "source": "def run(input)\nr=([1,2,1]) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_50",
+    "source": "def run(input)\nr=([1,2,1]) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_51",
+    "source": "def run(input)\nr=([1,2,1]) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_58",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_59",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_60",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_61",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_62",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_63",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_64",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_65",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_66",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_67",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_68",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_69",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_70",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_71",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_72",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_73",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_74",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_75",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_76",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_77",
+    "source": "def run(input)\nr=([1.0,1,0.0/0.0]) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_78",
+    "source": "def run(input)\nr=(nil) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_79",
+    "source": "def run(input)\nr=(nil) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_80",
+    "source": "def run(input)\nr=(nil) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_81",
+    "source": "def run(input)\nr=(nil) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_82",
+    "source": "def run(input)\nr=(nil) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_83",
+    "source": "def run(input)\nr=(nil) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_84",
+    "source": "def run(input)\nr=(nil) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_85",
+    "source": "def run(input)\nr=(nil) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_86",
+    "source": "def run(input)\nr=(nil) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_87",
+    "source": "def run(input)\nr=(nil) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_88",
+    "source": "def run(input)\nr=(nil) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_89",
+    "source": "def run(input)\nr=(nil) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_90",
+    "source": "def run(input)\nr=(nil) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_91",
+    "source": "def run(input)\nr=(nil) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_92",
+    "source": "def run(input)\nr=(nil) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_93",
+    "source": "def run(input)\nr=(nil) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_94",
+    "source": "def run(input)\nr=(nil) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_95",
+    "source": "def run(input)\nr=(nil) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_96",
+    "source": "def run(input)\nr=(nil) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_97",
+    "source": "def run(input)\nr=(nil) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_98",
+    "source": "def run(input)\nr=(nil) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_99",
+    "source": "def run(input)\nr=(nil) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_100",
+    "source": "def run(input)\nr=(nil) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_101",
+    "source": "def run(input)\nr=(nil) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_102",
+    "source": "def run(input)\nr=(nil) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_103",
+    "source": "def run(input)\nr=(nil) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_104",
+    "source": "def run(input)\nr=(1) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_105",
+    "source": "def run(input)\nr=(1) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_106",
+    "source": "def run(input)\nr=(1) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_107",
+    "source": "def run(input)\nr=(1) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_108",
+    "source": "def run(input)\nr=(1) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_109",
+    "source": "def run(input)\nr=(1) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_110",
+    "source": "def run(input)\nr=(1) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_111",
+    "source": "def run(input)\nr=(1) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_112",
+    "source": "def run(input)\nr=(1) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_113",
+    "source": "def run(input)\nr=(1) - (1);r.length\nend",
+    "go_error": "unknown int method length"
+  },
+  {
+    "name": "array_set_operands_114",
+    "source": "def run(input)\nr=(1) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_115",
+    "source": "def run(input)\nr=(1) - (1.0);r.length\nend",
+    "go_error": "unknown float method length"
+  },
+  {
+    "name": "array_set_operands_116",
+    "source": "def run(input)\nr=(1) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_117",
+    "source": "def run(input)\nr=(1) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_118",
+    "source": "def run(input)\nr=(1) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_119",
+    "source": "def run(input)\nr=(1) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_120",
+    "source": "def run(input)\nr=(1) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_121",
+    "source": "def run(input)\nr=(1) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_122",
+    "source": "def run(input)\nr=(1) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_123",
+    "source": "def run(input)\nr=(1) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_124",
+    "source": "def run(input)\nr=(1) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_125",
+    "source": "def run(input)\nr=(1) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_126",
+    "source": "def run(input)\nr=(1) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_127",
+    "source": "def run(input)\nr=(1) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_128",
+    "source": "def run(input)\nr=(1) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_129",
+    "source": "def run(input)\nr=(1) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_130",
+    "source": "def run(input)\nr=(1.0) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_131",
+    "source": "def run(input)\nr=(1.0) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_132",
+    "source": "def run(input)\nr=(1.0) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_133",
+    "source": "def run(input)\nr=(1.0) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_134",
+    "source": "def run(input)\nr=(1.0) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_135",
+    "source": "def run(input)\nr=(1.0) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_136",
+    "source": "def run(input)\nr=(1.0) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_137",
+    "source": "def run(input)\nr=(1.0) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_138",
+    "source": "def run(input)\nr=(1.0) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_139",
+    "source": "def run(input)\nr=(1.0) - (1);r.length\nend",
+    "go_error": "unknown float method length"
+  },
+  {
+    "name": "array_set_operands_140",
+    "source": "def run(input)\nr=(1.0) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_141",
+    "source": "def run(input)\nr=(1.0) - (1.0);r.length\nend",
+    "go_error": "unknown float method length"
+  },
+  {
+    "name": "array_set_operands_142",
+    "source": "def run(input)\nr=(1.0) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_143",
+    "source": "def run(input)\nr=(1.0) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_144",
+    "source": "def run(input)\nr=(1.0) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_145",
+    "source": "def run(input)\nr=(1.0) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_146",
+    "source": "def run(input)\nr=(1.0) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_147",
+    "source": "def run(input)\nr=(1.0) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_148",
+    "source": "def run(input)\nr=(1.0) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_149",
+    "source": "def run(input)\nr=(1.0) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_150",
+    "source": "def run(input)\nr=(1.0) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_151",
+    "source": "def run(input)\nr=(1.0) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_152",
+    "source": "def run(input)\nr=(1.0) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_153",
+    "source": "def run(input)\nr=(1.0) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_154",
+    "source": "def run(input)\nr=(1.0) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_155",
+    "source": "def run(input)\nr=(1.0) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_156",
+    "source": "def run(input)\nr=(\"x\") & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_157",
+    "source": "def run(input)\nr=(\"x\") - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_158",
+    "source": "def run(input)\nr=(\"x\") & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_159",
+    "source": "def run(input)\nr=(\"x\") - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_160",
+    "source": "def run(input)\nr=(\"x\") & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_161",
+    "source": "def run(input)\nr=(\"x\") - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_162",
+    "source": "def run(input)\nr=(\"x\") & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_163",
+    "source": "def run(input)\nr=(\"x\") - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_164",
+    "source": "def run(input)\nr=(\"x\") & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_165",
+    "source": "def run(input)\nr=(\"x\") - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_166",
+    "source": "def run(input)\nr=(\"x\") & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_167",
+    "source": "def run(input)\nr=(\"x\") - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_168",
+    "source": "def run(input)\nr=(\"x\") & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_169",
+    "source": "def run(input)\nr=(\"x\") - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_170",
+    "source": "def run(input)\nr=(\"x\") & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_171",
+    "source": "def run(input)\nr=(\"x\") - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_172",
+    "source": "def run(input)\nr=(\"x\") & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_173",
+    "source": "def run(input)\nr=(\"x\") - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_174",
+    "source": "def run(input)\nr=(\"x\") & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_175",
+    "source": "def run(input)\nr=(\"x\") - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_176",
+    "source": "def run(input)\nr=(\"x\") & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_177",
+    "source": "def run(input)\nr=(\"x\") - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_178",
+    "source": "def run(input)\nr=(\"x\") & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_179",
+    "source": "def run(input)\nr=(\"x\") - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_180",
+    "source": "def run(input)\nr=(\"x\") & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_181",
+    "source": "def run(input)\nr=(\"x\") - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_182",
+    "source": "def run(input)\nr=(:x) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_183",
+    "source": "def run(input)\nr=(:x) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_184",
+    "source": "def run(input)\nr=(:x) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_185",
+    "source": "def run(input)\nr=(:x) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_186",
+    "source": "def run(input)\nr=(:x) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_187",
+    "source": "def run(input)\nr=(:x) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_188",
+    "source": "def run(input)\nr=(:x) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_189",
+    "source": "def run(input)\nr=(:x) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_190",
+    "source": "def run(input)\nr=(:x) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_191",
+    "source": "def run(input)\nr=(:x) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_192",
+    "source": "def run(input)\nr=(:x) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_193",
+    "source": "def run(input)\nr=(:x) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_194",
+    "source": "def run(input)\nr=(:x) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_195",
+    "source": "def run(input)\nr=(:x) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_196",
+    "source": "def run(input)\nr=(:x) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_197",
+    "source": "def run(input)\nr=(:x) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_198",
+    "source": "def run(input)\nr=(:x) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_199",
+    "source": "def run(input)\nr=(:x) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_200",
+    "source": "def run(input)\nr=(:x) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_201",
+    "source": "def run(input)\nr=(:x) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_202",
+    "source": "def run(input)\nr=(:x) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_203",
+    "source": "def run(input)\nr=(:x) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_204",
+    "source": "def run(input)\nr=(:x) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_205",
+    "source": "def run(input)\nr=(:x) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_206",
+    "source": "def run(input)\nr=(:x) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_207",
+    "source": "def run(input)\nr=(:x) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_208",
+    "source": "def run(input)\nr=(false) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_209",
+    "source": "def run(input)\nr=(false) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_210",
+    "source": "def run(input)\nr=(false) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_211",
+    "source": "def run(input)\nr=(false) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_212",
+    "source": "def run(input)\nr=(false) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_213",
+    "source": "def run(input)\nr=(false) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_214",
+    "source": "def run(input)\nr=(false) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_215",
+    "source": "def run(input)\nr=(false) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_216",
+    "source": "def run(input)\nr=(false) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_217",
+    "source": "def run(input)\nr=(false) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_218",
+    "source": "def run(input)\nr=(false) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_219",
+    "source": "def run(input)\nr=(false) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_220",
+    "source": "def run(input)\nr=(false) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_221",
+    "source": "def run(input)\nr=(false) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_222",
+    "source": "def run(input)\nr=(false) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_223",
+    "source": "def run(input)\nr=(false) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_224",
+    "source": "def run(input)\nr=(false) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_225",
+    "source": "def run(input)\nr=(false) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_226",
+    "source": "def run(input)\nr=(false) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_227",
+    "source": "def run(input)\nr=(false) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_228",
+    "source": "def run(input)\nr=(false) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_229",
+    "source": "def run(input)\nr=(false) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_230",
+    "source": "def run(input)\nr=(false) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_231",
+    "source": "def run(input)\nr=(false) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_232",
+    "source": "def run(input)\nr=(false) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_233",
+    "source": "def run(input)\nr=(false) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_234",
+    "source": "def run(input)\nr=({}) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_235",
+    "source": "def run(input)\nr=({}) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_236",
+    "source": "def run(input)\nr=({}) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_237",
+    "source": "def run(input)\nr=({}) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_238",
+    "source": "def run(input)\nr=({}) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_239",
+    "source": "def run(input)\nr=({}) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_240",
+    "source": "def run(input)\nr=({}) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_241",
+    "source": "def run(input)\nr=({}) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_242",
+    "source": "def run(input)\nr=({}) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_243",
+    "source": "def run(input)\nr=({}) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_244",
+    "source": "def run(input)\nr=({}) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_245",
+    "source": "def run(input)\nr=({}) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_246",
+    "source": "def run(input)\nr=({}) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_247",
+    "source": "def run(input)\nr=({}) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_248",
+    "source": "def run(input)\nr=({}) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_249",
+    "source": "def run(input)\nr=({}) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_250",
+    "source": "def run(input)\nr=({}) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_251",
+    "source": "def run(input)\nr=({}) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_252",
+    "source": "def run(input)\nr=({}) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_253",
+    "source": "def run(input)\nr=({}) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_254",
+    "source": "def run(input)\nr=({}) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_255",
+    "source": "def run(input)\nr=({}) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_256",
+    "source": "def run(input)\nr=({}) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_257",
+    "source": "def run(input)\nr=({}) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_258",
+    "source": "def run(input)\nr=({}) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_259",
+    "source": "def run(input)\nr=({}) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_260",
+    "source": "def run(input)\nr=((1..2)) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_261",
+    "source": "def run(input)\nr=((1..2)) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_262",
+    "source": "def run(input)\nr=((1..2)) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_263",
+    "source": "def run(input)\nr=((1..2)) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_264",
+    "source": "def run(input)\nr=((1..2)) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_265",
+    "source": "def run(input)\nr=((1..2)) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_266",
+    "source": "def run(input)\nr=((1..2)) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_267",
+    "source": "def run(input)\nr=((1..2)) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_268",
+    "source": "def run(input)\nr=((1..2)) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_269",
+    "source": "def run(input)\nr=((1..2)) - (1);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_270",
+    "source": "def run(input)\nr=((1..2)) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_271",
+    "source": "def run(input)\nr=((1..2)) - (1.0);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_272",
+    "source": "def run(input)\nr=((1..2)) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_273",
+    "source": "def run(input)\nr=((1..2)) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_274",
+    "source": "def run(input)\nr=((1..2)) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_275",
+    "source": "def run(input)\nr=((1..2)) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_276",
+    "source": "def run(input)\nr=((1..2)) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_277",
+    "source": "def run(input)\nr=((1..2)) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_278",
+    "source": "def run(input)\nr=((1..2)) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_279",
+    "source": "def run(input)\nr=((1..2)) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_280",
+    "source": "def run(input)\nr=((1..2)) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_281",
+    "source": "def run(input)\nr=((1..2)) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_282",
+    "source": "def run(input)\nr=((1..2)) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_283",
+    "source": "def run(input)\nr=((1..2)) - (1.second);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_284",
+    "source": "def run(input)\nr=((1..2)) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_285",
+    "source": "def run(input)\nr=((1..2)) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_286",
+    "source": "def run(input)\nr=(1.second) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_287",
+    "source": "def run(input)\nr=(1.second) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_288",
+    "source": "def run(input)\nr=(1.second) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_289",
+    "source": "def run(input)\nr=(1.second) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_290",
+    "source": "def run(input)\nr=(1.second) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_291",
+    "source": "def run(input)\nr=(1.second) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_292",
+    "source": "def run(input)\nr=(1.second) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_293",
+    "source": "def run(input)\nr=(1.second) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_294",
+    "source": "def run(input)\nr=(1.second) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_295",
+    "source": "def run(input)\nr=(1.second) - (1);r.length\nend",
+    "go_error": "unknown duration method length"
+  },
+  {
+    "name": "array_set_operands_296",
+    "source": "def run(input)\nr=(1.second) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_297",
+    "source": "def run(input)\nr=(1.second) - (1.0);r.length\nend",
+    "go_error": "unknown duration method length"
+  },
+  {
+    "name": "array_set_operands_298",
+    "source": "def run(input)\nr=(1.second) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_299",
+    "source": "def run(input)\nr=(1.second) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_300",
+    "source": "def run(input)\nr=(1.second) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_301",
+    "source": "def run(input)\nr=(1.second) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_302",
+    "source": "def run(input)\nr=(1.second) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_303",
+    "source": "def run(input)\nr=(1.second) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_304",
+    "source": "def run(input)\nr=(1.second) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_305",
+    "source": "def run(input)\nr=(1.second) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_306",
+    "source": "def run(input)\nr=(1.second) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_307",
+    "source": "def run(input)\nr=(1.second) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_308",
+    "source": "def run(input)\nr=(1.second) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_309",
+    "source": "def run(input)\nr=(1.second) - (1.second);r.length\nend",
+    "go_error": "unknown duration method length"
+  },
+  {
+    "name": "array_set_operands_310",
+    "source": "def run(input)\nr=(1.second) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_311",
+    "source": "def run(input)\nr=(1.second) - (Time.at(0));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_312",
+    "source": "def run(input)\nr=(Time.at(0)) & ([]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_313",
+    "source": "def run(input)\nr=(Time.at(0)) - ([]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_314",
+    "source": "def run(input)\nr=(Time.at(0)) & ([1,2,1]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_315",
+    "source": "def run(input)\nr=(Time.at(0)) - ([1,2,1]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_316",
+    "source": "def run(input)\nr=(Time.at(0)) & ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_317",
+    "source": "def run(input)\nr=(Time.at(0)) - ([1.0,1,0.0/0.0]);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_318",
+    "source": "def run(input)\nr=(Time.at(0)) & (nil);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_319",
+    "source": "def run(input)\nr=(Time.at(0)) - (nil);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_320",
+    "source": "def run(input)\nr=(Time.at(0)) & (1);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_321",
+    "source": "def run(input)\nr=(Time.at(0)) - (1);r.length\nend",
+    "go_error": "unknown time method length"
+  },
+  {
+    "name": "array_set_operands_322",
+    "source": "def run(input)\nr=(Time.at(0)) & (1.0);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_323",
+    "source": "def run(input)\nr=(Time.at(0)) - (1.0);r.length\nend",
+    "go_error": "unknown time method length"
+  },
+  {
+    "name": "array_set_operands_324",
+    "source": "def run(input)\nr=(Time.at(0)) & (\"x\");r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_325",
+    "source": "def run(input)\nr=(Time.at(0)) - (\"x\");r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_326",
+    "source": "def run(input)\nr=(Time.at(0)) & (:x);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_327",
+    "source": "def run(input)\nr=(Time.at(0)) - (:x);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_328",
+    "source": "def run(input)\nr=(Time.at(0)) & (false);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_329",
+    "source": "def run(input)\nr=(Time.at(0)) - (false);r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_330",
+    "source": "def run(input)\nr=(Time.at(0)) & ({});r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_331",
+    "source": "def run(input)\nr=(Time.at(0)) - ({});r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_332",
+    "source": "def run(input)\nr=(Time.at(0)) & ((1..2));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_333",
+    "source": "def run(input)\nr=(Time.at(0)) - ((1..2));r.length\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "array_set_operands_334",
+    "source": "def run(input)\nr=(Time.at(0)) & (1.second);r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_335",
+    "source": "def run(input)\nr=(Time.at(0)) - (1.second);r.length\nend",
+    "go_error": "unknown time method length"
+  },
+  {
+    "name": "array_set_operands_336",
+    "source": "def run(input)\nr=(Time.at(0)) & (Time.at(0));r.length\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_operands_337",
+    "source": "def run(input)\nr=(Time.at(0)) - (Time.at(0));r.length\nend",
+    "go_error": "unknown float method length"
+  },
+  {
+    "name": "array_set_terminators_2",
+    "source": "def run(input)\n1 &\n 1\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_terminators_3",
+    "source": "def run(input)\n1 & \n 1\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "array_set_terminators_37",
+    "source": "def run(input)\n1 <<\n 1\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "array_set_terminators_38",
+    "source": "def run(input)\n1 << \n 1\nend",
+    "go_error": "unsupported shovel operands"
   }
 ]

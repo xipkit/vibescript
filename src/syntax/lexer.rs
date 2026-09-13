@@ -299,6 +299,7 @@ impl Lexer<'_> {
                                 b'<' => Token::Op("<"),
                                 b'>' => Token::Op(">"),
                                 b'!' => Token::Op("!"),
+                                b'&' => Token::Op("&"),
                                 b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':'
                                 | b'?' | b'|' => Token::P(s[start] as char),
                                 _ => return Err(Error::syntax(start, "unsupported character")),

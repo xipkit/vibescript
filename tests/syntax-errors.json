@@ -608,5 +608,390 @@
     "name": "duration_newline_5798",
     "source": "def run(input)\nv=(-;2.abs)\nv.to_s\nend",
     "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_spacing_60",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];values &b\nend",
+    "go_error": "parse error at 8:22: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_61",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];values &[2]\nend",
+    "go_error": "parse error at 8:22: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_62",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];values &[2]+[3]\nend",
+    "go_error": "parse error at 8:22: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_72",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];values\t&b\nend",
+    "go_error": "parse error at 8:22: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_73",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];values\t&[2]\nend",
+    "go_error": "parse error at 8:22: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_74",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];values\t&[2]+[3]\nend",
+    "go_error": "parse error at 8:22: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_156",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];[1,2].itself &b\nend",
+    "go_error": "parse error at 8:28: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_157",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];[1,2].itself &[2]\nend",
+    "go_error": "parse error at 8:28: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_158",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];[1,2].itself &[2]+[3]\nend",
+    "go_error": "parse error at 8:28: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_168",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];[1,2].itself\t&b\nend",
+    "go_error": "parse error at 8:28: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_169",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];[1,2].itself\t&[2]\nend",
+    "go_error": "parse error at 8:28: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_spacing_170",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[1,2];b=[2];[1,2].itself\t&[2]+[3]\nend",
+    "go_error": "parse error at 8:28: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_syntax_18",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\na=[];a&=[1]\nend",
+    "go_error": "parse error at 8:8: unexpected token \"=\""
+  },
+  {
+    "name": "array_set_syntax_19",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\n&[1]\nend",
+    "go_error": "parse error at 8:1: unexpected token \"&\""
+  },
+  {
+    "name": "array_set_syntax_20",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\n[1]&\nend",
+    "go_error": "parse error at 9:1: unexpected token 'end'"
+  },
+  {
+    "name": "array_set_syntax_21",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\n[1] & ; [1]\nend",
+    "go_error": "parse error at 8:7: unexpected token \";\""
+  },
+  {
+    "name": "array_set_syntax_22",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\nvalues &[1]\nend",
+    "go_error": "parse error at 8:8: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_syntax_23",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\nvalues(&[1])\nend",
+    "go_error": "parse error at 8:8: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_syntax_24",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\nvalues 1, &[1]\nend",
+    "go_error": "parse error at 8:11: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_syntax_25",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\nvalues(&:itself)\nend",
+    "go_error": "parse error at 8:8: block arguments are not supported; a block is not a value. Write the block at the call that runs it, as in `words.map { |word| word.upcase }`"
+  },
+  {
+    "name": "array_set_syntax_27",
+    "source": "def values\n[1,2]\nend\ndef identity(x)\nx\nend\ndef run(input)\nvalues(&)\nend",
+    "go_error": "parse error at 8:9: unexpected token \")\""
+  },
+  {
+    "name": "array_set_effects_7",
+    "source": "def run(input)\na=[1,2];r=a.union(a=[3]);[a,r]\nend",
+    "go_error": "parse error at 2:20: expected \")\", got \"=\""
+  },
+  {
+    "name": "array_set_effects_8",
+    "source": "def run(input)\na=[1,2];r=a.difference(a=[3]);[a,r]\nend",
+    "go_error": "parse error at 2:25: expected \")\", got \"=\""
+  },
+  {
+    "name": "array_set_terminators_0",
+    "source": "def run(input)\n1 &; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_1",
+    "source": "def run(input)\n1 & ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_4",
+    "source": "def run(input)\n1 &\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_5",
+    "source": "def run(input)\n1 +; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_6",
+    "source": "def run(input)\n1 + ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_9",
+    "source": "def run(input)\n1 +\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_10",
+    "source": "def run(input)\n1 -; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_11",
+    "source": "def run(input)\n1 - ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_14",
+    "source": "def run(input)\n1 -\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_15",
+    "source": "def run(input)\n1 *; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_16",
+    "source": "def run(input)\n1 * ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_19",
+    "source": "def run(input)\n1 *\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_20",
+    "source": "def run(input)\n1 /; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_21",
+    "source": "def run(input)\n1 / ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_24",
+    "source": "def run(input)\n1 /\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_25",
+    "source": "def run(input)\n1 %; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_26",
+    "source": "def run(input)\n1 % ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_29",
+    "source": "def run(input)\n1 %\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_30",
+    "source": "def run(input)\n1 **; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_31",
+    "source": "def run(input)\n1 ** ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_34",
+    "source": "def run(input)\n1 **\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_35",
+    "source": "def run(input)\n1 <<; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_36",
+    "source": "def run(input)\n1 << ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_39",
+    "source": "def run(input)\n1 <<\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_40",
+    "source": "def run(input)\n1 ==; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_41",
+    "source": "def run(input)\n1 == ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_44",
+    "source": "def run(input)\n1 ==\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_45",
+    "source": "def run(input)\n1 ===; 1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_46",
+    "source": "def run(input)\n1 === ;  1\nend",
+    "go_error": "parse error at 2:7: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_49",
+    "source": "def run(input)\n1 ===\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_50",
+    "source": "def run(input)\n1 !=; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_51",
+    "source": "def run(input)\n1 != ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_54",
+    "source": "def run(input)\n1 !=\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_55",
+    "source": "def run(input)\n1 <; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_56",
+    "source": "def run(input)\n1 < ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_59",
+    "source": "def run(input)\n1 <\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_60",
+    "source": "def run(input)\n1 >; 1\nend",
+    "go_error": "parse error at 2:4: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_61",
+    "source": "def run(input)\n1 > ;  1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_64",
+    "source": "def run(input)\n1 >\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_65",
+    "source": "def run(input)\n1 <=; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_66",
+    "source": "def run(input)\n1 <= ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_69",
+    "source": "def run(input)\n1 <=\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_70",
+    "source": "def run(input)\n1 >=; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_71",
+    "source": "def run(input)\n1 >= ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_74",
+    "source": "def run(input)\n1 >=\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_75",
+    "source": "def run(input)\n1 <=>; 1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_76",
+    "source": "def run(input)\n1 <=> ;  1\nend",
+    "go_error": "parse error at 2:7: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_79",
+    "source": "def run(input)\n1 <=>\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_80",
+    "source": "def run(input)\n1 &&; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_81",
+    "source": "def run(input)\n1 && ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_84",
+    "source": "def run(input)\n1 &&\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_85",
+    "source": "def run(input)\n1 ||; 1\nend",
+    "go_error": "parse error at 2:5: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_86",
+    "source": "def run(input)\n1 || ;  1\nend",
+    "go_error": "parse error at 2:6: unexpected token \";\""
+  },
+  {
+    "name": "array_set_terminators_89",
+    "source": "def run(input)\n1 ||\n;\n 1\nend",
+    "go_error": "parse error at 3:1: unexpected token \";\""
   }
 ]

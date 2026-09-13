@@ -46,6 +46,9 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
     if op == "<<" {
         return a.push(ctx, &[b]);
     }
+    if op == "&" || (op == "-" && matches!(a.0, Kind::Array(_))) {
+        return crate::sets::binary(ctx, op, &a, &b);
+    }
     if op == "+" && matches!(a.0, Kind::Array(_)) {
         if let Some(values) = b.as_array() {
             return a.push(ctx, values);

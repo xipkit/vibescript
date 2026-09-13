@@ -1189,7 +1189,7 @@ impl Parser<'_> {
                 lhs = self.make(Node::Range(Some(Box::new(lhs)), end, op == "..."), depth)?;
                 continue;
             }
-            self.lines();
+            self.line_breaks();
             let rhs = self.expr(right)?;
             let depth = 1 + lhs.depth.max(rhs.depth);
             lhs = self.make(Node::Binary(op, Box::new(lhs), Box::new(rhs)), depth)?;
@@ -1451,15 +1451,16 @@ impl Parser<'_> {
             }
             Token::P('[') => !local && previous.end != next.offset,
             Token::Words(..) => !local && previous.end != next.offset,
-            Token::Op(op @ ("*" | "**" | "/")) => {
+            Token::Op(op @ ("*" | "**" | "/" | "&")) => {
                 // Go v0.70.0 locates a power token at its second star.
                 let start = next.offset + usize::from(op == "**");
                 !local
                     && previous.end != start
-                    && self
-                        .tokens
-                        .get(self.pos + 1)
-                        .is_some_and(|t| t.line == next.end_line && t.offset == next.end)
+                    && self.tokens.get(self.pos + 1).is_some_and(|t| {
+                        !matches!(t.token, Token::EndLine | Token::Eof)
+                            && t.line == next.end_line
+                            && t.offset == next.end
+                    })
             }
             _ => self.command_argument_start(self.pos, false),
         }
@@ -1478,7 +1479,7 @@ impl Parser<'_> {
             | Token::Words(..) => true,
             Token::P(':') => self.symbol_start(pos),
             Token::Op("!") => true,
-            Token::P('[') | Token::Op("*" | "**") => after_comma,
+            Token::P('[') | Token::Op("*" | "**" | "&") => after_comma,
             _ => false,
         }
     }
@@ -1502,6 +1503,7 @@ impl Parser<'_> {
                                 | "%"
                                 | "**"
                                 | "<<"
+                                | "&"
                                 | "<"
                                 | ">"
                                 | "<="
@@ -1690,6 +1692,7 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
         "==" | "!=" | "===" => (5, 6),
         "<" | "<=" | ">" | ">=" | "<=>" => (6, 7),
         ".." | "..." => (7, 8),
+        "&" => (9, 10),
         "<<" => (10, 11),
         "+" | "-" => (11, 12),
         "*" | "/" | "%" => (12, 13),

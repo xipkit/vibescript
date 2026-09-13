@@ -858,15 +858,7 @@ impl Loop {
                 self.hash.insert(ctx, key, next)?;
             }
             Uniq => {
-                let mut found = false;
-                for key in &self.other.data {
-                    ctx.charge(1)?;
-                    if ops::equal(ctx, key, &value, 0)? {
-                        found = true;
-                        break;
-                    }
-                }
-                if !found {
+                if !crate::sets::contains(ctx, &self.other.data, &value)? {
                     self.other.push(ctx, value)?;
                     self.output.push(ctx, self.pending[0].clone())?;
                 }
@@ -987,7 +979,7 @@ fn reduce(
 ) -> Result<Value> {
     let name = std::str::from_utf8(operation.require_bytes()?)
         .map_err(|_| argument("invalid reduce operation"))?;
-    if matches!(name, "+" | "-" | "*" | "/" | "%" | "**" | "<<") {
+    if matches!(name, "+" | "-" | "*" | "/" | "%" | "**" | "<<" | "&") {
         return ops::binary(ctx, name, accumulator, item);
     }
     let site = CallSite {

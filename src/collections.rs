@@ -230,21 +230,8 @@ fn array_method(
                     if !matches!(v.0, Kind::Nil) {
                         out.push(ctx, v.clone())?;
                     }
-                } else {
-                    let mut found = false;
-                    for prior in &out.data {
-                        let same_type = std::mem::discriminant(&v.0)
-                            == std::mem::discriminant(&prior.0)
-                            || (crate::time::stamp(v).is_some()
-                                && crate::time::stamp(prior).is_some());
-                        if same_type && ops::equal(ctx, v, prior, 0)? {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if !found {
-                        out.push(ctx, v.clone())?;
-                    }
+                } else if !crate::sets::contains(ctx, &out.data, v)? {
+                    out.push(ctx, v.clone())?;
                 }
             }
             Value::from_array(ctx, out)

@@ -35,6 +35,7 @@ mod ordering;
 mod range;
 mod scan;
 mod sequence;
+mod sets;
 mod sort;
 mod syntax;
 mod text;
