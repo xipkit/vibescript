@@ -9,6 +9,7 @@
 //! ```
 
 mod address;
+mod arguments;
 #[cfg(feature = "tokio")]
 pub mod asynchronous;
 mod budget;
@@ -36,10 +37,13 @@ pub use value::Value;
 /// A synchronous trusted host callback. It must cooperate with the supplied context.
 pub type HostFunction = Arc<dyn Fn(&mut CallContext, &[Value]) -> Result<Value> + Send + Sync>;
 
+type HostCallback =
+    Arc<dyn Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<Value> + Send + Sync>;
+
 /// A compiler configured with explicitly registered host capabilities.
 #[derive(Default)]
 pub struct Engine {
-    hosts: BTreeMap<String, HostFunction>,
+    hosts: BTreeMap<String, HostCallback>,
 }
 impl Engine {
     /// Creates an engine with core builtins and no external capabilities.
@@ -51,6 +55,28 @@ impl Engine {
         &mut self,
         name: impl Into<String>,
         function: impl Fn(&mut CallContext, &[Value]) -> Result<Value> + Send + Sync + 'static,
+    ) {
+        self.register_with_keywords(name, move |ctx, args, keywords| {
+            if !keywords.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "host function does not accept keyword arguments",
+                ));
+            }
+            function(ctx, args)
+        });
+    }
+    /// Registers a synchronous callback that accepts positional and keyword arguments.
+    ///
+    /// Keyword keys are byte-string values. Both argument collections are accounted to
+    /// the current call; the callback validates its own names, types, and required values.
+    pub fn register_with_keywords(
+        &mut self,
+        name: impl Into<String>,
+        function: impl Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<Value>
+        + Send
+        + Sync
+        + 'static,
     ) {
         self.hosts.insert(name.into(), Arc::new(function));
     }
@@ -71,7 +97,7 @@ impl Engine {
 
 struct ScriptInner {
     program: bytecode::Program,
-    hosts: Vec<HostFunction>,
+    hosts: Vec<HostCallback>,
 }
 
 /// Immutable compiled code, safely shared across independent calls and threads.
@@ -82,6 +108,19 @@ pub struct Script {
 impl Script {
     /// Calls a named function with isolated arguments and fresh execution limits.
     pub fn call(&self, name: &str, args: &[Value], options: CallOptions) -> Result<Outcome> {
+        self.call_with_keywords(name, args, &[], options)
+    }
+    /// Calls a named function with isolated positional and keyword arguments.
+    ///
+    /// Repeated keyword names use the last value. Host-supplied keywords bind by name;
+    /// they do not collapse into a trailing positional options hash.
+    pub fn call_with_keywords(
+        &self,
+        name: &str,
+        args: &[Value],
+        keywords: &[(String, Value)],
+        options: CallOptions,
+    ) -> Result<Outcome> {
         let mut ctx = CallContext::new(options);
         ctx.checkpoint()?;
         let function = *self
@@ -96,6 +135,7 @@ impl Script {
             &mut ctx,
             function,
             args,
+            keywords,
         )?;
         Ok(Outcome {
             value,

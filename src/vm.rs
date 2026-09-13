@@ -1,8 +1,9 @@
 use crate::{
-    CallContext, Error, ErrorKind, HostFunction, Result, Value,
+    CallContext, Error, ErrorKind, HostCallback, Result, Value,
     address::{self, Address},
+    arguments::{Arguments, Binding},
     budget::Buffer,
-    bytecode::{Op, Program, Selection},
+    bytecode::{ArgumentOp, Invocation, Op, Program, Selection},
     hash::Hash,
     json, members, ops,
     range::Range,
@@ -16,11 +17,14 @@ struct Frame {
     locals: Buffer<Option<Value>>,
     loops: Buffer<LoopState>,
     addresses: Buffer<Address>,
+    arguments: Buffer<Arguments>,
+    binding: Buffer<Binding>,
 }
 
 struct LoopState {
     base: usize,
     address_base: usize,
+    argument_base: usize,
     next: usize,
     end: usize,
     expression: bool,
@@ -73,20 +77,27 @@ impl LoopState {
 
 pub(crate) fn execute(
     program: &Program,
-    hosts: &[HostFunction],
+    hosts: &[HostCallback],
     ctx: &mut CallContext,
     function: usize,
     args: &[Value],
+    keywords: &[(String, Value)],
 ) -> Result<Value> {
     ctx.checkpoint()?;
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
-    let mut input = Buffer::with_capacity(ctx, args.len())?;
+    let mut input = Arguments::empty();
+    input.options_hash = false;
+    input.positional = Buffer::with_capacity(ctx, args.len())?;
     for arg in args {
-        input.data.push(ctx.import(arg)?);
+        input.positional.data.push(ctx.import(arg)?);
     }
-    enter(program, ctx, &mut frames, function, &input.data, 0)?;
-    drop(input);
+    for (name, value) in keywords {
+        let key = ctx.bytes(name.as_bytes())?;
+        let value = ctx.import(value)?;
+        input.keywords.insert(ctx, key, value)?;
+    }
+    enter_arguments(program, ctx, &mut frames, function, input, 0)?;
     loop {
         ctx.charge(1)?;
         let frame = frames.data.last_mut().unwrap();
@@ -101,6 +112,47 @@ pub(crate) fn execute(
             Op::Load(n) => {
                 let v = frame.locals.data[n].clone().unwrap_or_default();
                 stack.push(ctx, v)?;
+            }
+            Op::LoadOptional(slot, name) => {
+                if let Some(value) = &frame.locals.data[slot] {
+                    stack.push(ctx, value.clone())?;
+                } else if let Some(&function) = program.names.get(&program.members[name]) {
+                    enter_auto(program, ctx, &mut frames, function, stack.data.len())?;
+                } else if let Some(host) = program
+                    .hosts
+                    .iter()
+                    .position(|h| h == &program.members[name])
+                {
+                    return Err(callable_value_error(&program.hosts[host], "method"));
+                } else {
+                    return Err(Error::new(
+                        ErrorKind::Name,
+                        format!("undefined variable {}", program.members[name]),
+                    ));
+                }
+            }
+            Op::Unbound(name) => {
+                return Err(Error::new(
+                    ErrorKind::Name,
+                    format!("undefined variable {}", program.members[name]),
+                ));
+            }
+            Op::NonCallable => {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "attempted to call non-callable value",
+                ));
+            }
+            Op::Bind(param, next) => {
+                if let Some(value) = frame.binding.data[0].value(ctx, param)? {
+                    let slot = program.functions[frame.function].params[param].slot;
+                    frame.locals.data[slot] = Some(value);
+                    frame.ip = next;
+                }
+            }
+            Op::BindEnd => frame.binding = Buffer::empty(),
+            Op::Declare(slot) => {
+                frame.locals.data[slot].get_or_insert_with(Value::nil);
             }
             Op::Store(n) => {
                 let value = stack.data.last().unwrap();
@@ -186,6 +238,14 @@ pub(crate) fn execute(
             Op::AddressLocal(n) => {
                 let value = frame.locals.data[n].clone().unwrap_or_default();
                 frame.addresses.push(ctx, Address::new(Some(n), value))?;
+            }
+            Op::AddressBound(slot, next) => {
+                if let Some(value) = &frame.locals.data[slot] {
+                    frame
+                        .addresses
+                        .push(ctx, Address::new(Some(slot), value.clone()))?;
+                    frame.ip = next;
+                }
             }
             Op::AddressValue => {
                 let value = stack.data.pop().unwrap();
@@ -343,6 +403,7 @@ pub(crate) fn execute(
                     LoopState {
                         base: stack.data.len(),
                         address_base: frame.addresses.data.len(),
+                        argument_base: frame.arguments.data.len(),
                         next,
                         end,
                         expression,
@@ -373,12 +434,14 @@ pub(crate) fn execute(
                 state.last = stack.data.pop().unwrap();
                 stack.data.truncate(state.base);
                 frame.addresses.data.truncate(state.address_base);
+                frame.arguments.data.truncate(state.argument_base);
                 frame.ip = state.next;
             }
             Op::LoopEnd => {
                 let state = frame.loops.data.pop().unwrap();
                 stack.data.truncate(state.base);
                 frame.addresses.data.truncate(state.address_base);
+                frame.arguments.data.truncate(state.argument_base);
                 stack.push(ctx, state.result())?;
             }
             Op::Break(has_value) => {
@@ -395,6 +458,7 @@ pub(crate) fn execute(
                 };
                 stack.data.truncate(state.base);
                 frame.addresses.data.truncate(state.address_base);
+                frame.arguments.data.truncate(state.argument_base);
                 frame.ip = state.end;
             }
             Op::Next => {
@@ -405,6 +469,7 @@ pub(crate) fn execute(
                     .ok_or_else(|| Error::new(ErrorKind::Argument, "next outside loop"))?;
                 stack.data.truncate(state.base);
                 frame.addresses.data.truncate(state.address_base);
+                frame.arguments.data.truncate(state.argument_base);
                 frame.ip = state.next;
             }
             Op::Call(function, n) => {
@@ -419,10 +484,118 @@ pub(crate) fn execute(
                 )?;
                 stack.data.truncate(base);
             }
+            Op::AutoCall(function) => {
+                enter_auto(program, ctx, &mut frames, function, stack.data.len())?;
+            }
+            Op::HostValue(host) => {
+                return Err(callable_value_error(&program.hosts[host], "method"));
+            }
+            Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
+            Op::ResolveCall(slot, name) => {
+                let name = &program.members[name];
+                let target = if frame.locals.data[slot].is_some() {
+                    Invocation::NonCallable
+                } else if let Some(&function) = program.names.get(name) {
+                    Invocation::Function(function)
+                } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
+                    Invocation::Host(host)
+                } else {
+                    return Err(Error::new(
+                        ErrorKind::Name,
+                        format!("undefined variable {name}"),
+                    ));
+                };
+                let mut arguments = Arguments::empty();
+                arguments.target = Some(target);
+                frame.arguments.push(ctx, arguments)?;
+            }
+            Op::Argument(op) => {
+                let value = stack.data.pop().unwrap();
+                let name = if let ArgumentOp::Keyword(name) = op {
+                    &program.members[name]
+                } else {
+                    ""
+                };
+                frame
+                    .arguments
+                    .data
+                    .last_mut()
+                    .unwrap()
+                    .push(ctx, op, name, value)?;
+            }
+            Op::Invoke(target) => {
+                let args = frame.arguments.data.pop().unwrap();
+                let target = if matches!(target, Invocation::Resolved) {
+                    args.target.unwrap()
+                } else {
+                    target
+                };
+                match target {
+                    Invocation::Function(function) => {
+                        enter_arguments(
+                            program,
+                            ctx,
+                            &mut frames,
+                            function,
+                            args,
+                            stack.data.len(),
+                        )?;
+                    }
+                    Invocation::Host(host) => {
+                        ctx.checkpoint()?;
+                        let result =
+                            hosts[host](ctx, &args.positional.data, &args.keywords.buffer.data);
+                        ctx.checkpoint()?;
+                        let value = ctx.import(&result?)?;
+                        stack.push(ctx, value)?;
+                    }
+                    Invocation::Member(site, mutating) => {
+                        let name = &program.members[site.name];
+                        let value = if mutating {
+                            let address = frame.addresses.data.pop().unwrap();
+                            address.apply(
+                                ctx,
+                                &mut frame.locals.data,
+                                &mut frame.addresses.data,
+                                |ctx, receiver| {
+                                    members::call_keywords(ctx, site, name, receiver, &args)
+                                },
+                            )?
+                        } else {
+                            let receiver = stack.data.pop().unwrap();
+                            members::call_keywords(ctx, site, name, receiver, &args)?.1
+                        };
+                        stack.push(ctx, value)?;
+                    }
+                    Invocation::Json(parse) => {
+                        if !args.keywords.buffer.data.is_empty() {
+                            return Err(Error::new(
+                                ErrorKind::Argument,
+                                "JSON methods do not accept keyword arguments",
+                            ));
+                        }
+                        ops::arity(&args.positional.data, 1)?;
+                        let value = &args.positional.data[0];
+                        let result = if parse {
+                            json::parse(ctx, value.require_bytes()?)?
+                        } else {
+                            json::stringify(ctx, value)?
+                        };
+                        stack.push(ctx, result)?;
+                    }
+                    Invocation::NonCallable => {
+                        return Err(Error::new(
+                            ErrorKind::Type,
+                            "attempted to call non-callable value",
+                        ));
+                    }
+                    Invocation::Resolved => unreachable!(),
+                }
+            }
             Op::Host(host, n) => {
                 let base = stack.data.len() - n;
                 ctx.checkpoint()?;
-                let result = hosts[host](ctx, &stack.data[base..]);
+                let result = hosts[host](ctx, &stack.data[base..], &[]);
                 ctx.checkpoint()?;
                 let result = result?;
                 let value = ctx.import(&result)?;
@@ -477,6 +650,27 @@ pub(crate) fn execute(
     }
 }
 
+fn callable_value_error(name: &str, kind: &str) -> Error {
+    Error::new(
+        ErrorKind::Type,
+        format!("{name} is a {kind} and cannot be used as a value; call it with {name}(...)"),
+    )
+}
+
+fn enter_auto(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    function: usize,
+    base: usize,
+) -> Result<()> {
+    let fun = &program.functions[function];
+    if !fun.params.is_empty() {
+        return Err(callable_value_error(&fun.name, "function"));
+    }
+    enter(program, ctx, frames, function, &[], base)
+}
+
 fn enter(
     program: &Program,
     ctx: &mut CallContext,
@@ -485,40 +679,89 @@ fn enter(
     args: &[Value],
     base: usize,
 ) -> Result<()> {
+    let fun = &program.functions[function];
+    if !fun.plain {
+        let args = Arguments::from_values(ctx, args)?;
+        return enter_arguments(program, ctx, frames, function, args, base);
+    }
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
         return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
     }
-    let fun = &program.functions[function];
-    if args.len() != fun.arity {
+    if args.len() != fun.params.len() {
         return Err(Error::new(
             ErrorKind::Argument,
             format!(
                 "{} expects {} arguments, got {}",
                 fun.name,
-                fun.arity,
+                fun.params.len(),
                 args.len()
             ),
         ));
     }
-    let mut locals = Buffer::with_capacity(ctx, fun.locals)?;
-    for _ in 0..fun.locals {
+    let mut frame = new_frame(ctx, program, function, base)?;
+    for (param, arg) in fun.params.iter().zip(args) {
+        ctx.charge(1)?;
+        frame.locals.data[param.slot] = Some(arg.clone());
+    }
+    frames.push(ctx, frame)
+}
+
+fn enter_arguments(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    function: usize,
+    arguments: Arguments,
+    base: usize,
+) -> Result<()> {
+    let fun = &program.functions[function];
+    if fun.plain && arguments.keywords.buffer.data.is_empty() {
+        return enter(
+            program,
+            ctx,
+            frames,
+            function,
+            &arguments.positional.data,
+            base,
+        );
+    }
+    ctx.charge(1)?;
+    if frames.data.len() >= ctx.options.limits.recursion {
+        return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
+    }
+    let binding = Binding::new(ctx, &fun.params, arguments)?;
+    let mut frame = new_frame(ctx, program, function, base)?;
+    if fun.defaults {
+        frame.binding = Buffer::with_capacity(ctx, 1)?;
+        frame.binding.data.push(binding);
+    } else {
+        for (i, param) in fun.params.iter().enumerate() {
+            frame.locals.data[param.slot] = binding.value(ctx, i)?;
+        }
+    }
+    frames.push(ctx, frame)
+}
+
+fn new_frame(
+    ctx: &mut CallContext,
+    program: &Program,
+    function: usize,
+    base: usize,
+) -> Result<Frame> {
+    let mut locals = Buffer::with_capacity(ctx, program.functions[function].locals)?;
+    for _ in 0..program.functions[function].locals {
         ctx.charge(1)?;
         locals.data.push(None);
     }
-    for (i, arg) in args.iter().enumerate() {
-        ctx.charge(1)?;
-        locals.data[i] = Some(arg.clone());
-    }
-    frames.push(
-        ctx,
-        Frame {
-            function,
-            ip: 0,
-            base,
-            locals,
-            loops: Buffer::empty(),
-            addresses: Buffer::empty(),
-        },
-    )
+    Ok(Frame {
+        function,
+        ip: 0,
+        base,
+        locals,
+        loops: Buffer::empty(),
+        addresses: Buffer::empty(),
+        arguments: Buffer::empty(),
+        binding: Buffer::empty(),
+    })
 }

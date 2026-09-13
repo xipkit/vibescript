@@ -2571,5 +2571,1375 @@
       ],
       2
     ]
+  },
+  {
+    "name": "call_defaults",
+    "source": "def f(a=1,b=a+2)\n[a,b]\nend\ndef run(input)\n[f(),f(4),f(4,9),f(a:5,b:8),f(a:nil,b:8)]\nend",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        4,
+        6
+      ],
+      [
+        4,
+        9
+      ],
+      [
+        5,
+        8
+      ],
+      [
+        null,
+        8
+      ]
+    ]
+  },
+  {
+    "name": "call_false_defaults",
+    "source": "def f(a=1,b:2)\n[a,b]\nend\ndef run(input)\n[f(nil,b:false),f(false,b:nil)]\nend",
+    "expected": [
+      [
+        null,
+        false
+      ],
+      [
+        false,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "call_keyword",
+    "source": "def f(a,b:,c:3)\n[a,b,c]\nend\ndef run(input)\n[f(1,b:2),f(a:4,b:5,c:6)]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        4,
+        5,
+        6
+      ]
+    ]
+  },
+  {
+    "name": "call_keyword_shorthand",
+    "source": "def f(a,b:)\n[a,b]\nend\ndef run(input)\na=1;b=2;f(a:,b:)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "call_rest",
+    "source": "def f(a,*rest,b:3,**kw)\n[a,rest,b,kw]\nend\ndef run(input)\n[f(1,2,3,b:4,z:5,x:6),f(a:1),f(1,a:2)]\nend",
+    "expected": [
+      [
+        1,
+        [
+          2,
+          3
+        ],
+        4,
+        {
+          "x": 6,
+          "z": 5
+        }
+      ],
+      [
+        1,
+        [],
+        3,
+        {}
+      ],
+      [
+        1,
+        [],
+        3,
+        {
+          "a": 2
+        }
+      ]
+    ]
+  },
+  {
+    "name": "call_rest_only",
+    "source": "def f(*args)\nargs\nend\ndef run(input)\n[f(),f(1,2),f(z:3,a:4)]\nend",
+    "expected": [
+      [],
+      [
+        1,
+        2
+      ],
+      [
+        {
+          "a": 4,
+          "z": 3
+        }
+      ]
+    ]
+  },
+  {
+    "name": "call_rest_isolation",
+    "source": "def f(a,*rest)\nrest[0].push(9)\n[a,rest]\nend\ndef run(input)\na=[1];x=f(a,a);[a,x]\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        [
+          1
+        ],
+        [
+          [
+            1,
+            9
+          ]
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_keyword_order",
+    "source": "def f(**kw)\nkw.keys\nend\ndef run(input)\nf(z:1,a:2,b:3)\nend",
+    "expected": [
+      "a",
+      "b",
+      "z"
+    ]
+  },
+  {
+    "name": "call_keyword_remainder",
+    "source": "def f(a:,**kw)\n[a,kw.keys,kw]\nend\ndef run(input)\nf(**{z:1,a:2,b:3},b:4)\nend",
+    "expected": [
+      2,
+      [
+        "b",
+        "z"
+      ],
+      {
+        "b": 4,
+        "z": 1
+      }
+    ]
+  },
+  {
+    "name": "call_keyword_rest_isolation",
+    "source": "def f(**kw)\nkw.a.push(2)\nkw\nend\ndef run(input)\nh={a:[1]};x=f(**h);[h,x]\nend",
+    "expected": [
+      {
+        "a": [
+          1
+        ]
+      },
+      {
+        "a": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "name": "call_splat",
+    "source": "def f(*a)\na\nend\ndef run(input)\n[f(1,*[2,3],4,*[]),f(*[1],*[2])]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3,
+        4
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "call_keyword_splat",
+    "source": "def f(a:,b:0,**kw)\n[a,b,kw]\nend\ndef run(input)\n[f(**{a:1},b:2,**{a:3,c:4}),f(a:1,a:2),f(**{\"\":7,\"a\":3,\"a-b\":4})]\nend",
+    "expected": [
+      [
+        3,
+        2,
+        {
+          "c": 4
+        }
+      ],
+      [
+        2,
+        0,
+        {}
+      ],
+      [
+        3,
+        0,
+        {
+          "": 7,
+          "a-b": 4
+        }
+      ]
+    ]
+  },
+  {
+    "name": "call_empty_keyword_splat",
+    "source": "def f(a=7)\na\nend\ndef run(input)\nh={x:1};h.delete(:x);[f(**{}),f(**h)]\nend",
+    "expected": [
+      7,
+      7
+    ]
+  },
+  {
+    "name": "call_argument_order",
+    "source": "def f(*args,**kw)\n[args,kw]\nend\ndef run(input)\ntrace=[];x=f(trace.push(1).length,*trace.push(2),k:trace.push(3).length,**{z:trace.push(4).length},k:trace.push(5).length);[x,trace]\nend",
+    "expected": [
+      [
+        [
+          1,
+          1,
+          2
+        ],
+        {
+          "k": 5,
+          "z": 4
+        }
+      ],
+      [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    ]
+  },
+  {
+    "name": "call_splat_snapshot",
+    "source": "def f(*a)\na\nend\ndef run(input)\na=[1];x=f(*a,a.push(2).length);[a,x]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "call_splat_nested_calls",
+    "source": "def f(*a)\na\nend\ndef run(input)\nf(1,*f(*[2,3]),4)\nend",
+    "expected": [
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  {
+    "name": "call_keyword_nested_calls",
+    "source": "def f(**a)\na\nend\ndef run(input)\nf(**f(z:1),a:f(b:2))\nend",
+    "expected": {
+      "a": {
+        "b": 2
+      },
+      "z": 1
+    }
+  },
+  {
+    "name": "call_default_mutation",
+    "source": "def f(a=[1],b=a.push(2))\n[a,b]\nend\ndef run(input)\nx=[3];[f(),f(x),x]\nend",
+    "expected": [
+      [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          2
+        ]
+      ],
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_default_isolation",
+    "source": "def f(a=[])\na.push(1)\nend\ndef run(input)\n[f(),f()]\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ]
+  },
+  {
+    "name": "call_default_hash",
+    "source": "def f(a:,b:{sum:a},c:{},d:{nested:{}})\n[a,b,c,d]\nend\ndef run(input)\nf(a:2)\nend",
+    "expected": [
+      2,
+      {
+        "sum": 2
+      },
+      {},
+      {
+        "nested": {}
+      }
+    ]
+  },
+  {
+    "name": "call_default_parenthesized",
+    "source": "def f(a:,b:(a))\nb\nend\ndef run(input)\nf(a:7)\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_default_member",
+    "source": "def f(a:{x:2},b:a.x)\nb\nend\ndef run(input)\nf()\nend",
+    "expected": 2
+  },
+  {
+    "name": "call_default_conditional",
+    "source": "def f(a:,b:a<3 ? 7 : 9)\nb\nend\ndef run(input)\n[f(a:1),f(a:4)]\nend",
+    "expected": [
+      7,
+      9
+    ]
+  },
+  {
+    "name": "call_default_forward_skipped",
+    "source": "def f(a=b,b=3)\n[a,b]\nend\ndef run(input)\nf(a:1)\nend",
+    "expected": [
+      1,
+      3
+    ]
+  },
+  {
+    "name": "call_default_unknown_call_skipped",
+    "source": "def f(a=missing())\na\nend\ndef run(input)\nf(7)\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_default_self_skipped",
+    "source": "def f(a=a)\na\nend\ndef run(input)\nf(7)\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_default_return",
+    "source": "def f(a=(while true\nreturn 7\nend),b=3)\n[a,b]\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_default_nested_call",
+    "source": "def add(a,b=2)\na+b\nend\ndef f(a=add(3),b:add(4))\n[a,b]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      5,
+      6
+    ]
+  },
+  {
+    "name": "call_default_recursive",
+    "source": "def f(n=4,value=(n>0 ? f(n-1) : 0))\nvalue+n\nend\ndef run(input)\nf()\nend",
+    "expected": 10
+  },
+  {
+    "name": "call_default_locals",
+    "source": "def f(a=(while true\nx=7\nbreak x\nend),b=x+1)\n[a,b,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      7,
+      8,
+      7
+    ]
+  },
+  {
+    "name": "call_required_after_optional_supplied",
+    "source": "def f(a=1,b)\n[a,b]\nend\ndef run(input)\n[f(2,3),f(a:4,b:5)]\nend",
+    "expected": [
+      [
+        2,
+        3
+      ],
+      [
+        4,
+        5
+      ]
+    ]
+  },
+  {
+    "name": "call_options_hash",
+    "source": "def f(opts)\nopts\nend\ndef run(input)\nf(a:1)\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "call_options_hash_order",
+    "source": "def f(n,opts={})\n[n,opts.keys,opts]\nend\ndef run(input)\nf(7,z:1,a:2)\nend",
+    "expected": [
+      7,
+      [
+        "a",
+        "z"
+      ],
+      {
+        "a": 2,
+        "z": 1
+      }
+    ]
+  },
+  {
+    "name": "call_options_hash_splat",
+    "source": "def f(opts)\nopts\nend\ndef run(input)\nf(**{a:1})\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "call_options_name_prevents_collapse",
+    "source": "def f(opts)\nopts\nend\ndef run(input)\nf(opts:7)\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_duplicate_params",
+    "source": "def f(a,a)\na\nend\ndef run(input)\nf(1,2)\nend",
+    "expected": 2
+  },
+  {
+    "name": "call_duplicate_default_params",
+    "source": "def f(a=1,a=a+1)\na\nend\ndef run(input)\n[f(),f(3),f(3,9)]\nend",
+    "expected": [
+      2,
+      4,
+      9
+    ]
+  },
+  {
+    "name": "call_duplicate_keyword_params",
+    "source": "def f(a:,a:)\na\nend\ndef run(input)\nf(a:3)\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_parenthesis_free_signature",
+    "source": "def f a=1,b:2\n[a,b]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "call_multiline_signature",
+    "source": "def f(\na=1,\nb:\n2,\nc:\n)\n[a,b,c]\nend\ndef run(input)\nf(c:3)\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "call_method_splat",
+    "source": "\ndef run(input)\na=[1];x=a.push(*[2,3]);[a,x,\"aéz\".slice(*[1,1])]\nend",
+    "expected": [
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      "é"
+    ]
+  },
+  {
+    "name": "call_nested_mutator_splat",
+    "source": "\ndef run(input)\nh={items:[1]};x=h.items.push(*h.items.push(2));[h,x]\nend",
+    "expected": [
+      {
+        "items": [
+          1,
+          2,
+          1,
+          2
+        ]
+      },
+      [
+        1,
+        2,
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "call_json_splat",
+    "source": "\ndef run(input)\n[JSON.parse(*[\"1\"]),JSON.stringify(*[[1]])]\nend",
+    "expected": [
+      1,
+      "[1]"
+    ]
+  },
+  {
+    "name": "call_ignored_keywords",
+    "source": "\ndef run(input)\n[\"abc\".length(ignored:1),[1,2].take(1,ignored:2),{a:3}.fetch(:a,ignored:4)]\nend",
+    "expected": [
+      3,
+      [
+        1
+      ],
+      3
+    ]
+  },
+  {
+    "name": "call_empty_keywords_builtin",
+    "source": "\ndef run(input)\na=[1];x=a.push(*[2],**{});[a,x,JSON.parse(\"1\",**{})]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        2
+      ],
+      1
+    ]
+  },
+  {
+    "name": "call_loop_keyword_argument",
+    "source": "def f(a:,b:)\n[a,b]\nend\ndef run(input)\nf(a:(while true\nbreak 7\nend),b:8)\nend",
+    "expected": [
+      7,
+      8
+    ]
+  },
+  {
+    "name": "call_missing_name_skipped_branch",
+    "source": "\ndef run(input)\nif false\nmissing(1/0)\nelse\n7\nend\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_builtin_keyword_array_length",
+    "source": "def run(input)\n[1,2].length(ignored:true)\nend",
+    "expected": 2
+  },
+  {
+    "name": "call_builtin_keyword_array_empty?",
+    "source": "def run(input)\n[1,2].empty?(ignored:true)\nend",
+    "expected": false
+  },
+  {
+    "name": "call_builtin_keyword_array_take",
+    "source": "def run(input)\n[1,2].take(1,ignored:true)\nend",
+    "expected": [
+      1
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_array_drop",
+    "source": "def run(input)\n[1,2].drop(1,ignored:true)\nend",
+    "expected": [
+      2
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_array_flatten",
+    "source": "def run(input)\n[1,2].flatten(ignored:true)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_array_chunk",
+    "source": "def run(input)\n[1,2].chunk(1,ignored:true)\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_array_window",
+    "source": "def run(input)\n[1,2].window(1,ignored:true)\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_array_zip",
+    "source": "def run(input)\n[1,2].zip([3],ignored:true)\nend",
+    "expected": [
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        null
+      ]
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_array_fetch",
+    "source": "def run(input)\n[1,2].fetch(0,ignored:true)\nend",
+    "expected": 1
+  },
+  {
+    "name": "call_builtin_keyword_array_dig",
+    "source": "def run(input)\n[1,2].dig(0,ignored:true)\nend",
+    "expected": 1
+  },
+  {
+    "name": "call_builtin_keyword_array_include?",
+    "source": "def run(input)\n[1,2].include?(1,ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_array_join",
+    "source": "def run(input)\n[1,2].join(ignored:true)\nend",
+    "expected": "12"
+  },
+  {
+    "name": "call_builtin_keyword_hash_length",
+    "source": "def run(input)\n{a:1}.length(ignored:true)\nend",
+    "expected": 1
+  },
+  {
+    "name": "call_builtin_keyword_hash_empty?",
+    "source": "def run(input)\n{a:1}.empty?(ignored:true)\nend",
+    "expected": false
+  },
+  {
+    "name": "call_builtin_keyword_hash_keys",
+    "source": "def run(input)\n{a:1}.keys(ignored:true)\nend",
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_hash_values",
+    "source": "def run(input)\n{a:1}.values(ignored:true)\nend",
+    "expected": [
+      1
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_hash_fetch",
+    "source": "def run(input)\n{a:1}.fetch(:a,ignored:true)\nend",
+    "expected": 1
+  },
+  {
+    "name": "call_builtin_keyword_hash_dig",
+    "source": "def run(input)\n{a:1}.dig(:a,ignored:true)\nend",
+    "expected": 1
+  },
+  {
+    "name": "call_builtin_keyword_hash_key?",
+    "source": "def run(input)\n{a:1}.key?(:a,ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_hash_has_value?",
+    "source": "def run(input)\n{a:1}.has_value?(1,ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_hash_member?",
+    "source": "def run(input)\n{a:1}.member?(:a,ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_hash_compact",
+    "source": "def run(input)\n{a:1}.compact(ignored:true)\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "call_builtin_keyword_hash_slice",
+    "source": "def run(input)\n{a:1}.slice(:a,ignored:true)\nend",
+    "expected": {
+      "a": 1
+    }
+  },
+  {
+    "name": "call_builtin_keyword_string_length",
+    "source": "def run(input)\n\"abc\".length(ignored:true)\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_builtin_keyword_string_bytesize",
+    "source": "def run(input)\n\"abc\".bytesize(ignored:true)\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_builtin_keyword_string_empty?",
+    "source": "def run(input)\n\"abc\".empty?(ignored:true)\nend",
+    "expected": false
+  },
+  {
+    "name": "call_builtin_keyword_string_upcase",
+    "source": "def run(input)\n\"abc\".upcase(:ascii,ignored:true)\nend",
+    "expected": "ABC"
+  },
+  {
+    "name": "call_builtin_keyword_string_downcase",
+    "source": "def run(input)\n\"abc\".downcase(:ascii,ignored:true)\nend",
+    "expected": "abc"
+  },
+  {
+    "name": "call_builtin_keyword_string_strip",
+    "source": "def run(input)\n\"abc\".strip(ignored:true)\nend",
+    "expected": "abc"
+  },
+  {
+    "name": "call_builtin_keyword_string_split",
+    "source": "def run(input)\n\"abc\".split(ignored:true)\nend",
+    "expected": [
+      "abc"
+    ]
+  },
+  {
+    "name": "call_builtin_keyword_string_include?",
+    "source": "def run(input)\n\"abc\".include?(\"a\",ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_string_index",
+    "source": "def run(input)\n\"abc\".index(\"a\",ignored:true)\nend",
+    "expected": 0
+  },
+  {
+    "name": "call_builtin_keyword_string_rindex",
+    "source": "def run(input)\n\"abc\".rindex(\"a\",ignored:true)\nend",
+    "expected": 0
+  },
+  {
+    "name": "call_builtin_keyword_string_slice",
+    "source": "def run(input)\n\"abc\".slice(0,1,ignored:true)\nend",
+    "expected": "a"
+  },
+  {
+    "name": "call_builtin_keyword_string_reverse",
+    "source": "def run(input)\n\"abc\".reverse(ignored:true)\nend",
+    "expected": "cba"
+  },
+  {
+    "name": "call_builtin_keyword_string_ord",
+    "source": "def run(input)\n\"abc\".ord(ignored:true)\nend",
+    "expected": 97
+  },
+  {
+    "name": "call_builtin_keyword_string_chr",
+    "source": "def run(input)\n\"abc\".chr(ignored:true)\nend",
+    "expected": "a"
+  },
+  {
+    "name": "call_builtin_keyword_string_start_with?",
+    "source": "def run(input)\n\"abc\".start_with?(\"a\",ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_string_end_with?",
+    "source": "def run(input)\n\"abc\".end_with?(\"c\",ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_builtin_keyword_string_clear",
+    "source": "def run(input)\n\"abc\".clear(ignored:true)\nend",
+    "expected": ""
+  },
+  {
+    "name": "call_builtin_keyword_string_prepend",
+    "source": "def run(input)\n\"abc\".prepend(\"d\",ignored:true)\nend",
+    "expected": "dabc"
+  },
+  {
+    "name": "call_builtin_keyword_string_insert",
+    "source": "def run(input)\n\"abc\".insert(0,\"d\",ignored:true)\nend",
+    "expected": "dabc"
+  },
+  {
+    "name": "call_builtin_keyword_string_replace",
+    "source": "def run(input)\n\"abc\".replace(\"d\",ignored:true)\nend",
+    "expected": "d"
+  },
+  {
+    "name": "call_builtin_keyword_int_abs",
+    "source": "def run(input)\n3.abs(ignored:true)\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_builtin_keyword_int_even?",
+    "source": "def run(input)\n3.even?(ignored:true)\nend",
+    "expected": false
+  },
+  {
+    "name": "call_builtin_keyword_int_odd?",
+    "source": "def run(input)\n3.odd?(ignored:true)\nend",
+    "expected": true
+  },
+  {
+    "name": "call_scope_default_shadow_function",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x)\nb\nend\ndef run(input)\nf(1)\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_body_unassigned",
+    "source": "def run(input)\nif false\nx=7\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_body_read_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nx\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_default_read_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x)\nb\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_body_nil_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_default_before_body_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x)\nx=8\nb\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_body_nil_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx\nend\ndef run(input)\nf(1)\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_global_body_read_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nx\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_global_default_read_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x)\nb\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_global_body_nil_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_global_default_before_body_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x)\nx=8\nb\nend\ndef run(input)\nf()\nend",
+    "expected": 7
+  },
+  {
+    "name": "call_scope_global_body_call_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nx()\nend\ndef run(input)\nf(1)\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_global_default_call_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x())\nb\nend\ndef run(input)\nf(1)\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_global_body_nil_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx\nend\ndef run(input)\nf(1)\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_global_callee_rebound_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x((while true\nx=42\nbreak 3\nend)))\n[b,x]\nend\ndef run(input)\nf(1)\nend",
+    "expected": [
+      3,
+      42
+    ]
+  },
+  {
+    "name": "call_scope_later_parameter_assigned",
+    "source": "def f(a=(while true\nb=7\nbreak 0\nend),b=b+1)\n[a,b]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      0,
+      8
+    ]
+  },
+  {
+    "name": "call_scope_body_ordinary_global_shadow",
+    "source": "def x()\n9\nend\ndef run(input)\nif false\nx=7\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_function_value_zero",
+    "source": "def f()\n9\nend\ndef run(input)\nf\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_function_value_unused",
+    "source": "def f(a=1/0)\na\nend\ndef run(input)\nif false\nf\nelse\n9\nend\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_address_none_push_used",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x.push([3])\n[r,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        [
+          7
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          7
+        ],
+        [
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_none_nested_push_used",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x[0].push(3)\n[r,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7,
+        3
+      ],
+      [
+        [
+          7,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_none_write_used",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_none_compound_write_used",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]+=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_none_logical_write_used",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]||=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_push_used",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x.push([3])\n[r,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        [
+          7
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          7
+        ],
+        [
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_nested_push_used",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x[0].push(3)\n[r,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7,
+        3
+      ],
+      [
+        [
+          7,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_write_used",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_compound_write_used",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]+=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_logical_write_used",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]||=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_push_skip",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x.push([3])\n[r,x]\nend\ndef run(input)\nf(1)\nend",
+    "expected": [
+      [
+        [
+          9
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_nested_push_skip",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x[0].push(3)\n[r,x]\nend\ndef run(input)\nf(1)\nend",
+    "expected": [
+      [
+        9,
+        3
+      ],
+      [
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_write_skip",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "expected": [
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_compound_write_skip",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]+=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "expected": [
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_zero_logical_write_skip",
+    "source": "def x()\n[[9]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]||=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "expected": [
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_optional_push_used",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x.push([3])\n[r,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        [
+          7
+        ],
+        [
+          3
+        ]
+      ],
+      [
+        [
+          7
+        ],
+        [
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_optional_nested_push_used",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x[0].push(3)\n[r,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7,
+        3
+      ],
+      [
+        [
+          7,
+          3
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_optional_write_used",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_optional_compound_write_used",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]+=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_address_optional_logical_write_used",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]||=[3]\nx\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      [
+        7
+      ]
+    ]
+  },
+  {
+    "name": "call_scope_default_assign_none_or",
+    "source": "def f(a=(while true\nx||=3\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_scope_default_assign_none_and",
+    "source": "def f(a=(while true\nx&&=3\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_none_self_assignment",
+    "source": "\ndef run(input)\nx=x\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_none_loop_never_runs",
+    "source": "\ndef run(input)\nwhile false\nx=3\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_none_loop_break",
+    "source": "\ndef run(input)\nwhile true\nbreak\nx=3\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_none_loop_next",
+    "source": "\ndef run(input)\ni=0\nwhile i<2\ni+=1\nnext\nx=3\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_none_expression_loop_next",
+    "source": "\ndef run(input)\ni=0\nr=(while i<2\ni+=1\nnext\nx=3\nend)\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_default_none_self_assignment",
+    "source": "def f(a=(while true\nx=x\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_default_none_conditional_declaration",
+    "source": "def f(a=(while true\nif false\nx=3\nend\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_default_assign_zero_or",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx||=3\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_scope_default_assign_zero_and",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx&&=3\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_zero_read_before_assignment",
+    "source": "def x()\n9\nend\n\ndef run(input)\nr=x\nx=3\nr\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_call_before_assignment",
+    "source": "def x()\n9\nend\n\ndef run(input)\nr=x()\nx=3\nr\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_read_before_if",
+    "source": "def x()\n9\nend\n\ndef run(input)\nr=x\nif false\nx=3\nend\nr\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_self_assignment",
+    "source": "def x()\n9\nend\n\ndef run(input)\nx=x\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_zero_self_call_assignment",
+    "source": "def x()\n9\nend\n\ndef run(input)\nx=x()\nx\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_loop_condition",
+    "source": "def x()\n9\nend\n\ndef run(input)\nwhile x\nx=false\nend\nx\nend",
+    "expected": false
+  },
+  {
+    "name": "call_scope_scope_zero_loop_read_before_assignment",
+    "source": "def x()\n9\nend\n\ndef run(input)\nwhile true\nr=x\nx=3\nbreak r\nend\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_loop_never_runs",
+    "source": "def x()\n9\nend\n\ndef run(input)\nwhile false\nx=3\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_zero_loop_break",
+    "source": "def x()\n9\nend\n\ndef run(input)\nwhile true\nbreak\nx=3\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_zero_loop_next",
+    "source": "def x()\n9\nend\n\ndef run(input)\ni=0\nwhile i<2\ni+=1\nnext\nx=3\nend\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_scope_zero_expression_loop_never_runs",
+    "source": "def x()\n9\nend\n\ndef run(input)\nr=(while false\nx=3\nend)\nx\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_expression_loop_break",
+    "source": "def x()\n9\nend\n\ndef run(input)\nr=(while true\nbreak\nx=3\nend)\nx\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_scope_zero_expression_loop_next",
+    "source": "def x()\n9\nend\n\ndef run(input)\ni=0\nr=(while i<2\ni+=1\nnext\nx=3\nend)\nx\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_default_zero_self_assignment",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx=x\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_default_zero_self_call_assignment",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx=x()\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_default_zero_conditional_declaration",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nif false\nx=3\nend\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": null
+  },
+  {
+    "name": "call_scope_default_zero_loop_never_runs",
+    "source": "def x()\n9\nend\ndef f(a=(while false\nx=3\nend),b=x)\nb\nend\ndef run(input)\nf()\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_local_call_bypass",
+    "source": "def x(a=9)\na\nend\ndef run(input)\nx=1\nx=x(3)\nx\nend",
+    "expected": 3
+  },
+  {
+    "name": "call_scope_parameter_assignment_call_bypass",
+    "source": "def x()\n9\nend\ndef f(x)\nx=x()\nend\ndef run(input)\nf(1)\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_default_local_call_bypass",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx=1\nx=x()\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "expected": 9
+  },
+  {
+    "name": "call_scope_destructure_rhs_bypass",
+    "source": "def x()\n9\nend\ndef y()\n8\nend\ndef run(input)\nx,y=x(),y()\n[x,y]\nend",
+    "expected": [
+      9,
+      8
+    ]
+  },
+  {
+    "name": "call_scope_parameter_created_by_default",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx=1\nbreak 0\nend),b=(while true\nx=x()\nbreak x\nend),x=3)\n[a,b,x]\nend\ndef run(input)\nf()\nend",
+    "expected": [
+      0,
+      9,
+      3
+    ]
   }
 ]

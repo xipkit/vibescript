@@ -5,6 +5,63 @@ use crate::{
     value::Kind,
 };
 
+pub(crate) fn call_keywords(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: Value,
+    args: &crate::arguments::Arguments,
+) -> Result<(Value, Value)> {
+    if matches!(receiver.0, Kind::Hash(_)) && !hash_builtin(name) {
+        return call(ctx, site, name, receiver, &args.positional.data);
+    }
+    if !args.keywords.buffer.data.is_empty() {
+        use Method::*;
+        let rejects = match site.method {
+            Some(IsNil | Itself | Dup | ToString | ToInt) => true,
+            Some(method) => match &receiver.0 {
+                Kind::Array(_) => matches!(
+                    method,
+                    First
+                        | Last
+                        | At
+                        | Slice
+                        | Reverse
+                        | Compact
+                        | Uniq
+                        | Transpose
+                        | ToHash
+                        | Push
+                        | Prepend
+                        | Pop
+                        | Shift
+                        | Delete
+                        | Insert
+                        | Clear
+                        | Fill
+                        | Sum
+                ),
+                Kind::Hash(_) => {
+                    matches!(method, ToArray | Flatten | Store | Delete | Replace | Clear)
+                }
+                Kind::Bytes(_) => {
+                    matches!(method, ByteSlice | GetByte | Bytes | Chars | Codepoints)
+                }
+                Kind::Range(_) => true,
+                _ => false,
+            },
+            None => false,
+        };
+        if rejects {
+            return Err(Error::new(
+                ErrorKind::Argument,
+                format!("{name} does not accept keyword arguments"),
+            ));
+        }
+    }
+    call(ctx, site, name, receiver, &args.positional.data)
+}
+
 pub(crate) fn call(
     ctx: &mut CallContext,
     site: CallSite,

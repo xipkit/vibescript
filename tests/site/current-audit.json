@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "2f5e8ecec1ad83d4cdb91430f23beabf89aeed51",
-  "dirty": " M src/bytecode.rs\n M src/hash.rs\n M src/lib.rs\n M src/ops.rs\n M src/syntax.rs\n M src/value.rs\n M src/vm.rs\n M tests/hashes.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/members.rs\n?? src/mutate.rs\n?? tests/members.rs\n",
+  "source_revision": "c1f6c6d0aa9372c4eb4dba51426b008d109ae633",
+  "dirty": " M examples/sms.rs\n M src/asynchronous.rs\n M src/bytecode.rs\n M src/lib.rs\n M src/members.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/asynchronous.rs\n M tests/core.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/arguments.rs\n?? tests/calls.rs\n",
   "binary_sha256": {
-    "go-simd": "4ec24af255e1fb206be1402f3184a0a2039ca9cb5d2546bb1f94584580aeac5c",
-    "rust-simd": "2be0b20ad8c5ed85e649a2da48410f5507b741540fd4c073b5aa9e51fee8cfda"
+    "go-simd": "bfb44d478456ac03313e74a74e24e2d334d422ab41d4725a6e6567801752d789",
+    "rust-simd": "d4cd68e2a23177835544145e68156bbc684881d776c6298bb667ac039a0dfc39"
   },
   "counts": {
-    "match": 129,
-    "rust_gap": 59,
+    "match": 134,
+    "rust_gap": 54,
     "harness_gap": 15
   },
   "examples": [
@@ -6322,10 +6322,56 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(299) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "preorder": [
+            "F",
+            "B",
+            "A",
+            "D",
+            "C",
+            "E",
+            "G",
+            "I",
+            "H"
+          ],
+          "inorder": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G",
+            "H",
+            "I"
+          ],
+          "postorder": [
+            "A",
+            "C",
+            "E",
+            "D",
+            "B",
+            "H",
+            "I",
+            "G",
+            "F"
+          ],
+          "level_order": [
+            "F",
+            "B",
+            "G",
+            "A",
+            "D",
+            "I",
+            "C",
+            "E",
+            "H"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "rosettacode/popular/truth_table.vibe",
@@ -7121,7 +7167,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(351) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(357) }\n"
       },
       "status": "rust_gap"
     },
@@ -7241,7 +7287,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(177) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(187) }\n"
       },
       "status": "harness_gap"
     },
@@ -7523,7 +7569,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(568) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(575) }\n"
       },
       "status": "rust_gap"
     },
@@ -7640,7 +7686,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(328) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(334) }\n"
       },
       "status": "rust_gap"
     },
@@ -7782,7 +7828,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(315) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(321) }\n"
       },
       "status": "rust_gap"
     },
@@ -8074,10 +8120,18 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(225) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "note": "This example requires jobs, events, and db capabilities which are injected by the host application.",
+          "functions": [
+            "queue_recalc",
+            "publish_update",
+            "job_recalc_player_total"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/basics/functions_and_calls.vibe",
@@ -8252,10 +8306,17 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unknown variable ctx\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "note": "This example requires the ctx capability which is injected by the host application.",
+          "functions": [
+            "current_user_id",
+            "coach?"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/capabilities/database_queries.vibe",
@@ -8272,10 +8333,18 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(122) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "note": "This example requires the db capability which is injected by the host application.",
+          "functions": [
+            "load_player",
+            "top_players",
+            "increment_total"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/capabilities/iteration.vibe",
@@ -8772,7 +8841,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unknown function money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8792,10 +8861,19 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unknown variable ctx\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "note": "This example requires the ctx capability which is injected by the host application.",
+          "functions": [
+            "can_edit_player?",
+            "can_view_player?"
+          ],
+          "can_view_active": true,
+          "can_view_archived": false
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/ranges/usage.vibe",
@@ -8847,7 +8925,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(169) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected ,\", offset: Some(840) }\n"
       },
       "status": "rust_gap"
     },
@@ -8966,7 +9044,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unknown variable Duration\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable Duration\", offset: None }\n"
       },
       "status": "rust_gap"
     }

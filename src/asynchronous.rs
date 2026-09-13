@@ -35,6 +35,18 @@ impl Runner {
         script: Script,
         name: String,
         args: Vec<Value>,
+        options: CallOptions,
+    ) -> Result<Outcome> {
+        self.call_with_keywords(script, name, args, Vec::new(), options)
+            .await
+    }
+    /// Runs a call with named arguments under the same worker and cancellation limits.
+    pub async fn call_with_keywords(
+        &self,
+        script: Script,
+        name: String,
+        args: Vec<Value>,
+        keywords: Vec<(String, Value)>,
         mut options: CallOptions,
     ) -> Result<Outcome> {
         options.cancellation = options.cancellation.child_token();
@@ -55,7 +67,7 @@ impl Runner {
         };
         let job = tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            script.call(&name, &args, options)
+            script.call_with_keywords(&name, &args, &keywords, options)
         });
         let result = job
             .await

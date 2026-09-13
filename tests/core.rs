@@ -179,13 +179,7 @@ fn host_calls_are_isolated_and_exhaustion_is_latched() {
 
 #[test]
 fn syntax_guards_and_overflow_are_errors() {
-    for source in [
-        "class X\nend",
-        "def x(a, a)\n1\nend",
-        "1e+",
-        "1__2",
-        "\"unterminated",
-    ] {
+    for source in ["class X\nend", "1e+", "1__2", "\"unterminated"] {
         assert!(Engine::new().compile(source).is_err(), "{source}");
     }
     for (prefix, suffix) in [

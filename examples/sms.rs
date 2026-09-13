@@ -84,10 +84,14 @@ mod tests {
         let options = CallOptions::default();
         options.cancellation.cancel();
         assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Cancelled);
-        assert!(
+        assert_eq!(
             Engine::new()
                 .compile("sms_send(\"phone\",\"body\")")
-                .is_err()
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap_err()
+                .kind,
+            ErrorKind::Name
         );
         main().unwrap();
     }

@@ -2764,6 +2764,57 @@
     }
   },
   {
+    "path": "rosettacode/popular/tree_traversal.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "preorder": [
+        "F",
+        "B",
+        "A",
+        "D",
+        "C",
+        "E",
+        "G",
+        "I",
+        "H"
+      ],
+      "inorder": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "H",
+        "I"
+      ],
+      "postorder": [
+        "A",
+        "C",
+        "E",
+        "D",
+        "B",
+        "H",
+        "I",
+        "G",
+        "F"
+      ],
+      "level_order": [
+        "F",
+        "B",
+        "G",
+        "A",
+        "D",
+        "I",
+        "C",
+        "E",
+        "H"
+      ]
+    }
+  },
+  {
     "path": "rosettacode/popular/truth_table.vibe",
     "function": "run",
     "args": [],
@@ -3119,6 +3170,19 @@
     }
   },
   {
+    "path": "upstream/background/jobs_and_events.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "note": "This example requires jobs, events, and db capabilities which are injected by the host application.",
+      "functions": [
+        "queue_recalc",
+        "publish_update",
+        "job_recalc_player_total"
+      ]
+    }
+  },
+  {
     "path": "upstream/basics/functions_and_calls.vibe",
     "function": "run",
     "args": [],
@@ -3148,6 +3212,31 @@
           null
         ]
       }
+    }
+  },
+  {
+    "path": "upstream/capabilities/context_access.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "note": "This example requires the ctx capability which is injected by the host application.",
+      "functions": [
+        "current_user_id",
+        "coach?"
+      ]
+    }
+  },
+  {
+    "path": "upstream/capabilities/database_queries.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "note": "This example requires the db capability which is injected by the host application.",
+      "functions": [
+        "load_player",
+        "top_players",
+        "increment_total"
+      ]
     }
   },
   {
@@ -3290,6 +3379,20 @@
     "function": "run",
     "args": [],
     "expected": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz\n16\n17\nFizz\n19\nBuzz\n"
+  },
+  {
+    "path": "upstream/policies/access_control.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "note": "This example requires the ctx capability which is injected by the host application.",
+      "functions": [
+        "can_edit_player?",
+        "can_view_player?"
+      ],
+      "can_view_active": true,
+      "can_view_archived": false
+    }
   },
   {
     "path": "upstream/ranges/usage.vibe",

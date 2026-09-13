@@ -104,3 +104,23 @@ async fn async_success_and_cancelled_queue() {
         vibescript::ErrorKind::Cancelled
     );
 }
+
+#[tokio::test]
+async fn async_keyword_calls_use_defaults_and_release_the_worker() {
+    let runner = Runner::new(1).unwrap();
+    let script = Engine::new()
+        .compile("def run(a:,b:a+1)\na+b\nend")
+        .unwrap();
+    let result = runner
+        .call_with_keywords(
+            script,
+            "run".into(),
+            vec![],
+            vec![("a".into(), Value::int(20))],
+            CallOptions::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(41));
+    assert_eq!(runner.available_slots(), 1);
+}

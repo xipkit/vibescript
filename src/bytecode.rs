@@ -1,14 +1,20 @@
 use crate::{
     Result, Value,
-    syntax::{self, Expr, Node, Stmt, Target},
+    syntax::{self, Argument, ArgumentKind, Expr, Node, ParamKind, Stmt, Target},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
     Constant(usize),
     Nil,
     Load(usize),
+    LoadOptional(usize, usize),
+    Unbound(usize),
+    NonCallable,
+    Bind(usize, usize),
+    BindEnd,
+    Declare(usize),
     Store(usize),
     Pop,
     Dup,
@@ -20,6 +26,7 @@ pub(crate) enum Op {
     Range(bool, bool, bool),
     Index(usize),
     AddressLocal(usize),
+    AddressBound(usize, usize),
     AddressValue,
     AddressIndex(usize),
     AddressTarget(usize, bool),
@@ -43,14 +50,46 @@ pub(crate) enum Op {
     Break(bool),
     Next,
     Call(usize, usize),
+    AutoCall(usize),
     Host(usize, usize),
+    HostValue(usize),
     Method(CallSite, usize),
+    Arguments,
+    ResolveCall(usize, usize),
+    Argument(ArgumentOp),
+    Invoke(Invocation),
     JsonParse,
     JsonStringify,
     Jump(usize),
     JumpFalse(usize),
     JumpTrue(usize),
     Return,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ArgumentOp {
+    Positional,
+    Splat,
+    Keyword(usize),
+    KeywordSplat,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Invocation {
+    Function(usize),
+    Host(usize),
+    Member(CallSite, bool),
+    Json(bool),
+    NonCallable,
+    Resolved,
+}
+
+#[derive(Debug)]
+pub(crate) struct Parameter {
+    pub name: String,
+    pub kind: ParamKind,
+    pub default: bool,
+    pub slot: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -218,7 +257,9 @@ impl Method {
 #[derive(Debug)]
 pub(crate) struct Function {
     pub name: String,
-    pub arity: usize,
+    pub params: Vec<Parameter>,
+    pub defaults: bool,
+    pub plain: bool,
     pub locals: usize,
     pub code: Vec<Op>,
 }
@@ -250,16 +291,46 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             program: &mut program,
             locals: HashMap::new(),
             code: Vec::new(),
+            parameters: HashSet::new(),
+            bypass: HashSet::new(),
+            loop_bindings: Vec::new(),
         };
-        for name in &def.params {
-            c.slot(name);
+        let defaults = def.params.iter().any(|p| p.default.is_some());
+        let plain = !defaults && def.params.iter().all(|p| p.kind == ParamKind::Positional);
+        let mut params = Vec::new();
+        for (i, param) in def.params.iter().enumerate() {
+            let bind = defaults.then(|| c.emit(Op::Bind(i, 0)));
+            if let Some(value) = &param.default {
+                c.declare_expr(value);
+                c.expr(value)?;
+            }
+            let slot = c.slot(&param.name);
+            if param.default.is_some() {
+                c.emit(Op::Store(slot));
+                c.emit(Op::Pop);
+            }
+            if let Some(bind) = bind {
+                c.patch(bind, c.code.len());
+            }
+            c.parameters.insert(param.name.clone());
+            params.push(Parameter {
+                name: param.name.clone(),
+                kind: param.kind,
+                default: param.default.is_some(),
+                slot,
+            });
+        }
+        if defaults {
+            c.emit(Op::BindEnd);
         }
         c.declare(&def.body);
         c.block(&def.body)?;
         c.code.push(Op::Return);
         let function = Function {
             name: def.name,
-            arity: def.params.len(),
+            params,
+            defaults,
+            plain,
             locals: c.locals.len(),
             code: c.code,
         };
@@ -268,10 +339,18 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
     Ok(program)
 }
 
+fn expanded(args: &[Argument]) -> bool {
+    args.iter()
+        .any(|a| !matches!(a.kind, ArgumentKind::Positional))
+}
+
 struct Compiler<'a> {
     program: &'a mut Program,
     locals: HashMap<String, usize>,
     code: Vec<Op>,
+    parameters: HashSet<String>,
+    bypass: HashSet<String>,
+    loop_bindings: Vec<Vec<usize>>,
 }
 impl Compiler<'_> {
     fn slot(&mut self, name: &str) -> usize {
@@ -329,9 +408,14 @@ impl Compiler<'_> {
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
             Node::Literal(_) | Node::Var(_) => (),
-            Node::Array(values) | Node::Call(_, values) => {
+            Node::Array(values) => {
                 for value in values {
                     self.declare_expr(value);
+                }
+            }
+            Node::Call(_, args) => {
+                for arg in args {
+                    self.declare_expr(&arg.value);
                 }
             }
             Node::Hash(entries) => {
@@ -372,7 +456,13 @@ impl Compiler<'_> {
                 }
             }
             Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref())),
-            Node::Method(recv, _, args) | Node::Index(recv, args) => {
+            Node::Method(recv, _, args) => {
+                self.declare_expr(recv);
+                for arg in args {
+                    self.declare_expr(&arg.value);
+                }
+            }
+            Node::Index(recv, args) => {
                 self.declare_expr(recv);
                 for arg in args {
                     self.declare_expr(arg);
@@ -387,7 +477,11 @@ impl Compiler<'_> {
     }
     fn patch(&mut self, pos: usize, target: usize) {
         match &mut self.code[pos] {
-            Op::Jump(n) | Op::JumpFalse(n) | Op::JumpTrue(n) => *n = target,
+            Op::Jump(n)
+            | Op::JumpFalse(n)
+            | Op::JumpTrue(n)
+            | Op::Bind(_, n)
+            | Op::AddressBound(_, n) => *n = target,
             _ => unreachable!(),
         }
     }
@@ -409,9 +503,53 @@ impl Compiler<'_> {
         Ok(())
     }
     fn stmt(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
+        if let Stmt::Assign(target, _, _) = stmt {
+            let mut names = Vec::new();
+            target_names(target, &mut names);
+            for name in names {
+                self.emit(Op::Declare(self.locals[name]));
+            }
+        }
+        self.statement(stmt, expression)?;
+        if !expression && matches!(stmt, Stmt::If(..) | Stmt::While(..) | Stmt::For(..)) {
+            for slot in self.statement_bindings(std::slice::from_ref(stmt)) {
+                self.emit(Op::Declare(slot));
+            }
+        }
+        Ok(())
+    }
+    fn assignment_rhs(&mut self, target: &Target, values: &[&Expr]) -> Result<()> {
+        let previous = self.bypass.clone();
+        let mut names = Vec::new();
+        target_names(target, &mut names);
+        self.bypass.extend(names.into_iter().map(str::to_owned));
+        for value in values {
+            self.expr(value)?;
+        }
+        self.bypass = previous;
+        Ok(())
+    }
+    fn statement_bindings(&self, body: &[Stmt]) -> Vec<usize> {
+        let mut names = Vec::new();
+        statement_names(body, &mut names);
+        let mut seen = HashSet::new();
+        names
+            .into_iter()
+            .filter(|name| seen.insert(*name))
+            .map(|name| self.locals[name])
+            .collect()
+    }
+    fn loop_body(&mut self, body: &[Stmt]) -> Result<()> {
+        self.loop_bindings.push(self.statement_bindings(body));
+        self.block(body)?;
+        self.loop_bindings.pop();
+        Ok(())
+    }
+    fn statement(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
         match stmt {
             Stmt::Expr(e) => self.expr(e)?,
             Stmt::Assign(target, op, rhs) => {
+                let binding_target = target;
                 let binary = match *op {
                     "+=" => Some("+"),
                     "-=" => Some("-"),
@@ -422,7 +560,7 @@ impl Compiler<'_> {
                     _ => None,
                 };
                 let Target::Value(target) = target else {
-                    self.expr(rhs)?;
+                    self.assignment_rhs(target, &[rhs])?;
                     self.assign_value(target)?;
                     return Ok(());
                 };
@@ -438,15 +576,14 @@ impl Compiler<'_> {
                                 Op::JumpFalse(0)
                             });
                             self.emit(Op::Pop);
-                            self.expr(rhs)?;
+                            self.assignment_rhs(binding_target, &[rhs])?;
                             self.emit(Op::Store(slot));
                             self.patch(skip, self.code.len());
                             return Ok(());
                         }
                         if binary.is_none() {
                             if let Node::Binary("+", left, right) = &rhs.node {
-                                self.expr(left)?;
-                                self.expr(right)?;
+                                self.assignment_rhs(binding_target, &[left, right])?;
                                 self.emit(Op::AddStore(slot));
                                 return Ok(());
                             }
@@ -454,7 +591,7 @@ impl Compiler<'_> {
                         if binary.is_some() {
                             self.emit(Op::Load(slot));
                         }
-                        self.expr(rhs)?;
+                        self.assignment_rhs(binding_target, &[rhs])?;
                         if binary == Some("+") {
                             self.emit(Op::AddStore(slot));
                             return Ok(());
@@ -466,7 +603,7 @@ impl Compiler<'_> {
                     }
                     Node::Index(..) | Node::Member(..) => {
                         if binary.is_none() && !matches!(*op, "||=" | "&&=") {
-                            self.expr(rhs)?;
+                            self.assignment_rhs(binding_target, &[rhs])?;
                             self.address_target(target, false)?;
                             self.emit(Op::AddressStore);
                         } else {
@@ -479,14 +616,14 @@ impl Compiler<'_> {
                                     Op::JumpFalse(0)
                                 });
                                 self.emit(Op::Pop);
-                                self.expr(rhs)?;
+                                self.assignment_rhs(binding_target, &[rhs])?;
                                 self.emit(Op::AddressStore);
                                 let end = self.emit(Op::Jump(0));
                                 self.patch(skip, self.code.len());
                                 self.emit(Op::AddressDrop);
                                 self.patch(end, self.code.len());
                             } else {
-                                self.expr(rhs)?;
+                                self.assignment_rhs(binding_target, &[rhs])?;
                                 self.emit(Op::Binary(binary.unwrap()));
                                 self.emit(Op::AddressStore);
                             }
@@ -514,7 +651,7 @@ impl Compiler<'_> {
                 let next = self.code.len();
                 self.expr(cond)?;
                 self.emit(Op::LoopTest);
-                self.block(body)?;
+                self.loop_body(body)?;
                 self.emit(Op::LoopBody);
                 let end = self.emit(Op::LoopEnd);
                 self.code[mark] = Op::LoopStart {
@@ -535,7 +672,7 @@ impl Compiler<'_> {
                 let next = self.emit(Op::IterNext);
                 self.assign_value(target)?;
                 self.emit(Op::Pop);
-                self.block(body)?;
+                self.loop_body(body)?;
                 self.emit(Op::LoopBody);
                 let end = self.emit(Op::LoopEnd);
                 self.code[mark] = Op::LoopStart {
@@ -562,6 +699,11 @@ impl Compiler<'_> {
             Stmt::Next(value) => {
                 if let Some(value) = value {
                     self.expr(value)?;
+                }
+                if let Some(bindings) = self.loop_bindings.last() {
+                    for &slot in bindings {
+                        self.code.push(Op::Declare(slot));
+                    }
                 }
                 self.emit(Op::Next);
             }
@@ -618,11 +760,19 @@ impl Compiler<'_> {
             Node::Literal(v) => self.constant(v.clone()),
             Node::Var(name) => {
                 if let Some(&slot) = self.locals.get(name) {
-                    self.emit(Op::Load(slot));
+                    if !self.parameters.contains(name) {
+                        let name = self.call_site(name, false).name;
+                        self.emit(Op::LoadOptional(slot, name));
+                    } else {
+                        self.emit(Op::Load(slot));
+                    }
                 } else if let Some(&fun) = self.program.names.get(name) {
-                    self.emit(Op::Call(fun, 0));
+                    self.emit(Op::AutoCall(fun));
+                } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
+                    self.emit(Op::HostValue(host));
                 } else {
-                    return Err(syntax::unsupported(&format!("unknown variable {name}")));
+                    let site = self.call_site(name, false);
+                    self.emit(Op::Unbound(site.name));
                 }
             }
             Node::Array(values) => {
@@ -723,15 +873,39 @@ impl Compiler<'_> {
                 }
             }
             Node::Call(name, args) => {
-                for arg in args {
-                    self.expr(arg)?;
+                if let Some(&slot) = self.locals.get(name) {
+                    if !self.parameters.contains(name) && !self.bypass.contains(name) {
+                        let name = self.call_site(name, false).name;
+                        self.emit(Op::ResolveCall(slot, name));
+                        self.argument_values(args)?;
+                        self.emit(Op::Invoke(Invocation::Resolved));
+                        return Ok(());
+                    }
                 }
-                if let Some(&fun) = self.program.names.get(name) {
-                    self.emit(Op::Call(fun, args.len()));
+                let target = if self.locals.contains_key(name) && !self.bypass.contains(name) {
+                    Invocation::NonCallable
+                } else if let Some(&fun) = self.program.names.get(name) {
+                    Invocation::Function(fun)
                 } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
-                    self.emit(Op::Host(host, args.len()));
+                    Invocation::Host(host)
                 } else {
-                    return Err(syntax::unsupported(&format!("unknown function {name}")));
+                    let site = self.call_site(name, false);
+                    self.emit(Op::Unbound(site.name));
+                    return Ok(());
+                };
+                if expanded(args) {
+                    self.call_arguments(args)?;
+                    self.emit(Op::Invoke(target));
+                } else {
+                    for arg in args {
+                        self.expr(&arg.value)?;
+                    }
+                    self.emit(match target {
+                        Invocation::Function(fun) => Op::Call(fun, args.len()),
+                        Invocation::Host(host) => Op::Host(host, args.len()),
+                        Invocation::NonCallable => Op::NonCallable,
+                        _ => unreachable!(),
+                    });
                 }
             }
             Node::Member(recv, name) => self.member_call(recv, name, &[], true)?,
@@ -759,14 +933,24 @@ impl Compiler<'_> {
         &mut self,
         receiver: &Expr,
         name: &str,
-        args: &[Expr],
+        args: &[Argument],
         auto: bool,
     ) -> Result<()> {
         if matches!(&receiver.node, Node::Var(v) if v == "JSON") {
+            if expanded(args) {
+                let parse = match name {
+                    "parse" => true,
+                    "stringify" => false,
+                    _ => return Err(syntax::unsupported("unknown JSON method")),
+                };
+                self.call_arguments(args)?;
+                self.emit(Op::Invoke(Invocation::Json(parse)));
+                return Ok(());
+            }
             if args.len() != 1 {
                 return Err(syntax::unsupported("JSON methods require one argument"));
             }
-            self.expr(&args[0])?;
+            self.expr(&args[0].value)?;
             self.emit(match name {
                 "parse" => Op::JsonParse,
                 "stringify" => Op::JsonStringify,
@@ -793,15 +977,39 @@ impl Compiler<'_> {
             } else {
                 self.expr(receiver)?;
             }
-            for arg in args {
-                self.expr(arg)?;
-            }
             let site = self.call_site(name, auto);
-            self.emit(if mutating {
-                Op::Mutate(site, args.len())
+            if expanded(args) {
+                self.call_arguments(args)?;
+                self.emit(Op::Invoke(Invocation::Member(site, mutating)));
             } else {
-                Op::Method(site, args.len())
-            });
+                for arg in args {
+                    self.expr(&arg.value)?;
+                }
+                self.emit(if mutating {
+                    Op::Mutate(site, args.len())
+                } else {
+                    Op::Method(site, args.len())
+                });
+            }
+        }
+        Ok(())
+    }
+    fn call_arguments(&mut self, args: &[Argument]) -> Result<()> {
+        self.emit(Op::Arguments);
+        self.argument_values(args)
+    }
+    fn argument_values(&mut self, args: &[Argument]) -> Result<()> {
+        for arg in args {
+            self.expr(&arg.value)?;
+            let kind = match &arg.kind {
+                ArgumentKind::Positional => ArgumentOp::Positional,
+                ArgumentKind::Splat => ArgumentOp::Splat,
+                ArgumentKind::Keyword(name) => {
+                    ArgumentOp::Keyword(self.call_site(name, false).name)
+                }
+                ArgumentKind::KeywordSplat => ArgumentOp::KeywordSplat,
+            };
+            self.emit(Op::Argument(kind));
         }
         Ok(())
     }
@@ -826,7 +1034,15 @@ impl Compiler<'_> {
     fn address(&mut self, receiver: &Expr) -> Result<()> {
         match &receiver.node {
             Node::Var(name) if self.locals.contains_key(name) => {
-                self.emit(Op::AddressLocal(self.locals[name]));
+                let slot = self.locals[name];
+                if self.parameters.contains(name) {
+                    self.emit(Op::AddressLocal(slot));
+                } else {
+                    let bound = self.emit(Op::AddressBound(slot, 0));
+                    self.expr(receiver)?;
+                    self.emit(Op::AddressValue);
+                    self.patch(bound, self.code.len());
+                }
             }
             Node::Member(root, name) => {
                 self.address(root)?;
@@ -846,5 +1062,40 @@ impl Compiler<'_> {
             }
         }
         Ok(())
+    }
+}
+
+fn target_names<'a>(target: &'a Target, names: &mut Vec<&'a str>) {
+    match target {
+        Target::Value(Expr {
+            node: Node::Var(name),
+            ..
+        }) => names.push(name),
+        Target::Tuple(parts) => {
+            for (part, _) in parts {
+                if let Some(part) = part {
+                    target_names(part, names);
+                }
+            }
+        }
+        _ => (),
+    }
+}
+
+fn statement_names<'a>(body: &'a [Stmt], names: &mut Vec<&'a str>) {
+    for stmt in body {
+        match stmt {
+            Stmt::Assign(target, _, _) => target_names(target, names),
+            Stmt::If(_, yes, no) => {
+                statement_names(yes, names);
+                statement_names(no, names);
+            }
+            Stmt::While(_, body) => statement_names(body, names),
+            Stmt::For(target, _, body) => {
+                target_names(target, names);
+                statement_names(body, names);
+            }
+            _ => (),
+        }
     }
 }

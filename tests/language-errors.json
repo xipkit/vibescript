@@ -378,5 +378,715 @@
     "name": "member_dup_arity",
     "body": "[1].dup(2)",
     "go_error": "does not take"
+  },
+  {
+    "name": "call_missing_keyword",
+    "source": "def f(a:)\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "missing keyword argument a"
+  },
+  {
+    "name": "call_positional_for_keyword",
+    "source": "def f(a:)\na\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "missing keyword argument a"
+  },
+  {
+    "name": "call_extra_positional",
+    "source": "def f(a:3)\na\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "call_extra_keyword",
+    "source": "def f(a:3)\na\nend\ndef run(input)\nf(b:1)\nend",
+    "go_error": "unexpected keyword argument b"
+  },
+  {
+    "name": "call_duplicate_positional_keyword",
+    "source": "def f(a)\na\nend\ndef run(input)\nf(1,a:2)\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "call_missing_after_default",
+    "source": "def f(a=1,b)\nb\nend\ndef run(input)\nf(2)\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "call_missing_before_defaults",
+    "source": "def f(a=1/0,b:)\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "missing keyword argument b"
+  },
+  {
+    "name": "call_extra_before_defaults",
+    "source": "def f(a:1/0)\na\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "call_unknown_before_defaults",
+    "source": "def f(a:1/0)\na\nend\ndef run(input)\nf(b:2)\nend",
+    "go_error": "unexpected keyword argument b"
+  },
+  {
+    "name": "call_default_forward",
+    "source": "def f(a=b,b=3)\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable b"
+  },
+  {
+    "name": "call_default_self",
+    "source": "def f(a=a)\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable a"
+  },
+  {
+    "name": "call_default_body_local",
+    "source": "def f(a=b)\nb=3\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable b"
+  },
+  {
+    "name": "call_default_unknown_call",
+    "source": "def f(a=missing())\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable missing"
+  },
+  {
+    "name": "call_splat_integer",
+    "source": "def f(*a)\na\nend\ndef run(input)\nf(*1)\nend",
+    "go_error": "splat argument must be an array"
+  },
+  {
+    "name": "call_splat_nil",
+    "source": "def f(*a)\na\nend\ndef run(input)\nf(*nil)\nend",
+    "go_error": "splat argument must be an array"
+  },
+  {
+    "name": "call_splat_range",
+    "source": "def f(*a)\na\nend\ndef run(input)\nf(*(1..3))\nend",
+    "go_error": "splat argument must be an array"
+  },
+  {
+    "name": "call_keyword_splat_array",
+    "source": "def f(**a)\na\nend\ndef run(input)\nf(**[])\nend",
+    "go_error": "keyword splat argument must be a hash"
+  },
+  {
+    "name": "call_keyword_splat_nil",
+    "source": "def f(**a)\na\nend\ndef run(input)\nf(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash"
+  },
+  {
+    "name": "call_arity_after_expansion",
+    "source": "def f(a,b)\na+b\nend\ndef run(input)\nf(*[1])\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "call_surplus_after_expansion",
+    "source": "def f(a,b)\na+b\nend\ndef run(input)\nf(*[1,2,3])\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "call_json_keywords",
+    "source": "\ndef run(input)\nJSON.parse(\"1\",ignored:true)\nend",
+    "go_error": "does not accept keyword arguments"
+  },
+  {
+    "name": "call_json_splat_arity",
+    "source": "\ndef run(input)\nJSON.parse(*[])\nend",
+    "go_error": "expects"
+  },
+  {
+    "name": "call_member_keywords",
+    "source": "\ndef run(input)\n[1].push(value:2)\nend",
+    "go_error": "does not take keyword arguments"
+  },
+  {
+    "name": "call_member_splat_bad",
+    "source": "\ndef run(input)\n[1].push(*nil)\nend",
+    "go_error": "splat argument must be an array"
+  },
+  {
+    "name": "call_non_callable_order",
+    "source": "def f(a)\na(1/0)\nend\ndef run(input)\nf(2)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "call_non_callable",
+    "source": "def f(a)\na(1)\nend\ndef run(input)\nf(2)\nend",
+    "go_error": "non-callable"
+  },
+  {
+    "name": "call_unknown_callee_before_argument",
+    "source": "\ndef run(input)\nmissing(1/0)\nend",
+    "go_error": "undefined variable missing"
+  },
+  {
+    "name": "call_builtin_keyword_array_first",
+    "source": "def run(input)\n[1,2].first(ignored:true)\nend",
+    "go_error": "array.first does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_last",
+    "source": "def run(input)\n[1,2].last(ignored:true)\nend",
+    "go_error": "array.last does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_at",
+    "source": "def run(input)\n[1,2].at(0,ignored:true)\nend",
+    "go_error": "array.at does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_slice",
+    "source": "def run(input)\n[1,2].slice(0,1,ignored:true)\nend",
+    "go_error": "array.slice does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_to_a",
+    "source": "def run(input)\n[1,2].to_a(ignored:true)\nend",
+    "go_error": "unknown array method to_a"
+  },
+  {
+    "name": "call_builtin_keyword_array_reverse",
+    "source": "def run(input)\n[1,2].reverse(ignored:true)\nend",
+    "go_error": "array.reverse does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_compact",
+    "source": "def run(input)\n[1,2].compact(ignored:true)\nend",
+    "go_error": "array.compact does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_uniq",
+    "source": "def run(input)\n[1,2].uniq(ignored:true)\nend",
+    "go_error": "array.uniq does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_transpose",
+    "source": "def run(input)\n[1,2].transpose(ignored:true)\nend",
+    "go_error": "array.transpose does not take arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_to_h",
+    "source": "def run(input)\n[1,2].to_h(ignored:true)\nend",
+    "go_error": "array.to_h does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_member?",
+    "source": "def run(input)\n[1,2].member?(1,ignored:true)\nend",
+    "go_error": "unknown array method member?"
+  },
+  {
+    "name": "call_builtin_keyword_array_push",
+    "source": "def run(input)\n[1,2].push(3,ignored:true)\nend",
+    "go_error": "array.push does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_prepend",
+    "source": "def run(input)\n[1,2].prepend(3,ignored:true)\nend",
+    "go_error": "array.prepend does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_pop",
+    "source": "def run(input)\n[1,2].pop(ignored:true)\nend",
+    "go_error": "array.pop does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_shift",
+    "source": "def run(input)\n[1,2].shift(ignored:true)\nend",
+    "go_error": "array.shift does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_delete",
+    "source": "def run(input)\n[1,2].delete(1,ignored:true)\nend",
+    "go_error": "array.delete does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_insert",
+    "source": "def run(input)\n[1,2].insert(0,3,ignored:true)\nend",
+    "go_error": "array.insert does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_clear",
+    "source": "def run(input)\n[1,2].clear(ignored:true)\nend",
+    "go_error": "array.clear does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_fill",
+    "source": "def run(input)\n[1,2].fill(0,ignored:true)\nend",
+    "go_error": "array.fill does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_sum",
+    "source": "def run(input)\n[1,2].sum(ignored:true)\nend",
+    "go_error": "array.sum does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_to_s",
+    "source": "def run(input)\n[1,2].to_s(ignored:true)\nend",
+    "go_error": "array.to_s does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_nil?",
+    "source": "def run(input)\n[1,2].nil?(ignored:true)\nend",
+    "go_error": "array.nil? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_itself",
+    "source": "def run(input)\n[1,2].itself(ignored:true)\nend",
+    "go_error": "array.itself does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_array_dup",
+    "source": "def run(input)\n[1,2].dup(ignored:true)\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_to_a",
+    "source": "def run(input)\n{a:1}.to_a(ignored:true)\nend",
+    "go_error": "hash.to_a does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_flatten",
+    "source": "def run(input)\n{a:1}.flatten(ignored:true)\nend",
+    "go_error": "hash.flatten does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_store",
+    "source": "def run(input)\n{a:1}.store(:b,2,ignored:true)\nend",
+    "go_error": "hash.store does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_delete",
+    "source": "def run(input)\n{a:1}.delete(:a,ignored:true)\nend",
+    "go_error": "hash.delete does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_replace",
+    "source": "def run(input)\n{a:1}.replace({},ignored:true)\nend",
+    "go_error": "hash.replace does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_clear",
+    "source": "def run(input)\n{a:1}.clear(ignored:true)\nend",
+    "go_error": "hash.clear does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_nil?",
+    "source": "def run(input)\n{a:1}.nil?(ignored:true)\nend",
+    "go_error": "hash.nil? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_itself",
+    "source": "def run(input)\n{a:1}.itself(ignored:true)\nend",
+    "go_error": "hash.itself does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_hash_dup",
+    "source": "def run(input)\n{a:1}.dup(ignored:true)\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_to_i",
+    "source": "def run(input)\n\"abc\".to_i(ignored:true)\nend",
+    "go_error": "string.to_i does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_to_s",
+    "source": "def run(input)\n\"abc\".to_s(ignored:true)\nend",
+    "go_error": "string.to_s does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_byteslice",
+    "source": "def run(input)\n\"abc\".byteslice(0,1,ignored:true)\nend",
+    "go_error": "string.byteslice does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_getbyte",
+    "source": "def run(input)\n\"abc\".getbyte(0,ignored:true)\nend",
+    "go_error": "string.getbyte does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_bytes",
+    "source": "def run(input)\n\"abc\".bytes(ignored:true)\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_chars",
+    "source": "def run(input)\n\"abc\".chars(ignored:true)\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_codepoints",
+    "source": "def run(input)\n\"abc\".codepoints(ignored:true)\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_nil?",
+    "source": "def run(input)\n\"abc\".nil?(ignored:true)\nend",
+    "go_error": "string.nil? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_itself",
+    "source": "def run(input)\n\"abc\".itself(ignored:true)\nend",
+    "go_error": "string.itself does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_string_dup",
+    "source": "def run(input)\n\"abc\".dup(ignored:true)\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_int_chr",
+    "source": "def run(input)\n3.chr(ignored:true)\nend",
+    "go_error": "unknown int method chr"
+  },
+  {
+    "name": "call_builtin_keyword_int_to_s",
+    "source": "def run(input)\n3.to_s(ignored:true)\nend",
+    "go_error": "int.to_s does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_int_to_i",
+    "source": "def run(input)\n3.to_i(ignored:true)\nend",
+    "go_error": "int.to_i does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_int_nil?",
+    "source": "def run(input)\n3.nil?(ignored:true)\nend",
+    "go_error": "int.nil? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_int_itself",
+    "source": "def run(input)\n3.itself(ignored:true)\nend",
+    "go_error": "int.itself does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_int_dup",
+    "source": "def run(input)\n3.dup(ignored:true)\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_first",
+    "source": "def run(input)\n(1..3).first(ignored:true)\nend",
+    "go_error": "range.first does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_last",
+    "source": "def run(input)\n(1..3).last(ignored:true)\nend",
+    "go_error": "range.last does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_size",
+    "source": "def run(input)\n(1..3).size(ignored:true)\nend",
+    "go_error": "range.size does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_exclude_end?",
+    "source": "def run(input)\n(1..3).exclude_end?(ignored:true)\nend",
+    "go_error": "range.exclude_end? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_include?",
+    "source": "def run(input)\n(1..3).include?(2,ignored:true)\nend",
+    "go_error": "range.include? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_cover?",
+    "source": "def run(input)\n(1..3).cover?(2,ignored:true)\nend",
+    "go_error": "range.cover? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_to_a",
+    "source": "def run(input)\n(1..3).to_a(ignored:true)\nend",
+    "go_error": "range.to_a does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_to_s",
+    "source": "def run(input)\n(1..3).to_s(ignored:true)\nend",
+    "go_error": "range.to_s does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_nil?",
+    "source": "def run(input)\n(1..3).nil?(ignored:true)\nend",
+    "go_error": "range.nil? does not take keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_itself",
+    "source": "def run(input)\n(1..3).itself(ignored:true)\nend",
+    "go_error": "range.itself does not accept keyword arguments"
+  },
+  {
+    "name": "call_builtin_keyword_range_dup",
+    "source": "def run(input)\n(1..3).dup(ignored:true)\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "call_scope_default_local_skipped",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x)\n[a,b]\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_default_local_body",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_default_local_branch",
+    "source": "def f(a=(if false then (while true\nx=7\nbreak 0\nend) else 0 end),b=x)\nb\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_body_call_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nx()\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_default_call_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x())\nb\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_body_nil_call_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx()\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_callee_order_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x(1/0))\nb\nend\ndef run(input)\nf()\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "call_scope_callee_rebound_used",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x((while true\nx=42\nbreak 3\nend)))\n[b,x]\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_default_read_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x)\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_body_call_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nx()\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_default_call_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x())\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_body_nil_call_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx()\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_default_before_body_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x)\nx=8\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_callee_order_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x(1/0))\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_callee_rebound_skip",
+    "source": "def f(a=(while true\nx=7\nbreak 0\nend),b=x((while true\nx=42\nbreak 3\nend)))\n[b,x]\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_global_body_call_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nx()\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_global_default_call_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x())\nb\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_global_body_nil_call_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx()\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_global_callee_order_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x(1/0))\nb\nend\ndef run(input)\nf()\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "call_scope_global_callee_rebound_used",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x((while true\nx=42\nbreak 3\nend)))\n[b,x]\nend\ndef run(input)\nf()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_global_body_read_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_global_default_read_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x)\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_global_body_nil_call_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend))\nif false\nx=8\nend\nx()\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_global_default_before_body_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x)\nx=8\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_global_callee_order_skip",
+    "source": "def x(v=9)\nv\nend\ndef f(a=(while true\nx=7\nbreak 0\nend),b=x(1/0))\nb\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "call_scope_body_ordinary_global_call",
+    "source": "def x()\n9\nend\ndef run(input)\nif false\nx=7\nend\nx()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_function_value_required",
+    "source": "def f(a)\n9\nend\ndef run(input)\nf\nend",
+    "go_error": "f is a function and cannot be used as a value; call it with f(...)"
+  },
+  {
+    "name": "call_scope_function_value_default",
+    "source": "def f(a=7)\n9\nend\ndef run(input)\nf\nend",
+    "go_error": "f is a function and cannot be used as a value; call it with f(...)"
+  },
+  {
+    "name": "call_scope_function_value_keyword",
+    "source": "def f(a:7)\n9\nend\ndef run(input)\nf\nend",
+    "go_error": "f is a function and cannot be used as a value; call it with f(...)"
+  },
+  {
+    "name": "call_scope_function_value_rest",
+    "source": "def f(*a)\n9\nend\ndef run(input)\nf\nend",
+    "go_error": "f is a function and cannot be used as a value; call it with f(...)"
+  },
+  {
+    "name": "call_scope_function_value_keyword_rest",
+    "source": "def f(**a)\n9\nend\ndef run(input)\nf\nend",
+    "go_error": "f is a function and cannot be used as a value; call it with f(...)"
+  },
+  {
+    "name": "call_scope_address_none_push_skip",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x.push([3])\n[r,x]\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_address_none_nested_push_skip",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x[0].push(3)\n[r,x]\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_address_none_write_skip",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_address_none_compound_write_skip",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]+=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_address_none_logical_write_skip",
+    "source": "def f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]||=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_address_optional_push_skip",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x.push([3])\n[r,x]\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_address_optional_nested_push_skip",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nr=x[0].push(3)\n[r,x]\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_address_optional_write_skip",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_address_optional_compound_write_skip",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]+=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_address_optional_logical_write_skip",
+    "source": "def x(a=9)\n[[a]]\nend\ndef f(a=(while true\nx=[[7]]\nbreak 0\nend))\nx[0]||=[3]\nx\nend\ndef run(input)\nf(1)\nend",
+    "go_error": "x is a function and cannot be used as a value; call it with x(...)"
+  },
+  {
+    "name": "call_scope_default_assign_none_add",
+    "source": "def f(a=(while true\nx+=3\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "call_scope_scope_none_read_before_assignment",
+    "source": "\ndef run(input)\nr=x\nx=3\nr\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_call_before_assignment",
+    "source": "\ndef run(input)\nr=x()\nx=3\nr\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_read_before_if",
+    "source": "\ndef run(input)\nr=x\nif false\nx=3\nend\nr\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_self_call_assignment",
+    "source": "\ndef run(input)\nx=x()\nx\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_loop_condition",
+    "source": "\ndef run(input)\nwhile x\nx=false\nend\nx\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_loop_read_before_assignment",
+    "source": "\ndef run(input)\nwhile true\nr=x\nx=3\nbreak r\nend\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_expression_loop_never_runs",
+    "source": "\ndef run(input)\nr=(while false\nx=3\nend)\nx\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_scope_none_expression_loop_break",
+    "source": "\ndef run(input)\nr=(while true\nbreak\nx=3\nend)\nx\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_default_none_self_call_assignment",
+    "source": "def f(a=(while true\nx=x()\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_default_none_loop_never_runs",
+    "source": "def f(a=(while false\nx=3\nend),b=x)\nb\nend\ndef run(input)\nf()\nend",
+    "go_error": "undefined variable x"
+  },
+  {
+    "name": "call_scope_default_assign_zero_add",
+    "source": "def x()\n9\nend\ndef f(a=(while true\nx+=3\nbreak x\nend))\na\nend\ndef run(input)\nf()\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "call_scope_other_local_does_not_bypass",
+    "source": "def x()\n9\nend\ndef run(input)\nx=1\ny=x()\ny\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "call_scope_destructure_target_no_bypass",
+    "source": "def x()\n0\nend\ndef run(input)\na=[1]\nx,a[x()]=[3,9]\n[a,x]\nend",
+    "go_error": "attempted to call non-callable value"
   }
 ]

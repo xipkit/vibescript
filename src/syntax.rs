@@ -252,10 +252,35 @@ pub(crate) enum Node {
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
     Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
     Loop(Box<Stmt>),
-    Call(String, Vec<Expr>),
+    Call(String, Vec<Argument>),
     Member(Box<Expr>, String),
-    Method(Box<Expr>, String, Vec<Expr>),
+    Method(Box<Expr>, String, Vec<Argument>),
     Index(Box<Expr>, Vec<Expr>),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ParamKind {
+    Positional,
+    Keyword,
+    Rest,
+    KeywordRest,
+}
+#[derive(Debug)]
+pub(crate) struct Parameter {
+    pub name: String,
+    pub kind: ParamKind,
+    pub default: Option<Expr>,
+}
+#[derive(Debug)]
+pub(crate) enum ArgumentKind {
+    Positional,
+    Splat,
+    Keyword(String),
+    KeywordSplat,
+}
+#[derive(Debug)]
+pub(crate) struct Argument {
+    pub kind: ArgumentKind,
+    pub value: Expr,
 }
 #[derive(Debug)]
 pub(crate) struct When {
@@ -316,7 +341,7 @@ impl Stmt {
 }
 pub(crate) struct Definition {
     pub name: String,
-    pub params: Vec<String>,
+    pub params: Vec<Parameter>,
     pub body: Vec<Stmt>,
 }
 
@@ -333,27 +358,8 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
     while !matches!(p.token(), Token::Eof) {
         if p.word("def") {
             let name = p.name()?;
-            let mut params = Vec::new();
-            if p.take_p('(') {
-                p.lines();
-                if !p.take_p(')') {
-                    loop {
-                        let name = p.name()?;
-                        if params.contains(&name) {
-                            return p.err("duplicate parameter");
-                        }
-                        params.push(name);
-                        p.lines();
-                        if p.take_p(')') {
-                            break;
-                        }
-                        p.expect_p(',')?;
-                        p.lines();
-                    }
-                }
-            } else if !matches!(p.token(), Token::EndLine) {
-                return p.err("expected function parameters or newline");
-            }
+            let parenthesized = p.take_p('(');
+            let params = p.parameters(parenthesized)?;
             p.lines();
             let body = p.block(&["end"])?;
             p.expect_word("end")?;
@@ -387,6 +393,112 @@ struct Parser {
     groups: usize,
 }
 impl Parser {
+    fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
+        let mut params = Vec::new();
+        let mut rest = false;
+        let mut keywords = false;
+        let mut keyword_rest = false;
+        if parenthesized {
+            self.groups += 1;
+            self.lines();
+        }
+        if (parenthesized && self.take_p(')'))
+            || (!parenthesized && matches!(self.token(), Token::EndLine))
+        {
+            if parenthesized {
+                self.groups -= 1;
+            }
+            return Ok(params);
+        }
+        loop {
+            let mut kind = match self.token() {
+                Token::Op("*") => {
+                    self.bump();
+                    ParamKind::Rest
+                }
+                Token::Op("**") => {
+                    self.bump();
+                    ParamKind::KeywordRest
+                }
+                _ => ParamKind::Positional,
+            };
+            let name = self.name()?;
+            let default = if self.take_p(':') {
+                if kind != ParamKind::Positional {
+                    return self.err("capture type annotations are not implemented");
+                }
+                kind = ParamKind::Keyword;
+                if parenthesized {
+                    self.lines();
+                }
+                if matches!(self.token(), Token::P(',' | ')') | Token::EndLine) {
+                    None
+                } else {
+                    let grouped = self.token() == &Token::P('(');
+                    let value = self.expr(0)?;
+                    if !grouped && annotation_expression(&value, &params, false) {
+                        return self.err("type annotations are not implemented");
+                    }
+                    Some(value)
+                }
+            } else if self.token() == &Token::Op("=") {
+                self.bump();
+                if kind != ParamKind::Positional {
+                    return self.err("capture parameters cannot have defaults");
+                }
+                if parenthesized {
+                    self.lines();
+                }
+                Some(self.expr(0)?)
+            } else {
+                None
+            };
+            match kind {
+                ParamKind::Positional if rest || keywords || keyword_rest => {
+                    return self
+                        .err("positional parameters must precede rest and keyword parameters");
+                }
+                ParamKind::Rest => {
+                    if rest || keywords || keyword_rest {
+                        return self.err("invalid rest parameter order");
+                    }
+                    rest = true;
+                }
+                ParamKind::Keyword => {
+                    if keyword_rest {
+                        return self.err("keyword parameter follows keyword rest");
+                    }
+                    keywords = true;
+                }
+                ParamKind::KeywordRest => {
+                    if keyword_rest {
+                        return self.err("duplicate keyword rest parameter");
+                    }
+                    keyword_rest = true;
+                }
+                _ => (),
+            }
+            params.push(Parameter {
+                name,
+                kind,
+                default,
+            });
+            if parenthesized {
+                self.lines();
+                if self.take_p(')') {
+                    self.groups -= 1;
+                    break;
+                }
+            } else if matches!(self.token(), Token::EndLine | Token::Eof) {
+                break;
+            }
+            self.expect_p(',')?;
+            if parenthesized {
+                self.lines();
+            }
+        }
+        Ok(params)
+    }
     fn token(&self) -> &Token {
         &self.tokens[self.pos].token
     }
@@ -918,8 +1030,8 @@ impl Parser {
                 let Node::Var(name) = lhs.node else {
                     return self.err("only named functions are callable");
                 };
-                let args = self.arguments(')')?;
-                let d = 1 + args.iter().map(|e| e.depth).max().unwrap_or(0);
+                let args = self.call_arguments()?;
+                let d = 1 + args.iter().map(|a| a.value.depth).max().unwrap_or(0);
                 lhs = self.make(Node::Call(name, args), d)?;
                 continue;
             }
@@ -928,10 +1040,10 @@ impl Parser {
                     return self.err("expected member name");
                 };
                 lhs = if self.take_p('(') {
-                    let args = self.arguments(')')?;
+                    let args = self.call_arguments()?;
                     let depth = 1 + lhs
                         .depth
-                        .max(args.iter().map(|e| e.depth).max().unwrap_or(0));
+                        .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
                     self.make(Node::Method(Box::new(lhs), name, args), depth)?
                 } else {
                     let depth = lhs.depth + 1;
@@ -1026,6 +1138,65 @@ impl Parser {
         self.groups -= 1;
         Ok(args)
     }
+    fn call_arguments(&mut self) -> Result<Vec<Argument>> {
+        self.groups += 1;
+        let mut args = Vec::new();
+        let mut keywords = false;
+        self.lines();
+        if self.take_p(')') {
+            self.groups -= 1;
+            return Ok(args);
+        }
+        loop {
+            let kind = if self.token() == &Token::Op("**") {
+                self.bump();
+                ArgumentKind::KeywordSplat
+            } else if matches!(self.token(), Token::Word(_))
+                && self
+                    .tokens
+                    .get(self.pos + 1)
+                    .is_some_and(|t| t.token == Token::P(':'))
+            {
+                let Token::Word(name) = self.bump() else {
+                    unreachable!()
+                };
+                self.bump();
+                ArgumentKind::Keyword(name)
+            } else if self.token() == &Token::Op("*") {
+                self.bump();
+                ArgumentKind::Splat
+            } else {
+                ArgumentKind::Positional
+            };
+            let keyword = matches!(kind, ArgumentKind::Keyword(_) | ArgumentKind::KeywordSplat);
+            if keywords && !keyword {
+                return self.err("positional arguments cannot follow keywords");
+            }
+            keywords |= keyword;
+            self.lines();
+            let value = if let ArgumentKind::Keyword(name) = &kind {
+                if matches!(self.token(), Token::P(',' | ')')) {
+                    self.make(Node::Var(name.clone()), 1)?
+                } else {
+                    self.expr(0)?
+                }
+            } else {
+                self.expr(0)?
+            };
+            args.push(Argument { kind, value });
+            self.lines();
+            if self.take_p(')') {
+                break;
+            }
+            self.expect_p(',')?;
+            self.lines();
+            if self.take_p(')') {
+                break;
+            }
+        }
+        self.groups -= 1;
+        Ok(args)
+    }
     fn starts_expression(&self) -> bool {
         match self.token() {
             Token::Word(w) => {
@@ -1039,6 +1210,20 @@ impl Parser {
             Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
             _ => false,
         }
+    }
+}
+
+fn annotation_expression(expr: &Expr, params: &[Parameter], shape: bool) -> bool {
+    match &expr.node {
+        Node::Var(name) => !shape || !params.iter().any(|p| p.name == *name),
+        Node::Member(root, _) => annotation_expression(root, params, true),
+        Node::Hash(fields) => {
+            !fields.is_empty()
+                && fields
+                    .iter()
+                    .all(|(_, value)| annotation_expression(value, params, true))
+        }
+        _ => false,
     }
 }
 
