@@ -219,9 +219,8 @@ fn lex(source: &str) -> Result<Vec<Lexeme>> {
                         b'<' => Token::Op("<"),
                         b'>' => Token::Op(">"),
                         b'!' => Token::Op("!"),
-                        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' | b'?' => {
-                            Token::P(s[start] as char)
-                        }
+                        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' | b'?'
+                        | b'|' => Token::P(s[start] as char),
                         _ => return Err(Error::syntax(start, "unsupported character")),
                     }
                 }
@@ -265,9 +264,18 @@ pub(crate) enum Node {
     Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
     Loop(Box<Stmt>),
     Call(String, Vec<Argument>),
+    BlockCall(Box<Expr>, Block),
+    Yield(Vec<Expr>),
     Member(Box<Expr>, String),
     Method(Box<Expr>, String, Vec<Argument>),
     Index(Box<Expr>, Vec<Expr>),
+}
+#[derive(Debug)]
+pub(crate) struct Block {
+    pub params: Vec<Target>,
+    pub body: Vec<Stmt>,
+    pub implicit: bool,
+    pub infer_it: bool,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ParamKind {
@@ -366,7 +374,10 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
         line_exprs: 0,
         command_depth: 0,
         ternaries: Vec::new(),
+        command_group: 0,
+        loop_condition: None,
         locals: HashSet::new(),
+        declared_it: false,
     };
     let mut defs = Vec::new();
     let mut top = Vec::new();
@@ -375,12 +386,14 @@ pub(crate) fn parse(source: &str) -> Result<Vec<Definition>> {
         if p.word("def") {
             let name = p.name()?;
             let outer_locals = std::mem::take(&mut p.locals);
+            let outer_it = std::mem::replace(&mut p.declared_it, false);
             let parenthesized = p.take_p('(');
             let params = p.parameters(parenthesized)?;
             p.lines();
             let body = p.block(&["end"])?;
             p.expect_word("end")?;
             p.locals = outer_locals;
+            p.declared_it = outer_it;
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
@@ -409,7 +422,10 @@ struct Parser {
     line_exprs: usize,
     command_depth: usize,
     ternaries: Vec<usize>,
+    command_group: usize,
+    loop_condition: Option<usize>,
     locals: HashSet<String>,
+    declared_it: bool,
 }
 impl Parser {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
@@ -506,6 +522,7 @@ impl Parser {
                 _ => (),
             }
             self.locals.insert(name.clone());
+            self.declared_it |= name == "it";
             params.push(Parameter {
                 name,
                 kind,
@@ -611,6 +628,7 @@ impl Parser {
                 ..
             }) => {
                 self.locals.insert(name.clone());
+                self.declared_it |= name == "it";
             }
             Target::Tuple(parts) => {
                 for (part, _) in parts {
@@ -626,7 +644,9 @@ impl Parser {
         self.enter()?;
         let mut body = Vec::new();
         self.lines();
-        while !matches!(self.token(),Token::Word(w) if stop.contains(&w.as_str())) {
+        while !matches!(self.token(),Token::Word(w) if stop.contains(&w.as_str()))
+            && !(self.token() == &Token::P('}') && stop.contains(&"}"))
+        {
             if matches!(self.token(), Token::Eof) {
                 return self.err("unexpected end of source");
             }
@@ -751,7 +771,9 @@ impl Parser {
         self.make(Node::Unary("!", Box::new(expr)), depth)
     }
     fn while_stmt(&mut self, until: bool) -> Result<Stmt> {
+        let previous = self.loop_condition.replace(self.groups);
         let mut cond = self.line_expr(0)?;
+        self.loop_condition = previous;
         if until {
             cond = self.negate(cond)?;
         }
@@ -766,7 +788,9 @@ impl Parser {
             return self.err("invalid for loop target");
         }
         self.expect_word("in")?;
+        let previous = self.loop_condition.replace(self.groups);
         let iterable = self.line_expr(0)?;
+        self.loop_condition = previous;
         self.word("do");
         self.declare_target(&target);
         let body = self.block(&["end"])?;
@@ -1024,6 +1048,7 @@ impl Parser {
                 "false" => self.make(Node::Literal(Value::boolean(false)), 1)?,
                 "if" | "unless" => self.if_expr(w == "unless")?,
                 "case" => self.case_expr()?,
+                "yield" => self.yield_expr()?,
                 "while" | "until" | "for" => {
                     let stmt = if w == "for" {
                         self.for_stmt()?
@@ -1116,7 +1141,9 @@ impl Parser {
                 if self.command_depth > 64 {
                     return self.err("parenless call nesting too deep");
                 }
+                let group = std::mem::replace(&mut self.command_group, self.groups);
                 let args = self.command_arguments()?;
+                self.command_group = group;
                 self.command_depth -= 1;
                 let depth = 1 + lhs
                     .depth
@@ -1127,6 +1154,22 @@ impl Parser {
                     _ => unreachable!(),
                 };
                 lhs = self.make(node, depth)?;
+                continue;
+            }
+            let brace = self.token() == &Token::P('{');
+            let do_block =
+                matches!(self.token(), Token::Word(w) if w == "do") && self.can_attach_do();
+            if (brace || do_block)
+                && (do_block || self.tokens[self.pos].line == self.previous().end_line)
+            {
+                let block = self.attached_block(brace)?;
+                if let Node::BlockCall(call, _) = lhs.node {
+                    lhs = *call;
+                }
+                let depth = 1 + lhs
+                    .depth
+                    .max(block.body.iter().map(Stmt::depth).max().unwrap_or(0));
+                lhs = self.make(Node::BlockCall(Box::new(lhs), block), depth)?;
                 continue;
             }
             if self.take_p('(') {
@@ -1218,6 +1261,116 @@ impl Parser {
             .find(|t| t.token != Token::EndLine)
             .unwrap()
     }
+    fn attached_block(&mut self, brace: bool) -> Result<Block> {
+        self.bump();
+        self.lines();
+        let outer = self.locals.clone();
+        let outer_it = self.declared_it;
+        let infer_it = !outer_it;
+        let mut params = Vec::new();
+        let explicit = if self.token() == &Token::Op("||") {
+            self.bump();
+            true
+        } else if self.take_p('|') {
+            self.lines();
+            if !self.take_p('|') {
+                loop {
+                    let target = if self.take_p('(') {
+                        let target = self.target(false)?;
+                        self.lines();
+                        self.expect_p(')')?;
+                        match target {
+                            Target::Tuple(_) => target,
+                            _ => Target::Tuple(vec![(Some(target), false)]),
+                        }
+                    } else if self.take_p('[') {
+                        let target = self.target(false)?;
+                        self.lines();
+                        self.expect_p(']')?;
+                        match target {
+                            Target::Tuple(_) => target,
+                            _ => Target::Tuple(vec![(Some(target), false)]),
+                        }
+                    } else {
+                        let name = self.name()?;
+                        Target::Value(self.make(Node::Var(name), 1)?)
+                    };
+                    if !target.is_binding() {
+                        return self.err("invalid block parameter");
+                    }
+                    self.declare_target(&target);
+                    params.push(target);
+                    self.lines();
+                    if self.take_p('|') {
+                        break;
+                    }
+                    self.expect_p(',')?;
+                    self.lines();
+                }
+            }
+            true
+        } else {
+            false
+        };
+        if !explicit {
+            self.locals.insert("it".into());
+            for n in 1..=9 {
+                self.locals.insert(format!("_{n}"));
+            }
+        }
+        let previous_loop = self.loop_condition.take();
+        let command_depth = std::mem::replace(&mut self.command_depth, 0);
+        let body = self.block(if brace { &["}"] } else { &["end"] })?;
+        self.command_depth = command_depth;
+        self.loop_condition = previous_loop;
+        if brace {
+            self.expect_p('}')?;
+        } else {
+            self.expect_word("end")?;
+        }
+        self.locals = outer;
+        self.declared_it = outer_it;
+        Ok(Block {
+            params,
+            body,
+            implicit: !explicit,
+            infer_it,
+        })
+    }
+    fn can_attach_do(&self) -> bool {
+        (self.command_depth == 0 || self.groups > self.command_group)
+            && self.loop_condition.is_none_or(|group| self.groups > group)
+    }
+    fn yield_expr(&mut self) -> Result<Expr> {
+        let line = self.previous().line;
+        let mut next = self.pos;
+        while self.tokens[next].token == Token::EndLine
+            && self.tokens[next].line != self.tokens[next].end_line
+        {
+            next += 1;
+        }
+        if self.tokens[next].token == Token::P('(') {
+            self.pos = next;
+        }
+        let args = if self.take_p('(') {
+            self.arguments(')')?
+        } else {
+            let mut args = Vec::new();
+            if self.tokens[self.pos].line == line && self.starts_expression() {
+                args.push(self.line_expr(0)?);
+                while self.token() == &Token::P(',')
+                    && self.tokens[self.pos].line == line
+                    && self.tokens[self.pos + 1].line == line
+                {
+                    self.bump();
+                    args.push(self.line_expr(0)?);
+                }
+            }
+            args
+        };
+        let depth = 1 + args.iter().map(|arg| arg.depth).max().unwrap_or(0);
+        self.make(Node::Yield(args), depth)
+    }
     fn continuation_position(&self, min: u8) -> Option<usize> {
         if self.token() != &Token::EndLine {
             return None;
@@ -1231,6 +1384,7 @@ impl Parser {
         }
         let lexeme = &self.tokens[next];
         let continues = match lexeme.token {
+            Token::Word(ref word) if word == "do" => self.can_attach_do(),
             Token::P('.') => true,
             Token::P('?') => min <= 2,
             Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
@@ -1371,7 +1525,7 @@ impl Parser {
             return true;
         }
         match &self.tokens[pos].token {
-            Token::Word(w) => !reserved(w) || matches!(w.as_str(), "case" | "for"),
+            Token::Word(w) => !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield"),
             Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,
             Token::P(':') => self.symbol_start(pos),
             Token::Op("!") => true,
@@ -1516,7 +1670,7 @@ impl Parser {
                 !reserved(w)
                     || matches!(
                         w.as_str(),
-                        "if" | "unless" | "case" | "while" | "until" | "for"
+                        "if" | "unless" | "case" | "while" | "until" | "for" | "yield"
                     )
             }
             Token::Int(_) | Token::Float(_) | Token::Bytes(_) => true,

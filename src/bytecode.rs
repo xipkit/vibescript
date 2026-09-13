@@ -1,6 +1,6 @@
 use crate::{
     Result, Value,
-    syntax::{self, Argument, ArgumentKind, Expr, Node, ParamKind, Stmt, Target},
+    syntax::{self, Argument, ArgumentKind, Block, Expr, Node, ParamKind, Stmt, Target},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -15,6 +15,12 @@ pub(crate) enum Op {
     Bind(usize, usize),
     BindEnd,
     Declare(usize),
+    Shadow(usize),
+    BlockArg(usize, bool),
+    Attach(usize),
+    BlockGiven(bool, bool),
+    CheckBlock,
+    Yield(usize),
     Store(usize),
     Pop,
     Dup,
@@ -48,7 +54,7 @@ pub(crate) enum Op {
     LoopBody,
     LoopEnd,
     Break(bool),
-    Next,
+    Next(bool),
     Call(usize, usize),
     AutoCall(usize),
     Host(usize, usize),
@@ -56,6 +62,8 @@ pub(crate) enum Op {
     Method(CallSite, usize),
     Arguments,
     ResolveCall(usize, usize),
+    Bypass(usize),
+    BypassEnd(usize),
     Argument(ArgumentOp),
     Invoke(Invocation),
     JsonParse,
@@ -64,6 +72,7 @@ pub(crate) enum Op {
     JumpFalse(usize),
     JumpTrue(usize),
     Return,
+    Finish,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -254,7 +263,7 @@ impl Method {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct Function {
     pub name: String,
     pub params: Vec<Parameter>,
@@ -262,6 +271,13 @@ pub(crate) struct Function {
     pub plain: bool,
     pub locals: usize,
     pub code: Vec<Op>,
+    pub captures: Vec<Option<Capture>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Capture {
+    pub depth: usize,
+    pub slot: usize,
 }
 #[derive(Debug)]
 pub(crate) struct Program {
@@ -280,20 +296,22 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         .map(|(i, d)| (d.name.clone(), i))
         .collect();
     let mut program = Program {
-        functions: Vec::new(),
+        functions: (0..defs.len()).map(|_| Function::default()).collect(),
         constants: Vec::new(),
         names,
         hosts,
         members: Vec::new(),
     };
-    for def in defs {
+    for (index, def) in defs.into_iter().enumerate() {
         let mut c = Compiler {
             program: &mut program,
             locals: HashMap::new(),
             code: Vec::new(),
             parameters: HashSet::new(),
-            bypass: HashSet::new(),
             loop_bindings: Vec::new(),
+            outer: Vec::new(),
+            reads: HashSet::new(),
+            assigned: HashSet::new(),
         };
         let defaults = def.params.iter().any(|p| p.default.is_some());
         let plain = !defaults && def.params.iter().all(|p| p.kind == ParamKind::Positional);
@@ -325,7 +343,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         }
         c.declare(&def.body);
         c.block(&def.body)?;
-        c.code.push(Op::Return);
+        c.code.push(Op::Finish);
         let function = Function {
             name: def.name,
             params,
@@ -333,8 +351,9 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             plain,
             locals: c.locals.len(),
             code: c.code,
+            captures: Vec::new(),
         };
-        program.functions.push(function);
+        program.functions[index] = function;
     }
     Ok(program)
 }
@@ -349,13 +368,20 @@ struct Compiler<'a> {
     locals: HashMap<String, usize>,
     code: Vec<Op>,
     parameters: HashSet<String>,
-    bypass: HashSet<String>,
     loop_bindings: Vec<Vec<usize>>,
+    outer: Vec<HashMap<String, usize>>,
+    reads: HashSet<String>,
+    assigned: HashSet<String>,
 }
 impl Compiler<'_> {
     fn slot(&mut self, name: &str) -> usize {
         let n = self.locals.len();
         *self.locals.entry(name.to_owned()).or_insert(n)
+    }
+    fn capture_name(&mut self, name: &str) {
+        if self.outer.iter().any(|scope| scope.contains_key(name)) {
+            self.slot(name);
+        }
     }
     fn declare(&mut self, body: &[Stmt]) {
         for stmt in body {
@@ -394,6 +420,7 @@ impl Compiler<'_> {
                 ..
             }) => {
                 self.slot(name);
+                self.assigned.insert(name.clone());
             }
             Target::Value(e) => self.declare_expr(e),
             Target::Tuple(parts) => {
@@ -407,17 +434,26 @@ impl Compiler<'_> {
     }
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
-            Node::Literal(_) | Node::Var(_) => (),
-            Node::Array(values) => {
+            Node::Literal(_) => (),
+            Node::Var(name) => {
+                self.reads.insert(name.clone());
+                self.capture_name(name);
+            }
+            Node::Array(values) | Node::Yield(values) => {
                 for value in values {
                     self.declare_expr(value);
                 }
             }
-            Node::Call(_, args) => {
+            Node::Call(name, args) => {
+                if name != "it" {
+                    self.reads.insert(name.clone());
+                }
+                self.capture_name(name);
                 for arg in args {
                     self.declare_expr(&arg.value);
                 }
             }
+            Node::BlockCall(call, _) => self.declare_expr(call),
             Node::Hash(entries) => {
                 for (_, value) in entries {
                     self.declare_expr(value);
@@ -519,14 +555,26 @@ impl Compiler<'_> {
         Ok(())
     }
     fn assignment_rhs(&mut self, target: &Target, values: &[&Expr]) -> Result<()> {
-        let previous = self.bypass.clone();
         let mut names = Vec::new();
         target_names(target, &mut names);
-        self.bypass.extend(names.into_iter().map(str::to_owned));
+        let mut calls = HashSet::new();
+        for value in values {
+            call_names(value, &mut calls);
+        }
+        let mut seen = HashSet::new();
+        let names: Vec<_> = names
+            .into_iter()
+            .filter(|name| calls.contains(name) && seen.insert(*name))
+            .collect();
+        for name in &names {
+            self.emit(Op::Bypass(self.locals[*name]));
+        }
         for value in values {
             self.expr(value)?;
         }
-        self.bypass = previous;
+        if !names.is_empty() {
+            self.emit(Op::BypassEnd(names.len()));
+        }
         Ok(())
     }
     fn statement_bindings(&self, body: &[Stmt]) -> Vec<usize> {
@@ -705,7 +753,7 @@ impl Compiler<'_> {
                         self.code.push(Op::Declare(slot));
                     }
                 }
-                self.emit(Op::Next);
+                self.emit(Op::Next(value.is_some()));
             }
         }
         Ok(())
@@ -758,6 +806,9 @@ impl Compiler<'_> {
     fn expr(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
             Node::Literal(v) => self.constant(v.clone()),
+            Node::Var(name) if name == "block_given?" => {
+                self.emit(Op::BlockGiven(false, false));
+            }
             Node::Var(name) => {
                 if let Some(&slot) = self.locals.get(name) {
                     if !self.parameters.contains(name) {
@@ -872,19 +923,26 @@ impl Compiler<'_> {
                     self.emit(Op::Binary(op));
                 }
             }
+            Node::Call(name, args) if name == "block_given?" => {
+                self.emit(Op::BlockGiven(!args.is_empty(), false));
+            }
+            Node::Yield(args) => {
+                self.emit(Op::CheckBlock);
+                for arg in args {
+                    self.expr(arg)?;
+                }
+                self.emit(Op::Yield(args.len()));
+            }
+            Node::BlockCall(call, block) => self.block_call(call, block)?,
             Node::Call(name, args) => {
                 if let Some(&slot) = self.locals.get(name) {
-                    if !self.parameters.contains(name) && !self.bypass.contains(name) {
-                        let name = self.call_site(name, false).name;
-                        self.emit(Op::ResolveCall(slot, name));
-                        self.argument_values(args)?;
-                        self.emit(Op::Invoke(Invocation::Resolved));
-                        return Ok(());
-                    }
+                    let name = self.call_site(name, false).name;
+                    self.emit(Op::ResolveCall(slot, name));
+                    self.argument_values(args)?;
+                    self.emit(Op::Invoke(Invocation::Resolved));
+                    return Ok(());
                 }
-                let target = if self.locals.contains_key(name) && !self.bypass.contains(name) {
-                    Invocation::NonCallable
-                } else if let Some(&fun) = self.program.names.get(name) {
+                let target = if let Some(&fun) = self.program.names.get(name) {
                     Invocation::Function(fun)
                 } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
                     Invocation::Host(host)
@@ -908,8 +966,8 @@ impl Compiler<'_> {
                     });
                 }
             }
-            Node::Member(recv, name) => self.member_call(recv, name, &[], true)?,
-            Node::Method(recv, name, args) => self.member_call(recv, name, args, false)?,
+            Node::Member(recv, name) => self.member_call(recv, name, &[], true, None)?,
+            Node::Method(recv, name, args) => self.member_call(recv, name, args, false, None)?,
             Node::Index(value, index) => {
                 self.expr(value)?;
                 for index in index {
@@ -935,15 +993,19 @@ impl Compiler<'_> {
         name: &str,
         args: &[Argument],
         auto: bool,
+        block: Option<usize>,
     ) -> Result<()> {
         if matches!(&receiver.node, Node::Var(v) if v == "JSON") {
-            if expanded(args) {
+            if expanded(args) || block.is_some() {
                 let parse = match name {
                     "parse" => true,
                     "stringify" => false,
                     _ => return Err(syntax::unsupported("unknown JSON method")),
                 };
                 self.call_arguments(args)?;
+                if let Some(block) = block {
+                    self.emit(Op::Attach(block));
+                }
                 self.emit(Op::Invoke(Invocation::Json(parse)));
                 return Ok(());
             }
@@ -978,8 +1040,11 @@ impl Compiler<'_> {
                 self.expr(receiver)?;
             }
             let site = self.call_site(name, auto);
-            if expanded(args) {
+            if expanded(args) || block.is_some() {
                 self.call_arguments(args)?;
+                if let Some(block) = block {
+                    self.emit(Op::Attach(block));
+                }
                 self.emit(Op::Invoke(Invocation::Member(site, mutating)));
             } else {
                 for arg in args {
@@ -993,6 +1058,114 @@ impl Compiler<'_> {
             }
         }
         Ok(())
+    }
+    fn block_call(&mut self, call: &Expr, block: &Block) -> Result<()> {
+        let function = self.compile_block(block)?;
+        let (name, args) = match &call.node {
+            Node::Var(name) => (name.as_str(), &[][..]),
+            Node::Call(name, args) => (name.as_str(), args.as_slice()),
+            Node::Member(receiver, name) => {
+                return self.member_call(receiver, name, &[], false, Some(function));
+            }
+            Node::Method(receiver, name, args) => {
+                return self.member_call(receiver, name, args, false, Some(function));
+            }
+            _ => {
+                self.expr(call)?;
+                self.emit(Op::Pop);
+                self.emit(Op::NonCallable);
+                return Ok(());
+            }
+        };
+        if name == "block_given?" {
+            self.emit(Op::BlockGiven(!args.is_empty(), true));
+            return Ok(());
+        }
+        let target = if let Some(&slot) = self.locals.get(name) {
+            let name = self.call_site(name, false).name;
+            self.emit(Op::ResolveCall(slot, name));
+            Invocation::Resolved
+        } else {
+            let target = if let Some(&function) = self.program.names.get(name) {
+                Invocation::Function(function)
+            } else if let Some(host) = self.program.hosts.iter().position(|host| host == name) {
+                Invocation::Host(host)
+            } else {
+                let site = self.call_site(name, false);
+                self.emit(Op::Unbound(site.name));
+                return Ok(());
+            };
+            self.emit(Op::Arguments);
+            target
+        };
+        self.argument_values(args)?;
+        self.emit(Op::Attach(function));
+        self.emit(Op::Invoke(target));
+        Ok(())
+    }
+    fn compile_block(&mut self, block: &Block) -> Result<usize> {
+        let mut outer = vec![self.locals.clone()];
+        outer.extend(self.outer.iter().cloned());
+        let mut child = Compiler {
+            program: self.program,
+            locals: HashMap::new(),
+            code: Vec::new(),
+            parameters: HashSet::new(),
+            loop_bindings: Vec::new(),
+            outer,
+            reads: HashSet::new(),
+            assigned: HashSet::new(),
+        };
+        child.declare(&block.body);
+        for target in &block.params {
+            child.declare_target(target);
+            let mut names = Vec::new();
+            target_names(target, &mut names);
+            for name in names {
+                let slot = child.slot(name);
+                child.parameters.insert(name.to_owned());
+                child.emit(Op::Shadow(slot));
+            }
+        }
+        for (index, target) in block.params.iter().enumerate() {
+            child.emit(Op::BlockArg(index, block.params.len() > 1));
+            child.assign_value(target)?;
+            child.emit(Op::Pop);
+        }
+        if block.implicit {
+            let candidates = (1..=9)
+                .map(|index| (format!("_{index}"), index - 1))
+                .chain(block.infer_it.then_some(("it".to_owned(), 0)));
+            for (name, index) in candidates {
+                if child.reads.contains(&name) && !child.assigned.contains(&name) {
+                    let slot = child.slot(&name);
+                    child.parameters.insert(name);
+                    child.emit(Op::Shadow(slot));
+                    child.emit(Op::BlockArg(index, false));
+                    child.emit(Op::Store(slot));
+                    child.emit(Op::Pop);
+                }
+            }
+        }
+        child.block(&block.body)?;
+        child.emit(Op::Finish);
+        let mut captures = vec![None; child.locals.len()];
+        for (name, &slot) in &child.locals {
+            captures[slot] =
+                child.outer.iter().enumerate().find_map(|(depth, scope)| {
+                    scope.get(name).map(|&slot| Capture { depth, slot })
+                });
+        }
+        let function = Function {
+            name: "<block>".into(),
+            locals: child.locals.len(),
+            code: child.code,
+            captures,
+            ..Function::default()
+        };
+        let index = self.program.functions.len();
+        self.program.functions.push(function);
+        Ok(index)
     }
     fn call_arguments(&mut self, args: &[Argument]) -> Result<()> {
         self.emit(Op::Arguments);
@@ -1062,6 +1235,118 @@ impl Compiler<'_> {
             }
         }
         Ok(())
+    }
+}
+
+fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
+    match &expr.node {
+        Node::Literal(_) | Node::Var(_) => (),
+        Node::Call(name, args) => {
+            names.insert(name);
+            for arg in args {
+                call_names(&arg.value, names);
+            }
+        }
+        Node::BlockCall(call, block) => {
+            if let Node::Var(name) = &call.node {
+                names.insert(name);
+            }
+            call_names(call, names);
+            block_call_names(&block.body, names);
+        }
+        Node::Array(items) | Node::Yield(items) => {
+            for item in items {
+                call_names(item, names);
+            }
+        }
+        Node::Hash(entries) => {
+            for (_, item) in entries {
+                call_names(item, names);
+            }
+        }
+        Node::Unary(_, value) | Node::Member(value, _) => call_names(value, names),
+        Node::Binary(_, a, b) => {
+            call_names(a, names);
+            call_names(b, names);
+        }
+        Node::Conditional(a, b, c) => {
+            call_names(a, names);
+            call_names(b, names);
+            call_names(c, names);
+        }
+        Node::Range(a, b, _) => {
+            for item in a.iter().chain(b) {
+                call_names(item, names);
+            }
+        }
+        Node::Case(target, clauses, alternate) => {
+            for item in target.iter().chain(alternate) {
+                call_names(item, names);
+            }
+            for clause in clauses {
+                for (item, _) in &clause.values {
+                    call_names(item, names);
+                }
+                call_names(&clause.result, names);
+            }
+        }
+        Node::Loop(stmt) => block_call_names(std::slice::from_ref(stmt), names),
+        Node::Method(receiver, _, args) => {
+            call_names(receiver, names);
+            for arg in args {
+                call_names(&arg.value, names);
+            }
+        }
+        Node::Index(receiver, args) => {
+            call_names(receiver, names);
+            for arg in args {
+                call_names(arg, names);
+            }
+        }
+    }
+}
+
+fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
+    match target {
+        Target::Value(expr) => call_names(expr, names),
+        Target::Tuple(parts) => {
+            for (part, _) in parts {
+                if let Some(part) = part {
+                    target_call_names(part, names);
+                }
+            }
+        }
+    }
+}
+
+fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
+    for stmt in body {
+        match stmt {
+            Stmt::Expr(expr) => call_names(expr, names),
+            Stmt::Assign(target, _, value) => {
+                target_call_names(target, names);
+                call_names(value, names);
+            }
+            Stmt::If(condition, yes, no) => {
+                call_names(condition, names);
+                block_call_names(yes, names);
+                block_call_names(no, names);
+            }
+            Stmt::While(condition, body) => {
+                call_names(condition, names);
+                block_call_names(body, names);
+            }
+            Stmt::For(target, source, body) => {
+                target_call_names(target, names);
+                call_names(source, names);
+                block_call_names(body, names);
+            }
+            Stmt::Return(value) | Stmt::Break(value) | Stmt::Next(value) => {
+                if let Some(value) = value {
+                    call_names(value, names);
+                }
+            }
+        }
     }
 }
 

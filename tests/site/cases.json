@@ -3240,6 +3240,17 @@
     }
   },
   {
+    "path": "upstream/capabilities/iteration.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "note": "This example requires the db capability which is injected by the host application.",
+      "functions": [
+        "total_raised_for_player"
+      ]
+    }
+  },
+  {
     "path": "upstream/collections/arrays.vibe",
     "function": "run",
     "args": [],

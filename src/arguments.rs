@@ -13,6 +13,13 @@ pub(crate) struct Arguments {
     pub keywords: Hash,
     pub options_hash: bool,
     pub target: Option<Invocation>,
+    pub block: Option<Block>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Block {
+    pub function: usize,
+    pub parent: usize,
 }
 
 impl Arguments {
@@ -22,6 +29,7 @@ impl Arguments {
             keywords: Hash::empty(),
             options_hash: true,
             target: None,
+            block: None,
         }
     }
 

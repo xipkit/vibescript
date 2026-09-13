@@ -1133,5 +1133,120 @@
     "name": "command_identifier_embedded_question",
     "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nid?false\nend",
     "go_error": "undefined variable id?false"
+  },
+  {
+    "name": "block_bare_brace",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none 2 { |x| x+1 }\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_explicit_no_inference",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3) {|| _1}\nend",
+    "go_error": "undefined variable _1"
+  },
+  {
+    "name": "block_new_local",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero {new_value=3};new_value\nend",
+    "go_error": "undefined variable new_value"
+  },
+  {
+    "name": "block_no_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3)\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "block_no_block_before_arguments",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nyield missing\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "block_predicate_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nblock_given? {0}\nend",
+    "go_error": "block_given? does not accept a block"
+  },
+  {
+    "name": "block_predicate_arguments",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nblock_given?(missing)\nend",
+    "go_error": "block_given? takes no arguments"
+  },
+  {
+    "name": "block_predicate_keyword",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nblock_given?(bad:missing)\nend",
+    "go_error": "block_given? takes no arguments"
+  },
+  {
+    "name": "block_function_break",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nbreak 3\nend\ndef run(input)\nf {7}\nend",
+    "go_error": "break used outside of loop"
+  },
+  {
+    "name": "block_break_through_plain_function",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nbreak 3\nend\ndef run(input)\nzero {f()}\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "block_next_through_plain_function",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nnext 3\nend\ndef run(input)\nzero {f()}\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "block_capture_resolved_call",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nif false\none=9\nend\nzero {one(3){|v|v}}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_capture_called_local",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none=9;zero {one(3){|v|v}}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_return_pending_arguments",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none([1]*1000) {return 7};99\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "block_brace_on_literal",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\n1 {2}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_do_on_literal",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\n1 do 2 end\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_brace_nested_command",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none zero {3}\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "block_do_nested_command",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none zero do 3 end\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "block_literal_brace_argument",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none [1] {|x|x}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_block_shadow_default_name",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none(3){|one|one(2){|x|x}}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_bypass_block_parameter_shadow",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none=zero {one(3){|one|one(2){|v|v}}};one\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_bypass_block_parameter_assignment",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none=9;one(3){|one|one=zero {one(2){|v|v}}}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "block_bypass_loop_cleanup",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef id(x)\nx\nend\ndef receive()\nid=9\nwhile true\nid=yield id(3)\nend\nid(4)\nend\ndef run(input)\nreceive {break 7}\nend",
+    "go_error": "attempted to call non-callable value"
   }
 ]

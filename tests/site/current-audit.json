@@ -1,14 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "82f646d7520a45376ddc730d51c21e9d161d13bb",
-  "dirty": " M scripts/compare.py\n M src/syntax.rs\n M tests/language-errors.json\n M tests/language.json\n?? tests/commands.rs\n?? tests/syntax-errors.json\n",
+  "source_revision": "d6df627f418ae13e2673bf0cc6de2e95d11132e8",
+  "dirty": " M src/arguments.rs\n M src/bytecode.rs\n M src/syntax.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? tests/blocks.rs\n",
   "binary_sha256": {
-    "go-simd": "a6f695cf35f006ab08ed1a9675c124d943218018e33d60b07a8fdb37fccf3ada",
-    "rust-simd": "1847969fd994e185e06fdb4af8be23e300d0618d0a0aa99587c117134c7c4702"
+    "go-simd": "3a87d4b753c52f32f22537bc32a360928031dd730ca6dd6a6581c698c3b4ef2c",
+    "rust-simd": "8503297e893cc84348ac7830bf115850af418bc8c0f63727a14213302625513a"
   },
   "counts": {
-    "match": 134,
-    "rust_gap": 54,
+    "match": 135,
+    "rust_gap": 53,
     "harness_gap": 15
   },
   "examples": [
@@ -420,7 +420,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(526) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -469,7 +469,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(1127) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(1196) }\n"
       },
       "status": "rust_gap"
     },
@@ -496,7 +496,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(382) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -697,7 +697,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(517) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -1727,7 +1727,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(394) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -2906,7 +2906,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(1468) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(1490) }\n"
       },
       "status": "rust_gap"
     },
@@ -4198,7 +4198,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(372) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(484) }\n"
       },
       "status": "rust_gap"
     },
@@ -4217,7 +4217,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(1582) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -4819,7 +4819,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(711) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method sort is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -5090,7 +5090,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(847) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method times is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -5264,7 +5264,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(323) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method select is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7201,7 +7201,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(327) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method map is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7251,7 +7251,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(416) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each_slice is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7323,7 +7323,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(346) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7354,7 +7354,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(421) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method select is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -7428,7 +7428,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(1579) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"string interpolation is not implemented\", offset: Some(2031) }\n"
       },
       "status": "rust_gap"
     },
@@ -7594,7 +7594,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(384) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(338) }\n"
       },
       "status": "rust_gap"
     },
@@ -7745,7 +7745,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(681) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"type annotations are not implemented\", offset: Some(346) }\n"
       },
       "status": "rust_gap"
     },
@@ -7776,7 +7776,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(599) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(310) }\n"
       },
       "status": "rust_gap"
     },
@@ -8101,7 +8101,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(190) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(740) }\n"
       },
       "status": "rust_gap"
     },
@@ -8230,7 +8230,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(62) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method reduce is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8242,7 +8242,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(88) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8262,7 +8262,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(55) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method map is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8288,7 +8288,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(500) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8359,10 +8359,16 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(151) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "note": "This example requires the db capability which is injected by the host application.",
+          "functions": [
+            "total_raised_for_player"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "upstream/collections/arrays.vibe",
@@ -8689,7 +8695,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(279) }\n"
+        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(32) }\n"
       },
       "status": "rust_gap"
     },
@@ -8713,7 +8719,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(473) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"undefined variable money\", offset: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8766,7 +8772,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(73) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8784,7 +8790,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(528) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -8829,7 +8835,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(370) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method each is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },
@@ -9004,7 +9010,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"unsupported character\", offset: Some(140) }\n"
+        "stderr": "Error: Error { kind: Name, message: \"method match is not implemented\", offset: None }\n"
       },
       "status": "rust_gap"
     },

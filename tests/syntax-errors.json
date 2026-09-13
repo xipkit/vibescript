@@ -148,5 +148,35 @@
     "name": "command_slash_unterminated_argument",
     "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\nn /2\nend",
     "go_error": "parse error at 11:3: unterminated regex literal"
+  },
+  {
+    "name": "block_rest_parameter_rejected",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(1){|*x|x}\nend",
+    "go_error": "parse error at 25:9: expected block parameter, got \"*\""
+  },
+  {
+    "name": "block_default_parameter_rejected",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(1){|x=2|x}\nend",
+    "go_error": "parse error at 25:10: expected \"|\", got \"=\""
+  },
+  {
+    "name": "block_trailing_parameter_comma",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(1){|x,|x}\nend",
+    "go_error": "parse error at 25:11: trailing comma in block parameter list"
+  },
+  {
+    "name": "block_while_newline_delimiter",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nx=0;while x<2\ndo\nx+=1\nend\nx\nend",
+    "go_error": "parse error at 26:1: unexpected token 'do'"
+  },
+  {
+    "name": "block_yield_splat_rejected",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nyield(*[1])\nend\ndef run(input)\nf {|x|x}\nend",
+    "go_error": "parse error at 19:7: unexpected token \"*\""
+  },
+  {
+    "name": "block_yield_keyword_rejected",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nyield(x:1)\nend\ndef run(input)\nf {|x|x}\nend",
+    "go_error": "parse error at 19:8: expected \")\", got \":\""
   }
 ]

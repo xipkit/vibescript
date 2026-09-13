@@ -4753,5 +4753,1437 @@
     "name": "command_slash_local",
     "source": "def pack(*args,**kw)\n[args,kw]\nend\ndef id(x)\nx\nend\ndef n()\n10\nend\ndef run(input)\na=10\na /2\nend",
     "expected": 5
+  },
+  {
+    "name": "block_brace",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(2) { |x| x+1 }\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_do",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(2) do |x|\nx+1\nend\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_empty",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero {}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_bare",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none 2 do |x| x+1 end\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_multiple_statements",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(2) {|x| y=x+1; y*2}\nend",
+    "expected": 6
+  },
+  {
+    "name": "block_missing",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero {|a,b| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_extras",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwo(1,2) {|a| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_empty_parameters",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwo(1,2) {|| 7}\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_destructure",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2,3]) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      1,
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "block_autosplat",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2,3]) {|a,b| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_autosplat_nested",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([[1,2],3]) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "block_one_parameter_array",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2]) {|a| a}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_nested_bracket_pattern",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2]) {|[a,b]| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_numbered",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3) {_1+1}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_numbered_second",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwo(3,4) {_2}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_numbered_array",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2]) {[_1,_2]}\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      null
+    ]
+  },
+  {
+    "name": "block_it",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3) {it+1}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_it_outer",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nit=9;one(3) {it}\nend",
+    "expected": 9
+  },
+  {
+    "name": "block_it_and_numbered",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwo(3,4) {[it,_2]}\nend",
+    "expected": [
+      3,
+      4
+    ]
+  },
+  {
+    "name": "block_numbered_assigned",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3) {_1=9;_1}\nend",
+    "expected": 9
+  },
+  {
+    "name": "block_numbered_write",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1]) {_1[0]=2;_1}\nend",
+    "expected": [
+      2
+    ]
+  },
+  {
+    "name": "block_it_assigned",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3) {it=9;it}\nend",
+    "expected": 9
+  },
+  {
+    "name": "block_parameter_shadow",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nx=1;r=one(3){|x|x+=1};[x,r]\nend",
+    "expected": [
+      1,
+      4
+    ]
+  },
+  {
+    "name": "block_outer_write",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nx=1;r=one(3){|n|x=n};[x,r]\nend",
+    "expected": [
+      3,
+      3
+    ]
+  },
+  {
+    "name": "block_outer_index",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\na=[1];r=zero{a[0]=3};[a,r]\nend",
+    "expected": [
+      [
+        3
+      ],
+      3
+    ]
+  },
+  {
+    "name": "block_outer_member",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nh={a:[1]};r=zero{h.a.push(3)};[h,r]\nend",
+    "expected": [
+      {
+        "a": [
+          1,
+          3
+        ]
+      },
+      [
+        1,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "block_future_local",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nr=zero {x=3};if false\nx=7\nend\n[r,x]\nend",
+    "expected": [
+      3,
+      null
+    ]
+  },
+  {
+    "name": "block_nested_capture",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nx=1;r=zero {zero {x=3}};[r,x]\nend",
+    "expected": [
+      3,
+      3
+    ]
+  },
+  {
+    "name": "block_nested_shadow",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nx=1;r=one(3){|x|zero{x=4};x};[r,x]\nend",
+    "expected": [
+      4,
+      1
+    ]
+  },
+  {
+    "name": "block_nested_numbered",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(3) {one(4){_1}}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_repeated",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nx=0;r=twice(3){|n|x+=n};[x,r]\nend",
+    "expected": [
+      7,
+      [
+        3,
+        7
+      ]
+    ]
+  },
+  {
+    "name": "block_next",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwice(3){|n|next n+1;99}\nend",
+    "expected": [
+      4,
+      5
+    ]
+  },
+  {
+    "name": "block_break",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwice(3){|n|break n+1;99}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_bare_break",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwice(3){break}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_return",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwice(3){|n|return n+1};99\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_nested_return",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwice(3){|n|zero {return n+1}};99\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_block_loop_break",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero{r=while true\nbreak 7\nend\n[r,9]}\nend",
+    "expected": [
+      7,
+      9
+    ]
+  },
+  {
+    "name": "block_block_loop_next",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero{x=0;while x<2\nx+=1;next 7\nend\nx}\nend",
+    "expected": 2
+  },
+  {
+    "name": "block_predicate_false",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nblock_given?\nend",
+    "expected": false
+  },
+  {
+    "name": "block_predicate_true",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\npresent {0}\nend",
+    "expected": true
+  },
+  {
+    "name": "block_predicate_parenthesized",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nblock_given?()\nend",
+    "expected": false
+  },
+  {
+    "name": "block_predicate_local_shadow",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nblock_given?=7;block_given?\nend",
+    "expected": false
+  },
+  {
+    "name": "block_predicate_nested_function",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero {present}\nend",
+    "expected": false
+  },
+  {
+    "name": "block_predicate_inside_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero {block_given?}\nend",
+    "expected": false
+  },
+  {
+    "name": "block_keyword_call",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nk(a:3){|x|x+1}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_default_yield",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nd {7}\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_argument_splat",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(*[3]){|x|x+1}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_chain",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2]){|x|x}.reverse\nend",
+    "expected": [
+      2,
+      1
+    ]
+  },
+  {
+    "name": "block_chain_newline",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none([1,2]){|x|x}\n.reverse\nend",
+    "expected": [
+      2,
+      1
+    ]
+  },
+  {
+    "name": "block_block_then_hash",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\none(1){|x|x}\n{a:3}\nend",
+    "expected": {
+      "a": 3
+    }
+  },
+  {
+    "name": "block_do_newline",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\nzero\ndo\n7\nend\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_duplicate_params",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef k(a:)\nyield a\nend\ndef d(a=yield)\na\nend\ndef run(input)\ntwo(1,2){|x,x|x}\nend",
+    "expected": 2
+  },
+  {
+    "name": "block_yield_from_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nzero {yield}\nend\ndef run(input)\nf {7}\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_predicate_from_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nzero {block_given?}\nend\ndef run(input)\n[f(),f{7}]\nend",
+    "expected": [
+      false,
+      true
+    ]
+  },
+  {
+    "name": "block_receiving_loop",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nwhile true\nyield\nend\n99\nend\ndef run(input)\nf {break 7}\nend",
+    "expected": 99
+  },
+  {
+    "name": "block_receiving_for",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nfor n in 1..3\nyield\nend\n99\nend\ndef run(input)\nf {break 7}\nend",
+    "expected": 99
+  },
+  {
+    "name": "block_while_block_condition",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nx=0;while (zero do x<2 end)\nx+=1\nend\nx\nend",
+    "expected": 2
+  },
+  {
+    "name": "block_pending_receiver",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\na=[[1]];r=a[0].push(zero {a[0].push(2);3});[a,r]\nend",
+    "expected": [
+      [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "block_pending_assignment",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\na=[1];a[0]+=zero {a[0]=3;2};a\nend",
+    "expected": [
+      3
+    ]
+  },
+  {
+    "name": "block_callee_it",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef it(x)\nx+1\nend\ndef run(input)\none(3){it(_1)}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_binding_74",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|a| a}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_binding_75",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|a| a}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_binding_76",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|a| a}\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_binding_77",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|a| a}\nend",
+    "expected": []
+  },
+  {
+    "name": "block_binding_78",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|a| a}\nend",
+    "expected": [
+      1
+    ]
+  },
+  {
+    "name": "block_binding_79",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|a| a}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "block_binding_80",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|a| a}\nend",
+    "expected": [
+      1,
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_81",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|a| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_binding_82",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|a| a}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_83",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|a,b| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_84",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|a,b| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_85",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|a,b| [a,b]}\nend",
+    "expected": [
+      7,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_86",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|a,b| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_87",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|a,b| [a,b]}\nend",
+    "expected": [
+      1,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_88",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|a,b| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_89",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|a,b| [a,b]}\nend",
+    "expected": [
+      1,
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_90",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|a,b| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_91",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|a,b| [a,b]}\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      3
+    ]
+  },
+  {
+    "name": "block_binding_92",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(a)| a}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_binding_93",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(a)| a}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_binding_94",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(a)| a}\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_binding_95",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(a)| a}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_binding_96",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(a)| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_binding_97",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(a)| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_binding_98",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(a)| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_binding_99",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(a)| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_binding_100",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(a)| a}\nend",
+    "expected": 1
+  },
+  {
+    "name": "block_binding_101",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(a,b)| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_102",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_103",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      7,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_104",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_105",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_106",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_107",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_108",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_109",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(a,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_110",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_111",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_112",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      7,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_113",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_114",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      1,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_115",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      1,
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_116",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      1,
+      [
+        [
+          2,
+          3,
+          4
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_117",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      1,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_118",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(a,*rest)| [a,rest]}\nend",
+    "expected": [
+      1,
+      [
+        2
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_119",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [],
+      null
+    ]
+  },
+  {
+    "name": "block_binding_120",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [],
+      null
+    ]
+  },
+  {
+    "name": "block_binding_121",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [],
+      7
+    ]
+  },
+  {
+    "name": "block_binding_122",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [],
+      null
+    ]
+  },
+  {
+    "name": "block_binding_123",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [],
+      1
+    ]
+  },
+  {
+    "name": "block_binding_124",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      3
+    ]
+  },
+  {
+    "name": "block_binding_125",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [
+        1
+      ],
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_126",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [],
+      1
+    ]
+  },
+  {
+    "name": "block_binding_127",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(*rest,a)| [rest,a]}\nend",
+    "expected": [
+      [
+        1
+      ],
+      2
+    ]
+  },
+  {
+    "name": "block_binding_128",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_129",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_130",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      7,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_131",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_132",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_133",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      3
+    ]
+  },
+  {
+    "name": "block_binding_134",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_135",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_136",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(a,*,b)| [a,b]}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_137",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      null,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_138",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      null,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_139",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      7,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_140",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      null,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_141",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      1,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_142",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      1,
+      2,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_143",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      1,
+      2,
+      [
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_144",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      1,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_145",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(a,(b,*rest))| [a,b,rest]}\nend",
+    "expected": [
+      1,
+      2,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_146",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_147",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_148",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      7,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_149",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      null,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_150",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      1,
+      null,
+      null
+    ]
+  },
+  {
+    "name": "block_binding_151",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      1,
+      null,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_152",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      1,
+      null,
+      [
+        2,
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_153",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      1,
+      null,
+      2
+    ]
+  },
+  {
+    "name": "block_binding_154",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|(a,b),c| [a,b,c]}\nend",
+    "expected": [
+      1,
+      2,
+      3
+    ]
+  },
+  {
+    "name": "block_binding_155",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nzero {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      null,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_156",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(nil) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      null,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_157",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(7) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      7,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_158",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([]) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      null,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_159",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1]) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      1,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_160",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,2,3]) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      1,
+      2,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_161",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none([1,[2,3,4]]) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      1,
+      2,
+      [
+        3,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "block_binding_162",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo(1,2) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      1,
+      null,
+      []
+    ]
+  },
+  {
+    "name": "block_binding_163",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\ntwo([1,2],3) {|[a,[b,*c]]| [a,b,c]}\nend",
+    "expected": [
+      1,
+      2,
+      []
+    ]
+  },
+  {
+    "name": "block_capture_deep",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nx=1;zero {zero {zero {x=3}}};x\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_capture_known_skipped",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nif false\nx=1\nend\nzero {x=3};x\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_capture_future_read",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nzero {x};x=3\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_capture_shadow_branch",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nx=1;r=zero {if false\nx=2\nend\nx};[r,x]\nend",
+    "expected": [
+      1,
+      1
+    ]
+  },
+  {
+    "name": "block_capture_future_branch",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nr=zero {if false\nx=2\nend\nx};x=3;[r,x]\nend",
+    "expected": [
+      null,
+      3
+    ]
+  },
+  {
+    "name": "block_capture_function_fallback",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nr=zero {x};if false\nx=9\nend\n[r,x]\nend",
+    "expected": [
+      4,
+      null
+    ]
+  },
+  {
+    "name": "block_capture_rhs_bypass",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none=9;r=zero {one=one(3){|v|v}};[r,one]\nend",
+    "expected": [
+      3,
+      3
+    ]
+  },
+  {
+    "name": "block_capture_pending_rebind",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\na=[1];r=a.push(zero {a=[9];2});[r,a]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        9
+      ]
+    ]
+  },
+  {
+    "name": "block_capture_pending_path",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\na=[[1]];r=a[0].push(zero {a[0]=[9];2});[r,a]\nend",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          9
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "block_break_pending_arguments",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nr=zero {one(zero {break 7}) {|x|x}};[r,9]\nend",
+    "expected": [
+      7,
+      9
+    ]
+  },
+  {
+    "name": "block_return_nested_default",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nf {return 7};99\nend",
+    "expected": 7
+  },
+  {
+    "name": "block_yield_expression",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none(3){|v|one(v){|n|n+1}}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_do_in_parenthesized_argument",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none(zero do 3 end){|n|n}\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_new_hash_after_bare",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\npresent\n{a:3}\nend",
+    "expected": {
+      "a": 3
+    }
+  },
+  {
+    "name": "block_do_after_comment",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nzero # comment\ndo\n3\nend\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_do_double_attachment",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nzero {3} do 4 end\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_while_delimiter",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nx=0;while x<2 do\nx+=1\nend\nx\nend",
+    "expected": 2
+  },
+  {
+    "name": "block_while_nested_command",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nx=0;while one(zero do x<2 end) {|v|v}\nx+=1\nend\nx\nend",
+    "expected": 2
+  },
+  {
+    "name": "block_ternary_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\ntrue ? one(3){|n|n} : 4\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_modifier_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\none(3){|n|n} if true\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_modifier_skipped_block",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nmissing {3} if false\nend",
+    "expected": null
+  },
+  {
+    "name": "block_block_nested_return_array",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nzero {one([1,2]){|(a,b)|return [a,b]}};99\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_yield_trailing_comma",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef x()\n4\nend\ndef f(a=yield())\na\nend\ndef run(input)\nf {3}\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_yield_parenthesis_newline",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nyield\n()\nend\ndef run(input)\nf {3}\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_yield_later_negative",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nyield 1,-2\nend\ndef run(input)\nf {|a,b|[a,b]}\nend",
+    "expected": [
+      1,
+      -2
+    ]
+  },
+  {
+    "name": "block_yield_array_argument",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\nyield [1,2]\nend\ndef run(input)\nf {|x|x}\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "block_forwarded_break_boundary",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef f()\na=zero {yield};[a,99]\nend\ndef run(input)\nf {break 7}\nend",
+    "expected": [
+      7,
+      99
+    ]
+  },
+  {
+    "name": "block_nested_it",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(3){one(4){it}}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_nested_it_reads_both",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(3){[it,one(4){it}]}\nend",
+    "expected": [
+      3,
+      4
+    ]
+  },
+  {
+    "name": "block_nested_it_real_outer",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nit=8;one(3){one(4){it}}\nend",
+    "expected": 8
+  },
+  {
+    "name": "block_nested_it_assignment",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(3){it=8;one(4){it}}\nend",
+    "expected": 8
+  },
+  {
+    "name": "block_nested_it_parameter",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(3){|it|one(4){it}}\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_nested_it_later_assignment",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(3){r=one(4){it};it=8;[r,it]}\nend",
+    "expected": [
+      4,
+      8
+    ]
+  },
+  {
+    "name": "block_it_assignment_rhs",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nit=one(3){it};it\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_it_branch_declared",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\nif false\nit=8\nend\none(3){it}\nend",
+    "expected": null
+  },
+  {
+    "name": "block_block_numbered_and_it",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\n\ndef run(input)\none(3){[_1,it]}\nend",
+    "expected": [
+      3,
+      3
+    ]
+  },
+  {
+    "name": "block_outer_assignment_bypass",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none=zero {one(3){|x|x}};one\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_outer_assignment_bypass_existing",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none=9;one=zero {one(3){|x|x}};one\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_outer_assignment_nested_bypass",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none=zero {zero {one(3){|x|x}}};one\nend",
+    "expected": 3
+  },
+  {
+    "name": "block_nested_given_default",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none(3){d {4}}\nend",
+    "expected": 4
+  },
+  {
+    "name": "block_while_block_next_boundary",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\nx=0;while x<2\nx+=1;zero {next 7}\nend\nx\nend",
+    "expected": 2
+  },
+  {
+    "name": "block_break_from_enclosing_yield",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\nf {break 7}\nend",
+    "expected": [
+      7,
+      9
+    ]
+  },
+  {
+    "name": "block_break_loop_expression",
+    "source": "def zero()\nyield\nend\ndef one(x)\nyield x\nend\ndef two(x,y)\nyield x,y\nend\ndef twice(x)\na=yield x\nb=yield x+1\n[a,b]\nend\ndef present()\nblock_given?\nend\ndef d(a=yield)\na\nend\ndef f()\nr=zero {yield};[r,9]\nend\ndef run(input)\none(3){r=while true\nzero {break 7}\nbreak 9\nend\nr}\nend",
+    "expected": 9
   }
 ]
