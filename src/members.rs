@@ -12,6 +12,16 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if let Some(value) = crate::shapes::member(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = crate::enums::call(
         ctx,
         site,
@@ -96,6 +106,17 @@ pub(crate) fn call_keywords(
         return Ok((receiver, result));
     }
     let numeric = matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_));
+    if args.block.is_some()
+        && matches!(
+            site.method,
+            Some(Method::IsNil | Method::Itself | Method::Dup)
+        )
+    {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "method does not accept a block",
+        ));
+    }
     if numeric
         && (matches!(name, "inspect" | "clamp" | "between?")
             || matches!(
@@ -166,6 +187,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = crate::shapes::member(ctx, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = crate::enums::call(ctx, site, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }

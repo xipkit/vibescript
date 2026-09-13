@@ -14,8 +14,12 @@ fn language_conformance() {
         let script = Engine::new()
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let mut options = CallOptions::default();
+        if let Some(steps) = case["steps"].as_u64() {
+            options.limits.steps = Some(steps);
+        }
         let result = script
-            .call("run", &[Value::nil()], CallOptions::default())
+            .call("run", &[Value::nil()], options)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         let encoded = stringify_json(&result.value, CallOptions::default()).unwrap();
         let actual: serde_json::Value =

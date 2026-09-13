@@ -93,6 +93,7 @@ impl Bytes {
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
+    Shape(Arc<crate::shapes::Shape>),
     Nil,
     Builtin(crate::builtin::Builtin),
     Enum(Arc<crate::enums::Enumeration>),
@@ -123,6 +124,14 @@ impl Default for Value {
 }
 
 impl Value {
+    /// Returns a type literal's canonical annotation bytes, or `None` for other values.
+    pub fn as_type_literal(&self) -> Option<&[u8]> {
+        if let Kind::Shape(shape) = &self.0 {
+            Some(&shape.definition.text)
+        } else {
+            None
+        }
+    }
     /// Creates nil.
     pub const fn nil() -> Self {
         Self(Kind::Nil)
@@ -306,6 +315,7 @@ impl Value {
     /// Reports this value's language type.
     pub fn type_name(&self) -> &'static str {
         match self.0 {
+            Kind::Shape(_) => "shape",
             Kind::Nil => "nil",
             Kind::Builtin(_) => "builtin",
             Kind::Enum(_) => "enum",
@@ -499,6 +509,9 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Shape(shape) => Ok(Value(Kind::Shape(crate::shapes::Shape::import(
+                self, shape,
+            )?))),
             Kind::Enum(e) => Ok(Value(Kind::Enum(crate::enums::Enumeration::import(
                 self, e,
             )?))),
@@ -549,6 +562,12 @@ impl CallContext {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
+            Kind::Shape(shape) => write!(
+                f,
+                "<Shape {}>",
+                String::from_utf8_lossy(&shape.definition.text)
+            ),
+            Kind::Hash(hash) if hash.object => f.write_str("<object>"),
             Kind::Nil => f.write_str("nil"),
             Kind::Money(money) => write!(f, "{money}"),
             Kind::Duration(seconds) => write!(f, "{seconds}s"),

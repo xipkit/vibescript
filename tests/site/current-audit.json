@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "2ec0824425e9e905514759bbe1a3f633ac30e421",
-  "dirty": " M scripts/compare.py\n M src/builtin.rs\n M src/bytecode.rs\n M src/enums.rs\n M src/lib.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/text/case.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? src/syntax/types.rs\n?? src/types.rs\n?? tests/types.rs\n",
+  "source_revision": "f0a50932eea5428b97abd3529a3a504335f75e50",
+  "dirty": " M README.md\n M docs/language-port.md\n M docs/types.md\n M src/builtin.rs\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/types.rs\n M src/text.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/language.rs\n M tests/syntax-errors.json\n?? licenses/printable-NOTICE.txt\n?? scripts/generate-printable.py\n?? src/printable.rs\n?? src/shapes.rs\n?? tests/json.rs\n?? tests/shapes.rs\n",
   "binary_sha256": {
-    "go-simd": "c20f92324d472022210b70563e6778c2ef27b7cacc98ca905caa67ddaeb6cdd4",
-    "rust-simd": "9592baf5c88413a8fa9907dfafce87098e1af8641cb5a9487fe9ad6839c1dea5"
+    "go-simd": "ffe26f13bd26dc23feaaa9b032940e396a388e916f85eba46156771c48c40be9",
+    "rust-simd": "9db99d447c3a51ed078fed1e2a26cac5ea8e35407c56c58a3c79c7c06e64a40a"
   },
   "counts": {
     "match": 174,

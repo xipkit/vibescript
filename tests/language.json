@@ -603601,5 +603601,4509 @@
     "expected": [
       "{: [Status::Draft]}"
     ]
+  },
+  {
+    "name": "shapes_parse_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"null\",any)\nend",
+    "expected": null
+  },
+  {
+    "name": "shapes_parse_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"true\",any)\nend",
+    "expected": true
+  },
+  {
+    "name": "shapes_parse_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"false\",any)\nend",
+    "expected": false
+  },
+  {
+    "name": "shapes_parse_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",any)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.0\",any)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.5\",any)\nend",
+    "expected": 1.5
+  },
+  {
+    "name": "shapes_parse_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"\\\"one\\\"\",any)\nend",
+    "expected": "one"
+  },
+  {
+    "name": "shapes_parse_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",any)\nend",
+    "expected": []
+  },
+  {
+    "name": "shapes_parse_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,2]\",any)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "shapes_parse_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,\\\"x\\\"]\",any)\nend",
+    "expected": [
+      1,
+      "x"
+    ]
+  },
+  {
+    "name": "shapes_parse_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",any)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",any)\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",any)\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",any)\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",any)\nend",
+    "expected": {
+      "id": "a"
+    }
+  },
+  {
+    "name": "shapes_parse_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[{\\\"id\\\":\\\"a\\\"}]\",any)\nend",
+    "expected": [
+      {
+        "id": "a"
+      }
+    ]
+  },
+  {
+    "name": "shapes_parse_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",any)\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",any)\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",any)\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",any)\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",int)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.0\",float)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.5\",float)\nend",
+    "expected": 1.5
+  },
+  {
+    "name": "shapes_parse_69",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",number)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_70",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.0\",number)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_71",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.5\",number)\nend",
+    "expected": 1.5
+  },
+  {
+    "name": "shapes_parse_94",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"\\\"one\\\"\",string)\nend",
+    "expected": "one"
+  },
+  {
+    "name": "shapes_parse_133",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"true\",bool)\nend",
+    "expected": true
+  },
+  {
+    "name": "shapes_parse_134",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"false\",bool)\nend",
+    "expected": false
+  },
+  {
+    "name": "shapes_parse_198",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"null\",nil | int)\nend",
+    "expected": null
+  },
+  {
+    "name": "shapes_parse_201",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",nil | int)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_220",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"null\",int | nil)\nend",
+    "expected": null
+  },
+  {
+    "name": "shapes_parse_223",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",int | nil)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_242",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"null\",string?)\nend",
+    "expected": null
+  },
+  {
+    "name": "shapes_parse_248",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"\\\"one\\\"\",string?)\nend",
+    "expected": "one"
+  },
+  {
+    "name": "shapes_parse_267",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",int | string)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_270",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"\\\"one\\\"\",int | string)\nend",
+    "expected": "one"
+  },
+  {
+    "name": "shapes_parse_286",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"null\",any | int)\nend",
+    "expected": null
+  },
+  {
+    "name": "shapes_parse_287",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"true\",any | int)\nend",
+    "expected": true
+  },
+  {
+    "name": "shapes_parse_288",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"false\",any | int)\nend",
+    "expected": false
+  },
+  {
+    "name": "shapes_parse_289",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",any | int)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_290",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.0\",any | int)\nend",
+    "expected": 1
+  },
+  {
+    "name": "shapes_parse_291",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.5\",any | int)\nend",
+    "expected": 1.5
+  },
+  {
+    "name": "shapes_parse_292",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"\\\"one\\\"\",any | int)\nend",
+    "expected": "one"
+  },
+  {
+    "name": "shapes_parse_293",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",any | int)\nend",
+    "expected": []
+  },
+  {
+    "name": "shapes_parse_294",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,2]\",any | int)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "shapes_parse_295",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,\\\"x\\\"]\",any | int)\nend",
+    "expected": [
+      1,
+      "x"
+    ]
+  },
+  {
+    "name": "shapes_parse_296",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",any | int)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_297",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",any | int)\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_298",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",any | int)\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_299",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",any | int)\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_300",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",any | int)\nend",
+    "expected": {
+      "id": "a"
+    }
+  },
+  {
+    "name": "shapes_parse_301",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[{\\\"id\\\":\\\"a\\\"}]\",any | int)\nend",
+    "expected": [
+      {
+        "id": "a"
+      }
+    ]
+  },
+  {
+    "name": "shapes_parse_302",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",any | int)\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_303",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",any | int)\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_304",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",any | int)\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_305",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",any | int)\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_315",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",array)\nend",
+    "expected": []
+  },
+  {
+    "name": "shapes_parse_316",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,2]\",array)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "shapes_parse_317",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,\\\"x\\\"]\",array)\nend",
+    "expected": [
+      1,
+      "x"
+    ]
+  },
+  {
+    "name": "shapes_parse_323",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[{\\\"id\\\":\\\"a\\\"}]\",array)\nend",
+    "expected": [
+      {
+        "id": "a"
+      }
+    ]
+  },
+  {
+    "name": "shapes_parse_337",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",array<int>)\nend",
+    "expected": []
+  },
+  {
+    "name": "shapes_parse_338",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,2]\",array<int>)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "shapes_parse_359",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",array<int | string>)\nend",
+    "expected": []
+  },
+  {
+    "name": "shapes_parse_360",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,2]\",array<int | string>)\nend",
+    "expected": [
+      1,
+      2
+    ]
+  },
+  {
+    "name": "shapes_parse_361",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,\\\"x\\\"]\",array<int | string>)\nend",
+    "expected": [
+      1,
+      "x"
+    ]
+  },
+  {
+    "name": "shapes_parse_381",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",array<{id:string}>)\nend",
+    "expected": []
+  },
+  {
+    "name": "shapes_parse_389",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[{\\\"id\\\":\\\"a\\\"}]\",array<{id:string}>)\nend",
+    "expected": [
+      {
+        "id": "a"
+      }
+    ]
+  },
+  {
+    "name": "shapes_parse_406",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",hash)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_407",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",hash)\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_408",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",hash)\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_409",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",hash)\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_410",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",hash)\nend",
+    "expected": {
+      "id": "a"
+    }
+  },
+  {
+    "name": "shapes_parse_412",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",hash)\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_413",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",hash)\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_414",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",hash)\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_415",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",hash)\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_428",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",object)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_429",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",object)\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_430",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",object)\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_431",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",object)\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_432",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",object)\nend",
+    "expected": {
+      "id": "a"
+    }
+  },
+  {
+    "name": "shapes_parse_434",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",object)\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_435",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",object)\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_436",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",object)\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_437",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",object)\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_450",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",hash<string,int>)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_452",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",hash<string,int>)\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_458",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",hash<string,int>)\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_459",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",hash<string,int>)\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_472",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",hash<symbol,any>)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_473",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",hash<symbol,any>)\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_474",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",hash<symbol,any>)\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_475",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",hash<symbol,any>)\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_476",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",hash<symbol,any>)\nend",
+    "expected": {
+      "id": "a"
+    }
+  },
+  {
+    "name": "shapes_parse_478",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",hash<symbol,any>)\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_479",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",hash<symbol,any>)\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_480",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",hash<symbol,any>)\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_481",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",hash<symbol,any>)\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_605",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",{name:string})\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_626",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",{name?:string})\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_627",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",{name?:string})\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_649",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",{name:string,...})\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_651",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",{name:string,...})\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_670",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",{...})\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_parse_671",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",{...})\nend",
+    "expected": {
+      "name": "Ada"
+    }
+  },
+  {
+    "name": "shapes_parse_672",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",{...})\nend",
+    "expected": {
+      "name": 1
+    }
+  },
+  {
+    "name": "shapes_parse_673",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",{...})\nend",
+    "expected": {
+      "name": "Ada",
+      "age": 36
+    }
+  },
+  {
+    "name": "shapes_parse_674",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",{...})\nend",
+    "expected": {
+      "id": "a"
+    }
+  },
+  {
+    "name": "shapes_parse_676",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",{...})\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_677",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",{...})\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_678",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",{...})\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_parse_679",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",{...})\nend",
+    "expected": {
+      "one": 1
+    }
+  },
+  {
+    "name": "shapes_parse_764",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",{x:array<int>})\nend",
+    "expected": {
+      "x": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "name": "shapes_parse_787",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",{x:int | nil})\nend",
+    "expected": {
+      "x": null
+    }
+  },
+  {
+    "name": "shapes_parse_788",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",{x:int | nil})\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_render_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(any))\nend",
+    "expected": "<Shape any>"
+  },
+  {
+    "name": "shapes_store_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(any);render(schema)\nend",
+    "expected": "<Shape any>"
+  },
+  {
+    "name": "shapes_render_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_store_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(int);render(schema)\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_render_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(float))\nend",
+    "expected": "<Shape float>"
+  },
+  {
+    "name": "shapes_store_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(float);render(schema)\nend",
+    "expected": "<Shape float>"
+  },
+  {
+    "name": "shapes_render_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(number))\nend",
+    "expected": "<Shape number>"
+  },
+  {
+    "name": "shapes_store_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(number);render(schema)\nend",
+    "expected": "<Shape number>"
+  },
+  {
+    "name": "shapes_render_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(string))\nend",
+    "expected": "<Shape string>"
+  },
+  {
+    "name": "shapes_store_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(string);render(schema)\nend",
+    "expected": "<Shape string>"
+  },
+  {
+    "name": "shapes_render_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(symbol))\nend",
+    "expected": "<Shape symbol>"
+  },
+  {
+    "name": "shapes_store_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(symbol);render(schema)\nend",
+    "expected": "<Shape symbol>"
+  },
+  {
+    "name": "shapes_render_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(bool))\nend",
+    "expected": "<Shape bool>"
+  },
+  {
+    "name": "shapes_store_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(bool);render(schema)\nend",
+    "expected": "<Shape bool>"
+  },
+  {
+    "name": "shapes_render_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(nil))\nend",
+    "expected": ""
+  },
+  {
+    "name": "shapes_store_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(nil);render(schema)\nend",
+    "expected": ""
+  },
+  {
+    "name": "shapes_render_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(nil | int))\nend",
+    "expected": "<Shape nil | int>"
+  },
+  {
+    "name": "shapes_store_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(nil | int);render(schema)\nend",
+    "expected": "<Shape nil | int>"
+  },
+  {
+    "name": "shapes_render_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(int | nil))\nend",
+    "expected": "<Shape int | nil>"
+  },
+  {
+    "name": "shapes_store_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(int | nil);render(schema)\nend",
+    "expected": "<Shape int | nil>"
+  },
+  {
+    "name": "shapes_render_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_store_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(string?);render(schema)\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_render_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(int | string))\nend",
+    "expected": "<Shape int | string>"
+  },
+  {
+    "name": "shapes_store_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(int | string);render(schema)\nend",
+    "expected": "<Shape int | string>"
+  },
+  {
+    "name": "shapes_render_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(any | int))\nend",
+    "expected": "<Shape any | int>"
+  },
+  {
+    "name": "shapes_store_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(any | int);render(schema)\nend",
+    "expected": "<Shape any | int>"
+  },
+  {
+    "name": "shapes_render_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array))\nend",
+    "expected": "<Shape array>"
+  },
+  {
+    "name": "shapes_store_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(array);render(schema)\nend",
+    "expected": "<Shape array>"
+  },
+  {
+    "name": "shapes_render_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_store_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(array<int>);render(schema)\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_render_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<int | string>))\nend",
+    "expected": "<Shape array<int | string>>"
+  },
+  {
+    "name": "shapes_store_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(array<int | string>);render(schema)\nend",
+    "expected": "<Shape array<int | string>>"
+  },
+  {
+    "name": "shapes_render_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<{id:string}>))\nend",
+    "expected": "<Shape array<{ id: string }>>"
+  },
+  {
+    "name": "shapes_store_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(array<{id:string}>);render(schema)\nend",
+    "expected": "<Shape array<{ id: string }>>"
+  },
+  {
+    "name": "shapes_render_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(hash))\nend",
+    "expected": "<Shape hash>"
+  },
+  {
+    "name": "shapes_store_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(hash);render(schema)\nend",
+    "expected": "<Shape hash>"
+  },
+  {
+    "name": "shapes_render_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(object))\nend",
+    "expected": "<Shape object>"
+  },
+  {
+    "name": "shapes_store_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(object);render(schema)\nend",
+    "expected": "<Shape object>"
+  },
+  {
+    "name": "shapes_render_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(hash<string,int>))\nend",
+    "expected": "<Shape hash<string, int>>"
+  },
+  {
+    "name": "shapes_store_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(hash<string,int>);render(schema)\nend",
+    "expected": "<Shape hash<string, int>>"
+  },
+  {
+    "name": "shapes_render_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(hash<symbol,any>))\nend",
+    "expected": "<Shape hash<symbol, any>>"
+  },
+  {
+    "name": "shapes_store_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(hash<symbol,any>);render(schema)\nend",
+    "expected": "<Shape hash<symbol, any>>"
+  },
+  {
+    "name": "shapes_render_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(hash<int,any>))\nend",
+    "expected": "<Shape hash<int, any>>"
+  },
+  {
+    "name": "shapes_store_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(hash<int,any>);render(schema)\nend",
+    "expected": "<Shape hash<int, any>>"
+  },
+  {
+    "name": "shapes_render_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(duration))\nend",
+    "expected": "<Shape duration>"
+  },
+  {
+    "name": "shapes_store_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(duration);render(schema)\nend",
+    "expected": "<Shape duration>"
+  },
+  {
+    "name": "shapes_render_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(time))\nend",
+    "expected": "<Shape time>"
+  },
+  {
+    "name": "shapes_store_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(time);render(schema)\nend",
+    "expected": "<Shape time>"
+  },
+  {
+    "name": "shapes_render_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(range))\nend",
+    "expected": "<Shape range>"
+  },
+  {
+    "name": "shapes_store_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(range);render(schema)\nend",
+    "expected": "<Shape range>"
+  },
+  {
+    "name": "shapes_render_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({name:string}))\nend",
+    "expected": "<Shape { name: string }>"
+  },
+  {
+    "name": "shapes_store_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({name:string});render(schema)\nend",
+    "expected": "<Shape { name: string }>"
+  },
+  {
+    "name": "shapes_render_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({name?:string}))\nend",
+    "expected": "<Shape { name?: string }>"
+  },
+  {
+    "name": "shapes_store_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({name?:string});render(schema)\nend",
+    "expected": "<Shape { name?: string }>"
+  },
+  {
+    "name": "shapes_render_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({name:string,...}))\nend",
+    "expected": "<Shape { name: string, ... }>"
+  },
+  {
+    "name": "shapes_store_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({name:string,...});render(schema)\nend",
+    "expected": "<Shape { name: string, ... }>"
+  },
+  {
+    "name": "shapes_render_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({...}))\nend",
+    "expected": "<Shape { ... }>"
+  },
+  {
+    "name": "shapes_store_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({...});render(schema)\nend",
+    "expected": "<Shape { ... }>"
+  },
+  {
+    "name": "shapes_render_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({}))\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "shapes_store_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({});render(schema)\nend",
+    "expected": "{}"
+  },
+  {
+    "name": "shapes_render_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:nil}))\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_store_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({x:nil});render(schema)\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_render_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:{}}))\nend",
+    "expected": "{x: {}}"
+  },
+  {
+    "name": "shapes_store_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({x:{}});render(schema)\nend",
+    "expected": "{x: {}}"
+  },
+  {
+    "name": "shapes_render_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_store_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({x:array<int>});render(schema)\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_render_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:int | nil}))\nend",
+    "expected": "<Shape { x: int | nil }>"
+  },
+  {
+    "name": "shapes_store_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity({x:int | nil});render(schema)\nend",
+    "expected": "<Shape { x: int | nil }>"
+  },
+  {
+    "name": "shapes_expressions_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string};render(schema)\nend",
+    "expected": "<Shape { name: string }>"
+  },
+  {
+    "name": "shapes_methods_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string};render(schema.itself)\nend",
+    "expected": "<Shape { name: string }>"
+  },
+  {
+    "name": "shapes_methods_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string};render(schema.dup)\nend",
+    "expected": "<Shape { name: string }>"
+  },
+  {
+    "name": "shapes_expressions_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={age:int,name:string};render(schema)\nend",
+    "expected": "<Shape { age: int, name: string }>"
+  },
+  {
+    "name": "shapes_methods_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={age:int,name:string};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={age:int,name:string};render(schema.itself)\nend",
+    "expected": "<Shape { age: int, name: string }>"
+  },
+  {
+    "name": "shapes_methods_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={age:int,name:string};render(schema.dup)\nend",
+    "expected": "<Shape { age: int, name: string }>"
+  },
+  {
+    "name": "shapes_expressions_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string,age:int};render(schema)\nend",
+    "expected": "<Shape { age: int, name: string }>"
+  },
+  {
+    "name": "shapes_methods_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string,age:int};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string,age:int};render(schema.itself)\nend",
+    "expected": "<Shape { age: int, name: string }>"
+  },
+  {
+    "name": "shapes_methods_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name:string,age:int};render(schema.dup)\nend",
+    "expected": "<Shape { age: int, name: string }>"
+  },
+  {
+    "name": "shapes_expressions_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name?:string};render(schema)\nend",
+    "expected": "<Shape { name?: string }>"
+  },
+  {
+    "name": "shapes_methods_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name?:string};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name?:string};render(schema.itself)\nend",
+    "expected": "<Shape { name?: string }>"
+  },
+  {
+    "name": "shapes_methods_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={name?:string};render(schema.dup)\nend",
+    "expected": "<Shape { name?: string }>"
+  },
+  {
+    "name": "shapes_expressions_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={\"name?\":string};render(schema)\nend",
+    "expected": "<Shape { \"name?\": string }>"
+  },
+  {
+    "name": "shapes_methods_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={\"name?\":string};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={\"name?\":string};render(schema.itself)\nend",
+    "expected": "<Shape { \"name?\": string }>"
+  },
+  {
+    "name": "shapes_methods_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={\"name?\":string};render(schema.dup)\nend",
+    "expected": "<Shape { \"name?\": string }>"
+  },
+  {
+    "name": "shapes_expressions_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int | string};render(schema)\nend",
+    "expected": "<Shape { x: int | string }>"
+  },
+  {
+    "name": "shapes_methods_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int | string};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_44",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int | string};render(schema.itself)\nend",
+    "expected": "<Shape { x: int | string }>"
+  },
+  {
+    "name": "shapes_methods_45",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int | string};render(schema.dup)\nend",
+    "expected": "<Shape { x: int | string }>"
+  },
+  {
+    "name": "shapes_expressions_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:string | int};render(schema)\nend",
+    "expected": "<Shape { x: string | int }>"
+  },
+  {
+    "name": "shapes_methods_51",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:string | int};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_52",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:string | int};render(schema.itself)\nend",
+    "expected": "<Shape { x: string | int }>"
+  },
+  {
+    "name": "shapes_methods_53",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:string | int};render(schema.dup)\nend",
+    "expected": "<Shape { x: string | int }>"
+  },
+  {
+    "name": "shapes_expressions_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:hash<string,int>};render(schema)\nend",
+    "expected": "<Shape { x: hash<string, int> }>"
+  },
+  {
+    "name": "shapes_methods_59",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:hash<string,int>};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_60",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:hash<string,int>};render(schema.itself)\nend",
+    "expected": "<Shape { x: hash<string, int> }>"
+  },
+  {
+    "name": "shapes_methods_61",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:hash<string,int>};render(schema.dup)\nend",
+    "expected": "<Shape { x: hash<string, int> }>"
+  },
+  {
+    "name": "shapes_expressions_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:object<string,int>};render(schema)\nend",
+    "expected": "<Shape { x: object<string, int> }>"
+  },
+  {
+    "name": "shapes_methods_67",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:object<string,int>};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_68",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:object<string,int>};render(schema.itself)\nend",
+    "expected": "<Shape { x: object<string, int> }>"
+  },
+  {
+    "name": "shapes_methods_69",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:object<string,int>};render(schema.dup)\nend",
+    "expected": "<Shape { x: object<string, int> }>"
+  },
+  {
+    "name": "shapes_expressions_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={...};render(schema)\nend",
+    "expected": "<Shape { ... }>"
+  },
+  {
+    "name": "shapes_methods_75",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={...};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_76",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={...};render(schema.itself)\nend",
+    "expected": "<Shape { ... }>"
+  },
+  {
+    "name": "shapes_methods_77",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={...};render(schema.dup)\nend",
+    "expected": "<Shape { ... }>"
+  },
+  {
+    "name": "shapes_expressions_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:nil,...};render(schema)\nend",
+    "expected": "<Shape { x: nil, ... }>"
+  },
+  {
+    "name": "shapes_methods_83",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:nil,...};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_84",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:nil,...};render(schema.itself)\nend",
+    "expected": "<Shape { x: nil, ... }>"
+  },
+  {
+    "name": "shapes_methods_85",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:nil,...};render(schema.dup)\nend",
+    "expected": "<Shape { x: nil, ... }>"
+  },
+  {
+    "name": "shapes_expressions_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{},...};render(schema)\nend",
+    "expected": "<Shape { x: {}, ... }>"
+  },
+  {
+    "name": "shapes_methods_91",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{},...};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_92",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{},...};render(schema.itself)\nend",
+    "expected": "<Shape { x: {}, ... }>"
+  },
+  {
+    "name": "shapes_methods_93",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{},...};render(schema.dup)\nend",
+    "expected": "<Shape { x: {}, ... }>"
+  },
+  {
+    "name": "shapes_expressions_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{...}};render(schema)\nend",
+    "expected": "<Shape { x: { ... } }>"
+  },
+  {
+    "name": "shapes_methods_99",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{...}};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_100",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{...}};render(schema.itself)\nend",
+    "expected": "<Shape { x: { ... } }>"
+  },
+  {
+    "name": "shapes_methods_101",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:{...}};render(schema.dup)\nend",
+    "expected": "<Shape { x: { ... } }>"
+  },
+  {
+    "name": "shapes_expressions_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:INT};render(schema)\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_methods_107",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:INT};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_108",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:INT};render(schema.itself)\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_methods_109",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:INT};render(schema.dup)\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_expressions_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int?};render(schema)\nend",
+    "expected": "<Shape { x: int? }>"
+  },
+  {
+    "name": "shapes_methods_115",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int?};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_116",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int?};render(schema.itself)\nend",
+    "expected": "<Shape { x: int? }>"
+  },
+  {
+    "name": "shapes_methods_117",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int?};render(schema.dup)\nend",
+    "expected": "<Shape { x: int? }>"
+  },
+  {
+    "name": "shapes_expressions_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int ?};render(schema)\nend",
+    "expected": "<Shape { x: int? }>"
+  },
+  {
+    "name": "shapes_methods_123",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int ?};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_124",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int ?};render(schema.itself)\nend",
+    "expected": "<Shape { x: int? }>"
+  },
+  {
+    "name": "shapes_methods_125",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int ?};render(schema.dup)\nend",
+    "expected": "<Shape { x: int? }>"
+  },
+  {
+    "name": "shapes_expressions_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x: :int};render(schema)\nend",
+    "expected": "{x: int}"
+  },
+  {
+    "name": "shapes_methods_131",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x: :int};render(schema.nil?)\nend",
+    "expected": "false"
+  },
+  {
+    "name": "shapes_methods_132",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x: :int};render(schema.itself)\nend",
+    "expected": "{x: int}"
+  },
+  {
+    "name": "shapes_methods_133",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x: :int};render(schema.dup)\nend",
+    "expected": "{x: int}"
+  },
+  {
+    "name": "shapes_methods_135",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x: :int};render(schema.length)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "shapes_shadow_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render(identity(int))\nend",
+    "expected": "7"
+  },
+  {
+    "name": "shapes_shadow_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render(identity(int))\nend",
+    "expected": ""
+  },
+  {
+    "name": "shapes_shadow_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|render(identity(int))}\nend",
+    "expected": [
+      "7"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef int\n7\nend\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "7"
+  },
+  {
+    "name": "shapes_shadow_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|render(identity(string?))}\nend",
+    "expected": [
+      "<Shape string?>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef int\n7\nend\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|render(identity(array<int>))}\nend",
+    "expected": [
+      "<Shape array<int>>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef int\n7\nend\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render(identity({x:int}))\nend",
+    "expected": "{x: 7}"
+  },
+  {
+    "name": "shapes_shadow_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render(identity({x:int}))\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_shadow_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|render(identity({x:int}))}\nend",
+    "expected": [
+      "{x: 7}"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef int\n7\nend\ndef run(input)\nrender(identity({x:int}))\nend",
+    "expected": "{x: 7}"
+  },
+  {
+    "name": "shapes_shadow_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|render(identity({x:string?}))}\nend",
+    "expected": [
+      "<Shape { x: string? }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef int\n7\nend\ndef run(input)\nrender(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|render(identity({x:array<int>}))}\nend",
+    "expected": [
+      "<Shape { x: array<int> }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef int\n7\nend\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring=7;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string=7;end;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string|render(identity(int))}\nend",
+    "expected": [
+      "<Shape int>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string\n7\nend\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring=7;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string=7;end;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string|render(identity(string?))}\nend",
+    "expected": [
+      "<Shape string?>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string\n7\nend\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring=7;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string=7;end;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_39",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string|render(identity(array<int>))}\nend",
+    "expected": [
+      "<Shape array<int>>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string\n7\nend\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_40",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring=7;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_41",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string=7;end;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string|render(identity({x:int}))}\nend",
+    "expected": [
+      "<Shape { x: int }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string\n7\nend\ndef run(input)\nrender(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring=7;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string=7;end;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_51",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string|render(identity({x:array<int>}))}\nend",
+    "expected": [
+      "<Shape { x: array<int> }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string\n7\nend\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_56",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=7;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_57",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string?=7;end;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_59",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string?|render(identity(int))}\nend",
+    "expected": [
+      "<Shape int>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string?\n7\nend\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_60",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=7;render(identity(string?))\nend",
+    "expected": "7"
+  },
+  {
+    "name": "shapes_shadow_61",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string?=7;end;render(identity(string?))\nend",
+    "expected": ""
+  },
+  {
+    "name": "shapes_shadow_63",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string?|render(identity(string?))}\nend",
+    "expected": [
+      "7"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string?\n7\nend\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "7"
+  },
+  {
+    "name": "shapes_shadow_64",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=7;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_65",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string?=7;end;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_67",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string?|render(identity(array<int>))}\nend",
+    "expected": [
+      "<Shape array<int>>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string?\n7\nend\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_68",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=7;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_69",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string?=7;end;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_71",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string?|render(identity({x:int}))}\nend",
+    "expected": [
+      "<Shape { x: int }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string?\n7\nend\ndef run(input)\nrender(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_72",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=7;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_73",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string?=7;end;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_75",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string?|render(identity({x:string?}))}\nend",
+    "expected": [
+      "<Shape { x: string? }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string?\n7\nend\ndef run(input)\nrender(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_76",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=7;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_77",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;string?=7;end;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_79",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|string?|render(identity({x:array<int>}))}\nend",
+    "expected": [
+      "<Shape { x: array<int> }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef string?\n7\nend\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_84",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\narray=7;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_85",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;array=7;end;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_87",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|array|render(identity(int))}\nend",
+    "expected": [
+      "<Shape int>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef array\n7\nend\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_88",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\narray=7;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_89",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;array=7;end;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_91",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|array|render(identity(string?))}\nend",
+    "expected": [
+      "<Shape string?>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef array\n7\nend\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_92",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\narray=7;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_93",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;array=7;end;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_95",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|array|render(identity(array<int>))}\nend",
+    "expected": [
+      "<Shape array<int>>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef array\n7\nend\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_96",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\narray=7;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_97",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;array=7;end;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_99",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|array|render(identity({x:int}))}\nend",
+    "expected": [
+      "<Shape { x: int }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef array\n7\nend\ndef run(input)\nrender(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_100",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\narray=7;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_101",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;array=7;end;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_103",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|array|render(identity({x:string?}))}\nend",
+    "expected": [
+      "<Shape { x: string? }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef array\n7\nend\ndef run(input)\nrender(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_104",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\narray=7;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_105",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;array=7;end;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_107",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|array|render(identity({x:array<int>}))}\nend",
+    "expected": [
+      "<Shape { x: array<int> }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef array\n7\nend\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_112",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_113",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;money=7;end;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_115",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity(int))}\nend",
+    "expected": [
+      "<Shape int>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_116",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_117",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;money=7;end;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_119",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity(string?))}\nend",
+    "expected": [
+      "<Shape string?>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_120",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_121",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;money=7;end;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_123",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity(array<int>))}\nend",
+    "expected": [
+      "<Shape array<int>>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_124",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_125",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;money=7;end;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_127",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity({x:int}))}\nend",
+    "expected": [
+      "<Shape { x: int }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_128",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_129",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;money=7;end;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_131",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity({x:string?}))}\nend",
+    "expected": [
+      "<Shape { x: string? }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_132",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_133",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;money=7;end;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_135",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity({x:array<int>}))}\nend",
+    "expected": [
+      "<Shape { x: array<int> }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_136",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nmoney=7;render(identity({x:money}))\nend",
+    "expected": "{x: 7}"
+  },
+  {
+    "name": "shapes_shadow_139",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|money|render(identity({x:money}))}\nend",
+    "expected": [
+      "{x: 7}"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef money\n7\nend\ndef run(input)\nrender(identity({x:money}))\nend",
+    "expected": "{x: 7}"
+  },
+  {
+    "name": "shapes_shadow_140",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nInt=7;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_141",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;Int=7;end;render(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_143",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|Int|render(identity(int))}\nend",
+    "expected": [
+      "<Shape int>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef Int\n7\nend\ndef run(input)\nrender(identity(int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_shadow_144",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nInt=7;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_145",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;Int=7;end;render(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_147",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|Int|render(identity(string?))}\nend",
+    "expected": [
+      "<Shape string?>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef Int\n7\nend\ndef run(input)\nrender(identity(string?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_shadow_148",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nInt=7;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_149",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;Int=7;end;render(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_151",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|Int|render(identity(array<int>))}\nend",
+    "expected": [
+      "<Shape array<int>>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef Int\n7\nend\ndef run(input)\nrender(identity(array<int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_shadow_152",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nInt=7;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_153",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;Int=7;end;render(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_155",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|Int|render(identity({x:int}))}\nend",
+    "expected": [
+      "<Shape { x: int }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef Int\n7\nend\ndef run(input)\nrender(identity({x:int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_shadow_156",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nInt=7;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_157",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;Int=7;end;render(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_159",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|Int|render(identity({x:string?}))}\nend",
+    "expected": [
+      "<Shape { x: string? }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_39",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef Int\n7\nend\ndef run(input)\nrender(identity({x:string?}))\nend",
+    "expected": "<Shape { x: string? }>"
+  },
+  {
+    "name": "shapes_shadow_160",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nInt=7;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_161",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;Int=7;end;render(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_shadow_163",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|Int|render(identity({x:array<int>}))}\nend",
+    "expected": [
+      "<Shape { x: array<int> }>"
+    ]
+  },
+  {
+    "name": "shapes_function_shadow_40",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef Int\n7\nend\ndef run(input)\nrender(identity({x:array<int>}))\nend",
+    "expected": "<Shape { x: array<int> }>"
+  },
+  {
+    "name": "shapes_values_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int};[schema].join(\",\")\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_values_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int};[schema].include?({x:int})\nend",
+    "expected": true
+  },
+  {
+    "name": "shapes_values_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int};[schema].map{|x:any|render(x)}\nend",
+    "expected": [
+      "<Shape { x: int }>"
+    ]
+  },
+  {
+    "name": "shapes_case_types_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(any?))\nend",
+    "expected": "<Shape any?>"
+  },
+  {
+    "name": "shapes_case_types_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<any>))\nend",
+    "expected": "<Shape array<any>>"
+  },
+  {
+    "name": "shapes_case_types_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:any}))\nend",
+    "expected": "<Shape { x: any }>"
+  },
+  {
+    "name": "shapes_case_types_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(ANY))\nend",
+    "expected": "<Shape any>"
+  },
+  {
+    "name": "shapes_case_types_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(ANY?))\nend",
+    "expected": "<Shape any?>"
+  },
+  {
+    "name": "shapes_case_types_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<ANY>))\nend",
+    "expected": "<Shape array<any>>"
+  },
+  {
+    "name": "shapes_case_types_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:ANY}))\nend",
+    "expected": "<Shape { x: any }>"
+  },
+  {
+    "name": "shapes_case_types_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Int))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_case_types_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Int?))\nend",
+    "expected": "<Shape int?>"
+  },
+  {
+    "name": "shapes_case_types_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Int>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_case_types_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Int}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_case_types_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(INT))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_case_types_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(INT?))\nend",
+    "expected": "<Shape int?>"
+  },
+  {
+    "name": "shapes_case_types_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<INT>))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_case_types_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:INT}))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_case_types_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Float))\nend",
+    "expected": "<Shape float>"
+  },
+  {
+    "name": "shapes_case_types_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Float?))\nend",
+    "expected": "<Shape float?>"
+  },
+  {
+    "name": "shapes_case_types_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Float>))\nend",
+    "expected": "<Shape array<float>>"
+  },
+  {
+    "name": "shapes_case_types_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Float}))\nend",
+    "expected": "<Shape { x: float }>"
+  },
+  {
+    "name": "shapes_case_types_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(STRING))\nend",
+    "expected": "<Shape string>"
+  },
+  {
+    "name": "shapes_case_types_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(STRING?))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_case_types_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<STRING>))\nend",
+    "expected": "<Shape array<string>>"
+  },
+  {
+    "name": "shapes_case_types_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:STRING}))\nend",
+    "expected": "<Shape { x: string }>"
+  },
+  {
+    "name": "shapes_case_types_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(BOOL))\nend",
+    "expected": "<Shape bool>"
+  },
+  {
+    "name": "shapes_case_types_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(BOOL?))\nend",
+    "expected": "<Shape bool?>"
+  },
+  {
+    "name": "shapes_case_types_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<BOOL>))\nend",
+    "expected": "<Shape array<bool>>"
+  },
+  {
+    "name": "shapes_case_types_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:BOOL}))\nend",
+    "expected": "<Shape { x: bool }>"
+  },
+  {
+    "name": "shapes_case_types_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Nil>))\nend",
+    "expected": "<Shape array<nil>>"
+  },
+  {
+    "name": "shapes_case_types_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Duration))\nend",
+    "expected": "<object>"
+  },
+  {
+    "name": "shapes_case_types_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Duration?))\nend",
+    "expected": "<Shape duration?>"
+  },
+  {
+    "name": "shapes_case_types_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Duration>))\nend",
+    "expected": "<Shape array<duration>>"
+  },
+  {
+    "name": "shapes_case_types_39",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Duration}))\nend",
+    "expected": "{x: <object>}"
+  },
+  {
+    "name": "shapes_case_types_40",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Money))\nend",
+    "expected": "<Shape money>"
+  },
+  {
+    "name": "shapes_case_types_41",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Money?))\nend",
+    "expected": "<Shape money?>"
+  },
+  {
+    "name": "shapes_case_types_42",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Money>))\nend",
+    "expected": "<Shape array<money>>"
+  },
+  {
+    "name": "shapes_case_types_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Money}))\nend",
+    "expected": "<Shape { x: money }>"
+  },
+  {
+    "name": "shapes_case_types_44",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Time))\nend",
+    "expected": "<object>"
+  },
+  {
+    "name": "shapes_case_types_45",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Time?))\nend",
+    "expected": "<Shape time?>"
+  },
+  {
+    "name": "shapes_case_types_46",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Time>))\nend",
+    "expected": "<Shape array<time>>"
+  },
+  {
+    "name": "shapes_case_types_47",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Time}))\nend",
+    "expected": "{x: <object>}"
+  },
+  {
+    "name": "shapes_case_types_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Array))\nend",
+    "expected": "<Shape array>"
+  },
+  {
+    "name": "shapes_case_types_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Array?))\nend",
+    "expected": "<Shape array?>"
+  },
+  {
+    "name": "shapes_case_types_50",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Array>))\nend",
+    "expected": "<Shape array<array>>"
+  },
+  {
+    "name": "shapes_case_types_51",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Array}))\nend",
+    "expected": "<Shape { x: array }>"
+  },
+  {
+    "name": "shapes_case_types_52",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(HASH))\nend",
+    "expected": "<Shape hash>"
+  },
+  {
+    "name": "shapes_case_types_53",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(HASH?))\nend",
+    "expected": "<Shape hash?>"
+  },
+  {
+    "name": "shapes_case_types_54",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<HASH>))\nend",
+    "expected": "<Shape array<hash>>"
+  },
+  {
+    "name": "shapes_case_types_55",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:HASH}))\nend",
+    "expected": "<Shape { x: hash }>"
+  },
+  {
+    "name": "shapes_case_types_56",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Object))\nend",
+    "expected": "<Shape object>"
+  },
+  {
+    "name": "shapes_case_types_57",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(Object?))\nend",
+    "expected": "<Shape object?>"
+  },
+  {
+    "name": "shapes_case_types_58",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Object>))\nend",
+    "expected": "<Shape array<object>>"
+  },
+  {
+    "name": "shapes_case_types_59",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:Object}))\nend",
+    "expected": "<Shape { x: object }>"
+  },
+  {
+    "name": "shapes_quoted_fields_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"literal?\":int})\nend",
+    "expected": "<Shape { \"literal?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"literal?\":string?})\nend",
+    "expected": "<Shape { \"literal?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"literal?\":int | nil})\nend",
+    "expected": "<Shape { \"literal?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\n?\":int})\nend",
+    "expected": "<Shape { \"a\\n?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\n?\":string?})\nend",
+    "expected": "<Shape { \"a\\n?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\n?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\n?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\u0000?\":int})\nend",
+    "expected": "<Shape { \"a\\x00?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\u0000?\":string?})\nend",
+    "expected": "<Shape { \"a\\x00?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\u0000?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\x00?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a?\":int})\nend",
+    "expected": "<Shape { \"a\\x7f?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a?\":string?})\nend",
+    "expected": "<Shape { \"a\\x7f?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\x7f?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a?\":int})\nend",
+    "expected": "<Shape { \"a\\u0085?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a?\":string?})\nend",
+    "expected": "<Shape { \"a\\u0085?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\u0085?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a ?\":int})\nend",
+    "expected": "<Shape { \"a\\u00a0?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a ?\":string?})\nend",
+    "expected": "<Shape { \"a\\u00a0?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a ?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\u00a0?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a­?\":int})\nend",
+    "expected": "<Shape { \"a\\u00ad?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a­?\":string?})\nend",
+    "expected": "<Shape { \"a\\u00ad?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a­?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\u00ad?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a​?\":int})\nend",
+    "expected": "<Shape { \"a\\u200b?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a​?\":string?})\nend",
+    "expected": "<Shape { \"a\\u200b?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a​?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\u200b?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a ?\":int})\nend",
+    "expected": "<Shape { \"a\\u2028?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a ?\":string?})\nend",
+    "expected": "<Shape { \"a\\u2028?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a ?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\u2028?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a😀?\":int})\nend",
+    "expected": "<Shape { \"a😀?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a😀?\":string?})\nend",
+    "expected": "<Shape { \"a😀?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a😀?\":int | nil})\nend",
+    "expected": "<Shape { \"a😀?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a𯿿?\":int})\nend",
+    "expected": "<Shape { \"a\\U0002ffff?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a𯿿?\":string?})\nend",
+    "expected": "<Shape { \"a\\U0002ffff?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a𯿿?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\U0002ffff?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a󠀀?\":int})\nend",
+    "expected": "<Shape { \"a\\U000e0000?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a󠀀?\":string?})\nend",
+    "expected": "<Shape { \"a\\U000e0000?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a󠀀?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\U000e0000?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\\"?\":int})\nend",
+    "expected": "<Shape { \"a\\\"?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\\"?\":string?})\nend",
+    "expected": "<Shape { \"a\\\"?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\\"?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\\"?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_39",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\\\?\":int})\nend",
+    "expected": "<Shape { \"a\\\\?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_40",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\\\?\":string?})\nend",
+    "expected": "<Shape { \"a\\\\?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_41",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"a\\\\?\":int | nil})\nend",
+    "expected": "<Shape { \"a\\\\?\": int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_42",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\":int})\nend",
+    "expected": "<Shape { : int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\":string?})\nend",
+    "expected": "<Shape { : string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_44",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\":int | nil})\nend",
+    "expected": "<Shape { : int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_45",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"name\":int})\nend",
+    "expected": "<Shape { name: int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_46",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"name\":string?})\nend",
+    "expected": "<Shape { name: string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_47",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"name\":int | nil})\nend",
+    "expected": "<Shape { name: int | nil }>"
+  },
+  {
+    "name": "shapes_quoted_fields_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"name?\":int})\nend",
+    "expected": "<Shape { \"name?\": int }>"
+  },
+  {
+    "name": "shapes_quoted_fields_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"name?\":string?})\nend",
+    "expected": "<Shape { \"name?\": string? }>"
+  },
+  {
+    "name": "shapes_quoted_fields_50",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"name?\":int | nil})\nend",
+    "expected": "<Shape { \"name?\": int | nil }>"
+  },
+  {
+    "name": "shapes_byte_fields_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x00?\":int})\nend",
+    "expected": "<Shape { \"\\x00?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x01?\":int})\nend",
+    "expected": "<Shape { \"\\x01?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x02?\":int})\nend",
+    "expected": "<Shape { \"\\x02?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x03?\":int})\nend",
+    "expected": "<Shape { \"\\x03?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x04?\":int})\nend",
+    "expected": "<Shape { \"\\x04?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x05?\":int})\nend",
+    "expected": "<Shape { \"\\x05?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x06?\":int})\nend",
+    "expected": "<Shape { \"\\x06?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x07?\":int})\nend",
+    "expected": "<Shape { \"\\a?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x08?\":int})\nend",
+    "expected": "<Shape { \"\\b?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x09?\":int})\nend",
+    "expected": "<Shape { \"\\t?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x0a?\":int})\nend",
+    "expected": "<Shape { \"\\n?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x0b?\":int})\nend",
+    "expected": "<Shape { \"\\v?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x0c?\":int})\nend",
+    "expected": "<Shape { \"\\f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x0d?\":int})\nend",
+    "expected": "<Shape { \"\\r?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x0e?\":int})\nend",
+    "expected": "<Shape { \"\\x0e?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x0f?\":int})\nend",
+    "expected": "<Shape { \"\\x0f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x10?\":int})\nend",
+    "expected": "<Shape { \"\\x10?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x11?\":int})\nend",
+    "expected": "<Shape { \"\\x11?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x12?\":int})\nend",
+    "expected": "<Shape { \"\\x12?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x13?\":int})\nend",
+    "expected": "<Shape { \"\\x13?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x14?\":int})\nend",
+    "expected": "<Shape { \"\\x14?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x15?\":int})\nend",
+    "expected": "<Shape { \"\\x15?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x16?\":int})\nend",
+    "expected": "<Shape { \"\\x16?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x17?\":int})\nend",
+    "expected": "<Shape { \"\\x17?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x18?\":int})\nend",
+    "expected": "<Shape { \"\\x18?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x19?\":int})\nend",
+    "expected": "<Shape { \"\\x19?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x1a?\":int})\nend",
+    "expected": "<Shape { \"\\x1a?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x1b?\":int})\nend",
+    "expected": "<Shape { \"\\x1b?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x1c?\":int})\nend",
+    "expected": "<Shape { \"\\x1c?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x1d?\":int})\nend",
+    "expected": "<Shape { \"\\x1d?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x1e?\":int})\nend",
+    "expected": "<Shape { \"\\x1e?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x1f?\":int})\nend",
+    "expected": "<Shape { \"\\x1f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x20?\":int})\nend",
+    "expected": "<Shape { \" ?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x21?\":int})\nend",
+    "expected": "<Shape { \"!?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x22?\":int})\nend",
+    "expected": "<Shape { \"\\\"?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x23?\":int})\nend",
+    "expected": "<Shape { \"#?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x24?\":int})\nend",
+    "expected": "<Shape { \"$?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x25?\":int})\nend",
+    "expected": "<Shape { \"%?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x26?\":int})\nend",
+    "expected": "<Shape { \"&?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_39",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x27?\":int})\nend",
+    "expected": "<Shape { \"'?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_40",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x28?\":int})\nend",
+    "expected": "<Shape { \"(?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_41",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x29?\":int})\nend",
+    "expected": "<Shape { \")?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_42",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x2a?\":int})\nend",
+    "expected": "<Shape { \"*?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x2b?\":int})\nend",
+    "expected": "<Shape { \"+?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_44",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x2c?\":int})\nend",
+    "expected": "<Shape { \",?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_45",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x2d?\":int})\nend",
+    "expected": "<Shape { \"-?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_46",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x2e?\":int})\nend",
+    "expected": "<Shape { \".?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_47",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x2f?\":int})\nend",
+    "expected": "<Shape { \"/?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x30?\":int})\nend",
+    "expected": "<Shape { \"0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x31?\":int})\nend",
+    "expected": "<Shape { \"1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_50",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x32?\":int})\nend",
+    "expected": "<Shape { \"2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_51",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x33?\":int})\nend",
+    "expected": "<Shape { \"3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_52",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x34?\":int})\nend",
+    "expected": "<Shape { \"4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_53",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x35?\":int})\nend",
+    "expected": "<Shape { \"5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_54",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x36?\":int})\nend",
+    "expected": "<Shape { \"6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_55",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x37?\":int})\nend",
+    "expected": "<Shape { \"7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_56",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x38?\":int})\nend",
+    "expected": "<Shape { \"8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_57",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x39?\":int})\nend",
+    "expected": "<Shape { \"9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_58",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x3a?\":int})\nend",
+    "expected": "<Shape { \":?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_59",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x3b?\":int})\nend",
+    "expected": "<Shape { \";?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_60",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x3c?\":int})\nend",
+    "expected": "<Shape { \"<?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_61",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x3d?\":int})\nend",
+    "expected": "<Shape { \"=?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_62",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x3e?\":int})\nend",
+    "expected": "<Shape { \">?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_63",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x3f?\":int})\nend",
+    "expected": "<Shape { \"??\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_64",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x40?\":int})\nend",
+    "expected": "<Shape { \"@?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_65",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x41?\":int})\nend",
+    "expected": "<Shape { \"A?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_66",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x42?\":int})\nend",
+    "expected": "<Shape { \"B?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_67",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x43?\":int})\nend",
+    "expected": "<Shape { \"C?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_68",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x44?\":int})\nend",
+    "expected": "<Shape { \"D?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_69",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x45?\":int})\nend",
+    "expected": "<Shape { \"E?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_70",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x46?\":int})\nend",
+    "expected": "<Shape { \"F?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_71",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x47?\":int})\nend",
+    "expected": "<Shape { \"G?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_72",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x48?\":int})\nend",
+    "expected": "<Shape { \"H?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_73",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x49?\":int})\nend",
+    "expected": "<Shape { \"I?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_74",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x4a?\":int})\nend",
+    "expected": "<Shape { \"J?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_75",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x4b?\":int})\nend",
+    "expected": "<Shape { \"K?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_76",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x4c?\":int})\nend",
+    "expected": "<Shape { \"L?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_77",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x4d?\":int})\nend",
+    "expected": "<Shape { \"M?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_78",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x4e?\":int})\nend",
+    "expected": "<Shape { \"N?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_79",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x4f?\":int})\nend",
+    "expected": "<Shape { \"O?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_80",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x50?\":int})\nend",
+    "expected": "<Shape { \"P?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_81",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x51?\":int})\nend",
+    "expected": "<Shape { \"Q?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_82",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x52?\":int})\nend",
+    "expected": "<Shape { \"R?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_83",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x53?\":int})\nend",
+    "expected": "<Shape { \"S?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_84",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x54?\":int})\nend",
+    "expected": "<Shape { \"T?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_85",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x55?\":int})\nend",
+    "expected": "<Shape { \"U?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_86",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x56?\":int})\nend",
+    "expected": "<Shape { \"V?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_87",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x57?\":int})\nend",
+    "expected": "<Shape { \"W?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_88",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x58?\":int})\nend",
+    "expected": "<Shape { \"X?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_89",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x59?\":int})\nend",
+    "expected": "<Shape { \"Y?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_90",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x5a?\":int})\nend",
+    "expected": "<Shape { \"Z?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_91",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x5b?\":int})\nend",
+    "expected": "<Shape { \"[?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_92",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x5c?\":int})\nend",
+    "expected": "<Shape { \"\\\\?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_93",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x5d?\":int})\nend",
+    "expected": "<Shape { \"]?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_94",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x5e?\":int})\nend",
+    "expected": "<Shape { \"^?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_95",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x5f?\":int})\nend",
+    "expected": "<Shape { \"_?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_96",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x60?\":int})\nend",
+    "expected": "<Shape { \"`?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_97",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x61?\":int})\nend",
+    "expected": "<Shape { \"a?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_98",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x62?\":int})\nend",
+    "expected": "<Shape { \"b?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_99",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x63?\":int})\nend",
+    "expected": "<Shape { \"c?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_100",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x64?\":int})\nend",
+    "expected": "<Shape { \"d?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_101",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x65?\":int})\nend",
+    "expected": "<Shape { \"e?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_102",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x66?\":int})\nend",
+    "expected": "<Shape { \"f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_103",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x67?\":int})\nend",
+    "expected": "<Shape { \"g?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_104",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x68?\":int})\nend",
+    "expected": "<Shape { \"h?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_105",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x69?\":int})\nend",
+    "expected": "<Shape { \"i?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_106",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x6a?\":int})\nend",
+    "expected": "<Shape { \"j?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_107",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x6b?\":int})\nend",
+    "expected": "<Shape { \"k?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_108",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x6c?\":int})\nend",
+    "expected": "<Shape { \"l?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_109",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x6d?\":int})\nend",
+    "expected": "<Shape { \"m?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_110",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x6e?\":int})\nend",
+    "expected": "<Shape { \"n?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_111",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x6f?\":int})\nend",
+    "expected": "<Shape { \"o?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_112",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x70?\":int})\nend",
+    "expected": "<Shape { \"p?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_113",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x71?\":int})\nend",
+    "expected": "<Shape { \"q?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_114",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x72?\":int})\nend",
+    "expected": "<Shape { \"r?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_115",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x73?\":int})\nend",
+    "expected": "<Shape { \"s?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_116",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x74?\":int})\nend",
+    "expected": "<Shape { \"t?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_117",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x75?\":int})\nend",
+    "expected": "<Shape { \"u?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_118",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x76?\":int})\nend",
+    "expected": "<Shape { \"v?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_119",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x77?\":int})\nend",
+    "expected": "<Shape { \"w?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_120",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x78?\":int})\nend",
+    "expected": "<Shape { \"x?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_121",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x79?\":int})\nend",
+    "expected": "<Shape { \"y?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_122",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x7a?\":int})\nend",
+    "expected": "<Shape { \"z?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_123",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x7b?\":int})\nend",
+    "expected": "<Shape { \"{?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_124",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x7c?\":int})\nend",
+    "expected": "<Shape { \"|?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_125",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x7d?\":int})\nend",
+    "expected": "<Shape { \"}?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_126",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x7e?\":int})\nend",
+    "expected": "<Shape { \"~?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_127",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x7f?\":int})\nend",
+    "expected": "<Shape { \"\\x7f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_128",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x80?\":int})\nend",
+    "expected": "<Shape { \"\\x80?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_129",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x81?\":int})\nend",
+    "expected": "<Shape { \"\\x81?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_130",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x82?\":int})\nend",
+    "expected": "<Shape { \"\\x82?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_131",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x83?\":int})\nend",
+    "expected": "<Shape { \"\\x83?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_132",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x84?\":int})\nend",
+    "expected": "<Shape { \"\\x84?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_133",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x85?\":int})\nend",
+    "expected": "<Shape { \"\\x85?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_134",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x86?\":int})\nend",
+    "expected": "<Shape { \"\\x86?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_135",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x87?\":int})\nend",
+    "expected": "<Shape { \"\\x87?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_136",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x88?\":int})\nend",
+    "expected": "<Shape { \"\\x88?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_137",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x89?\":int})\nend",
+    "expected": "<Shape { \"\\x89?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_138",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x8a?\":int})\nend",
+    "expected": "<Shape { \"\\x8a?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_139",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x8b?\":int})\nend",
+    "expected": "<Shape { \"\\x8b?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_140",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x8c?\":int})\nend",
+    "expected": "<Shape { \"\\x8c?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_141",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x8d?\":int})\nend",
+    "expected": "<Shape { \"\\x8d?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_142",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x8e?\":int})\nend",
+    "expected": "<Shape { \"\\x8e?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_143",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x8f?\":int})\nend",
+    "expected": "<Shape { \"\\x8f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_144",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x90?\":int})\nend",
+    "expected": "<Shape { \"\\x90?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_145",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x91?\":int})\nend",
+    "expected": "<Shape { \"\\x91?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_146",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x92?\":int})\nend",
+    "expected": "<Shape { \"\\x92?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_147",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x93?\":int})\nend",
+    "expected": "<Shape { \"\\x93?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_148",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x94?\":int})\nend",
+    "expected": "<Shape { \"\\x94?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_149",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x95?\":int})\nend",
+    "expected": "<Shape { \"\\x95?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_150",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x96?\":int})\nend",
+    "expected": "<Shape { \"\\x96?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_151",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x97?\":int})\nend",
+    "expected": "<Shape { \"\\x97?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_152",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x98?\":int})\nend",
+    "expected": "<Shape { \"\\x98?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_153",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x99?\":int})\nend",
+    "expected": "<Shape { \"\\x99?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_154",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x9a?\":int})\nend",
+    "expected": "<Shape { \"\\x9a?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_155",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x9b?\":int})\nend",
+    "expected": "<Shape { \"\\x9b?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_156",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x9c?\":int})\nend",
+    "expected": "<Shape { \"\\x9c?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_157",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x9d?\":int})\nend",
+    "expected": "<Shape { \"\\x9d?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_158",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x9e?\":int})\nend",
+    "expected": "<Shape { \"\\x9e?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_159",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x9f?\":int})\nend",
+    "expected": "<Shape { \"\\x9f?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_160",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa0?\":int})\nend",
+    "expected": "<Shape { \"\\xa0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_161",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa1?\":int})\nend",
+    "expected": "<Shape { \"\\xa1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_162",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa2?\":int})\nend",
+    "expected": "<Shape { \"\\xa2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_163",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa3?\":int})\nend",
+    "expected": "<Shape { \"\\xa3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_164",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa4?\":int})\nend",
+    "expected": "<Shape { \"\\xa4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_165",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa5?\":int})\nend",
+    "expected": "<Shape { \"\\xa5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_166",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa6?\":int})\nend",
+    "expected": "<Shape { \"\\xa6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_167",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa7?\":int})\nend",
+    "expected": "<Shape { \"\\xa7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_168",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa8?\":int})\nend",
+    "expected": "<Shape { \"\\xa8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_169",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xa9?\":int})\nend",
+    "expected": "<Shape { \"\\xa9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_170",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xaa?\":int})\nend",
+    "expected": "<Shape { \"\\xaa?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_171",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xab?\":int})\nend",
+    "expected": "<Shape { \"\\xab?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_172",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xac?\":int})\nend",
+    "expected": "<Shape { \"\\xac?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_173",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xad?\":int})\nend",
+    "expected": "<Shape { \"\\xad?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_174",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xae?\":int})\nend",
+    "expected": "<Shape { \"\\xae?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_175",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xaf?\":int})\nend",
+    "expected": "<Shape { \"\\xaf?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_176",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb0?\":int})\nend",
+    "expected": "<Shape { \"\\xb0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_177",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb1?\":int})\nend",
+    "expected": "<Shape { \"\\xb1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_178",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb2?\":int})\nend",
+    "expected": "<Shape { \"\\xb2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_179",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb3?\":int})\nend",
+    "expected": "<Shape { \"\\xb3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_180",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb4?\":int})\nend",
+    "expected": "<Shape { \"\\xb4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_181",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb5?\":int})\nend",
+    "expected": "<Shape { \"\\xb5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_182",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb6?\":int})\nend",
+    "expected": "<Shape { \"\\xb6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_183",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb7?\":int})\nend",
+    "expected": "<Shape { \"\\xb7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_184",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb8?\":int})\nend",
+    "expected": "<Shape { \"\\xb8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_185",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xb9?\":int})\nend",
+    "expected": "<Shape { \"\\xb9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_186",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xba?\":int})\nend",
+    "expected": "<Shape { \"\\xba?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_187",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xbb?\":int})\nend",
+    "expected": "<Shape { \"\\xbb?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_188",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xbc?\":int})\nend",
+    "expected": "<Shape { \"\\xbc?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_189",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xbd?\":int})\nend",
+    "expected": "<Shape { \"\\xbd?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_190",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xbe?\":int})\nend",
+    "expected": "<Shape { \"\\xbe?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_191",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xbf?\":int})\nend",
+    "expected": "<Shape { \"\\xbf?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_192",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc0?\":int})\nend",
+    "expected": "<Shape { \"\\xc0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_193",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc1?\":int})\nend",
+    "expected": "<Shape { \"\\xc1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_194",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc2?\":int})\nend",
+    "expected": "<Shape { \"\\xc2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_195",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc3?\":int})\nend",
+    "expected": "<Shape { \"\\xc3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_196",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc4?\":int})\nend",
+    "expected": "<Shape { \"\\xc4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_197",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc5?\":int})\nend",
+    "expected": "<Shape { \"\\xc5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_198",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc6?\":int})\nend",
+    "expected": "<Shape { \"\\xc6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_199",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc7?\":int})\nend",
+    "expected": "<Shape { \"\\xc7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_200",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc8?\":int})\nend",
+    "expected": "<Shape { \"\\xc8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_201",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xc9?\":int})\nend",
+    "expected": "<Shape { \"\\xc9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_202",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xca?\":int})\nend",
+    "expected": "<Shape { \"\\xca?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_203",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xcb?\":int})\nend",
+    "expected": "<Shape { \"\\xcb?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_204",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xcc?\":int})\nend",
+    "expected": "<Shape { \"\\xcc?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_205",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xcd?\":int})\nend",
+    "expected": "<Shape { \"\\xcd?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_206",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xce?\":int})\nend",
+    "expected": "<Shape { \"\\xce?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_207",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xcf?\":int})\nend",
+    "expected": "<Shape { \"\\xcf?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_208",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd0?\":int})\nend",
+    "expected": "<Shape { \"\\xd0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_209",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd1?\":int})\nend",
+    "expected": "<Shape { \"\\xd1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_210",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd2?\":int})\nend",
+    "expected": "<Shape { \"\\xd2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_211",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd3?\":int})\nend",
+    "expected": "<Shape { \"\\xd3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_212",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd4?\":int})\nend",
+    "expected": "<Shape { \"\\xd4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_213",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd5?\":int})\nend",
+    "expected": "<Shape { \"\\xd5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_214",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd6?\":int})\nend",
+    "expected": "<Shape { \"\\xd6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_215",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd7?\":int})\nend",
+    "expected": "<Shape { \"\\xd7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_216",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd8?\":int})\nend",
+    "expected": "<Shape { \"\\xd8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_217",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xd9?\":int})\nend",
+    "expected": "<Shape { \"\\xd9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_218",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xda?\":int})\nend",
+    "expected": "<Shape { \"\\xda?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_219",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xdb?\":int})\nend",
+    "expected": "<Shape { \"\\xdb?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_220",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xdc?\":int})\nend",
+    "expected": "<Shape { \"\\xdc?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_221",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xdd?\":int})\nend",
+    "expected": "<Shape { \"\\xdd?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_222",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xde?\":int})\nend",
+    "expected": "<Shape { \"\\xde?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_223",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xdf?\":int})\nend",
+    "expected": "<Shape { \"\\xdf?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_224",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe0?\":int})\nend",
+    "expected": "<Shape { \"\\xe0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_225",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe1?\":int})\nend",
+    "expected": "<Shape { \"\\xe1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_226",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe2?\":int})\nend",
+    "expected": "<Shape { \"\\xe2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_227",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe3?\":int})\nend",
+    "expected": "<Shape { \"\\xe3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_228",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe4?\":int})\nend",
+    "expected": "<Shape { \"\\xe4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_229",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe5?\":int})\nend",
+    "expected": "<Shape { \"\\xe5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_230",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe6?\":int})\nend",
+    "expected": "<Shape { \"\\xe6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_231",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe7?\":int})\nend",
+    "expected": "<Shape { \"\\xe7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_232",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe8?\":int})\nend",
+    "expected": "<Shape { \"\\xe8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_233",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xe9?\":int})\nend",
+    "expected": "<Shape { \"\\xe9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_234",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xea?\":int})\nend",
+    "expected": "<Shape { \"\\xea?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_235",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xeb?\":int})\nend",
+    "expected": "<Shape { \"\\xeb?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_236",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xec?\":int})\nend",
+    "expected": "<Shape { \"\\xec?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_237",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xed?\":int})\nend",
+    "expected": "<Shape { \"\\xed?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_238",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xee?\":int})\nend",
+    "expected": "<Shape { \"\\xee?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_239",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xef?\":int})\nend",
+    "expected": "<Shape { \"\\xef?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_240",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf0?\":int})\nend",
+    "expected": "<Shape { \"\\xf0?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_241",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf1?\":int})\nend",
+    "expected": "<Shape { \"\\xf1?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_242",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf2?\":int})\nend",
+    "expected": "<Shape { \"\\xf2?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_243",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf3?\":int})\nend",
+    "expected": "<Shape { \"\\xf3?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_244",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf4?\":int})\nend",
+    "expected": "<Shape { \"\\xf4?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_245",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf5?\":int})\nend",
+    "expected": "<Shape { \"\\xf5?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_246",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf6?\":int})\nend",
+    "expected": "<Shape { \"\\xf6?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_247",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf7?\":int})\nend",
+    "expected": "<Shape { \"\\xf7?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_248",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf8?\":int})\nend",
+    "expected": "<Shape { \"\\xf8?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_249",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xf9?\":int})\nend",
+    "expected": "<Shape { \"\\xf9?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_250",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xfa?\":int})\nend",
+    "expected": "<Shape { \"\\xfa?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_251",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xfb?\":int})\nend",
+    "expected": "<Shape { \"\\xfb?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_252",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xfc?\":int})\nend",
+    "expected": "<Shape { \"\\xfc?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_253",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xfd?\":int})\nend",
+    "expected": "<Shape { \"\\xfd?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_254",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xfe?\":int})\nend",
+    "expected": "<Shape { \"\\xfe?\": int }>"
+  },
+  {
+    "name": "shapes_byte_fields_255",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\xff?\":int})\nend",
+    "expected": "<Shape { \"\\xff?\": int }>"
+  },
+  {
+    "name": "shapes_depth_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "expected": "<Shape array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+  },
+  {
+    "name": "shapes_depth_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "<Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>"
+  },
+  {
+    "name": "shapes_depth_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "expected": "<Shape array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+  },
+  {
+    "name": "shapes_depth_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "<Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>"
+  },
+  {
+    "name": "shapes_depth_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "expected": "<Shape array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+  },
+  {
+    "name": "shapes_depth_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "<Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>"
+  },
+  {
+    "name": "shapes_depth_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "expected": "<Shape array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+  },
+  {
+    "name": "shapes_depth_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "<Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>"
+  },
+  {
+    "name": "shapes_depth_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "expected": "<Shape array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+  },
+  {
+    "name": "shapes_depth_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "<Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>"
+  },
+  {
+    "name": "shapes_depth_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "<Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>"
+  },
+  {
+    "name": "shapes_depth_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "{x: <Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>}"
+  },
+  {
+    "name": "shapes_depth_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:{x:int}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}})\nend",
+    "expected": "{x: {x: <Shape { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: { x: int } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } } }>}}"
+  },
+  {
+    "name": "shapes_whitespace_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(int ))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_whitespace_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(int\n))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_whitespace_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(int # comment\n))\nend",
+    "expected": "<Shape int>"
+  },
+  {
+    "name": "shapes_whitespace_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(string? ))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_whitespace_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(string?\n))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_whitespace_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(string? # comment\n))\nend",
+    "expected": "<Shape string?>"
+  },
+  {
+    "name": "shapes_whitespace_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<int> ))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_whitespace_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<int>\n))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_whitespace_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<int> # comment\n))\nend",
+    "expected": "<Shape array<int>>"
+  },
+  {
+    "name": "shapes_whitespace_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:int} ))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_whitespace_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:int}\n))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_whitespace_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:int} # comment\n))\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_json_input_caps_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse(\" \" * 1048574 + \"7\")\nend",
+    "expected": 7,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_input_caps_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\" \" * 1048574 + \"7\",int)\nend",
+    "expected": 7,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_input_caps_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse(\" \" * 1048575 + \"7\")\nend",
+    "expected": 7,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_input_caps_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\" \" * 1048575 + \"7\",int)\nend",
+    "expected": 7,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_output_caps_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify(\"a\" * 1048573).bytesize\nend",
+    "expected": 1048575,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_output_caps_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify(\"a\" * 1048574).bytesize\nend",
+    "expected": 1048576,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_output_caps_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify([\"a\" * 1048571]).bytesize\nend",
+    "expected": 1048575,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_output_caps_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify([\"a\" * 1048572]).bytesize\nend",
+    "expected": 1048576,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_output_caps_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify({x:\"a\" * 1048567}).bytesize\nend",
+    "expected": 1048575,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_output_caps_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify({x:\"a\" * 1048568}).bytesize\nend",
+    "expected": 1048576,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_escape_caps_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify((\"é\" * 524287)[0...-1]).bytesize\nend",
+    "expected": 1048574,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_escape_caps_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify(\"é\" * 524287).bytesize\nend",
+    "expected": 1048576,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_escape_caps_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify((\"\\x00\" * 174762 + \"aa\")[0...-1]).bytesize\nend",
+    "expected": 1048575,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_json_escape_caps_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify(\"\\x00\" * 174762 + \"aa\").bytesize\nend",
+    "expected": 1048576,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_scopes_native_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;[identity(int),{x:int},identity(array<int>).nil?]\nend",
+    "expected": [
+      7,
+      {
+        "x": 7
+      },
+      false
+    ]
+  },
+  {
+    "name": "shapes_scopes_native_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nstring?=9;[identity(string?),render({x:string?})]\nend",
+    "expected": [
+      9,
+      "<Shape { x: string? }>"
+    ]
+  },
+  {
+    "name": "shapes_scopes_native_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[7].map{|int|[1].map{[identity(int),{x:int}]}}\nend",
+    "expected": [
+      [
+        [
+          7,
+          {
+            "x": 7
+          }
+        ]
+      ]
+    ]
+  },
+  {
+    "name": "shapes_quoted_sort_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"\\x85?\":int,\"\\u0085?\":int})\nend",
+    "expected": "<Shape { \"\\x85?\": int, \"\\u0085?\": int }>"
+  },
+  {
+    "name": "shapes_driver_identity_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={x:int};schema.tap{|x|x.nil?}.yield_self{|x|x==schema}\nend",
+    "expected": true
+  },
+  {
+    "name": "shapes_structural_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int,x:int})\nend",
+    "expected": "{x: 7}"
+  },
+  {
+    "name": "shapes_structural_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int,x:int})\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_structural_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int,x:nil})\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_structural_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int,x:nil})\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_structural_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int,})\nend",
+    "expected": "{x: 7}"
+  },
+  {
+    "name": "shapes_structural_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int,})\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_structural_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{}})\nend",
+    "expected": "{x: {}}"
+  },
+  {
+    "name": "shapes_structural_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:{}})\nend",
+    "expected": "{x: {}}"
+  },
+  {
+    "name": "shapes_structural_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:{}})\nend",
+    "expected": "{x: {}}"
+  },
+  {
+    "name": "shapes_structural_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{},...})\nend",
+    "expected": "<Shape { x: {}, ... }>"
+  },
+  {
+    "name": "shapes_structural_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:{},...})\nend",
+    "expected": "<Shape { x: {}, ... }>"
+  },
+  {
+    "name": "shapes_structural_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:{},...})\nend",
+    "expected": "<Shape { x: {}, ... }>"
+  },
+  {
+    "name": "shapes_structural_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{a:int}})\nend",
+    "expected": "<Shape { x: { a: int } }>"
+  },
+  {
+    "name": "shapes_structural_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:{a:int}})\nend",
+    "expected": "{x: {a: 7}}"
+  },
+  {
+    "name": "shapes_structural_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:{a:int}})\nend",
+    "expected": "{x: {a: }}"
+  },
+  {
+    "name": "shapes_structural_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{a:int},y:nil})\nend",
+    "expected": "{x: <Shape { a: int }>, y: }"
+  },
+  {
+    "name": "shapes_structural_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:{a:int},y:nil})\nend",
+    "expected": "{x: {a: 7}, y: }"
+  },
+  {
+    "name": "shapes_structural_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:{a:int},y:nil})\nend",
+    "expected": "{x: {a: }, y: }"
+  },
+  {
+    "name": "shapes_structural_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:{a:int},y:nil,...})\nend",
+    "expected": "<Shape { x: { a: int }, y: nil, ... }>"
+  },
+  {
+    "name": "shapes_structural_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:{a:int},y:nil,...})\nend",
+    "expected": "<Shape { x: { a: int }, y: nil, ... }>"
+  },
+  {
+    "name": "shapes_structural_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:{a:int},y:nil,...})\nend",
+    "expected": "<Shape { x: { a: int }, y: nil, ... }>"
+  },
+  {
+    "name": "shapes_structural_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int}? 1 : 2)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "shapes_structural_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int}? 1 : 2)\nend",
+    "expected": "1"
+  },
+  {
+    "name": "shapes_structural_42",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x?:int})\nend",
+    "expected": "<Shape { x?: int }>"
+  },
+  {
+    "name": "shapes_structural_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x?:int})\nend",
+    "expected": "{x?: 7}"
+  },
+  {
+    "name": "shapes_structural_44",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x?:int})\nend",
+    "expected": "{x?: }"
+  },
+  {
+    "name": "shapes_structural_45",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({\"x?\":int})\nend",
+    "expected": "<Shape { \"x?\": int }>"
+  },
+  {
+    "name": "shapes_structural_46",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({\"x?\":int})\nend",
+    "expected": "{x?: 7}"
+  },
+  {
+    "name": "shapes_structural_47",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({\"x?\":int})\nend",
+    "expected": "{x?: }"
+  },
+  {
+    "name": "shapes_structural_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({:x: int})\nend",
+    "expected": "<Shape { x: int }>"
+  },
+  {
+    "name": "shapes_boundaries_extra_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema={...};JSON.parse_as(\"{}\",schema)\nend",
+    "expected": {}
+  },
+  {
+    "name": "shapes_boundaries_extra_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.stringify(\"\\n\" * 524285 + \"aaaa\").bytesize\nend",
+    "expected": 1048576,
+    "steps": 5000000
+  },
+  {
+    "name": "shapes_trailing_types_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:nil,}))\nend",
+    "expected": "{x: }"
+  },
+  {
+    "name": "shapes_trailing_types_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:int, ...}))\nend",
+    "expected": "<Shape { x: int, ... }>"
+  },
+  {
+    "name": "shapes_trailing_types_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:int, ...})\nx\nend\ndef run(input)\ntyped({x:1})\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_trailing_types_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:int, ...}={x:1})\nx\nend\ndef run(input)\ntyped()\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_trailing_types_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed->{x:int, ...}\n{x:1}\nend\ndef run(input)\ntyped()\nend",
+    "expected": {
+      "x": 1
+    }
+  },
+  {
+    "name": "shapes_trailing_types_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:{x:int, ...}|x}\nend",
+    "expected": [
+      {
+        "x": 1
+      }
+    ]
   }
 ]

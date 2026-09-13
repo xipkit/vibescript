@@ -1,10 +1,111 @@
-use super::{Parser, Token, keyword};
+use super::{Expr, Node, Parser, Token, keyword};
 use crate::{
     Result,
     types::{Field, Scalar, Type, TypeKind},
 };
 
 impl Parser<'_> {
+    pub(super) fn argument_type_literal(&mut self) -> Result<Option<Expr>> {
+        if !matches!(self.token(), Token::Word(_)) {
+            return Ok(None);
+        }
+        let start = self.pos;
+        let structural = self.type_structural_error;
+        let candidate = self.type_expr(1, false);
+        let end = self.pos;
+        self.line_breaks();
+        let boundary = matches!(self.token(), Token::P(',' | ')'));
+        self.pos = start;
+        self.type_structural_error = structural;
+        let Ok(ty) = candidate else {
+            return Ok(None);
+        };
+        if !boundary
+            || matches!(ty.kind, TypeKind::Scalar(Scalar::Nil) | TypeKind::Shape(..))
+            || !builtin_leaves(&ty)
+        {
+            return Ok(None);
+        }
+        let mut names = Vec::new();
+        let fallback = if end == start + 1 {
+            if let Token::Word(name) = &self.tokens[start].token {
+                names.push(name.clone());
+                Some(Box::new(self.make(Node::Var(name.clone()), 1)?))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        self.pos = end;
+        Ok(Some(
+            self.make(Node::Shape(Box::new(ty), fallback, names), 1)?,
+        ))
+    }
+
+    pub(super) fn hash_expr(&mut self) -> Result<Expr> {
+        let start = self.pos - 1;
+        let structural = self.type_structural_error;
+        self.type_structural_error = false;
+        let candidate = self.type_shape(0);
+        let end = self.pos;
+        let malformed = self.type_structural_error;
+        self.type_structural_error = structural;
+        let candidate = candidate.ok().filter(|ty| {
+            self.token() != &Token::P('?') && !self.default_field(ty) && builtin_leaves(ty)
+        });
+        self.pos = start + 1;
+        if candidate.is_none() && !malformed {
+            return self.hash_group();
+        }
+
+        // Type-only tokens cannot alter locals or re-lex percent expressions.
+        let state = (
+            self.depth,
+            self.groups,
+            self.line_exprs,
+            self.command_depth,
+            self.ternaries.clone(),
+            self.command_group,
+            self.loop_condition,
+            self.declared_it,
+        );
+        match self.hash_group() {
+            Ok(fallback) => {
+                let Some(ty) = candidate else {
+                    return Ok(fallback);
+                };
+                let mut names = Vec::new();
+                literal_names(&ty, &mut names);
+                names.sort();
+                names.dedup();
+                let depth = fallback.depth;
+                self.make(
+                    Node::Shape(Box::new(ty), Some(Box::new(fallback)), names),
+                    depth,
+                )
+            }
+            Err(error) => {
+                (
+                    self.depth,
+                    self.groups,
+                    self.line_exprs,
+                    self.command_depth,
+                    self.ternaries,
+                    self.command_group,
+                    self.loop_condition,
+                    self.declared_it,
+                ) = state;
+                self.type_structural_error = structural;
+                let Some(ty) = candidate else {
+                    return Err(error);
+                };
+                self.pos = end;
+                self.make(Node::Shape(Box::new(ty), None, Vec::new()), 1)
+            }
+        }
+    }
+
     pub(super) fn type_expr(&mut self, depth: usize, block: bool) -> Result<Type> {
         if depth > 64 {
             return self.err("type annotation nesting too deep");
@@ -189,9 +290,6 @@ impl Parser<'_> {
                     return self.err("expected shape field separator");
                 }
                 self.line_breaks();
-                if self.take_p('}') {
-                    break;
-                }
             }
         }
         fields.sort_unstable_by(|a, b| a.name.cmp(&b.name));
@@ -288,6 +386,44 @@ impl Parser<'_> {
             | TypeKind::Array(None)
             | TypeKind::Hash(None) => !ty.nullable && self.locals.contains(&ty.name),
             _ => false,
+        }
+    }
+}
+
+fn builtin_leaves(ty: &Type) -> bool {
+    match &ty.kind {
+        TypeKind::Named => false,
+        TypeKind::Array(Some(element)) => builtin_leaves(element),
+        TypeKind::Hash(Some(pair)) => builtin_leaves(&pair.0) && builtin_leaves(&pair.1),
+        TypeKind::Shape(fields, _) => fields.iter().all(|field| builtin_leaves(&field.ty)),
+        TypeKind::Union(options) => options.iter().all(builtin_leaves),
+        _ => true,
+    }
+}
+
+fn literal_names(ty: &Type, names: &mut Vec<String>) {
+    match &ty.kind {
+        TypeKind::Shape(fields, _) => {
+            for field in fields {
+                literal_names(&field.ty, names);
+            }
+        }
+        TypeKind::Union(options) => {
+            for option in options {
+                literal_names(option, names);
+            }
+        }
+        TypeKind::Scalar(Scalar::Nil) => (),
+        _ => {
+            names.push(ty.name.clone());
+            match &ty.kind {
+                TypeKind::Array(Some(element)) => literal_names(element, names),
+                TypeKind::Hash(Some(pair)) => {
+                    literal_names(&pair.0, names);
+                    literal_names(&pair.1, names);
+                }
+                _ => (),
+            }
         }
     }
 }

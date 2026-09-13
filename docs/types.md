@@ -35,3 +35,23 @@ Blocks support simple and destructured bindings:
 Type names resolve in a function's declaration environment or a block's captured environment. Earlier argument bindings and the function body's locals do not define types for that function's signature. Return annotations apply to implicit and explicit returns, nonlocal block returns and values returned when a passed block breaks out of a function.
 
 Unchanged arrays and hashes retain their storage. Enum coercions copy changed containers while preserving other values, field order and open-shape extras. Memory charges cover new containers, enum metadata and temporary name-resolution state. Traversal checks work limits, cancellation and deadlines; union fallback cannot absorb exhausted limits. Normalization also enforces the reference's 64-level traversal guard, including union arms.
+
+## Type literals and JSON
+
+Type literals are immutable values that can be stored, passed to functions and retained by hosts. `JSON.parse_as` parses a JSON string and validates the result through the same normalization path as annotated parameters:
+
+```vibe
+schema = {name: string, age?: int, ...}
+packet = JSON.parse_as("{\"name\":\"Ada\",\"active\":true}", schema)
+[packet.name, packet.active]
+```
+
+This returns `["Ada", true]`. Parenthesized positional arguments also accept non-shape roots, such as `JSON.parse_as("[1,2]", array<int>)` or `JSON.parse_as("null", int?)`. A bare `nil` argument remains nil. Expression type literals recognize only builtin leaf types, matching Go v0.70.0; named enums remain available in annotations.
+
+When the tokens also form a normal value expression, runtime bindings can select that reading. For example, `int = 7; schema = {x: int}` creates a hash containing `7`. A trailing comma keeps `{x: int,}` on the hash path. Closed shapes containing a bare nil field, an empty nested shape or a local value also remain ordinary hashes. Generic and union forms that have no value reading stay type literals.
+
+Type equality compares canonical annotations: field order does not matter, while union order, optional fields and the `object` spelling are preserved. Interpolation renders a value such as `<Shape { name: string }>`. Hosts inspect canonical bytes with `Value::as_type_literal()`; literal field names can contain invalid UTF-8. Type values support `nil?`, `itself`, `dup`, `tap` and `yield_self`, and cannot be JSON-encoded.
+
+Each imported type value charges its retained metadata and wrapper to the receiving call. Clones share that charge; a foreign import receives an independent charge while sharing immutable metadata. Rendering and equality charge bounded byte scans and observe cancellation. Unused compiled literals do not allocate execution storage.
+
+Script `JSON.parse` and `JSON.parse_as` inputs and `JSON.stringify` output have Go's fixed 1 MiB guard. Before writing an ASCII escape, the serializer requires six bytes of headroom even for a two-byte escape. Guard failures return `ErrorKind::OutputLimit` and remain latched. Host `parse_json` and `stringify_json` helpers use their independent `CallOptions` budgets without this builtin payload cap. Runtime value nesting remains bounded at 128.

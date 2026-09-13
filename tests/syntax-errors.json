@@ -8728,5 +8728,915 @@
     "name": "types_qualified_6",
     "source": "def render(item)\n\"#{item}\"\nend\nenum Status\nDraft\nDone\nHTTPServer\nend\nenum Review\nDraft\nend\n\ndef run(input)\nAlias=JSON;Alias.Status=Status;[:draft].map{|x:Alias?.Status|x.name}\nend",
     "go_error": "parse error at 14:48: nullable suffix on Alias is misplaced; write Alias.Name? instead"
+  },
+  {
+    "name": "shapes_parse_814",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"null\",array<Missing>)\nend",
+    "go_error": "parse error at 9:36: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_815",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"true\",array<Missing>)\nend",
+    "go_error": "parse error at 9:36: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_816",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"false\",array<Missing>)\nend",
+    "go_error": "parse error at 9:37: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_817",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",array<Missing>)\nend",
+    "go_error": "parse error at 9:33: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_818",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.0\",array<Missing>)\nend",
+    "go_error": "parse error at 9:35: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_819",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1.5\",array<Missing>)\nend",
+    "go_error": "parse error at 9:35: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_820",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"\\\"one\\\"\",array<Missing>)\nend",
+    "go_error": "parse error at 9:39: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_821",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[]\",array<Missing>)\nend",
+    "go_error": "parse error at 9:34: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_822",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,2]\",array<Missing>)\nend",
+    "go_error": "parse error at 9:37: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_823",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[1,\\\"x\\\"]\",array<Missing>)\nend",
+    "go_error": "parse error at 9:41: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_824",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:34: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_825",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\"}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:50: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_826",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":1}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:44: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_827",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"name\\\":\\\"Ada\\\",\\\"age\\\":36}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:61: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_828",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"id\\\":\\\"a\\\"}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:46: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_829",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"[{\\\"id\\\":\\\"a\\\"}]\",array<Missing>)\nend",
+    "go_error": "parse error at 9:48: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_830",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":[1,2]}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:45: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_831",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":null}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:44: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_832",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":1}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:41: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_833",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"one\\\":1}\",array<Missing>)\nend",
+    "go_error": "parse error at 9:43: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_834",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"invalid\",array<Missing>)\nend",
+    "go_error": "parse error at 9:39: unexpected token \")\""
+  },
+  {
+    "name": "shapes_parse_835",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"{\\\"x\\\":\",array<Missing>)\nend",
+    "go_error": "parse error at 9:39: unexpected token \")\""
+  },
+  {
+    "name": "shapes_render_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Missing>))\nend",
+    "go_error": "parse error at 9:31: unexpected token \")\""
+  },
+  {
+    "name": "shapes_store_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nschema=identity(array<Missing>);render(schema)\nend",
+    "go_error": "parse error at 9:31: unexpected token \")\""
+  },
+  {
+    "name": "shapes_equality_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_1",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:29: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:INT};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_21",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_23",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:int | string};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_24",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:38: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:47: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_31",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:string | int};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_32",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_33",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_35",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:41: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_36",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:35: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_37",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_39",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:object};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:36: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_40",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_41",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:30: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_42",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_43",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:39: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_44",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_45",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_46",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_47",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x:hash};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_48",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:31: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_50",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_51",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:40: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_52",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_53",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_54",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_55",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={x?:bool};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:35: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_56",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x:int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_57",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x:INT};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_58",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x:int | string};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_59",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x:string | int};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:42: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_60",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x:object};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:36: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_61",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x:hash};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_62",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={x?:bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:35: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_equality_63",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\na={\"x?\":bool};b={\"x?\":bool};[a==b,a!=b,[a,b].uniq.length]\nend",
+    "go_error": "parse error at 9:37: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity(int))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity(string?))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity(array<int>))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity({x:int}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity({x:string?}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_22",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity({x:array<int>}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[int=7].map{|unused|render(identity({x:money}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_30",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity(int))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_34",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity(string?))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_38",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity(array<int>))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_42",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity({x:int}))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_46",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity({x:string?}))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_50",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity({x:array<int>}))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_54",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string=7].map{|unused|render(identity({x:money}))}\nend",
+    "go_error": "parse error at 9:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_58",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity(int))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_62",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity(string?))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_66",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity(array<int>))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_70",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity({x:int}))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_74",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity({x:string?}))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_78",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity({x:array<int>}))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_82",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[string?=7].map{|unused|render(identity({x:money}))}\nend",
+    "go_error": "parse error at 9:9: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_86",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity(int))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_90",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity(string?))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_94",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity(array<int>))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_98",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity({x:int}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_102",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity({x:string?}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_106",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity({x:array<int>}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_110",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[array=7].map{|unused|render(identity({x:money}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_114",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity(int))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_118",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity(string?))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_122",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity(array<int>))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_126",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity({x:int}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_130",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity({x:string?}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_134",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity({x:array<int>}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_138",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[money=7].map{|unused|render(identity({x:money}))}\nend",
+    "go_error": "parse error at 9:7: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_142",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity(int))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_146",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity(string?))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_150",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity(array<int>))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_154",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity({x:int}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_158",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity({x:string?}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_162",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity({x:array<int>}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_shadow_166",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[Int=7].map{|unused|render(identity({x:money}))}\nend",
+    "go_error": "parse error at 9:5: expected \"]\", got \"=\""
+  },
+  {
+    "name": "shapes_case_types_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<ſtring>))\nend",
+    "go_error": "parse error at 9:30: unexpected token \")\""
+  },
+  {
+    "name": "shapes_case_types_62",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<Function>))\nend",
+    "go_error": "parse error at 9:32: unexpected token \")\""
+  },
+  {
+    "name": "shapes_depth_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "go_error": "parse error at 9:405: unexpected token \">\""
+  },
+  {
+    "name": "shapes_depth_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "go_error": "parse error at 9:411: unexpected token \">\""
+  },
+  {
+    "name": "shapes_depth_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<array<int>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>))\nend",
+    "go_error": "parse error at 9:417: unexpected token \">\""
+  },
+  {
+    "name": "shapes_contexts_0",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as \"1\", {name:string}\nend",
+    "go_error": "parse error at 9:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "shapes_contexts_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as \"1\", array<int>\nend",
+    "go_error": "parse error at 10:1: unexpected token 'end'"
+  },
+  {
+    "name": "shapes_contexts_5",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\", (array<int>))\nend",
+    "go_error": "parse error at 9:31: unexpected token \")\""
+  },
+  {
+    "name": "shapes_contexts_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",schema: array<int>)\nend",
+    "go_error": "parse error at 9:37: unexpected token \")\""
+  },
+  {
+    "name": "shapes_contexts_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",*[array<int>])\nend",
+    "go_error": "parse error at 9:31: unexpected token \"]\""
+  },
+  {
+    "name": "shapes_contexts_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as \"1\", int | string\nend",
+    "go_error": "parse error at 9:24: unexpected token \"|\""
+  },
+  {
+    "name": "shapes_contexts_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\", (int | string))\nend",
+    "go_error": "parse error at 9:25: expected \")\", got \"|\""
+  },
+  {
+    "name": "shapes_contexts_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",schema: int | string)\nend",
+    "go_error": "parse error at 9:31: expected \")\", got \"|\""
+  },
+  {
+    "name": "shapes_contexts_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",*[int | string])\nend",
+    "go_error": "parse error at 9:25: expected \"]\", got \"|\""
+  },
+  {
+    "name": "shapes_contexts_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as \"1\", nil | int\nend",
+    "go_error": "parse error at 9:24: unexpected token \"|\""
+  },
+  {
+    "name": "shapes_contexts_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\", (nil | int))\nend",
+    "go_error": "parse error at 9:25: expected \")\", got \"|\""
+  },
+  {
+    "name": "shapes_contexts_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",schema: nil | int)\nend",
+    "go_error": "parse error at 9:31: expected \")\", got \"|\""
+  },
+  {
+    "name": "shapes_contexts_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as(\"1\",*[nil | int])\nend",
+    "go_error": "parse error at 9:25: expected \"]\", got \"|\""
+  },
+  {
+    "name": "shapes_contexts_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nJSON.parse_as \"1\", {name:string,...}\nend",
+    "go_error": "parse error at 9:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "shapes_structural_6",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:int,x:string | nil})\nend",
+    "go_error": "parse error at 9:26: duplicate shape field x"
+  },
+  {
+    "name": "shapes_structural_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int,x:string | nil})\nend",
+    "go_error": "parse error at 9:30: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int,x:string | nil})\nend",
+    "go_error": "parse error at 9:43: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_15",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:int,...,})\nend",
+    "go_error": "parse error at 9:17: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_16",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int,...,})\nend",
+    "go_error": "parse error at 9:23: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int,...,})\nend",
+    "go_error": "parse error at 9:36: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({x:int,...,y:int})\nend",
+    "go_error": "parse error at 9:17: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({x:int,...,y:int})\nend",
+    "go_error": "parse error at 9:23: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_20",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({x:int,...,y:int})\nend",
+    "go_error": "parse error at 9:36: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_49",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({:x: int})\nend",
+    "go_error": "parse error at 9:15: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_50",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({:x: int})\nend",
+    "go_error": "parse error at 9:28: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_51",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender({:x:int})\nend",
+    "go_error": "parse error at 9:9: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_52",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nint=7;render({:x:int})\nend",
+    "go_error": "parse error at 9:15: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_structural_53",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nif false;int=7;end;render({:x:int})\nend",
+    "go_error": "parse error at 9:28: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_trailing_types_2",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:int,}={x:1})\nx\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "shapes_trailing_types_3",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed->{x:int,}\n{x:1}\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:19: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_4",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:{x:int,}|x}\nend",
+    "go_error": "parse error at 9:23: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_7",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:{y:int,}}={x:1})\nx\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:25: expected \")\", got \"=\""
+  },
+  {
+    "name": "shapes_trailing_types_8",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed->{x:{y:int,}}\n{x:1}\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:22: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_9",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:{x:{y:int,}}|x}\nend",
+    "go_error": "parse error at 9:26: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_10",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity(array<{x:int,}>))\nend",
+    "go_error": "parse error at 9:32: unexpected token \")\""
+  },
+  {
+    "name": "shapes_trailing_types_11",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:array<{x:int,}>)\nx\nend\ndef run(input)\ntyped({x:1})\nend",
+    "go_error": "parse error at 7:26: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_12",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:array<{x:int,}>={x:1})\nx\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:26: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_13",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed->array<{x:int,}>\n{x:1}\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:25: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_14",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:array<{x:int,}>|x}\nend",
+    "go_error": "parse error at 9:29: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_17",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:nil,}={x:1})\nx\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "shapes_trailing_types_18",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed->{x:nil,}\n{x:1}\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:19: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_19",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:{x:nil,}|x}\nend",
+    "go_error": "parse error at 9:23: expected shape field name, got \"}\""
+  },
+  {
+    "name": "shapes_trailing_types_25",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\nrender(identity({x:int, ...,}))\nend",
+    "go_error": "parse error at 9:27: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_trailing_types_26",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:int, ...,})\nx\nend\ndef run(input)\ntyped({x:1})\nend",
+    "go_error": "parse error at 7:23: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_trailing_types_27",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed(x:{x:int, ...,}={x:1})\nx\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:23: invalid hash pair: expected key like name: or \"name\":"
+  },
+  {
+    "name": "shapes_trailing_types_28",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\ndef typed->{x:int, ...,}\n{x:1}\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "parse error at 7:23: expected }, got \",\""
+  },
+  {
+    "name": "shapes_trailing_types_29",
+    "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:{x:int, ...,}|x}\nend",
+    "go_error": "parse error at 9:27: expected }, got \",\""
   }
 ]

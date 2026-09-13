@@ -33,10 +33,12 @@ mod mutate;
 mod numeric;
 mod ops;
 mod ordering;
+mod printable;
 mod range;
 mod scan;
 mod sequence;
 mod sets;
+mod shapes;
 mod sort;
 mod syntax;
 mod text;
@@ -171,7 +173,7 @@ pub struct Outcome {
     pub stats: Stats,
 }
 
-/// Parses JSON with the same limits, decoder, and allocation rules used by scripts.
+/// Parses JSON with accounted storage under an independent execution budget.
 pub fn parse_json(input: &[u8], options: CallOptions) -> Result<Outcome> {
     let mut ctx = CallContext::new(options);
     let value = json::parse(&mut ctx, input)?;

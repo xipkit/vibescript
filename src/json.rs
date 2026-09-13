@@ -7,6 +7,8 @@ use crate::{
 };
 use std::fmt::{self, Write};
 
+const MAX_PAYLOAD: usize = 1 << 20;
+
 pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     ctx.checkpoint()?;
     let mut p = Parser { ctx, input, pos: 0 };
@@ -16,6 +18,14 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
         return p.err("trailing JSON data");
     }
     Ok(v)
+}
+
+pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
+    ctx.checkpoint()?;
+    if input.len() > MAX_PAYLOAD {
+        return ctx.fail(ErrorKind::OutputLimit, "JSON input exceeds 1 MiB");
+    }
+    parse(ctx, input)
 }
 struct Parser<'a> {
     ctx: &'a mut CallContext,
@@ -400,22 +410,73 @@ pub(crate) fn bytes_equal(ctx: &mut CallContext, a: &[u8], b: &[u8]) -> Result<b
 }
 
 pub(crate) fn stringify(ctx: &mut CallContext, value: &Value) -> Result<Value> {
-    let mut out = Buffer::empty();
-    write_value(ctx, value, &mut out, 0)?;
-    Value::from_bytes(ctx, out)
+    stringify_with_limit(ctx, value, None)
 }
-fn write_value(
+
+pub(crate) fn stringify_builtin(ctx: &mut CallContext, value: &Value) -> Result<Value> {
+    stringify_with_limit(ctx, value, Some(MAX_PAYLOAD))
+}
+
+fn stringify_with_limit(
     ctx: &mut CallContext,
     value: &Value,
-    out: &mut Buffer<u8>,
-    depth: usize,
-) -> Result<()> {
+    limit: Option<usize>,
+) -> Result<Value> {
+    let mut out = Output {
+        buffer: Buffer::empty(),
+        limit,
+    };
+    write_value(ctx, value, &mut out, 0)?;
+    Value::from_bytes(ctx, out.buffer)
+}
+
+struct Output {
+    buffer: Buffer<u8>,
+    limit: Option<usize>,
+}
+
+impl Output {
+    fn check(&self, ctx: &mut CallContext, length: usize) -> Result<()> {
+        if self.limit.is_some_and(|limit| length > limit) {
+            return ctx.fail(ErrorKind::OutputLimit, "JSON output exceeds 1 MiB");
+        }
+        Ok(())
+    }
+
+    fn ensure(&mut self, ctx: &mut CallContext, capacity: usize) -> Result<()> {
+        self.buffer
+            .ensure(ctx, capacity.min(self.limit.unwrap_or(usize::MAX)))
+    }
+
+    fn push(&mut self, ctx: &mut CallContext, byte: u8) -> Result<()> {
+        self.check(ctx, self.buffer.data.len() + 1)?;
+        if self.buffer.data.len() == self.buffer.data.capacity() {
+            self.ensure(ctx, self.buffer.data.capacity().max(4).saturating_mul(2))?;
+        }
+        self.buffer.data.push(byte);
+        Ok(())
+    }
+
+    fn extend(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
+        let length = self.buffer.data.len().saturating_add(bytes.len());
+        self.check(ctx, length)?;
+        if length > self.buffer.data.capacity() {
+            self.ensure(
+                ctx,
+                length.max(self.buffer.data.capacity().saturating_mul(2)),
+            )?;
+        }
+        self.buffer.extend(ctx, bytes)
+    }
+}
+fn write_value(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) -> Result<()> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
         return ctx.fail(ErrorKind::Recursion, "JSON nesting too deep");
     }
     match &value.0 {
         Kind::Builtin(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a builtin")),
+        Kind::Shape(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a type literal")),
         Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),
         Kind::EnumMember(m) => write_string(ctx, m.definition().symbol.as_bytes(), out)?,
         Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
@@ -481,20 +542,37 @@ fn write_value(
     }
     Ok(())
 }
-fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Buffer<u8>) -> Result<()> {
-    let Some(minimum) = out.data.len().checked_add(input.len()).and_then(|n| {
-        n.checked_add(
-            2 + if input.len() >= CHUNK {
-                MAX_VALUE_DEPTH
-            } else {
-                0
-            },
-        )
-    }) else {
+fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output) -> Result<()> {
+    out.check(
+        ctx,
+        out.buffer
+            .data
+            .len()
+            .saturating_add(input.len())
+            .saturating_add(2),
+    )?;
+    let Some(minimum) = out
+        .buffer
+        .data
+        .len()
+        .checked_add(input.len())
+        .and_then(|n| {
+            n.checked_add(
+                2 + if input.len() >= CHUNK {
+                    MAX_VALUE_DEPTH
+                } else {
+                    0
+                },
+            )
+        })
+    else {
         return ctx.fail(ErrorKind::Memory, "JSON output size overflow");
     };
-    if minimum > out.data.capacity() {
-        out.ensure(ctx, minimum.max(out.data.capacity().saturating_mul(2)))?;
+    if minimum > out.buffer.data.capacity() {
+        out.ensure(
+            ctx,
+            minimum.max(out.buffer.data.capacity().saturating_mul(2)),
+        )?;
     }
     out.push(ctx, b'"')?;
     let mut i = 0;
@@ -511,6 +589,10 @@ fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Buffer<u8>) -> Re
         ctx.charge(1)?;
         let b = input[i];
         i += 1;
+        if b.is_ascii() {
+            // Go reserves room for the longest escape before any ASCII escape.
+            out.check(ctx, out.buffer.data.len().saturating_add(6))?;
+        }
         match b {
             b'"' => out.extend(ctx, b"\\\"")?,
             b'\\' => out.extend(ctx, b"\\\\")?,
@@ -577,5 +659,46 @@ impl Write for Number {
         self.buf[self.len..end].copy_from_slice(s.as_bytes());
         self.len = end;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+    use crate::CallOptions;
+
+    #[test]
+    fn builtin_size_failures_are_latched_and_release_partial_output() {
+        let mut parse_ctx = CallContext::new(CallOptions::default());
+        assert_eq!(
+            parse_builtin(&mut parse_ctx, &vec![b'?'; MAX_PAYLOAD + 1])
+                .unwrap_err()
+                .kind,
+            ErrorKind::OutputLimit
+        );
+        assert_eq!(parse_ctx.stats().steps, 0);
+        assert_eq!(parse_ctx.stats().peak_memory_bytes, 0);
+        assert_eq!(
+            parse_builtin(&mut parse_ctx, b"7").unwrap_err().kind,
+            ErrorKind::OutputLimit
+        );
+        assert_eq!(
+            parse_ctx.bytes(b"x").unwrap_err().kind,
+            ErrorKind::OutputLimit
+        );
+
+        let mut output_ctx = CallContext::new(CallOptions::default());
+        let input = Value::array(vec![Value::bytes(vec![b'a'; MAX_PAYLOAD - 2])]);
+        assert_eq!(
+            stringify_builtin(&mut output_ctx, &input).unwrap_err().kind,
+            ErrorKind::OutputLimit
+        );
+        assert_eq!(output_ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(
+            stringify_builtin(&mut output_ctx, &Value::nil())
+                .unwrap_err()
+                .kind,
+            ErrorKind::OutputLimit
+        );
     }
 }

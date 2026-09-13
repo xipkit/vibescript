@@ -203,6 +203,14 @@ pub(crate) fn execute(
                 let v = ctx.import(&program.constants[n])?;
                 stack.push(ctx, v)?;
             }
+            Op::TypeShadowed(guard, next) => {
+                for name in &program.type_guards[guard] {
+                    if runtime_bound(program, ctx, &frames, &storage, current, name)? {
+                        frames.data[current].ip = next;
+                        break;
+                    }
+                }
+            }
             Op::Nil => stack.push(ctx, Value::nil())?,
             Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
             Op::TextPart => {
@@ -1031,6 +1039,49 @@ fn normalize_return(
         return Ok(value);
     };
     normalize_type(program, ctx, frames, storage, frame, ty, value)
+}
+
+fn runtime_bound(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &Storage,
+    current: usize,
+    name: &str,
+) -> Result<bool> {
+    ctx.work_bytes(name.len())?;
+    let mut scope = Some(current);
+    while let Some(index) = scope {
+        ctx.charge(1)?;
+        let frame = &frames.data[index];
+        if let Some(function) = frame.function {
+            for (slot, candidate) in program.functions[function].local_names.iter().enumerate() {
+                ctx.charge(1)?;
+                if storage.locals.data[frame.local_base + slot].is_some()
+                    && crate::enums::compare_names(ctx, candidate.as_bytes(), name.as_bytes())?
+                        == std::cmp::Ordering::Equal
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        scope = frame.parent;
+    }
+    if crate::builtin::Global::parse(name).is_some()
+        || program.names.contains_key(name)
+        || program.declaration_names.contains_key(name)
+    {
+        return Ok(true);
+    }
+    for host in &program.hosts {
+        ctx.charge(1)?;
+        if crate::enums::compare_names(ctx, host.as_bytes(), name.as_bytes())?
+            == std::cmp::Ordering::Equal
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn normalize_type(

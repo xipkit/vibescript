@@ -307,12 +307,26 @@ impl Builtin {
                     "to_float expects an int, float or string",
                 )),
             },
-            Self::JsonParse => json::parse(ctx, value.require_bytes()?),
-            Self::JsonStringify => json::stringify(ctx, value),
-            Self::JsonParseAs => Err(Error::new(
-                ErrorKind::Type,
-                "JSON.parse_as requires a type literal; type normalization is not implemented",
-            )),
+            Self::JsonParse => json::parse_builtin(ctx, value.require_bytes()?),
+            Self::JsonStringify => json::stringify_builtin(ctx, value),
+            Self::JsonParseAs => {
+                let Kind::Bytes(bytes) = &value.0 else {
+                    return Err(Error::new(
+                        ErrorKind::Type,
+                        "JSON.parse_as expects a JSON string",
+                    ));
+                };
+                let Kind::Shape(shape) = &args[1].0 else {
+                    return Err(Error::new(
+                        ErrorKind::Type,
+                        "JSON.parse_as expects a type literal",
+                    ));
+                };
+                let parsed = json::parse_builtin(ctx, &bytes.data)?;
+                crate::types::normalize(ctx, &shape.definition.ty, parsed, |_, _| {
+                    Err(Error::new(ErrorKind::Type, "unknown named type"))
+                })
+            }
             Self::Math(_)
             | Self::Money
             | Self::MoneyCents

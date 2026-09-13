@@ -254,6 +254,9 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
     }
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
+        (Kind::Shape(a), Kind::Shape(b)) => {
+            json::bytes_equal(ctx, &a.definition.text, &b.definition.text)
+        }
         (Kind::Enum(a), Kind::Enum(b)) => Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition)),
         (Kind::EnumMember(a), Kind::EnumMember(b)) => Ok(a.index == b.index
             && std::sync::Arc::ptr_eq(&a.enumeration.definition, &b.enumeration.definition)),

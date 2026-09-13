@@ -18,6 +18,7 @@ pub(crate) struct Expr {
 }
 #[derive(Debug)]
 pub(crate) enum Node {
+    Shape(Box<crate::types::Type>, Option<Box<Expr>>, Vec<String>),
     Integer(u64),
     BigInteger(String, u32),
     Literal(Value),
@@ -932,21 +933,21 @@ impl Parser<'_> {
     }
     // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
     fn prefix(&mut self) -> Result<Expr> {
-        Ok(match self.bump() {
-            Token::Int(n) => self.make(Node::Integer(n), 1)?,
-            Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1)?,
-            Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1)?,
-            Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1)?,
-            Token::Template(parts) => self.template(parts, false)?,
-            Token::Words(words) => self.words(*words)?,
-            Token::Invalid(error) => return Err(Error::syntax(error.0, error.1)),
+        match self.bump() {
+            Token::Int(n) => self.make(Node::Integer(n), 1),
+            Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
+            Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1),
+            Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1),
+            Token::Template(parts) => self.template(parts, false),
+            Token::Words(words) => self.words(*words),
+            Token::Invalid(error) => Err(Error::syntax(error.0, error.1)),
             Token::Word(w) => match w.as_str() {
-                "nil" => self.make(Node::Literal(Value::nil()), 1)?,
-                "true" => self.make(Node::Literal(Value::boolean(true)), 1)?,
-                "false" => self.make(Node::Literal(Value::boolean(false)), 1)?,
-                "if" | "unless" => self.if_expr(w == "unless")?,
-                "case" => self.case_expr()?,
-                "yield" => self.yield_expr()?,
+                "nil" => self.make(Node::Literal(Value::nil()), 1),
+                "true" => self.make(Node::Literal(Value::boolean(true)), 1),
+                "false" => self.make(Node::Literal(Value::boolean(false)), 1),
+                "if" | "unless" => self.if_expr(w == "unless"),
+                "case" => self.case_expr(),
+                "yield" => self.yield_expr(),
                 "while" | "until" | "for" => {
                     let stmt = if w == "for" {
                         self.for_stmt()?
@@ -954,12 +955,12 @@ impl Parser<'_> {
                         self.while_stmt(w == "until")?
                     };
                     let depth = stmt.depth();
-                    self.make(Node::Loop(Box::new(stmt)), depth)?
+                    self.make(Node::Loop(Box::new(stmt)), depth)
                 }
-                _ if reserved(&w) => return self.err("expected expression"),
-                _ => self.make(Node::Var(w), 1)?,
+                _ if reserved(&w) => self.err("expected expression"),
+                _ => self.make(Node::Var(w), 1),
             },
-            Token::P(':') => self.symbol()?,
+            Token::P(':') => self.symbol(),
             Token::P('(') => {
                 self.groups += 1;
                 self.lines();
@@ -967,25 +968,25 @@ impl Parser<'_> {
                 self.lines();
                 self.expect_p(')')?;
                 self.groups -= 1;
-                e
+                Ok(e)
             }
             Token::P('[') => {
                 let a = self.arguments(']')?;
                 let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
-                self.make(Node::Array(a), d)?
+                self.make(Node::Array(a), d)
             }
-            Token::P('{') => self.hash_expr()?,
+            Token::P('{') => self.hash_expr(),
             Token::Op(op @ (".." | "...")) => {
                 if self.groups > 0 {
                     self.lines();
                 }
                 let end = self.expr(8)?;
                 let depth = end.depth + 1;
-                self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)?
+                self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)
             }
-            Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op)?,
-            _ => return self.err("expected expression"),
-        })
+            Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op),
+            _ => self.err("expected expression"),
+        }
     }
     fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
         let value = if self.negative_literal(op) {
@@ -1012,7 +1013,7 @@ impl Parser<'_> {
                 .find(|next| next.token != Token::EndLine || next.line == next.end_line)
                 .is_some_and(|next| next.token == Token::Op("**"))
     }
-    fn hash_expr(&mut self) -> Result<Expr> {
+    fn hash_group(&mut self) -> Result<Expr> {
         self.groups += 1;
         let mut entries = Vec::new();
         self.line_breaks();
@@ -1736,7 +1737,19 @@ impl Parser<'_> {
         Ok(args)
     }
     fn call_argument(&mut self, parenthesized: bool) -> Result<Argument> {
-        let kind = if self.token() == &Token::Op("**") {
+        let kind = self.argument_kind();
+        if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
+            self.line_breaks();
+        }
+        let value = match self.literal_argument(&kind, parenthesized)? {
+            Some(value) => value,
+            None => self.expr(0)?,
+        };
+        Ok(Argument { kind, value })
+    }
+    // Keep lookahead temporaries out of the recursive argument frame.
+    fn argument_kind(&mut self) -> ArgumentKind {
+        if self.token() == &Token::Op("**") {
             self.bump();
             ArgumentKind::KeywordSplat
         } else if self.keyword_label(self.pos) {
@@ -1750,11 +1763,14 @@ impl Parser<'_> {
             ArgumentKind::Splat
         } else {
             ArgumentKind::Positional
-        };
-        if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
-            self.line_breaks();
         }
-        let value = if let ArgumentKind::Keyword(name) = &kind {
+    }
+    fn literal_argument(
+        &mut self,
+        kind: &ArgumentKind,
+        parenthesized: bool,
+    ) -> Result<Option<Expr>> {
+        if let ArgumentKind::Keyword(name) = kind {
             let shorthand = self.token() == &Token::P(',')
                 || (parenthesized && self.token() == &Token::P(')'))
                 || (!parenthesized
@@ -1763,14 +1779,12 @@ impl Parser<'_> {
                             && self.tokens[self.pos].line != self.tokens[self.pos].end_line)
                         || self.tokens[self.pos].line != self.tokens[self.pos - 1].end_line));
             if shorthand {
-                self.make(Node::Var(name.clone()), 1)?
-            } else {
-                self.expr(0)?
+                return Ok(Some(self.make(Node::Var(name.clone()), 1)?));
             }
-        } else {
-            self.expr(0)?
-        };
-        Ok(Argument { kind, value })
+        } else if parenthesized && matches!(kind, ArgumentKind::Positional) {
+            return self.argument_type_literal();
+        }
+        Ok(None)
     }
     fn starts_expression(&self) -> bool {
         match self.token() {

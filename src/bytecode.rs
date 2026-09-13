@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    TypeShadowed(usize, usize),
     Normalize(usize),
     Declaration(usize),
     Global(usize),
@@ -297,6 +298,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub type_guards: Vec<Vec<String>>,
     pub types: Vec<crate::types::Type>,
     pub declarations: Vec<Value>,
     pub declaration_names: HashMap<String, usize>,
@@ -328,6 +330,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         declarations.push(crate::enums::compile(name, members)?);
     }
     let mut program = Program {
+        type_guards: Vec::new(),
         types: Vec::new(),
         declarations,
         declaration_names,
@@ -493,6 +496,11 @@ impl Compiler<'_> {
     }
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
+            Node::Shape(_, fallback, _) => {
+                if let Some(fallback) = fallback {
+                    self.declare_expr(fallback);
+                }
+            }
             Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) => (),
             Node::Var(name) => {
                 self.reads.insert(name.clone());
@@ -582,6 +590,7 @@ impl Compiler<'_> {
             | Op::JumpFalse(n)
             | Op::JumpTrue(n)
             | Op::Bind(_, n)
+            | Op::TypeShadowed(_, n)
             | Op::AddressBound(_, n)
             | Op::ReceiverBound(_, n) => *n = target,
             _ => unreachable!(),
@@ -935,6 +944,20 @@ impl Compiler<'_> {
     }
     fn expr(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
+            Node::Shape(ty, fallback, names) => {
+                let guard = fallback.as_ref().map(|_| {
+                    let index = self.program.type_guards.len();
+                    self.program.type_guards.push(names.clone());
+                    self.emit(Op::TypeShadowed(index, 0))
+                });
+                self.constant(crate::shapes::compile((**ty).clone()));
+                if let Some(fallback) = fallback {
+                    let done = self.emit(Op::Jump(0));
+                    self.patch(guard.unwrap(), self.code.len());
+                    self.expr(fallback)?;
+                    self.patch(done, self.code.len());
+                }
+            }
             Node::Integer(n) => {
                 if let Ok(n) = i64::try_from(*n) {
                     self.constant(Value::int(n));
@@ -1481,6 +1504,11 @@ impl Compiler<'_> {
 
 fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
     match &expr.node {
+        Node::Shape(_, fallback, _) => {
+            if let Some(fallback) = fallback {
+                call_names(fallback, names);
+            }
+        }
         Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) | Node::Var(_) => (),
         Node::Call(name, args) => {
             names.insert(name);
