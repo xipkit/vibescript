@@ -1,15 +1,15 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "3855e80987067ec9ecfa94b61b010a57a06cdaa3",
-  "dirty": " M README.md\n M src/budget.rs\n M src/bytecode.rs\n M src/collections.rs\n M src/members.rs\n M src/ops.rs\n M src/text.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/rendering.md\n?? src/text/inspect.rs\n?? src/text/template.rs\n?? tests/rendering.rs\n",
+  "source_revision": "972fd3561a19be3e75819545870a3ac634aff5ad",
+  "dirty": " M README.md\n M src/bytecode.rs\n M src/iteration.rs\n M src/members.rs\n M src/ops.rs\n M src/text.rs\n M src/value.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? docs/string-iteration.md\n?? src/text/iteration.rs\n?? tests/string_iteration.rs\n",
   "binary_sha256": {
-    "go-simd": "bcffdd8b674114dc46be8f15d119ba3524d76f3698c10f74af1bd679690d2f0a",
-    "rust-simd": "afe6b429bf76dd95141779459197ca7982831e9e779c07177ec619f2c2578b16"
+    "go-simd": "a139b536bfa98f1395580bfcd9b2b490e5304190a732baaf588917494f970ec4",
+    "rust-simd": "bf912951cac000cc2b9393b8adc0a3971e35cbe99e11680a968bc2e65cd30ed6"
   },
   "counts": {
-    "match": 183,
+    "match": 184,
     "harness_gap": 15,
-    "rust_gap": 5
+    "rust_gap": 4
   },
   "examples": [
     {
@@ -8112,10 +8112,23 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"method each_line is not implemented\", offset: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "entry_count": 5,
+          "first_message": "service started",
+          "counts_by_level": {
+            "INFO": 2,
+            "WARN": 2,
+            "ERROR": 1
+          },
+          "warnings": [
+            "disk at 82%",
+            "memory high"
+          ]
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/operations/on_call_handoff.vibe",

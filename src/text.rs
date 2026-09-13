@@ -7,6 +7,7 @@ use std::fmt::Write;
 pub(crate) mod case;
 pub(crate) mod charset;
 pub(crate) mod inspect;
+pub(crate) mod iteration;
 pub(crate) mod template;
 pub(crate) mod transform;
 
@@ -80,6 +81,10 @@ pub(crate) fn method(
     use Method::*;
     let bytes = string(&value)?;
     match method {
+        Lines => {
+            ops::arity(args, 0)?;
+            iteration::lines(ctx, &value)
+        }
         StartWith | EndWith => {
             if args.is_empty() {
                 return Err(Error::new(

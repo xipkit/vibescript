@@ -85428,5 +85428,2945 @@
     "name": "rendering_values_arguments_19",
     "source": "\ndef run(input)\nJSON.values_at(:parse,bad:1){7} .length\nend",
     "go_error": "hash.values_at does not accept keyword arguments"
+  },
+  {
+    "name": "string_iteration_signature_0",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char\nend",
+    "go_error": "string.each_char requires a block"
+  },
+  {
+    "name": "string_iteration_signature_1",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char()\nend",
+    "go_error": "string.each_char requires a block"
+  },
+  {
+    "name": "string_iteration_signature_3",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char(1){7}\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_4",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char(nil)\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_5",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char(chomp:true)\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_6",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char(extra:1){7}\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_7",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_char(1,extra:1){7}\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_8",
+    "source": "\ndef run(input)\n(\"\").each_char\nend",
+    "go_error": "string.each_char requires a block"
+  },
+  {
+    "name": "string_iteration_signature_9",
+    "source": "\ndef run(input)\n(\"\").each_char()\nend",
+    "go_error": "string.each_char requires a block"
+  },
+  {
+    "name": "string_iteration_signature_11",
+    "source": "\ndef run(input)\n(\"\").each_char(1){7}\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_12",
+    "source": "\ndef run(input)\n(\"\").each_char(nil)\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_13",
+    "source": "\ndef run(input)\n(\"\").each_char(chomp:true)\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_14",
+    "source": "\ndef run(input)\n(\"\").each_char(extra:1){7}\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_15",
+    "source": "\ndef run(input)\n(\"\").each_char(1,extra:1){7}\nend",
+    "go_error": "string.each_char does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_16",
+    "source": "\ndef run(input)\n(:abc).each_char\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_17",
+    "source": "\ndef run(input)\n(:abc).each_char()\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_18",
+    "source": "\ndef run(input)\n(:abc).each_char{7}\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_19",
+    "source": "\ndef run(input)\n(:abc).each_char(1){7}\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_20",
+    "source": "\ndef run(input)\n(:abc).each_char(nil)\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_21",
+    "source": "\ndef run(input)\n(:abc).each_char(chomp:true)\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_22",
+    "source": "\ndef run(input)\n(:abc).each_char(extra:1){7}\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_23",
+    "source": "\ndef run(input)\n(:abc).each_char(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method each_char"
+  },
+  {
+    "name": "string_iteration_signature_24",
+    "source": "\ndef run(input)\n([]).each_char\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_25",
+    "source": "\ndef run(input)\n([]).each_char()\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_26",
+    "source": "\ndef run(input)\n([]).each_char{7}\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_27",
+    "source": "\ndef run(input)\n([]).each_char(1){7}\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_28",
+    "source": "\ndef run(input)\n([]).each_char(nil)\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_29",
+    "source": "\ndef run(input)\n([]).each_char(chomp:true)\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_30",
+    "source": "\ndef run(input)\n([]).each_char(extra:1){7}\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_31",
+    "source": "\ndef run(input)\n([]).each_char(1,extra:1){7}\nend",
+    "go_error": "unknown array method each_char"
+  },
+  {
+    "name": "string_iteration_signature_32",
+    "source": "\ndef run(input)\n({}).each_char\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_33",
+    "source": "\ndef run(input)\n({}).each_char()\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_34",
+    "source": "\ndef run(input)\n({}).each_char{7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_35",
+    "source": "\ndef run(input)\n({}).each_char(1){7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_36",
+    "source": "\ndef run(input)\n({}).each_char(nil)\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_37",
+    "source": "\ndef run(input)\n({}).each_char(chomp:true)\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_38",
+    "source": "\ndef run(input)\n({}).each_char(extra:1){7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_39",
+    "source": "\ndef run(input)\n({}).each_char(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_40",
+    "source": "\ndef run(input)\n(1).each_char\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_41",
+    "source": "\ndef run(input)\n(1).each_char()\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_42",
+    "source": "\ndef run(input)\n(1).each_char{7}\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_43",
+    "source": "\ndef run(input)\n(1).each_char(1){7}\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_44",
+    "source": "\ndef run(input)\n(1).each_char(nil)\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_45",
+    "source": "\ndef run(input)\n(1).each_char(chomp:true)\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_46",
+    "source": "\ndef run(input)\n(1).each_char(extra:1){7}\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_47",
+    "source": "\ndef run(input)\n(1).each_char(1,extra:1){7}\nend",
+    "go_error": "unknown int method each_char"
+  },
+  {
+    "name": "string_iteration_signature_48",
+    "source": "\ndef run(input)\n((1..3)).each_char\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_49",
+    "source": "\ndef run(input)\n((1..3)).each_char()\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_50",
+    "source": "\ndef run(input)\n((1..3)).each_char{7}\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_51",
+    "source": "\ndef run(input)\n((1..3)).each_char(1){7}\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_52",
+    "source": "\ndef run(input)\n((1..3)).each_char(nil)\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_53",
+    "source": "\ndef run(input)\n((1..3)).each_char(chomp:true)\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_54",
+    "source": "\ndef run(input)\n((1..3)).each_char(extra:1){7}\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_55",
+    "source": "\ndef run(input)\n((1..3)).each_char(1,extra:1){7}\nend",
+    "go_error": "unknown range method each_char"
+  },
+  {
+    "name": "string_iteration_signature_56",
+    "source": "\ndef run(input)\n({x:int}).each_char\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_57",
+    "source": "\ndef run(input)\n({x:int}).each_char()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_58",
+    "source": "\ndef run(input)\n({x:int}).each_char{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_59",
+    "source": "\ndef run(input)\n({x:int}).each_char(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_60",
+    "source": "\ndef run(input)\n({x:int}).each_char(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_61",
+    "source": "\ndef run(input)\n({x:int}).each_char(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_62",
+    "source": "\ndef run(input)\n({x:int}).each_char(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_63",
+    "source": "\ndef run(input)\n({x:int}).each_char(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_64",
+    "source": "\ndef run(input)\n(JSON).each_char\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_65",
+    "source": "\ndef run(input)\n(JSON).each_char()\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_66",
+    "source": "\ndef run(input)\n(JSON).each_char{7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_67",
+    "source": "\ndef run(input)\n(JSON).each_char(1){7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_68",
+    "source": "\ndef run(input)\n(JSON).each_char(nil)\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_69",
+    "source": "\ndef run(input)\n(JSON).each_char(chomp:true)\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_70",
+    "source": "\ndef run(input)\n(JSON).each_char(extra:1){7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_signature_71",
+    "source": "\ndef run(input)\n(JSON).each_char(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_char"
+  },
+  {
+    "name": "string_iteration_shadow_1",
+    "source": "\ndef run(input)\nh={each_char:7};h.each_char()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_2",
+    "source": "\ndef run(input)\nh={each_char:7};h.each_char{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_3",
+    "source": "\ndef run(input)\nh={each_char:7};h.each_char(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_4",
+    "source": "\ndef run(input)\nh={each_char:7};h.each_char(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_72",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte\nend",
+    "go_error": "string.each_byte requires a block"
+  },
+  {
+    "name": "string_iteration_signature_73",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte()\nend",
+    "go_error": "string.each_byte requires a block"
+  },
+  {
+    "name": "string_iteration_signature_75",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte(1){7}\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_76",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte(nil)\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_77",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte(chomp:true)\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_78",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte(extra:1){7}\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_79",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_byte(1,extra:1){7}\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_80",
+    "source": "\ndef run(input)\n(\"\").each_byte\nend",
+    "go_error": "string.each_byte requires a block"
+  },
+  {
+    "name": "string_iteration_signature_81",
+    "source": "\ndef run(input)\n(\"\").each_byte()\nend",
+    "go_error": "string.each_byte requires a block"
+  },
+  {
+    "name": "string_iteration_signature_83",
+    "source": "\ndef run(input)\n(\"\").each_byte(1){7}\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_84",
+    "source": "\ndef run(input)\n(\"\").each_byte(nil)\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_85",
+    "source": "\ndef run(input)\n(\"\").each_byte(chomp:true)\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_86",
+    "source": "\ndef run(input)\n(\"\").each_byte(extra:1){7}\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_87",
+    "source": "\ndef run(input)\n(\"\").each_byte(1,extra:1){7}\nend",
+    "go_error": "string.each_byte does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_88",
+    "source": "\ndef run(input)\n(:abc).each_byte\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_89",
+    "source": "\ndef run(input)\n(:abc).each_byte()\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_90",
+    "source": "\ndef run(input)\n(:abc).each_byte{7}\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_91",
+    "source": "\ndef run(input)\n(:abc).each_byte(1){7}\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_92",
+    "source": "\ndef run(input)\n(:abc).each_byte(nil)\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_93",
+    "source": "\ndef run(input)\n(:abc).each_byte(chomp:true)\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_94",
+    "source": "\ndef run(input)\n(:abc).each_byte(extra:1){7}\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_95",
+    "source": "\ndef run(input)\n(:abc).each_byte(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_96",
+    "source": "\ndef run(input)\n([]).each_byte\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_97",
+    "source": "\ndef run(input)\n([]).each_byte()\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_98",
+    "source": "\ndef run(input)\n([]).each_byte{7}\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_99",
+    "source": "\ndef run(input)\n([]).each_byte(1){7}\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_100",
+    "source": "\ndef run(input)\n([]).each_byte(nil)\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_101",
+    "source": "\ndef run(input)\n([]).each_byte(chomp:true)\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_102",
+    "source": "\ndef run(input)\n([]).each_byte(extra:1){7}\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_103",
+    "source": "\ndef run(input)\n([]).each_byte(1,extra:1){7}\nend",
+    "go_error": "unknown array method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_104",
+    "source": "\ndef run(input)\n({}).each_byte\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_105",
+    "source": "\ndef run(input)\n({}).each_byte()\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_106",
+    "source": "\ndef run(input)\n({}).each_byte{7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_107",
+    "source": "\ndef run(input)\n({}).each_byte(1){7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_108",
+    "source": "\ndef run(input)\n({}).each_byte(nil)\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_109",
+    "source": "\ndef run(input)\n({}).each_byte(chomp:true)\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_110",
+    "source": "\ndef run(input)\n({}).each_byte(extra:1){7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_111",
+    "source": "\ndef run(input)\n({}).each_byte(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_112",
+    "source": "\ndef run(input)\n(1).each_byte\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_113",
+    "source": "\ndef run(input)\n(1).each_byte()\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_114",
+    "source": "\ndef run(input)\n(1).each_byte{7}\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_115",
+    "source": "\ndef run(input)\n(1).each_byte(1){7}\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_116",
+    "source": "\ndef run(input)\n(1).each_byte(nil)\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_117",
+    "source": "\ndef run(input)\n(1).each_byte(chomp:true)\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_118",
+    "source": "\ndef run(input)\n(1).each_byte(extra:1){7}\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_119",
+    "source": "\ndef run(input)\n(1).each_byte(1,extra:1){7}\nend",
+    "go_error": "unknown int method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_120",
+    "source": "\ndef run(input)\n((1..3)).each_byte\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_121",
+    "source": "\ndef run(input)\n((1..3)).each_byte()\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_122",
+    "source": "\ndef run(input)\n((1..3)).each_byte{7}\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_123",
+    "source": "\ndef run(input)\n((1..3)).each_byte(1){7}\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_124",
+    "source": "\ndef run(input)\n((1..3)).each_byte(nil)\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_125",
+    "source": "\ndef run(input)\n((1..3)).each_byte(chomp:true)\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_126",
+    "source": "\ndef run(input)\n((1..3)).each_byte(extra:1){7}\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_127",
+    "source": "\ndef run(input)\n((1..3)).each_byte(1,extra:1){7}\nend",
+    "go_error": "unknown range method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_128",
+    "source": "\ndef run(input)\n({x:int}).each_byte\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_129",
+    "source": "\ndef run(input)\n({x:int}).each_byte()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_130",
+    "source": "\ndef run(input)\n({x:int}).each_byte{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_131",
+    "source": "\ndef run(input)\n({x:int}).each_byte(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_132",
+    "source": "\ndef run(input)\n({x:int}).each_byte(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_133",
+    "source": "\ndef run(input)\n({x:int}).each_byte(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_134",
+    "source": "\ndef run(input)\n({x:int}).each_byte(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_135",
+    "source": "\ndef run(input)\n({x:int}).each_byte(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_136",
+    "source": "\ndef run(input)\n(JSON).each_byte\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_137",
+    "source": "\ndef run(input)\n(JSON).each_byte()\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_138",
+    "source": "\ndef run(input)\n(JSON).each_byte{7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_139",
+    "source": "\ndef run(input)\n(JSON).each_byte(1){7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_140",
+    "source": "\ndef run(input)\n(JSON).each_byte(nil)\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_141",
+    "source": "\ndef run(input)\n(JSON).each_byte(chomp:true)\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_142",
+    "source": "\ndef run(input)\n(JSON).each_byte(extra:1){7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_signature_143",
+    "source": "\ndef run(input)\n(JSON).each_byte(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_byte"
+  },
+  {
+    "name": "string_iteration_shadow_6",
+    "source": "\ndef run(input)\nh={each_byte:7};h.each_byte()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_7",
+    "source": "\ndef run(input)\nh={each_byte:7};h.each_byte{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_8",
+    "source": "\ndef run(input)\nh={each_byte:7};h.each_byte(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_9",
+    "source": "\ndef run(input)\nh={each_byte:7};h.each_byte(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_144",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint\nend",
+    "go_error": "string.each_codepoint requires a block"
+  },
+  {
+    "name": "string_iteration_signature_145",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint()\nend",
+    "go_error": "string.each_codepoint requires a block"
+  },
+  {
+    "name": "string_iteration_signature_147",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint(1){7}\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_148",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint(nil)\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_149",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint(chomp:true)\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_150",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint(extra:1){7}\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_151",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_codepoint(1,extra:1){7}\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_152",
+    "source": "\ndef run(input)\n(\"\").each_codepoint\nend",
+    "go_error": "string.each_codepoint requires a block"
+  },
+  {
+    "name": "string_iteration_signature_153",
+    "source": "\ndef run(input)\n(\"\").each_codepoint()\nend",
+    "go_error": "string.each_codepoint requires a block"
+  },
+  {
+    "name": "string_iteration_signature_155",
+    "source": "\ndef run(input)\n(\"\").each_codepoint(1){7}\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_156",
+    "source": "\ndef run(input)\n(\"\").each_codepoint(nil)\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_157",
+    "source": "\ndef run(input)\n(\"\").each_codepoint(chomp:true)\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_158",
+    "source": "\ndef run(input)\n(\"\").each_codepoint(extra:1){7}\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_159",
+    "source": "\ndef run(input)\n(\"\").each_codepoint(1,extra:1){7}\nend",
+    "go_error": "string.each_codepoint does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_160",
+    "source": "\ndef run(input)\n(:abc).each_codepoint\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_161",
+    "source": "\ndef run(input)\n(:abc).each_codepoint()\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_162",
+    "source": "\ndef run(input)\n(:abc).each_codepoint{7}\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_163",
+    "source": "\ndef run(input)\n(:abc).each_codepoint(1){7}\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_164",
+    "source": "\ndef run(input)\n(:abc).each_codepoint(nil)\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_165",
+    "source": "\ndef run(input)\n(:abc).each_codepoint(chomp:true)\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_166",
+    "source": "\ndef run(input)\n(:abc).each_codepoint(extra:1){7}\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_167",
+    "source": "\ndef run(input)\n(:abc).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_168",
+    "source": "\ndef run(input)\n([]).each_codepoint\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_169",
+    "source": "\ndef run(input)\n([]).each_codepoint()\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_170",
+    "source": "\ndef run(input)\n([]).each_codepoint{7}\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_171",
+    "source": "\ndef run(input)\n([]).each_codepoint(1){7}\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_172",
+    "source": "\ndef run(input)\n([]).each_codepoint(nil)\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_173",
+    "source": "\ndef run(input)\n([]).each_codepoint(chomp:true)\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_174",
+    "source": "\ndef run(input)\n([]).each_codepoint(extra:1){7}\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_175",
+    "source": "\ndef run(input)\n([]).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unknown array method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_176",
+    "source": "\ndef run(input)\n({}).each_codepoint\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_177",
+    "source": "\ndef run(input)\n({}).each_codepoint()\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_178",
+    "source": "\ndef run(input)\n({}).each_codepoint{7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_179",
+    "source": "\ndef run(input)\n({}).each_codepoint(1){7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_180",
+    "source": "\ndef run(input)\n({}).each_codepoint(nil)\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_181",
+    "source": "\ndef run(input)\n({}).each_codepoint(chomp:true)\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_182",
+    "source": "\ndef run(input)\n({}).each_codepoint(extra:1){7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_183",
+    "source": "\ndef run(input)\n({}).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_184",
+    "source": "\ndef run(input)\n(1).each_codepoint\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_185",
+    "source": "\ndef run(input)\n(1).each_codepoint()\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_186",
+    "source": "\ndef run(input)\n(1).each_codepoint{7}\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_187",
+    "source": "\ndef run(input)\n(1).each_codepoint(1){7}\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_188",
+    "source": "\ndef run(input)\n(1).each_codepoint(nil)\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_189",
+    "source": "\ndef run(input)\n(1).each_codepoint(chomp:true)\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_190",
+    "source": "\ndef run(input)\n(1).each_codepoint(extra:1){7}\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_191",
+    "source": "\ndef run(input)\n(1).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unknown int method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_192",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_193",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint()\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_194",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint{7}\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_195",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint(1){7}\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_196",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint(nil)\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_197",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint(chomp:true)\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_198",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint(extra:1){7}\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_199",
+    "source": "\ndef run(input)\n((1..3)).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unknown range method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_200",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_201",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_202",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_203",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_204",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_205",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_206",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_207",
+    "source": "\ndef run(input)\n({x:int}).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_208",
+    "source": "\ndef run(input)\n(JSON).each_codepoint\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_209",
+    "source": "\ndef run(input)\n(JSON).each_codepoint()\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_210",
+    "source": "\ndef run(input)\n(JSON).each_codepoint{7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_211",
+    "source": "\ndef run(input)\n(JSON).each_codepoint(1){7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_212",
+    "source": "\ndef run(input)\n(JSON).each_codepoint(nil)\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_213",
+    "source": "\ndef run(input)\n(JSON).each_codepoint(chomp:true)\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_214",
+    "source": "\ndef run(input)\n(JSON).each_codepoint(extra:1){7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_signature_215",
+    "source": "\ndef run(input)\n(JSON).each_codepoint(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_codepoint"
+  },
+  {
+    "name": "string_iteration_shadow_11",
+    "source": "\ndef run(input)\nh={each_codepoint:7};h.each_codepoint()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_12",
+    "source": "\ndef run(input)\nh={each_codepoint:7};h.each_codepoint{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_13",
+    "source": "\ndef run(input)\nh={each_codepoint:7};h.each_codepoint(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_14",
+    "source": "\ndef run(input)\nh={each_codepoint:7};h.each_codepoint(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_216",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line\nend",
+    "go_error": "string.each_line requires a block"
+  },
+  {
+    "name": "string_iteration_signature_217",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line()\nend",
+    "go_error": "string.each_line requires a block"
+  },
+  {
+    "name": "string_iteration_signature_219",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line(1){7}\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_220",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line(nil)\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_221",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line(chomp:true)\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_222",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line(extra:1){7}\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_223",
+    "source": "\ndef run(input)\n(\"a\\nb\").each_line(1,extra:1){7}\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_224",
+    "source": "\ndef run(input)\n(\"\").each_line\nend",
+    "go_error": "string.each_line requires a block"
+  },
+  {
+    "name": "string_iteration_signature_225",
+    "source": "\ndef run(input)\n(\"\").each_line()\nend",
+    "go_error": "string.each_line requires a block"
+  },
+  {
+    "name": "string_iteration_signature_227",
+    "source": "\ndef run(input)\n(\"\").each_line(1){7}\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_228",
+    "source": "\ndef run(input)\n(\"\").each_line(nil)\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_229",
+    "source": "\ndef run(input)\n(\"\").each_line(chomp:true)\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_230",
+    "source": "\ndef run(input)\n(\"\").each_line(extra:1){7}\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_231",
+    "source": "\ndef run(input)\n(\"\").each_line(1,extra:1){7}\nend",
+    "go_error": "string.each_line does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_232",
+    "source": "\ndef run(input)\n(:abc).each_line\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_233",
+    "source": "\ndef run(input)\n(:abc).each_line()\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_234",
+    "source": "\ndef run(input)\n(:abc).each_line{7}\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_235",
+    "source": "\ndef run(input)\n(:abc).each_line(1){7}\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_236",
+    "source": "\ndef run(input)\n(:abc).each_line(nil)\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_237",
+    "source": "\ndef run(input)\n(:abc).each_line(chomp:true)\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_238",
+    "source": "\ndef run(input)\n(:abc).each_line(extra:1){7}\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_239",
+    "source": "\ndef run(input)\n(:abc).each_line(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method each_line"
+  },
+  {
+    "name": "string_iteration_signature_240",
+    "source": "\ndef run(input)\n([]).each_line\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_241",
+    "source": "\ndef run(input)\n([]).each_line()\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_242",
+    "source": "\ndef run(input)\n([]).each_line{7}\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_243",
+    "source": "\ndef run(input)\n([]).each_line(1){7}\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_244",
+    "source": "\ndef run(input)\n([]).each_line(nil)\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_245",
+    "source": "\ndef run(input)\n([]).each_line(chomp:true)\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_246",
+    "source": "\ndef run(input)\n([]).each_line(extra:1){7}\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_247",
+    "source": "\ndef run(input)\n([]).each_line(1,extra:1){7}\nend",
+    "go_error": "unknown array method each_line (did you mean \"each_slice\"?)"
+  },
+  {
+    "name": "string_iteration_signature_248",
+    "source": "\ndef run(input)\n({}).each_line\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_249",
+    "source": "\ndef run(input)\n({}).each_line()\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_250",
+    "source": "\ndef run(input)\n({}).each_line{7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_251",
+    "source": "\ndef run(input)\n({}).each_line(1){7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_252",
+    "source": "\ndef run(input)\n({}).each_line(nil)\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_253",
+    "source": "\ndef run(input)\n({}).each_line(chomp:true)\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_254",
+    "source": "\ndef run(input)\n({}).each_line(extra:1){7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_255",
+    "source": "\ndef run(input)\n({}).each_line(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_256",
+    "source": "\ndef run(input)\n(1).each_line\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_257",
+    "source": "\ndef run(input)\n(1).each_line()\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_258",
+    "source": "\ndef run(input)\n(1).each_line{7}\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_259",
+    "source": "\ndef run(input)\n(1).each_line(1){7}\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_260",
+    "source": "\ndef run(input)\n(1).each_line(nil)\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_261",
+    "source": "\ndef run(input)\n(1).each_line(chomp:true)\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_262",
+    "source": "\ndef run(input)\n(1).each_line(extra:1){7}\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_263",
+    "source": "\ndef run(input)\n(1).each_line(1,extra:1){7}\nend",
+    "go_error": "unknown int method each_line"
+  },
+  {
+    "name": "string_iteration_signature_264",
+    "source": "\ndef run(input)\n((1..3)).each_line\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_265",
+    "source": "\ndef run(input)\n((1..3)).each_line()\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_266",
+    "source": "\ndef run(input)\n((1..3)).each_line{7}\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_267",
+    "source": "\ndef run(input)\n((1..3)).each_line(1){7}\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_268",
+    "source": "\ndef run(input)\n((1..3)).each_line(nil)\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_269",
+    "source": "\ndef run(input)\n((1..3)).each_line(chomp:true)\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_270",
+    "source": "\ndef run(input)\n((1..3)).each_line(extra:1){7}\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_271",
+    "source": "\ndef run(input)\n((1..3)).each_line(1,extra:1){7}\nend",
+    "go_error": "unknown range method each_line"
+  },
+  {
+    "name": "string_iteration_signature_272",
+    "source": "\ndef run(input)\n({x:int}).each_line\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_273",
+    "source": "\ndef run(input)\n({x:int}).each_line()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_274",
+    "source": "\ndef run(input)\n({x:int}).each_line{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_275",
+    "source": "\ndef run(input)\n({x:int}).each_line(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_276",
+    "source": "\ndef run(input)\n({x:int}).each_line(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_277",
+    "source": "\ndef run(input)\n({x:int}).each_line(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_278",
+    "source": "\ndef run(input)\n({x:int}).each_line(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_279",
+    "source": "\ndef run(input)\n({x:int}).each_line(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_280",
+    "source": "\ndef run(input)\n(JSON).each_line\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_281",
+    "source": "\ndef run(input)\n(JSON).each_line()\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_282",
+    "source": "\ndef run(input)\n(JSON).each_line{7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_283",
+    "source": "\ndef run(input)\n(JSON).each_line(1){7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_284",
+    "source": "\ndef run(input)\n(JSON).each_line(nil)\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_285",
+    "source": "\ndef run(input)\n(JSON).each_line(chomp:true)\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_286",
+    "source": "\ndef run(input)\n(JSON).each_line(extra:1){7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_signature_287",
+    "source": "\ndef run(input)\n(JSON).each_line(1,extra:1){7}\nend",
+    "go_error": "unknown hash method each_line"
+  },
+  {
+    "name": "string_iteration_shadow_16",
+    "source": "\ndef run(input)\nh={each_line:7};h.each_line()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_17",
+    "source": "\ndef run(input)\nh={each_line:7};h.each_line{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_18",
+    "source": "\ndef run(input)\nh={each_line:7};h.each_line(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_19",
+    "source": "\ndef run(input)\nh={each_line:7};h.each_line(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_291",
+    "source": "\ndef run(input)\n(\"a\\nb\").lines(1){7}\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_292",
+    "source": "\ndef run(input)\n(\"a\\nb\").lines(nil)\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_293",
+    "source": "\ndef run(input)\n(\"a\\nb\").lines(chomp:true)\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_294",
+    "source": "\ndef run(input)\n(\"a\\nb\").lines(extra:1){7}\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_295",
+    "source": "\ndef run(input)\n(\"a\\nb\").lines(1,extra:1){7}\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_299",
+    "source": "\ndef run(input)\n(\"\").lines(1){7}\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_300",
+    "source": "\ndef run(input)\n(\"\").lines(nil)\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_301",
+    "source": "\ndef run(input)\n(\"\").lines(chomp:true)\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_302",
+    "source": "\ndef run(input)\n(\"\").lines(extra:1){7}\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_303",
+    "source": "\ndef run(input)\n(\"\").lines(1,extra:1){7}\nend",
+    "go_error": "string.lines does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_304",
+    "source": "\ndef run(input)\n(:abc).lines\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_305",
+    "source": "\ndef run(input)\n(:abc).lines()\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_306",
+    "source": "\ndef run(input)\n(:abc).lines{7}\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_307",
+    "source": "\ndef run(input)\n(:abc).lines(1){7}\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_308",
+    "source": "\ndef run(input)\n(:abc).lines(nil)\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_309",
+    "source": "\ndef run(input)\n(:abc).lines(chomp:true)\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_310",
+    "source": "\ndef run(input)\n(:abc).lines(extra:1){7}\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_311",
+    "source": "\ndef run(input)\n(:abc).lines(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method lines"
+  },
+  {
+    "name": "string_iteration_signature_312",
+    "source": "\ndef run(input)\n([]).lines\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_313",
+    "source": "\ndef run(input)\n([]).lines()\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_314",
+    "source": "\ndef run(input)\n([]).lines{7}\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_315",
+    "source": "\ndef run(input)\n([]).lines(1){7}\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_316",
+    "source": "\ndef run(input)\n([]).lines(nil)\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_317",
+    "source": "\ndef run(input)\n([]).lines(chomp:true)\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_318",
+    "source": "\ndef run(input)\n([]).lines(extra:1){7}\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_319",
+    "source": "\ndef run(input)\n([]).lines(1,extra:1){7}\nend",
+    "go_error": "unknown array method lines"
+  },
+  {
+    "name": "string_iteration_signature_320",
+    "source": "\ndef run(input)\n({}).lines\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_321",
+    "source": "\ndef run(input)\n({}).lines()\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_322",
+    "source": "\ndef run(input)\n({}).lines{7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_323",
+    "source": "\ndef run(input)\n({}).lines(1){7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_324",
+    "source": "\ndef run(input)\n({}).lines(nil)\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_325",
+    "source": "\ndef run(input)\n({}).lines(chomp:true)\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_326",
+    "source": "\ndef run(input)\n({}).lines(extra:1){7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_327",
+    "source": "\ndef run(input)\n({}).lines(1,extra:1){7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_328",
+    "source": "\ndef run(input)\n(1).lines\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_329",
+    "source": "\ndef run(input)\n(1).lines()\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_330",
+    "source": "\ndef run(input)\n(1).lines{7}\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_331",
+    "source": "\ndef run(input)\n(1).lines(1){7}\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_332",
+    "source": "\ndef run(input)\n(1).lines(nil)\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_333",
+    "source": "\ndef run(input)\n(1).lines(chomp:true)\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_334",
+    "source": "\ndef run(input)\n(1).lines(extra:1){7}\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_335",
+    "source": "\ndef run(input)\n(1).lines(1,extra:1){7}\nend",
+    "go_error": "unknown int method lines (did you mean \"times\"?)"
+  },
+  {
+    "name": "string_iteration_signature_336",
+    "source": "\ndef run(input)\n((1..3)).lines\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_337",
+    "source": "\ndef run(input)\n((1..3)).lines()\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_338",
+    "source": "\ndef run(input)\n((1..3)).lines{7}\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_339",
+    "source": "\ndef run(input)\n((1..3)).lines(1){7}\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_340",
+    "source": "\ndef run(input)\n((1..3)).lines(nil)\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_341",
+    "source": "\ndef run(input)\n((1..3)).lines(chomp:true)\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_342",
+    "source": "\ndef run(input)\n((1..3)).lines(extra:1){7}\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_343",
+    "source": "\ndef run(input)\n((1..3)).lines(1,extra:1){7}\nend",
+    "go_error": "unknown range method lines"
+  },
+  {
+    "name": "string_iteration_signature_344",
+    "source": "\ndef run(input)\n({x:int}).lines\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_345",
+    "source": "\ndef run(input)\n({x:int}).lines()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_346",
+    "source": "\ndef run(input)\n({x:int}).lines{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_347",
+    "source": "\ndef run(input)\n({x:int}).lines(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_348",
+    "source": "\ndef run(input)\n({x:int}).lines(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_349",
+    "source": "\ndef run(input)\n({x:int}).lines(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_350",
+    "source": "\ndef run(input)\n({x:int}).lines(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_351",
+    "source": "\ndef run(input)\n({x:int}).lines(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_352",
+    "source": "\ndef run(input)\n(JSON).lines\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_353",
+    "source": "\ndef run(input)\n(JSON).lines()\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_354",
+    "source": "\ndef run(input)\n(JSON).lines{7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_355",
+    "source": "\ndef run(input)\n(JSON).lines(1){7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_356",
+    "source": "\ndef run(input)\n(JSON).lines(nil)\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_357",
+    "source": "\ndef run(input)\n(JSON).lines(chomp:true)\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_358",
+    "source": "\ndef run(input)\n(JSON).lines(extra:1){7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_signature_359",
+    "source": "\ndef run(input)\n(JSON).lines(1,extra:1){7}\nend",
+    "go_error": "unknown hash method lines"
+  },
+  {
+    "name": "string_iteration_shadow_21",
+    "source": "\ndef run(input)\nh={lines:7};h.lines()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_22",
+    "source": "\ndef run(input)\nh={lines:7};h.lines{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_23",
+    "source": "\ndef run(input)\nh={lines:7};h.lines(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_24",
+    "source": "\ndef run(input)\nh={lines:7};h.lines(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_363",
+    "source": "\ndef run(input)\n(\"a\\nb\").chars(1){7}\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_364",
+    "source": "\ndef run(input)\n(\"a\\nb\").chars(nil)\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_365",
+    "source": "\ndef run(input)\n(\"a\\nb\").chars(chomp:true)\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_366",
+    "source": "\ndef run(input)\n(\"a\\nb\").chars(extra:1){7}\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_367",
+    "source": "\ndef run(input)\n(\"a\\nb\").chars(1,extra:1){7}\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_371",
+    "source": "\ndef run(input)\n(\"\").chars(1){7}\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_372",
+    "source": "\ndef run(input)\n(\"\").chars(nil)\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_373",
+    "source": "\ndef run(input)\n(\"\").chars(chomp:true)\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_374",
+    "source": "\ndef run(input)\n(\"\").chars(extra:1){7}\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_375",
+    "source": "\ndef run(input)\n(\"\").chars(1,extra:1){7}\nend",
+    "go_error": "string.chars does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_376",
+    "source": "\ndef run(input)\n(:abc).chars\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_377",
+    "source": "\ndef run(input)\n(:abc).chars()\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_378",
+    "source": "\ndef run(input)\n(:abc).chars{7}\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_379",
+    "source": "\ndef run(input)\n(:abc).chars(1){7}\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_380",
+    "source": "\ndef run(input)\n(:abc).chars(nil)\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_381",
+    "source": "\ndef run(input)\n(:abc).chars(chomp:true)\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_382",
+    "source": "\ndef run(input)\n(:abc).chars(extra:1){7}\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_383",
+    "source": "\ndef run(input)\n(:abc).chars(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method chars"
+  },
+  {
+    "name": "string_iteration_signature_384",
+    "source": "\ndef run(input)\n([]).chars\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_385",
+    "source": "\ndef run(input)\n([]).chars()\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_386",
+    "source": "\ndef run(input)\n([]).chars{7}\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_387",
+    "source": "\ndef run(input)\n([]).chars(1){7}\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_388",
+    "source": "\ndef run(input)\n([]).chars(nil)\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_389",
+    "source": "\ndef run(input)\n([]).chars(chomp:true)\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_390",
+    "source": "\ndef run(input)\n([]).chars(extra:1){7}\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_391",
+    "source": "\ndef run(input)\n([]).chars(1,extra:1){7}\nend",
+    "go_error": "unknown array method chars"
+  },
+  {
+    "name": "string_iteration_signature_392",
+    "source": "\ndef run(input)\n({}).chars\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_393",
+    "source": "\ndef run(input)\n({}).chars()\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_394",
+    "source": "\ndef run(input)\n({}).chars{7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_395",
+    "source": "\ndef run(input)\n({}).chars(1){7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_396",
+    "source": "\ndef run(input)\n({}).chars(nil)\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_397",
+    "source": "\ndef run(input)\n({}).chars(chomp:true)\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_398",
+    "source": "\ndef run(input)\n({}).chars(extra:1){7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_399",
+    "source": "\ndef run(input)\n({}).chars(1,extra:1){7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_400",
+    "source": "\ndef run(input)\n(1).chars\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_401",
+    "source": "\ndef run(input)\n(1).chars()\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_402",
+    "source": "\ndef run(input)\n(1).chars{7}\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_403",
+    "source": "\ndef run(input)\n(1).chars(1){7}\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_404",
+    "source": "\ndef run(input)\n(1).chars(nil)\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_405",
+    "source": "\ndef run(input)\n(1).chars(chomp:true)\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_406",
+    "source": "\ndef run(input)\n(1).chars(extra:1){7}\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_407",
+    "source": "\ndef run(input)\n(1).chars(1,extra:1){7}\nend",
+    "go_error": "unknown int method chars"
+  },
+  {
+    "name": "string_iteration_signature_408",
+    "source": "\ndef run(input)\n((1..3)).chars\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_409",
+    "source": "\ndef run(input)\n((1..3)).chars()\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_410",
+    "source": "\ndef run(input)\n((1..3)).chars{7}\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_411",
+    "source": "\ndef run(input)\n((1..3)).chars(1){7}\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_412",
+    "source": "\ndef run(input)\n((1..3)).chars(nil)\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_413",
+    "source": "\ndef run(input)\n((1..3)).chars(chomp:true)\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_414",
+    "source": "\ndef run(input)\n((1..3)).chars(extra:1){7}\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_415",
+    "source": "\ndef run(input)\n((1..3)).chars(1,extra:1){7}\nend",
+    "go_error": "unknown range method chars"
+  },
+  {
+    "name": "string_iteration_signature_416",
+    "source": "\ndef run(input)\n({x:int}).chars\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_417",
+    "source": "\ndef run(input)\n({x:int}).chars()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_418",
+    "source": "\ndef run(input)\n({x:int}).chars{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_419",
+    "source": "\ndef run(input)\n({x:int}).chars(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_420",
+    "source": "\ndef run(input)\n({x:int}).chars(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_421",
+    "source": "\ndef run(input)\n({x:int}).chars(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_422",
+    "source": "\ndef run(input)\n({x:int}).chars(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_423",
+    "source": "\ndef run(input)\n({x:int}).chars(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_424",
+    "source": "\ndef run(input)\n(JSON).chars\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_425",
+    "source": "\ndef run(input)\n(JSON).chars()\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_426",
+    "source": "\ndef run(input)\n(JSON).chars{7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_427",
+    "source": "\ndef run(input)\n(JSON).chars(1){7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_428",
+    "source": "\ndef run(input)\n(JSON).chars(nil)\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_429",
+    "source": "\ndef run(input)\n(JSON).chars(chomp:true)\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_430",
+    "source": "\ndef run(input)\n(JSON).chars(extra:1){7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_signature_431",
+    "source": "\ndef run(input)\n(JSON).chars(1,extra:1){7}\nend",
+    "go_error": "unknown hash method chars"
+  },
+  {
+    "name": "string_iteration_shadow_26",
+    "source": "\ndef run(input)\nh={chars:7};h.chars()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_27",
+    "source": "\ndef run(input)\nh={chars:7};h.chars{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_28",
+    "source": "\ndef run(input)\nh={chars:7};h.chars(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_29",
+    "source": "\ndef run(input)\nh={chars:7};h.chars(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_435",
+    "source": "\ndef run(input)\n(\"a\\nb\").bytes(1){7}\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_436",
+    "source": "\ndef run(input)\n(\"a\\nb\").bytes(nil)\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_437",
+    "source": "\ndef run(input)\n(\"a\\nb\").bytes(chomp:true)\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_438",
+    "source": "\ndef run(input)\n(\"a\\nb\").bytes(extra:1){7}\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_439",
+    "source": "\ndef run(input)\n(\"a\\nb\").bytes(1,extra:1){7}\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_443",
+    "source": "\ndef run(input)\n(\"\").bytes(1){7}\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_444",
+    "source": "\ndef run(input)\n(\"\").bytes(nil)\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_445",
+    "source": "\ndef run(input)\n(\"\").bytes(chomp:true)\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_446",
+    "source": "\ndef run(input)\n(\"\").bytes(extra:1){7}\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_447",
+    "source": "\ndef run(input)\n(\"\").bytes(1,extra:1){7}\nend",
+    "go_error": "string.bytes does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_448",
+    "source": "\ndef run(input)\n(:abc).bytes\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_449",
+    "source": "\ndef run(input)\n(:abc).bytes()\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_450",
+    "source": "\ndef run(input)\n(:abc).bytes{7}\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_451",
+    "source": "\ndef run(input)\n(:abc).bytes(1){7}\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_452",
+    "source": "\ndef run(input)\n(:abc).bytes(nil)\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_453",
+    "source": "\ndef run(input)\n(:abc).bytes(chomp:true)\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_454",
+    "source": "\ndef run(input)\n(:abc).bytes(extra:1){7}\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_455",
+    "source": "\ndef run(input)\n(:abc).bytes(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method bytes"
+  },
+  {
+    "name": "string_iteration_signature_456",
+    "source": "\ndef run(input)\n([]).bytes\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_457",
+    "source": "\ndef run(input)\n([]).bytes()\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_458",
+    "source": "\ndef run(input)\n([]).bytes{7}\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_459",
+    "source": "\ndef run(input)\n([]).bytes(1){7}\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_460",
+    "source": "\ndef run(input)\n([]).bytes(nil)\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_461",
+    "source": "\ndef run(input)\n([]).bytes(chomp:true)\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_462",
+    "source": "\ndef run(input)\n([]).bytes(extra:1){7}\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_463",
+    "source": "\ndef run(input)\n([]).bytes(1,extra:1){7}\nend",
+    "go_error": "unknown array method bytes"
+  },
+  {
+    "name": "string_iteration_signature_464",
+    "source": "\ndef run(input)\n({}).bytes\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_465",
+    "source": "\ndef run(input)\n({}).bytes()\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_466",
+    "source": "\ndef run(input)\n({}).bytes{7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_467",
+    "source": "\ndef run(input)\n({}).bytes(1){7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_468",
+    "source": "\ndef run(input)\n({}).bytes(nil)\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_469",
+    "source": "\ndef run(input)\n({}).bytes(chomp:true)\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_470",
+    "source": "\ndef run(input)\n({}).bytes(extra:1){7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_471",
+    "source": "\ndef run(input)\n({}).bytes(1,extra:1){7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_472",
+    "source": "\ndef run(input)\n(1).bytes\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_473",
+    "source": "\ndef run(input)\n(1).bytes()\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_474",
+    "source": "\ndef run(input)\n(1).bytes{7}\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_475",
+    "source": "\ndef run(input)\n(1).bytes(1){7}\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_476",
+    "source": "\ndef run(input)\n(1).bytes(nil)\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_477",
+    "source": "\ndef run(input)\n(1).bytes(chomp:true)\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_478",
+    "source": "\ndef run(input)\n(1).bytes(extra:1){7}\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_479",
+    "source": "\ndef run(input)\n(1).bytes(1,extra:1){7}\nend",
+    "go_error": "unknown int method bytes"
+  },
+  {
+    "name": "string_iteration_signature_480",
+    "source": "\ndef run(input)\n((1..3)).bytes\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_481",
+    "source": "\ndef run(input)\n((1..3)).bytes()\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_482",
+    "source": "\ndef run(input)\n((1..3)).bytes{7}\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_483",
+    "source": "\ndef run(input)\n((1..3)).bytes(1){7}\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_484",
+    "source": "\ndef run(input)\n((1..3)).bytes(nil)\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_485",
+    "source": "\ndef run(input)\n((1..3)).bytes(chomp:true)\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_486",
+    "source": "\ndef run(input)\n((1..3)).bytes(extra:1){7}\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_487",
+    "source": "\ndef run(input)\n((1..3)).bytes(1,extra:1){7}\nend",
+    "go_error": "unknown range method bytes"
+  },
+  {
+    "name": "string_iteration_signature_488",
+    "source": "\ndef run(input)\n({x:int}).bytes\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_489",
+    "source": "\ndef run(input)\n({x:int}).bytes()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_490",
+    "source": "\ndef run(input)\n({x:int}).bytes{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_491",
+    "source": "\ndef run(input)\n({x:int}).bytes(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_492",
+    "source": "\ndef run(input)\n({x:int}).bytes(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_493",
+    "source": "\ndef run(input)\n({x:int}).bytes(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_494",
+    "source": "\ndef run(input)\n({x:int}).bytes(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_495",
+    "source": "\ndef run(input)\n({x:int}).bytes(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_496",
+    "source": "\ndef run(input)\n(JSON).bytes\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_497",
+    "source": "\ndef run(input)\n(JSON).bytes()\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_498",
+    "source": "\ndef run(input)\n(JSON).bytes{7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_499",
+    "source": "\ndef run(input)\n(JSON).bytes(1){7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_500",
+    "source": "\ndef run(input)\n(JSON).bytes(nil)\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_501",
+    "source": "\ndef run(input)\n(JSON).bytes(chomp:true)\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_502",
+    "source": "\ndef run(input)\n(JSON).bytes(extra:1){7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_signature_503",
+    "source": "\ndef run(input)\n(JSON).bytes(1,extra:1){7}\nend",
+    "go_error": "unknown hash method bytes"
+  },
+  {
+    "name": "string_iteration_shadow_31",
+    "source": "\ndef run(input)\nh={bytes:7};h.bytes()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_32",
+    "source": "\ndef run(input)\nh={bytes:7};h.bytes{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_33",
+    "source": "\ndef run(input)\nh={bytes:7};h.bytes(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_34",
+    "source": "\ndef run(input)\nh={bytes:7};h.bytes(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_signature_507",
+    "source": "\ndef run(input)\n(\"a\\nb\").codepoints(1){7}\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_508",
+    "source": "\ndef run(input)\n(\"a\\nb\").codepoints(nil)\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_509",
+    "source": "\ndef run(input)\n(\"a\\nb\").codepoints(chomp:true)\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_510",
+    "source": "\ndef run(input)\n(\"a\\nb\").codepoints(extra:1){7}\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_511",
+    "source": "\ndef run(input)\n(\"a\\nb\").codepoints(1,extra:1){7}\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_515",
+    "source": "\ndef run(input)\n(\"\").codepoints(1){7}\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_516",
+    "source": "\ndef run(input)\n(\"\").codepoints(nil)\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_517",
+    "source": "\ndef run(input)\n(\"\").codepoints(chomp:true)\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_518",
+    "source": "\ndef run(input)\n(\"\").codepoints(extra:1){7}\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_519",
+    "source": "\ndef run(input)\n(\"\").codepoints(1,extra:1){7}\nend",
+    "go_error": "string.codepoints does not take arguments"
+  },
+  {
+    "name": "string_iteration_signature_520",
+    "source": "\ndef run(input)\n(:abc).codepoints\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_521",
+    "source": "\ndef run(input)\n(:abc).codepoints()\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_522",
+    "source": "\ndef run(input)\n(:abc).codepoints{7}\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_523",
+    "source": "\ndef run(input)\n(:abc).codepoints(1){7}\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_524",
+    "source": "\ndef run(input)\n(:abc).codepoints(nil)\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_525",
+    "source": "\ndef run(input)\n(:abc).codepoints(chomp:true)\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_526",
+    "source": "\ndef run(input)\n(:abc).codepoints(extra:1){7}\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_527",
+    "source": "\ndef run(input)\n(:abc).codepoints(1,extra:1){7}\nend",
+    "go_error": "unknown symbol method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_528",
+    "source": "\ndef run(input)\n([]).codepoints\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_529",
+    "source": "\ndef run(input)\n([]).codepoints()\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_530",
+    "source": "\ndef run(input)\n([]).codepoints{7}\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_531",
+    "source": "\ndef run(input)\n([]).codepoints(1){7}\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_532",
+    "source": "\ndef run(input)\n([]).codepoints(nil)\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_533",
+    "source": "\ndef run(input)\n([]).codepoints(chomp:true)\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_534",
+    "source": "\ndef run(input)\n([]).codepoints(extra:1){7}\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_535",
+    "source": "\ndef run(input)\n([]).codepoints(1,extra:1){7}\nend",
+    "go_error": "unknown array method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_536",
+    "source": "\ndef run(input)\n({}).codepoints\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_537",
+    "source": "\ndef run(input)\n({}).codepoints()\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_538",
+    "source": "\ndef run(input)\n({}).codepoints{7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_539",
+    "source": "\ndef run(input)\n({}).codepoints(1){7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_540",
+    "source": "\ndef run(input)\n({}).codepoints(nil)\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_541",
+    "source": "\ndef run(input)\n({}).codepoints(chomp:true)\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_542",
+    "source": "\ndef run(input)\n({}).codepoints(extra:1){7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_543",
+    "source": "\ndef run(input)\n({}).codepoints(1,extra:1){7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_544",
+    "source": "\ndef run(input)\n(1).codepoints\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_545",
+    "source": "\ndef run(input)\n(1).codepoints()\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_546",
+    "source": "\ndef run(input)\n(1).codepoints{7}\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_547",
+    "source": "\ndef run(input)\n(1).codepoints(1){7}\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_548",
+    "source": "\ndef run(input)\n(1).codepoints(nil)\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_549",
+    "source": "\ndef run(input)\n(1).codepoints(chomp:true)\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_550",
+    "source": "\ndef run(input)\n(1).codepoints(extra:1){7}\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_551",
+    "source": "\ndef run(input)\n(1).codepoints(1,extra:1){7}\nend",
+    "go_error": "unknown int method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_552",
+    "source": "\ndef run(input)\n((1..3)).codepoints\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_553",
+    "source": "\ndef run(input)\n((1..3)).codepoints()\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_554",
+    "source": "\ndef run(input)\n((1..3)).codepoints{7}\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_555",
+    "source": "\ndef run(input)\n((1..3)).codepoints(1){7}\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_556",
+    "source": "\ndef run(input)\n((1..3)).codepoints(nil)\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_557",
+    "source": "\ndef run(input)\n((1..3)).codepoints(chomp:true)\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_558",
+    "source": "\ndef run(input)\n((1..3)).codepoints(extra:1){7}\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_559",
+    "source": "\ndef run(input)\n((1..3)).codepoints(1,extra:1){7}\nend",
+    "go_error": "unknown range method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_560",
+    "source": "\ndef run(input)\n({x:int}).codepoints\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_561",
+    "source": "\ndef run(input)\n({x:int}).codepoints()\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_562",
+    "source": "\ndef run(input)\n({x:int}).codepoints{7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_563",
+    "source": "\ndef run(input)\n({x:int}).codepoints(1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_564",
+    "source": "\ndef run(input)\n({x:int}).codepoints(nil)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_565",
+    "source": "\ndef run(input)\n({x:int}).codepoints(chomp:true)\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_566",
+    "source": "\ndef run(input)\n({x:int}).codepoints(extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_567",
+    "source": "\ndef run(input)\n({x:int}).codepoints(1,extra:1){7}\nend",
+    "go_error": "unsupported member access on shape"
+  },
+  {
+    "name": "string_iteration_signature_568",
+    "source": "\ndef run(input)\n(JSON).codepoints\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_569",
+    "source": "\ndef run(input)\n(JSON).codepoints()\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_570",
+    "source": "\ndef run(input)\n(JSON).codepoints{7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_571",
+    "source": "\ndef run(input)\n(JSON).codepoints(1){7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_572",
+    "source": "\ndef run(input)\n(JSON).codepoints(nil)\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_573",
+    "source": "\ndef run(input)\n(JSON).codepoints(chomp:true)\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_574",
+    "source": "\ndef run(input)\n(JSON).codepoints(extra:1){7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_signature_575",
+    "source": "\ndef run(input)\n(JSON).codepoints(1,extra:1){7}\nend",
+    "go_error": "unknown hash method codepoints"
+  },
+  {
+    "name": "string_iteration_shadow_36",
+    "source": "\ndef run(input)\nh={codepoints:7};h.codepoints()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_37",
+    "source": "\ndef run(input)\nh={codepoints:7};h.codepoints{7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_38",
+    "source": "\ndef run(input)\nh={codepoints:7};h.codepoints(){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_shadow_39",
+    "source": "\ndef run(input)\nh={codepoints:7};h.codepoints(1){7}\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "string_iteration_binding_4",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_char{|x:int|out.push(x)};out\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "string_iteration_binding_5",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_char{|x:any|out.push([x,y])};out\nend",
+    "go_error": "undefined variable y (did you mean \"p\" or \"x\"?)"
+  },
+  {
+    "name": "string_iteration_binding_6",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_char{|x,y:int|out.push([x,y])};out\nend",
+    "go_error": "argument y expected int, got nil"
+  },
+  {
+    "name": "string_iteration_binding_13",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_byte{|x:string|out.push(x)};out\nend",
+    "go_error": "argument x expected string, got int"
+  },
+  {
+    "name": "string_iteration_binding_15",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_byte{|x:any|out.push([x,y])};out\nend",
+    "go_error": "undefined variable y (did you mean \"p\" or \"x\"?)"
+  },
+  {
+    "name": "string_iteration_binding_16",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_byte{|x,y:int|out.push([x,y])};out\nend",
+    "go_error": "argument y expected int, got nil"
+  },
+  {
+    "name": "string_iteration_binding_23",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_codepoint{|x:string|out.push(x)};out\nend",
+    "go_error": "argument x expected string, got int"
+  },
+  {
+    "name": "string_iteration_binding_25",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_codepoint{|x:any|out.push([x,y])};out\nend",
+    "go_error": "undefined variable y (did you mean \"p\" or \"x\"?)"
+  },
+  {
+    "name": "string_iteration_binding_26",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_codepoint{|x,y:int|out.push([x,y])};out\nend",
+    "go_error": "argument y expected int, got nil"
+  },
+  {
+    "name": "string_iteration_binding_34",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_line{|x:int|out.push(x)};out\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "string_iteration_binding_35",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_line{|x:any|out.push([x,y])};out\nend",
+    "go_error": "undefined variable y (did you mean \"p\" or \"x\"?)"
+  },
+  {
+    "name": "string_iteration_binding_36",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_line{|x,y:int|out.push([x,y])};out\nend",
+    "go_error": "argument y expected int, got nil"
   }
 ]

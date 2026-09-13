@@ -121,7 +121,10 @@ impl MethodKind {
 }
 
 pub(crate) fn method(name: &str) -> bool {
-    MethodKind::parse(name).is_some() || ordering::method(name) || hash_blocks::method(name)
+    MethodKind::parse(name).is_some()
+        || ordering::method(name)
+        || hash_blocks::method(name)
+        || crate::text::iteration::method(name)
 }
 
 pub(crate) enum Progress {
@@ -158,6 +161,7 @@ pub(crate) enum Iteration {
     Loop(Loop),
     Order(ordering::Driver),
     Hash(hash_blocks::Driver),
+    Text(crate::text::iteration::Driver),
 }
 
 impl Iteration {
@@ -166,13 +170,14 @@ impl Iteration {
             Self::Loop(state) => state.waiting,
             Self::Order(state) => state.waiting,
             Self::Hash(state) => state.waiting(),
+            Self::Text(state) => state.waiting,
         }
     }
 
     pub fn take_mutation(&mut self) -> Option<Mutation> {
         match self {
             Self::Loop(state) => state.mutation.take(),
-            Self::Order(_) | Self::Hash(_) => None,
+            Self::Order(_) | Self::Hash(_) | Self::Text(_) => None,
         }
     }
 
@@ -181,6 +186,7 @@ impl Iteration {
             Self::Loop(state) => state.advance(ctx, returned),
             Self::Order(state) => state.advance(ctx, returned),
             Self::Hash(state) => state.advance(ctx, returned),
+            Self::Text(state) => state.advance(ctx, returned),
         }
     }
 }
@@ -224,6 +230,17 @@ pub(crate) fn start(
     block_arity: Option<usize>,
 ) -> Result<Option<Iteration>> {
     use MethodKind::*;
+    if crate::text::iteration::method(name) {
+        return crate::text::iteration::Driver::new(
+            ctx,
+            name,
+            receiver,
+            args,
+            keywords,
+            block_arity.is_some(),
+        )
+        .map(|state| state.map(Iteration::Text));
+    }
     if ordering::method(name) {
         return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some())
             .map(|state| state.map(Iteration::Order));

@@ -186,7 +186,10 @@ pub(crate) fn call_keywords(
                     )
                 }
                 Kind::Bytes(_) => {
-                    matches!(method, ByteSlice | GetByte | Bytes | Chars | Codepoints)
+                    matches!(
+                        method,
+                        ByteSlice | GetByte | Bytes | Chars | Lines | Codepoints
+                    )
                 }
                 Kind::Range(_) => true,
                 _ => false,

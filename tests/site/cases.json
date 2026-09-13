@@ -4664,5 +4664,23 @@
         "payload": "{\"status\":\"draft\"}"
       }
     }
+  },
+  {
+    "path": "showcase/operations/log_digest.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "entry_count": 5,
+      "first_message": "service started",
+      "counts_by_level": {
+        "INFO": 2,
+        "WARN": 2,
+        "ERROR": 1
+      },
+      "warnings": [
+        "disk at 82%",
+        "memory high"
+      ]
+    }
   }
 ]

@@ -473,7 +473,7 @@ pub(crate) fn method(
         Reverse if matches!(value.0, Kind::Bytes(_)) => {
             crate::text::method(ctx, method, value, args)
         }
-        Ord | Chr | Bytes | Chars | Codepoints | StartWith | EndWith => {
+        Ord | Chr | Bytes | Chars | Lines | Codepoints | StartWith | EndWith => {
             crate::text::method(ctx, method, value, args)
         }
         Reverse | Take | Drop | Compact | Uniq | Flatten | Chunk | Window | Zip | Transpose

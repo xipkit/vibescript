@@ -9638,5 +9638,85 @@
     "name": "shapes_trailing_types_29",
     "source": "def render(x)\n\"#{x}\"\nend\ndef identity(x)\nx\nend\n\ndef run(input)\n[{x:1}].map{|x:{x:int, ...,}|x}\nend",
     "go_error": "parse error at 9:27: expected }, got \",\""
+  },
+  {
+    "name": "string_iteration_binding_7",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_char{|*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:26: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_8",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_char{|x,*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:28: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_9",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_char{|x=nil|out.push(x)};out\nend",
+    "go_error": "parse error at 3:27: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_defaults_0",
+    "source": "\ndef run(input)\nout=[];\"ab\".each_char{|x,y=out.push(x)|[x,y]};out\nend",
+    "go_error": "parse error at 3:27: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_binding_17",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_byte{|*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:26: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_18",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_byte{|x,*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:28: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_19",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_byte{|x=nil|out.push(x)};out\nend",
+    "go_error": "parse error at 3:27: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_defaults_1",
+    "source": "\ndef run(input)\nout=[];\"ab\".each_byte{|x,y=out.push(x)|[x,y]};out\nend",
+    "go_error": "parse error at 3:27: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_binding_27",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_codepoint{|*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:31: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_28",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_codepoint{|x,*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:33: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_29",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_codepoint{|x=nil|out.push(x)};out\nend",
+    "go_error": "parse error at 3:32: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_defaults_2",
+    "source": "\ndef run(input)\nout=[];\"ab\".each_codepoint{|x,y=out.push(x)|[x,y]};out\nend",
+    "go_error": "parse error at 3:32: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_binding_37",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_line{|*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:26: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_38",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_line{|x,*xs|out.push(xs)};out\nend",
+    "go_error": "parse error at 3:28: expected block parameter, got \"*\""
+  },
+  {
+    "name": "string_iteration_binding_39",
+    "source": "\ndef run(input)\nout=[];\"ab\\n\".each_line{|x=nil|out.push(x)};out\nend",
+    "go_error": "parse error at 3:27: expected \"|\", got \"=\""
+  },
+  {
+    "name": "string_iteration_defaults_3",
+    "source": "\ndef run(input)\nout=[];\"ab\".each_line{|x,y=out.push(x)|[x,y]};out\nend",
+    "go_error": "parse error at 3:27: expected \"|\", got \"=\""
   }
 ]

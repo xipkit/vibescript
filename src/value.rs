@@ -14,11 +14,15 @@ pub(crate) struct Heap<T> {
 }
 
 impl<T> Heap<T> {
+    pub(crate) fn header_bytes() -> usize {
+        size_of::<Self>() + 2 * size_of::<usize>()
+    }
+
     pub fn new(ctx: &mut CallContext, buffer: Buffer<T>, depth: usize) -> Result<Arc<Self>> {
         if depth > MAX_VALUE_DEPTH {
             return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
         }
-        let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
+        let header = ctx.reserve(Self::header_bytes())?;
         Ok(Arc::new(Self {
             buffer,
             header,
@@ -57,7 +61,7 @@ pub(crate) struct Bytes {
 }
 
 impl Bytes {
-    fn header_bytes() -> usize {
+    pub(crate) fn header_bytes() -> usize {
         size_of::<Self>() + size_of::<Vec<u8>>() + 4 * size_of::<usize>()
     }
     fn new(ctx: &mut CallContext, buffer: Buffer<u8>) -> Result<Arc<Self>> {
