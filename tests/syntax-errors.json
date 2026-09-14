@@ -12136,5 +12136,785 @@
     "name": "operator_explicit_operator_16",
     "source": "class C\ndef []=(*args);7;end\nend\ndef run(input)\nc=C.new;c.[]=(1)\nend",
     "go_error": "parse error at 5:11: expected member name, got \"[\""
+  },
+  {
+    "name": "safe_spacing_8",
+    "source": "\ndef run(input)\nx=nil\nx.;\nsize\nend",
+    "go_error": "parse error at 4:3: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_9",
+    "source": "\ndef run(input)\nx=[1]\nx.;\nsize\nend",
+    "go_error": "parse error at 4:3: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_18",
+    "source": "\ndef run(input)\nx=nil\nx .;\nsize\nend",
+    "go_error": "parse error at 4:4: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_19",
+    "source": "\ndef run(input)\nx=[1]\nx .;\nsize\nend",
+    "go_error": "parse error at 4:4: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_28",
+    "source": "\ndef run(input)\nx=nil\nx\n.;\nsize\nend",
+    "go_error": "parse error at 5:2: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_29",
+    "source": "\ndef run(input)\nx=[1]\nx\n.;\nsize\nend",
+    "go_error": "parse error at 5:2: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_38",
+    "source": "\ndef run(input)\nx=nil\nx\n# before\n.;\nsize\nend",
+    "go_error": "parse error at 6:2: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_39",
+    "source": "\ndef run(input)\nx=[1]\nx\n# before\n.;\nsize\nend",
+    "go_error": "parse error at 6:2: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_48",
+    "source": "\ndef run(input)\nx=nil\nx&.;\nsize\nend",
+    "go_error": "parse error at 4:4: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_49",
+    "source": "\ndef run(input)\nx=[1]\nx&.;\nsize\nend",
+    "go_error": "parse error at 4:4: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_58",
+    "source": "\ndef run(input)\nx=nil\nx &.;\nsize\nend",
+    "go_error": "parse error at 4:5: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_59",
+    "source": "\ndef run(input)\nx=[1]\nx &.;\nsize\nend",
+    "go_error": "parse error at 4:5: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_68",
+    "source": "\ndef run(input)\nx=nil\nx\n&.;\nsize\nend",
+    "go_error": "parse error at 5:3: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_69",
+    "source": "\ndef run(input)\nx=[1]\nx\n&.;\nsize\nend",
+    "go_error": "parse error at 5:3: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_78",
+    "source": "\ndef run(input)\nx=nil\nx\n# before\n&.;\nsize\nend",
+    "go_error": "parse error at 6:3: expected member name, got \";\""
+  },
+  {
+    "name": "safe_spacing_79",
+    "source": "\ndef run(input)\nx=[1]\nx\n# before\n&.;\nsize\nend",
+    "go_error": "parse error at 6:3: expected member name, got \";\""
+  },
+  {
+    "name": "safe_bad_separator_0",
+    "source": "\ndef run(input)\nx=nil;x& .size\nend",
+    "go_error": "parse error at 3:10: unexpected token \".\""
+  },
+  {
+    "name": "safe_bad_separator_1",
+    "source": "\ndef run(input)\nx=nil;x&\n.size\nend",
+    "go_error": "parse error at 4:1: unexpected token \".\""
+  },
+  {
+    "name": "safe_bad_separator_2",
+    "source": "\ndef run(input)\nx=nil;x&&.size\nend",
+    "go_error": "parse error at 3:10: unexpected token \".\""
+  },
+  {
+    "name": "safe_bad_separator_3",
+    "source": "\ndef run(input)\nx=nil;x&..size\nend",
+    "go_error": "parse error at 3:10: expected member name, got \".\""
+  },
+  {
+    "name": "safe_bad_separator_4",
+    "source": "\ndef run(input)\nx=nil;x&. .size\nend",
+    "go_error": "parse error at 3:11: expected member name, got \".\""
+  },
+  {
+    "name": "safe_bad_separator_5",
+    "source": "\ndef run(input)\nx=nil;x&.\n.size\nend",
+    "go_error": "parse error at 4:1: expected member name, got \".\""
+  },
+  {
+    "name": "safe_bad_separator_7",
+    "source": "\ndef run(input)\nx=nil;x&. # endsize\nend",
+    "go_error": "parse error at 4:3: expected end, got end of input"
+  },
+  {
+    "name": "safe_member_names_74",
+    "source": "\ndef run(input)\nnil.@field\nend",
+    "go_error": "parse error at 3:5: expected member name, got instance variable"
+  },
+  {
+    "name": "safe_member_names_75",
+    "source": "\ndef run(input)\nnil&.@field\nend",
+    "go_error": "parse error at 3:6: expected member name, got instance variable"
+  },
+  {
+    "name": "safe_member_names_76",
+    "source": "\ndef run(input)\nnil.@@field\nend",
+    "go_error": "parse error at 3:5: expected member name, got class variable"
+  },
+  {
+    "name": "safe_member_names_77",
+    "source": "\ndef run(input)\nnil&.@@field\nend",
+    "go_error": "parse error at 3:6: expected member name, got class variable"
+  },
+  {
+    "name": "safe_member_names_80",
+    "source": "\ndef run(input)\nnil.+\nend",
+    "go_error": "parse error at 3:5: expected member name, got \"+\""
+  },
+  {
+    "name": "safe_member_names_81",
+    "source": "\ndef run(input)\nnil&.+\nend",
+    "go_error": "parse error at 3:6: expected member name, got \"+\""
+  },
+  {
+    "name": "safe_member_names_82",
+    "source": "\ndef run(input)\nnil.[]\nend",
+    "go_error": "parse error at 3:5: expected member name, got \"[\""
+  },
+  {
+    "name": "safe_member_names_83",
+    "source": "\ndef run(input)\nnil&.[]\nend",
+    "go_error": "parse error at 3:6: expected member name, got \"[\""
+  },
+  {
+    "name": "safe_member_names_84",
+    "source": "\ndef run(input)\nnil.[]=\nend",
+    "go_error": "parse error at 3:5: expected member name, got \"[\""
+  },
+  {
+    "name": "safe_member_names_85",
+    "source": "\ndef run(input)\nnil&.[]=\nend",
+    "go_error": "parse error at 3:6: expected member name, got \"[\""
+  },
+  {
+    "name": "safe_member_names_86",
+    "source": "\ndef run(input)\nnil.\"name\"\nend",
+    "go_error": "parse error at 3:5: expected member name, got string"
+  },
+  {
+    "name": "safe_member_names_87",
+    "source": "\ndef run(input)\nnil&.\"name\"\nend",
+    "go_error": "parse error at 3:6: expected member name, got string"
+  },
+  {
+    "name": "safe_member_names_88",
+    "source": "\ndef run(input)\nnil.:name\nend",
+    "go_error": "parse error at 3:5: expected member name, got symbol"
+  },
+  {
+    "name": "safe_member_names_89",
+    "source": "\ndef run(input)\nnil&.:name\nend",
+    "go_error": "parse error at 3:6: expected member name, got symbol"
+  },
+  {
+    "name": "safe_destructure_2",
+    "source": "\ndef run(input)\nx={};(other,x.name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_9",
+    "source": "\ndef run(input)\nx={};x&.name = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_10",
+    "source": "\ndef run(input)\nx={};x&.name += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_11",
+    "source": "\ndef run(input)\nx={};x&.name -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_12",
+    "source": "\ndef run(input)\nx={};x&.name *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_13",
+    "source": "\ndef run(input)\nx={};x&.name /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_14",
+    "source": "\ndef run(input)\nx={};x&.name %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_15",
+    "source": "\ndef run(input)\nx={};x&.name **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_16",
+    "source": "\ndef run(input)\nx={};x&.name ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_17",
+    "source": "\ndef run(input)\nx={};x&.name &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_3",
+    "source": "\ndef run(input)\nx={};x&.name,other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_4",
+    "source": "\ndef run(input)\nx={};other,x&.name = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_5",
+    "source": "\ndef run(input)\nx={};(other,x&.name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_18",
+    "source": "\ndef run(input)\nx={};x&.profile.name = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_19",
+    "source": "\ndef run(input)\nx={};x&.profile.name += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_20",
+    "source": "\ndef run(input)\nx={};x&.profile.name -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_21",
+    "source": "\ndef run(input)\nx={};x&.profile.name *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_22",
+    "source": "\ndef run(input)\nx={};x&.profile.name /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_23",
+    "source": "\ndef run(input)\nx={};x&.profile.name %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_24",
+    "source": "\ndef run(input)\nx={};x&.profile.name **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_25",
+    "source": "\ndef run(input)\nx={};x&.profile.name ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_26",
+    "source": "\ndef run(input)\nx={};x&.profile.name &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_6",
+    "source": "\ndef run(input)\nx={};x&.profile.name,other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_7",
+    "source": "\ndef run(input)\nx={};other,x&.profile.name = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_8",
+    "source": "\ndef run(input)\nx={};(other,x&.profile.name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_27",
+    "source": "\ndef run(input)\nx={};x&.items[0] = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_28",
+    "source": "\ndef run(input)\nx={};x&.items[0] += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_29",
+    "source": "\ndef run(input)\nx={};x&.items[0] -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_30",
+    "source": "\ndef run(input)\nx={};x&.items[0] *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_31",
+    "source": "\ndef run(input)\nx={};x&.items[0] /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_32",
+    "source": "\ndef run(input)\nx={};x&.items[0] %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_33",
+    "source": "\ndef run(input)\nx={};x&.items[0] **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_34",
+    "source": "\ndef run(input)\nx={};x&.items[0] ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_35",
+    "source": "\ndef run(input)\nx={};x&.items[0] &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_9",
+    "source": "\ndef run(input)\nx={};x&.items[0],other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_10",
+    "source": "\ndef run(input)\nx={};other,x&.items[0] = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_11",
+    "source": "\ndef run(input)\nx={};(other,x&.items[0]) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_36",
+    "source": "\ndef run(input)\nx={};x&.fetch().name = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_37",
+    "source": "\ndef run(input)\nx={};x&.fetch().name += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_38",
+    "source": "\ndef run(input)\nx={};x&.fetch().name -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_39",
+    "source": "\ndef run(input)\nx={};x&.fetch().name *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_40",
+    "source": "\ndef run(input)\nx={};x&.fetch().name /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_41",
+    "source": "\ndef run(input)\nx={};x&.fetch().name %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_42",
+    "source": "\ndef run(input)\nx={};x&.fetch().name **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_43",
+    "source": "\ndef run(input)\nx={};x&.fetch().name ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_44",
+    "source": "\ndef run(input)\nx={};x&.fetch().name &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_12",
+    "source": "\ndef run(input)\nx={};x&.fetch().name,other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_13",
+    "source": "\ndef run(input)\nx={};other,x&.fetch().name = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_14",
+    "source": "\ndef run(input)\nx={};(other,x&.fetch().name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_45",
+    "source": "\ndef run(input)\nx={};x.profile&.name = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_46",
+    "source": "\ndef run(input)\nx={};x.profile&.name += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_47",
+    "source": "\ndef run(input)\nx={};x.profile&.name -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_48",
+    "source": "\ndef run(input)\nx={};x.profile&.name *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_49",
+    "source": "\ndef run(input)\nx={};x.profile&.name /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_50",
+    "source": "\ndef run(input)\nx={};x.profile&.name %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_51",
+    "source": "\ndef run(input)\nx={};x.profile&.name **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_52",
+    "source": "\ndef run(input)\nx={};x.profile&.name ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_53",
+    "source": "\ndef run(input)\nx={};x.profile&.name &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_15",
+    "source": "\ndef run(input)\nx={};x.profile&.name,other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_16",
+    "source": "\ndef run(input)\nx={};other,x.profile&.name = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_17",
+    "source": "\ndef run(input)\nx={};(other,x.profile&.name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_54",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_55",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_56",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_57",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_58",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_59",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_60",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_61",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_62",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0] &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_18",
+    "source": "\ndef run(input)\nx={};x&.items.each{|v|v}[0],other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_19",
+    "source": "\ndef run(input)\nx={};other,x&.items.each{|v|v}[0] = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_20",
+    "source": "\ndef run(input)\nx={};(other,x&.items.each{|v|v}[0]) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_destructure_23",
+    "source": "\ndef run(input)\nx={};(other,x&.name::Items[0]) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_destructure_26",
+    "source": "\ndef run(input)\nx={};(other,x[nil&.missing]) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_destructure_29",
+    "source": "\ndef run(input)\nx={};(other,make(nil&.missing).field) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_destructure_32",
+    "source": "\ndef run(input)\nx={};(other,x.\nname) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_99",
+    "source": "\ndef run(input)\nx={};x&.\nname = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_100",
+    "source": "\ndef run(input)\nx={};x&.\nname += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_101",
+    "source": "\ndef run(input)\nx={};x&.\nname -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_102",
+    "source": "\ndef run(input)\nx={};x&.\nname *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_103",
+    "source": "\ndef run(input)\nx={};x&.\nname /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_104",
+    "source": "\ndef run(input)\nx={};x&.\nname %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_105",
+    "source": "\ndef run(input)\nx={};x&.\nname **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_106",
+    "source": "\ndef run(input)\nx={};x&.\nname ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_107",
+    "source": "\ndef run(input)\nx={};x&.\nname &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_33",
+    "source": "\ndef run(input)\nx={};x&.\nname,other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_34",
+    "source": "\ndef run(input)\nx={};other,x&.\nname = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_35",
+    "source": "\ndef run(input)\nx={};(other,x&.\nname) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_assignment_108",
+    "source": "\ndef run(input)\nx={};x\n&.name = 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_109",
+    "source": "\ndef run(input)\nx={};x\n&.name += 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_110",
+    "source": "\ndef run(input)\nx={};x\n&.name -= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_111",
+    "source": "\ndef run(input)\nx={};x\n&.name *= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_112",
+    "source": "\ndef run(input)\nx={};x\n&.name /= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_113",
+    "source": "\ndef run(input)\nx={};x\n&.name %= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_114",
+    "source": "\ndef run(input)\nx={};x\n&.name **= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_115",
+    "source": "\ndef run(input)\nx={};x\n&.name ||= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_assignment_116",
+    "source": "\ndef run(input)\nx={};x\n&.name &&= 1\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_36",
+    "source": "\ndef run(input)\nx={};x\n&.name,other = 1,2\nend",
+    "go_error": "parse error at 3:6: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_37",
+    "source": "\ndef run(input)\nx={};other,x\n&.name = 1,2\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_destructure_38",
+    "source": "\ndef run(input)\nx={};(other,x\n&.name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_destructure_41",
+    "source": "\ndef run(input)\nx={};(other,x\n.name) = 1,2\nend",
+    "go_error": "parse error at 3:12: expected \")\", got \",\""
+  },
+  {
+    "name": "safe_wrapped_assignment_4",
+    "source": "\ndef run(input)\nx={name:0};x&.\nname=1\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_5",
+    "source": "\ndef run(input)\nx={name:0};x&.\nname+=1\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_6",
+    "source": "\ndef run(input)\nx={name:0};*x&.\nname=[1,2]\nend",
+    "go_error": "parse error at 3:13: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_7",
+    "source": "\ndef run(input)\nx={name:0};other,*x&.\nname=[1,2,3]\nend",
+    "go_error": "parse error at 3:19: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_12",
+    "source": "\ndef run(input)\nx={name:0};x&.\n# field\nname=1\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_13",
+    "source": "\ndef run(input)\nx={name:0};x&.\n# field\nname+=1\nend",
+    "go_error": "parse error at 3:12: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_14",
+    "source": "\ndef run(input)\nx={name:0};*x&.\n# field\nname=[1,2]\nend",
+    "go_error": "parse error at 3:13: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_wrapped_assignment_15",
+    "source": "\ndef run(input)\nx={name:0};other,*x&.\n# field\nname=[1,2,3]\nend",
+    "go_error": "parse error at 3:19: safe navigation cannot be used as an assignment target"
+  },
+  {
+    "name": "safe_scoped_name_0",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nnil::@field\nend",
+    "go_error": "parse error at 14:6: expected identifier, got instance variable"
+  },
+  {
+    "name": "safe_scoped_name_1",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nC::@field\nend",
+    "go_error": "parse error at 14:4: expected identifier, got instance variable"
+  },
+  {
+    "name": "safe_scoped_name_2",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nnil&.missing::@field\nend",
+    "go_error": "parse error at 14:15: expected identifier, got instance variable"
+  },
+  {
+    "name": "safe_scoped_name_3",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nnil::@@field\nend",
+    "go_error": "parse error at 14:6: expected identifier, got class variable"
+  },
+  {
+    "name": "safe_scoped_name_4",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nC::@@field\nend",
+    "go_error": "parse error at 14:4: expected identifier, got class variable"
+  },
+  {
+    "name": "safe_scoped_name_5",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nnil&.missing::@@field\nend",
+    "go_error": "parse error at 14:15: expected identifier, got class variable"
+  },
+  {
+    "name": "safe_symbol_seed_19",
+    "source": "def identity(value);value;end\ndef run(input)\n{key:&.to_s}\nend",
+    "go_error": "parse error at 3:7: unexpected token \"&.\""
+  },
+  {
+    "name": "safe_symbol_seed_22",
+    "source": "def identity(value);value;end\ndef run(input)\nnil&&.to_s\nend",
+    "go_error": "parse error at 3:6: unexpected token \".\""
+  },
+  {
+    "name": "safe_symbol_seed_23",
+    "source": "def identity(value);value;end\ndef run(input)\n: &.to_s\nend",
+    "go_error": "parse error at 3:1: unexpected token \":\""
   }
 ]

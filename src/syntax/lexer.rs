@@ -349,8 +349,16 @@ impl Lexer<'_> {
                         for op in [
                             "...", "..", "===", "<=>", "||=", "&&=", "**=", "==", "!=", "<=", ">=",
                             "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "<<", "::", "->", "=~",
-                            "!~",
+                            "!~", "&.",
                         ] {
+                            // An operator symbol ends before its member or range separator.
+                            if op == "&."
+                                && out.last().or(previous).is_some_and(|last| {
+                                    last.token == Token::P(':') && last.end == i
+                                })
+                            {
+                                continue;
+                            }
                             if s[i..].starts_with(op.as_bytes()) {
                                 found = Some(op);
                                 break;

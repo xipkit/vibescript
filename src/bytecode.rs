@@ -99,6 +99,8 @@ pub(crate) enum Op {
     Jump(usize),
     JumpFalse(usize),
     JumpTrue(usize),
+    JumpNil(usize),
+    AddressJumpNil(usize, bool),
     Return,
     Finish,
 }
@@ -576,7 +578,9 @@ impl Compiler<'_> {
                     self.declare_expr(value);
                 }
             }
-            Node::Unary(_, value) | Node::Member(value, _) => self.declare_expr(value),
+            Node::Unary(_, value) | Node::Member(value, _) | Node::SafeMember(value, _) => {
+                self.declare_expr(value)
+            }
             Node::Binary(_, a, b) => {
                 self.declare_expr(a);
                 self.declare_expr(b);
@@ -609,7 +613,7 @@ impl Compiler<'_> {
                 }
             }
             Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref())),
-            Node::Method(recv, _, args) => {
+            Node::Method(recv, _, args) | Node::SafeMethod(recv, _, args) => {
                 self.declare_expr(recv);
                 for arg in args {
                     self.declare_expr(&arg.value);
@@ -639,6 +643,8 @@ impl Compiler<'_> {
             Op::Jump(n)
             | Op::JumpFalse(n)
             | Op::JumpTrue(n)
+            | Op::JumpNil(n)
+            | Op::AddressJumpNil(n, _)
             | Op::Bind(_, n)
             | Op::NamespaceConstant(_, n)
             | Op::AmbientValue(_, n)
@@ -1268,9 +1274,27 @@ impl Compiler<'_> {
                     });
                 }
             }
-            Node::Member(recv, name) => self.member_call(recv, name, &[], true, None)?,
+            Node::Member(recv, name) | Node::SafeMember(recv, name) => {
+                self.member_call(
+                    recv,
+                    name,
+                    &[],
+                    true,
+                    None,
+                    matches!(e.node, Node::SafeMember(..)),
+                )?;
+            }
             Node::Scope(recv, name, args) => self.scoped_call(recv, name, args.as_deref(), None)?,
-            Node::Method(recv, name, args) => self.member_call(recv, name, args, false, None)?,
+            Node::Method(recv, name, args) | Node::SafeMethod(recv, name, args) => {
+                self.member_call(
+                    recv,
+                    name,
+                    args,
+                    false,
+                    None,
+                    matches!(e.node, Node::SafeMethod(..)),
+                )?;
+            }
             Node::Index(value, index) => {
                 self.expr(value)?;
                 for index in index {
@@ -1320,6 +1344,7 @@ impl Compiler<'_> {
         args: &[Argument],
         auto: bool,
         block: Option<usize>,
+        safe: bool,
     ) -> Result<()> {
         let mutating = mutating_member(name);
         if mutating {
@@ -1327,6 +1352,13 @@ impl Compiler<'_> {
         } else {
             self.member_receiver(receiver, name != "call")?;
         }
+        let skip = safe.then(|| {
+            self.emit(if mutating {
+                Op::AddressJumpNil(0, true)
+            } else {
+                Op::JumpNil(0)
+            })
+        });
         let site = self.call_site(name, auto);
         if expanded(args) || block.is_some() || crate::iteration::method(name) {
             self.call_arguments(args)?;
@@ -1343,6 +1375,9 @@ impl Compiler<'_> {
             } else {
                 Op::Method(site, args.len())
             });
+        }
+        if let Some(skip) = skip {
+            self.patch(skip, self.code.len());
         }
         Ok(())
     }
@@ -1391,11 +1426,25 @@ impl Compiler<'_> {
         let (name, args) = match &call.node {
             Node::Var(name) => (name.as_str(), &[][..]),
             Node::Call(name, args) => (name.as_str(), args.as_slice()),
-            Node::Member(receiver, name) => {
-                return self.member_call(receiver, name, &[], false, Some(function));
+            Node::Member(receiver, name) | Node::SafeMember(receiver, name) => {
+                return self.member_call(
+                    receiver,
+                    name,
+                    &[],
+                    false,
+                    Some(function),
+                    matches!(call.node, Node::SafeMember(..)),
+                );
             }
-            Node::Method(receiver, name, args) => {
-                return self.member_call(receiver, name, args, false, Some(function));
+            Node::Method(receiver, name, args) | Node::SafeMethod(receiver, name, args) => {
+                return self.member_call(
+                    receiver,
+                    name,
+                    args,
+                    false,
+                    Some(function),
+                    matches!(call.node, Node::SafeMethod(..)),
+                );
             }
             Node::Scope(receiver, name, args) => {
                 return self.scoped_call(receiver, name, args.as_deref(), Some(function));
@@ -1610,10 +1659,15 @@ impl Compiler<'_> {
                 let global = self.global_fallback(name).unwrap();
                 self.emit(Op::AddressGlobal(global));
             }
-            Node::Member(root, name) => {
+            Node::Member(root, name) | Node::SafeMember(root, name) => {
                 self.address(root)?;
+                let skip = matches!(receiver.node, Node::SafeMember(..))
+                    .then(|| self.emit(Op::AddressJumpNil(0, false)));
                 let site = self.call_site(name, true);
                 self.emit(Op::AddressMember(site));
+                if let Some(skip) = skip {
+                    self.patch(skip, self.code.len());
+                }
             }
             Node::Index(root, indices) => {
                 self.address(root)?;
@@ -1666,7 +1720,9 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
                 call_names(item, names);
             }
         }
-        Node::Unary(_, value) | Node::Member(value, _) => call_names(value, names),
+        Node::Unary(_, value) | Node::Member(value, _) | Node::SafeMember(value, _) => {
+            call_names(value, names)
+        }
         Node::Binary(_, a, b) => {
             call_names(a, names);
             call_names(b, names);
@@ -1693,7 +1749,7 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
             }
         }
         Node::Loop(stmt) => block_call_names(std::slice::from_ref(stmt), names),
-        Node::Method(receiver, _, args) => {
+        Node::Method(receiver, _, args) | Node::SafeMethod(receiver, _, args) => {
             call_names(receiver, names);
             for arg in args {
                 call_names(&arg.value, names);

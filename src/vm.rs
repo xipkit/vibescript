@@ -1940,6 +1940,23 @@ pub(crate) fn execute(
                 stack.data.truncate(base);
                 stack.push(ctx, value)?;
             }
+            Op::JumpNil(target) => {
+                if matches!(stack.data.last().unwrap().0, Kind::Nil) {
+                    frame.ip = target;
+                }
+            }
+            Op::AddressJumpNil(target, value_result) => {
+                if matches!(storage.addresses.data.last().unwrap().value.0, Kind::Nil) {
+                    if value_result {
+                        storage.addresses.data.pop();
+                        stack.push(ctx, Value::nil())?;
+                    } else {
+                        *storage.addresses.data.last_mut().unwrap() =
+                            Address::new(None, Value::nil());
+                    }
+                    frame.ip = target;
+                }
+            }
             Op::Jump(target) => frame.ip = target,
             Op::JumpFalse(target) => {
                 if !stack.data.pop().unwrap().truthy() {

@@ -116049,5 +116049,1885 @@
     "name": "operator_shovel_nonarray_5",
     "source": "\ndef run(input)\nMath << 4\nend",
     "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "safe_values_6",
+    "source": "\ndef run(input)\nvalue=nil;value.size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_values_8",
+    "source": "\ndef run(input)\nvalue=nil;value.empty?\nend",
+    "go_error": "unknown nil method empty?"
+  },
+  {
+    "name": "safe_values_10",
+    "source": "\ndef run(input)\nvalue=nil;value.missing\nend",
+    "go_error": "unknown nil method missing"
+  },
+  {
+    "name": "safe_values_18",
+    "source": "\ndef run(input)\nvalue=false;value.size\nend",
+    "go_error": "unknown bool method size"
+  },
+  {
+    "name": "safe_values_19",
+    "source": "\ndef run(input)\nvalue=false;value&.size\nend",
+    "go_error": "unknown bool method size"
+  },
+  {
+    "name": "safe_values_20",
+    "source": "\ndef run(input)\nvalue=false;value.empty?\nend",
+    "go_error": "unknown bool method empty?"
+  },
+  {
+    "name": "safe_values_21",
+    "source": "\ndef run(input)\nvalue=false;value&.empty?\nend",
+    "go_error": "unknown bool method empty?"
+  },
+  {
+    "name": "safe_values_22",
+    "source": "\ndef run(input)\nvalue=false;value.missing\nend",
+    "go_error": "unknown bool method missing"
+  },
+  {
+    "name": "safe_values_23",
+    "source": "\ndef run(input)\nvalue=false;value&.missing\nend",
+    "go_error": "unknown bool method missing"
+  },
+  {
+    "name": "safe_values_30",
+    "source": "\ndef run(input)\nvalue=true;value.size\nend",
+    "go_error": "unknown bool method size"
+  },
+  {
+    "name": "safe_values_31",
+    "source": "\ndef run(input)\nvalue=true;value&.size\nend",
+    "go_error": "unknown bool method size"
+  },
+  {
+    "name": "safe_values_32",
+    "source": "\ndef run(input)\nvalue=true;value.empty?\nend",
+    "go_error": "unknown bool method empty?"
+  },
+  {
+    "name": "safe_values_33",
+    "source": "\ndef run(input)\nvalue=true;value&.empty?\nend",
+    "go_error": "unknown bool method empty?"
+  },
+  {
+    "name": "safe_values_34",
+    "source": "\ndef run(input)\nvalue=true;value.missing\nend",
+    "go_error": "unknown bool method missing"
+  },
+  {
+    "name": "safe_values_35",
+    "source": "\ndef run(input)\nvalue=true;value&.missing\nend",
+    "go_error": "unknown bool method missing"
+  },
+  {
+    "name": "safe_values_42",
+    "source": "\ndef run(input)\nvalue=1;value.size\nend",
+    "go_error": "unknown int method size"
+  },
+  {
+    "name": "safe_values_43",
+    "source": "\ndef run(input)\nvalue=1;value&.size\nend",
+    "go_error": "unknown int method size"
+  },
+  {
+    "name": "safe_values_44",
+    "source": "\ndef run(input)\nvalue=1;value.empty?\nend",
+    "go_error": "unknown int method empty?"
+  },
+  {
+    "name": "safe_values_45",
+    "source": "\ndef run(input)\nvalue=1;value&.empty?\nend",
+    "go_error": "unknown int method empty?"
+  },
+  {
+    "name": "safe_values_46",
+    "source": "\ndef run(input)\nvalue=1;value.missing\nend",
+    "go_error": "unknown int method missing"
+  },
+  {
+    "name": "safe_values_47",
+    "source": "\ndef run(input)\nvalue=1;value&.missing\nend",
+    "go_error": "unknown int method missing"
+  },
+  {
+    "name": "safe_values_54",
+    "source": "\ndef run(input)\nvalue=-2;value.size\nend",
+    "go_error": "unknown int method size"
+  },
+  {
+    "name": "safe_values_55",
+    "source": "\ndef run(input)\nvalue=-2;value&.size\nend",
+    "go_error": "unknown int method size"
+  },
+  {
+    "name": "safe_values_56",
+    "source": "\ndef run(input)\nvalue=-2;value.empty?\nend",
+    "go_error": "unknown int method empty?"
+  },
+  {
+    "name": "safe_values_57",
+    "source": "\ndef run(input)\nvalue=-2;value&.empty?\nend",
+    "go_error": "unknown int method empty?"
+  },
+  {
+    "name": "safe_values_58",
+    "source": "\ndef run(input)\nvalue=-2;value.missing\nend",
+    "go_error": "unknown int method missing"
+  },
+  {
+    "name": "safe_values_59",
+    "source": "\ndef run(input)\nvalue=-2;value&.missing\nend",
+    "go_error": "unknown int method missing"
+  },
+  {
+    "name": "safe_values_66",
+    "source": "\ndef run(input)\nvalue=1.5;value.size\nend",
+    "go_error": "unknown float method size"
+  },
+  {
+    "name": "safe_values_67",
+    "source": "\ndef run(input)\nvalue=1.5;value&.size\nend",
+    "go_error": "unknown float method size"
+  },
+  {
+    "name": "safe_values_68",
+    "source": "\ndef run(input)\nvalue=1.5;value.empty?\nend",
+    "go_error": "unknown float method empty?"
+  },
+  {
+    "name": "safe_values_69",
+    "source": "\ndef run(input)\nvalue=1.5;value&.empty?\nend",
+    "go_error": "unknown float method empty?"
+  },
+  {
+    "name": "safe_values_70",
+    "source": "\ndef run(input)\nvalue=1.5;value.missing\nend",
+    "go_error": "unknown float method missing"
+  },
+  {
+    "name": "safe_values_71",
+    "source": "\ndef run(input)\nvalue=1.5;value&.missing\nend",
+    "go_error": "unknown float method missing"
+  },
+  {
+    "name": "safe_values_82",
+    "source": "\ndef run(input)\nvalue=\"x\";value.missing\nend",
+    "go_error": "unknown string method missing"
+  },
+  {
+    "name": "safe_values_83",
+    "source": "\ndef run(input)\nvalue=\"x\";value&.missing\nend",
+    "go_error": "unknown string method missing"
+  },
+  {
+    "name": "safe_values_94",
+    "source": "\ndef run(input)\nvalue=\"\";value.missing\nend",
+    "go_error": "unknown string method missing"
+  },
+  {
+    "name": "safe_values_95",
+    "source": "\ndef run(input)\nvalue=\"\";value&.missing\nend",
+    "go_error": "unknown string method missing"
+  },
+  {
+    "name": "safe_values_106",
+    "source": "\ndef run(input)\nvalue=[1,2];value.missing\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_values_107",
+    "source": "\ndef run(input)\nvalue=[1,2];value&.missing\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_values_118",
+    "source": "\ndef run(input)\nvalue=[];value.missing\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_values_119",
+    "source": "\ndef run(input)\nvalue=[];value&.missing\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_values_124",
+    "source": "\ndef run(input)\nvalue={a:1};value.to_s\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "safe_values_125",
+    "source": "\ndef run(input)\nvalue={a:1};value&.to_s\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "safe_values_130",
+    "source": "\ndef run(input)\nvalue={a:1};value.missing\nend",
+    "go_error": "unknown hash method missing"
+  },
+  {
+    "name": "safe_values_131",
+    "source": "\ndef run(input)\nvalue={a:1};value&.missing\nend",
+    "go_error": "unknown hash method missing"
+  },
+  {
+    "name": "safe_values_136",
+    "source": "\ndef run(input)\nvalue={};value.to_s\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "safe_values_137",
+    "source": "\ndef run(input)\nvalue={};value&.to_s\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)"
+  },
+  {
+    "name": "safe_values_142",
+    "source": "\ndef run(input)\nvalue={};value.missing\nend",
+    "go_error": "unknown hash method missing"
+  },
+  {
+    "name": "safe_values_143",
+    "source": "\ndef run(input)\nvalue={};value&.missing\nend",
+    "go_error": "unknown hash method missing"
+  },
+  {
+    "name": "safe_values_150",
+    "source": "\ndef run(input)\nvalue=:symbol;value.size\nend",
+    "go_error": "unknown symbol method size"
+  },
+  {
+    "name": "safe_values_151",
+    "source": "\ndef run(input)\nvalue=:symbol;value&.size\nend",
+    "go_error": "unknown symbol method size"
+  },
+  {
+    "name": "safe_values_152",
+    "source": "\ndef run(input)\nvalue=:symbol;value.empty?\nend",
+    "go_error": "unknown symbol method empty?"
+  },
+  {
+    "name": "safe_values_153",
+    "source": "\ndef run(input)\nvalue=:symbol;value&.empty?\nend",
+    "go_error": "unknown symbol method empty?"
+  },
+  {
+    "name": "safe_values_154",
+    "source": "\ndef run(input)\nvalue=:symbol;value.missing\nend",
+    "go_error": "unknown symbol method missing"
+  },
+  {
+    "name": "safe_values_155",
+    "source": "\ndef run(input)\nvalue=:symbol;value&.missing\nend",
+    "go_error": "unknown symbol method missing"
+  },
+  {
+    "name": "safe_classes_0",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_classes_2",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.missing\nend",
+    "go_error": "unknown nil method missing"
+  },
+  {
+    "name": "safe_classes_4",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_6",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method()\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_8",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(4)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_10",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(4,flag:5)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_12",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(flag:5)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_14",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(*[4],**{flag:5})\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_16",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(1,2)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_18",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(unknown:1)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_20",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(*nil)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_22",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.method(**nil)\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_classes_24",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.each{|v|v+1}\nend",
+    "go_error": "unknown nil method each"
+  },
+  {
+    "name": "safe_classes_26",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.map!{|v|v+1}\nend",
+    "go_error": "unknown nil method map!"
+  },
+  {
+    "name": "safe_classes_28",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.hidden\nend",
+    "go_error": "unknown nil method hidden"
+  },
+  {
+    "name": "safe_classes_30",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.guarded\nend",
+    "go_error": "unknown nil method guarded"
+  },
+  {
+    "name": "safe_classes_32",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.probe(C.new)\nend",
+    "go_error": "unknown nil method probe"
+  },
+  {
+    "name": "safe_classes_34",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.probe(nil)\nend",
+    "go_error": "unknown nil method probe"
+  },
+  {
+    "name": "safe_classes_36",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=nil;receiver.<=>(1)\nend",
+    "go_error": "unknown nil method <=>"
+  },
+  {
+    "name": "safe_classes_40",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.missing\nend",
+    "go_error": "unknown member missing"
+  },
+  {
+    "name": "safe_classes_41",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.missing\nend",
+    "go_error": "unknown member missing"
+  },
+  {
+    "name": "safe_classes_54",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.method(1,2)\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "safe_classes_55",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.method(1,2)\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "safe_classes_56",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.method(unknown:1)\nend",
+    "go_error": "unexpected keyword argument unknown"
+  },
+  {
+    "name": "safe_classes_57",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.method(unknown:1)\nend",
+    "go_error": "unexpected keyword argument unknown"
+  },
+  {
+    "name": "safe_classes_58",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.method(*nil)\nend",
+    "go_error": "splat argument must be an array, got nil"
+  },
+  {
+    "name": "safe_classes_59",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.method(*nil)\nend",
+    "go_error": "splat argument must be an array, got nil"
+  },
+  {
+    "name": "safe_classes_60",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.method(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash, got nil"
+  },
+  {
+    "name": "safe_classes_61",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.method(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash, got nil"
+  },
+  {
+    "name": "safe_classes_66",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.hidden\nend",
+    "go_error": "private method hidden"
+  },
+  {
+    "name": "safe_classes_67",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.hidden\nend",
+    "go_error": "private method hidden"
+  },
+  {
+    "name": "safe_classes_68",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver.guarded\nend",
+    "go_error": "protected method guarded"
+  },
+  {
+    "name": "safe_classes_69",
+    "source": "class C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nreceiver=C.new;receiver&.guarded\nend",
+    "go_error": "protected method guarded"
+  },
+  {
+    "name": "safe_typed_0",
+    "source": "class C\ndef value -> int;1;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_4",
+    "source": "class C\ndef value -> int;nil;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_6",
+    "source": "class C\ndef value -> int;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int, got nil"
+  },
+  {
+    "name": "safe_typed_7",
+    "source": "class C\ndef value -> int;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int, got nil"
+  },
+  {
+    "name": "safe_typed_8",
+    "source": "class C\ndef value -> int;\"x\";end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_10",
+    "source": "class C\ndef value -> int;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int, got string"
+  },
+  {
+    "name": "safe_typed_11",
+    "source": "class C\ndef value -> int;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int, got string"
+  },
+  {
+    "name": "safe_typed_12",
+    "source": "class C\ndef value -> int;[1];end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_14",
+    "source": "class C\ndef value -> int;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int, got array<int>"
+  },
+  {
+    "name": "safe_typed_15",
+    "source": "class C\ndef value -> int;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int, got array<int>"
+  },
+  {
+    "name": "safe_typed_16",
+    "source": "class C\ndef value -> int;self;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_18",
+    "source": "class C\ndef value -> int;self;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int, got instance"
+  },
+  {
+    "name": "safe_typed_19",
+    "source": "class C\ndef value -> int;self;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int, got instance"
+  },
+  {
+    "name": "safe_typed_20",
+    "source": "class C\ndef value -> int?;1;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_24",
+    "source": "class C\ndef value -> int?;nil;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_28",
+    "source": "class C\ndef value -> int?;\"x\";end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_30",
+    "source": "class C\ndef value -> int?;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int?, got string"
+  },
+  {
+    "name": "safe_typed_31",
+    "source": "class C\ndef value -> int?;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int?, got string"
+  },
+  {
+    "name": "safe_typed_32",
+    "source": "class C\ndef value -> int?;[1];end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_34",
+    "source": "class C\ndef value -> int?;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int?, got array<int>"
+  },
+  {
+    "name": "safe_typed_35",
+    "source": "class C\ndef value -> int?;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int?, got array<int>"
+  },
+  {
+    "name": "safe_typed_36",
+    "source": "class C\ndef value -> int?;self;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_38",
+    "source": "class C\ndef value -> int?;self;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected int?, got instance"
+  },
+  {
+    "name": "safe_typed_39",
+    "source": "class C\ndef value -> int?;self;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected int?, got instance"
+  },
+  {
+    "name": "safe_typed_40",
+    "source": "class C\ndef value -> string;1;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_42",
+    "source": "class C\ndef value -> string;1;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected string, got int"
+  },
+  {
+    "name": "safe_typed_43",
+    "source": "class C\ndef value -> string;1;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected string, got int"
+  },
+  {
+    "name": "safe_typed_44",
+    "source": "class C\ndef value -> string;nil;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_46",
+    "source": "class C\ndef value -> string;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected string, got nil"
+  },
+  {
+    "name": "safe_typed_47",
+    "source": "class C\ndef value -> string;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected string, got nil"
+  },
+  {
+    "name": "safe_typed_48",
+    "source": "class C\ndef value -> string;\"x\";end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_52",
+    "source": "class C\ndef value -> string;[1];end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_54",
+    "source": "class C\ndef value -> string;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected string, got array<int>"
+  },
+  {
+    "name": "safe_typed_55",
+    "source": "class C\ndef value -> string;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected string, got array<int>"
+  },
+  {
+    "name": "safe_typed_56",
+    "source": "class C\ndef value -> string;self;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_58",
+    "source": "class C\ndef value -> string;self;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected string, got instance"
+  },
+  {
+    "name": "safe_typed_59",
+    "source": "class C\ndef value -> string;self;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected string, got instance"
+  },
+  {
+    "name": "safe_typed_60",
+    "source": "class C\ndef value -> array<int>;1;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_62",
+    "source": "class C\ndef value -> array<int>;1;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected array<int>, got int"
+  },
+  {
+    "name": "safe_typed_63",
+    "source": "class C\ndef value -> array<int>;1;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected array<int>, got int"
+  },
+  {
+    "name": "safe_typed_64",
+    "source": "class C\ndef value -> array<int>;nil;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_66",
+    "source": "class C\ndef value -> array<int>;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected array<int>, got nil"
+  },
+  {
+    "name": "safe_typed_67",
+    "source": "class C\ndef value -> array<int>;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected array<int>, got nil"
+  },
+  {
+    "name": "safe_typed_68",
+    "source": "class C\ndef value -> array<int>;\"x\";end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_70",
+    "source": "class C\ndef value -> array<int>;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected array<int>, got string"
+  },
+  {
+    "name": "safe_typed_71",
+    "source": "class C\ndef value -> array<int>;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected array<int>, got string"
+  },
+  {
+    "name": "safe_typed_72",
+    "source": "class C\ndef value -> array<int>;[1];end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_76",
+    "source": "class C\ndef value -> array<int>;self;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_78",
+    "source": "class C\ndef value -> array<int>;self;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected array<int>, got instance"
+  },
+  {
+    "name": "safe_typed_79",
+    "source": "class C\ndef value -> array<int>;self;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected array<int>, got instance"
+  },
+  {
+    "name": "safe_typed_80",
+    "source": "class C\ndef value -> C;1;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_82",
+    "source": "class C\ndef value -> C;1;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected C, got int"
+  },
+  {
+    "name": "safe_typed_83",
+    "source": "class C\ndef value -> C;1;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected C, got int"
+  },
+  {
+    "name": "safe_typed_84",
+    "source": "class C\ndef value -> C;nil;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_86",
+    "source": "class C\ndef value -> C;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected C, got nil"
+  },
+  {
+    "name": "safe_typed_87",
+    "source": "class C\ndef value -> C;nil;end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected C, got nil"
+  },
+  {
+    "name": "safe_typed_88",
+    "source": "class C\ndef value -> C;\"x\";end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_90",
+    "source": "class C\ndef value -> C;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected C, got string"
+  },
+  {
+    "name": "safe_typed_91",
+    "source": "class C\ndef value -> C;\"x\";end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected C, got string"
+  },
+  {
+    "name": "safe_typed_92",
+    "source": "class C\ndef value -> C;[1];end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_typed_94",
+    "source": "class C\ndef value -> C;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver.value\nend",
+    "go_error": "return value for value expected C, got array<int>"
+  },
+  {
+    "name": "safe_typed_95",
+    "source": "class C\ndef value -> C;[1];end\nend\ndef run(input)\nreceiver=C.new;receiver&.value\nend",
+    "go_error": "return value for value expected C, got array<int>"
+  },
+  {
+    "name": "safe_typed_96",
+    "source": "class C\ndef value -> C;self;end\nend\ndef run(input)\nreceiver=nil;receiver.value\nend",
+    "go_error": "unknown nil method value"
+  },
+  {
+    "name": "safe_chains_2",
+    "source": "\ndef run(input)\nnil&.missing.name\nend",
+    "go_error": "unknown nil method name"
+  },
+  {
+    "name": "safe_chains_5",
+    "source": "\ndef run(input)\nnil&.missing[0]\nend",
+    "go_error": "cannot index nil"
+  },
+  {
+    "name": "safe_chains_6",
+    "source": "\ndef run(input)\nnil&.missing[unknown()]\nend",
+    "go_error": "undefined variable unknown"
+  },
+  {
+    "name": "safe_chains_7",
+    "source": "\ndef run(input)\nnil&.missing[0]&.nil?\nend",
+    "go_error": "cannot index nil"
+  },
+  {
+    "name": "safe_chains_8",
+    "source": "\ndef run(input)\nnil&.missing::x\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "safe_chains_9",
+    "source": "\ndef run(input)\nnil&.missing.call\nend",
+    "go_error": "unknown nil method call"
+  },
+  {
+    "name": "safe_chains_16",
+    "source": "\ndef run(input)\nfalse&.missing\nend",
+    "go_error": "unknown bool method missing"
+  },
+  {
+    "name": "safe_mutating_12",
+    "source": "\ndef run(input)\nvalue=[1];snapshot=value;result=value.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_13",
+    "source": "\ndef run(input)\nvalue=[1];snapshot=value;result=value&.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_32",
+    "source": "\ndef run(input)\nvalue={items:[1]};snapshot=value;result=value.items.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_33",
+    "source": "\ndef run(input)\nvalue={items:[1]};snapshot=value;result=value.items&.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_52",
+    "source": "\ndef run(input)\nvalue=[[1]];snapshot=value;result=value[0].map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_53",
+    "source": "\ndef run(input)\nvalue=[[1]];snapshot=value;result=value[0]&.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_72",
+    "source": "\ndef run(input)\nvalue={items:[1]};snapshot=value;result=value&.items.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_73",
+    "source": "\ndef run(input)\nvalue={items:[1]};snapshot=value;result=value&.items&.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_mutating_80",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_82",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.clear;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method clear"
+  },
+  {
+    "name": "safe_mutating_84",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.pop;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method pop"
+  },
+  {
+    "name": "safe_mutating_86",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.shift;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method shift"
+  },
+  {
+    "name": "safe_mutating_88",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.prepend(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method prepend"
+  },
+  {
+    "name": "safe_mutating_90",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.fill(4);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method fill"
+  },
+  {
+    "name": "safe_mutating_92",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown nil method map!"
+  },
+  {
+    "name": "safe_mutating_94",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.delete_if{|v|v==1};[value,snapshot,result]\nend",
+    "go_error": "unknown nil method delete_if"
+  },
+  {
+    "name": "safe_mutating_96",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value.itself.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_97",
+    "source": "\ndef run(input)\nvalue=nil;snapshot=value;result=value&.itself.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_100",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_102",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.clear;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method clear"
+  },
+  {
+    "name": "safe_mutating_104",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.pop;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method pop"
+  },
+  {
+    "name": "safe_mutating_106",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.shift;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method shift"
+  },
+  {
+    "name": "safe_mutating_108",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.prepend(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method prepend"
+  },
+  {
+    "name": "safe_mutating_110",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.fill(4);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method fill"
+  },
+  {
+    "name": "safe_mutating_112",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown nil method map!"
+  },
+  {
+    "name": "safe_mutating_114",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.delete_if{|v|v==1};[value,snapshot,result]\nend",
+    "go_error": "unknown nil method delete_if"
+  },
+  {
+    "name": "safe_mutating_116",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items.itself.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_117",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value.items&.itself.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_120",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_122",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.clear;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method clear"
+  },
+  {
+    "name": "safe_mutating_124",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.pop;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method pop"
+  },
+  {
+    "name": "safe_mutating_126",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.shift;[value,snapshot,result]\nend",
+    "go_error": "unknown nil method shift"
+  },
+  {
+    "name": "safe_mutating_128",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.prepend(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method prepend"
+  },
+  {
+    "name": "safe_mutating_130",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.fill(4);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method fill"
+  },
+  {
+    "name": "safe_mutating_132",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.map!{|v|v+1};[value,snapshot,result]\nend",
+    "go_error": "unknown nil method map!"
+  },
+  {
+    "name": "safe_mutating_134",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.delete_if{|v|v==1};[value,snapshot,result]\nend",
+    "go_error": "unknown nil method delete_if"
+  },
+  {
+    "name": "safe_mutating_136",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items.itself.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_mutating_137",
+    "source": "\ndef run(input)\nvalue={items:nil};snapshot=value;result=value&.items&.itself.push(2);[value,snapshot,result]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_spacing_0",
+    "source": "\ndef run(input)\nx=nil\nx.size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_2",
+    "source": "\ndef run(input)\nx=nil\nx. size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_4",
+    "source": "\ndef run(input)\nx=nil\nx.\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_6",
+    "source": "\ndef run(input)\nx=nil\nx.\n# after\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_10",
+    "source": "\ndef run(input)\nx=nil\nx .size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_12",
+    "source": "\ndef run(input)\nx=nil\nx . size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_14",
+    "source": "\ndef run(input)\nx=nil\nx .\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_16",
+    "source": "\ndef run(input)\nx=nil\nx .\n# after\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_20",
+    "source": "\ndef run(input)\nx=nil\nx\n.size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_22",
+    "source": "\ndef run(input)\nx=nil\nx\n. size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_24",
+    "source": "\ndef run(input)\nx=nil\nx\n.\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_26",
+    "source": "\ndef run(input)\nx=nil\nx\n.\n# after\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_30",
+    "source": "\ndef run(input)\nx=nil\nx\n# before\n.size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_32",
+    "source": "\ndef run(input)\nx=nil\nx\n# before\n. size\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_34",
+    "source": "\ndef run(input)\nx=nil\nx\n# before\n.\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_spacing_36",
+    "source": "\ndef run(input)\nx=nil\nx\n# before\n.\n# after\nsize\nend",
+    "go_error": "unknown nil method size"
+  },
+  {
+    "name": "safe_member_names_0",
+    "source": "\ndef run(input)\nnil.if\nend",
+    "go_error": "unknown nil method if"
+  },
+  {
+    "name": "safe_member_names_2",
+    "source": "\ndef run(input)\nnil.unless\nend",
+    "go_error": "unknown nil method unless"
+  },
+  {
+    "name": "safe_member_names_4",
+    "source": "\ndef run(input)\nnil.else\nend",
+    "go_error": "unknown nil method else"
+  },
+  {
+    "name": "safe_member_names_6",
+    "source": "\ndef run(input)\nnil.elsif\nend",
+    "go_error": "unknown nil method elsif"
+  },
+  {
+    "name": "safe_member_names_8",
+    "source": "\ndef run(input)\nnil.end\nend",
+    "go_error": "unknown nil method end"
+  },
+  {
+    "name": "safe_member_names_10",
+    "source": "\ndef run(input)\nnil.then\nend",
+    "go_error": "unknown nil method then"
+  },
+  {
+    "name": "safe_member_names_12",
+    "source": "\ndef run(input)\nnil.while\nend",
+    "go_error": "unknown nil method while"
+  },
+  {
+    "name": "safe_member_names_14",
+    "source": "\ndef run(input)\nnil.until\nend",
+    "go_error": "unknown nil method until"
+  },
+  {
+    "name": "safe_member_names_16",
+    "source": "\ndef run(input)\nnil.for\nend",
+    "go_error": "unknown nil method for"
+  },
+  {
+    "name": "safe_member_names_18",
+    "source": "\ndef run(input)\nnil.in\nend",
+    "go_error": "unknown nil method in"
+  },
+  {
+    "name": "safe_member_names_20",
+    "source": "\ndef run(input)\nnil.do\nend",
+    "go_error": "unknown nil method do"
+  },
+  {
+    "name": "safe_member_names_22",
+    "source": "\ndef run(input)\nnil.break\nend",
+    "go_error": "unknown nil method break"
+  },
+  {
+    "name": "safe_member_names_24",
+    "source": "\ndef run(input)\nnil.next\nend",
+    "go_error": "unknown nil method next"
+  },
+  {
+    "name": "safe_member_names_26",
+    "source": "\ndef run(input)\nnil.return\nend",
+    "go_error": "unknown nil method return"
+  },
+  {
+    "name": "safe_member_names_28",
+    "source": "\ndef run(input)\nnil.def\nend",
+    "go_error": "unknown nil method def"
+  },
+  {
+    "name": "safe_member_names_30",
+    "source": "\ndef run(input)\nnil.class\nend",
+    "go_error": "unknown nil method class"
+  },
+  {
+    "name": "safe_member_names_32",
+    "source": "\ndef run(input)\nnil.module\nend",
+    "go_error": "unknown nil method module"
+  },
+  {
+    "name": "safe_member_names_34",
+    "source": "\ndef run(input)\nnil.self\nend",
+    "go_error": "unknown nil method self"
+  },
+  {
+    "name": "safe_member_names_36",
+    "source": "\ndef run(input)\nnil.nil\nend",
+    "go_error": "unknown nil method nil"
+  },
+  {
+    "name": "safe_member_names_38",
+    "source": "\ndef run(input)\nnil.true\nend",
+    "go_error": "unknown nil method true"
+  },
+  {
+    "name": "safe_member_names_40",
+    "source": "\ndef run(input)\nnil.false\nend",
+    "go_error": "unknown nil method false"
+  },
+  {
+    "name": "safe_member_names_42",
+    "source": "\ndef run(input)\nnil.case\nend",
+    "go_error": "unknown nil method case"
+  },
+  {
+    "name": "safe_member_names_44",
+    "source": "\ndef run(input)\nnil.when\nend",
+    "go_error": "unknown nil method when"
+  },
+  {
+    "name": "safe_member_names_46",
+    "source": "\ndef run(input)\nnil.yield\nend",
+    "go_error": "unknown nil method yield"
+  },
+  {
+    "name": "safe_member_names_48",
+    "source": "\ndef run(input)\nnil.private\nend",
+    "go_error": "unknown nil method private"
+  },
+  {
+    "name": "safe_member_names_50",
+    "source": "\ndef run(input)\nnil.protected\nend",
+    "go_error": "unknown nil method protected"
+  },
+  {
+    "name": "safe_member_names_52",
+    "source": "\ndef run(input)\nnil.public\nend",
+    "go_error": "unknown nil method public"
+  },
+  {
+    "name": "safe_member_names_54",
+    "source": "\ndef run(input)\nnil.include\nend",
+    "go_error": "unknown nil method include"
+  },
+  {
+    "name": "safe_member_names_56",
+    "source": "\ndef run(input)\nnil.extend\nend",
+    "go_error": "unknown nil method extend"
+  },
+  {
+    "name": "safe_member_names_58",
+    "source": "\ndef run(input)\nnil.super\nend",
+    "go_error": "unknown nil method super"
+  },
+  {
+    "name": "safe_member_names_60",
+    "source": "\ndef run(input)\nnil.alias\nend",
+    "go_error": "unknown nil method alias"
+  },
+  {
+    "name": "safe_member_names_62",
+    "source": "\ndef run(input)\nnil.rescue\nend",
+    "go_error": "unknown nil method rescue"
+  },
+  {
+    "name": "safe_member_names_64",
+    "source": "\ndef run(input)\nnil.ensure\nend",
+    "go_error": "unknown nil method ensure"
+  },
+  {
+    "name": "safe_member_names_66",
+    "source": "\ndef run(input)\nnil.retry\nend",
+    "go_error": "unknown nil method retry"
+  },
+  {
+    "name": "safe_member_names_68",
+    "source": "\ndef run(input)\nnil.raise\nend",
+    "go_error": "unknown nil method raise"
+  },
+  {
+    "name": "safe_member_names_70",
+    "source": "\ndef run(input)\nnil.lambda\nend",
+    "go_error": "unknown nil method lambda"
+  },
+  {
+    "name": "safe_member_names_72",
+    "source": "\ndef run(input)\nnil.enum\nend",
+    "go_error": "unknown nil method enum"
+  },
+  {
+    "name": "safe_member_names_78",
+    "source": "\ndef run(input)\nnil.<=>\nend",
+    "go_error": "unknown nil method <=>"
+  },
+  {
+    "name": "safe_assignment_1",
+    "source": "\ndef run(input)\nx={};x.name += 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_2",
+    "source": "\ndef run(input)\nx={};x.name -= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_3",
+    "source": "\ndef run(input)\nx={};x.name *= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_4",
+    "source": "\ndef run(input)\nx={};x.name /= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_5",
+    "source": "\ndef run(input)\nx={};x.name %= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_6",
+    "source": "\ndef run(input)\nx={};x.name **= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_7",
+    "source": "\ndef run(input)\nx={};x.name ||= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_8",
+    "source": "\ndef run(input)\nx={};x.name &&= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_63",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] = 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_64",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] += 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_65",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] -= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_66",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] *= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_67",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] /= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_68",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] %= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_69",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] **= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_70",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] ||= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_71",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0] &&= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_destructure_21",
+    "source": "\ndef run(input)\nx={};x&.name::Items[0],other = 1,2\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_destructure_22",
+    "source": "\ndef run(input)\nx={};other,x&.name::Items[0] = 1,2\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_72",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] = 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_73",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] += 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_74",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] -= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_75",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] *= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_76",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] /= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_77",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] %= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_78",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] **= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_79",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] ||= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_80",
+    "source": "\ndef run(input)\nx={};x[nil&.missing] &&= 1\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_destructure_24",
+    "source": "\ndef run(input)\nx={};x[nil&.missing],other = 1,2\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_destructure_25",
+    "source": "\ndef run(input)\nx={};other,x[nil&.missing] = 1,2\nend",
+    "go_error": "unsupported hash key type nil: hash keys must be strings or symbols; convert the key with to_s"
+  },
+  {
+    "name": "safe_assignment_81",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field = 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_82",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field += 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_83",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field -= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_84",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field *= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_85",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field /= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_86",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field %= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_87",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field **= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_88",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field ||= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_89",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field &&= 1\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_destructure_27",
+    "source": "\ndef run(input)\nx={};make(nil&.missing).field,other = 1,2\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_destructure_28",
+    "source": "\ndef run(input)\nx={};other,make(nil&.missing).field = 1,2\nend",
+    "go_error": "undefined variable make"
+  },
+  {
+    "name": "safe_assignment_91",
+    "source": "\ndef run(input)\nx={};x.\nname += 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_92",
+    "source": "\ndef run(input)\nx={};x.\nname -= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_93",
+    "source": "\ndef run(input)\nx={};x.\nname *= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_94",
+    "source": "\ndef run(input)\nx={};x.\nname /= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_95",
+    "source": "\ndef run(input)\nx={};x.\nname %= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_96",
+    "source": "\ndef run(input)\nx={};x.\nname **= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_97",
+    "source": "\ndef run(input)\nx={};x.\nname ||= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_98",
+    "source": "\ndef run(input)\nx={};x.\nname &&= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_118",
+    "source": "\ndef run(input)\nx={};x\n.name += 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_119",
+    "source": "\ndef run(input)\nx={};x\n.name -= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_120",
+    "source": "\ndef run(input)\nx={};x\n.name *= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_121",
+    "source": "\ndef run(input)\nx={};x\n.name /= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_122",
+    "source": "\ndef run(input)\nx={};x\n.name %= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_123",
+    "source": "\ndef run(input)\nx={};x\n.name **= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_124",
+    "source": "\ndef run(input)\nx={};x\n.name ||= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_assignment_125",
+    "source": "\ndef run(input)\nx={};x\n.name &&= 1\nend",
+    "go_error": "unknown hash method name"
+  },
+  {
+    "name": "safe_commands_8",
+    "source": "def identity(*args);args;end\ndef run(input)\nidentity(nil)&.missing\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_effects_0",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown nil method missing"
+  },
+  {
+    "name": "safe_effects_2",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_effects_4",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.each{r.callback};[result,r.events]\nend",
+    "go_error": "unknown nil method each"
+  },
+  {
+    "name": "safe_effects_6",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown nil method map!"
+  },
+  {
+    "name": "safe_effects_10",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown nil method items"
+  },
+  {
+    "name": "safe_effects_12",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown nil method items"
+  },
+  {
+    "name": "safe_effects_13",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver&.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "safe_effects_14",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(nil);result=r.receiver.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown nil method method"
+  },
+  {
+    "name": "safe_effects_16",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_effects_17",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver&.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method missing"
+  },
+  {
+    "name": "safe_effects_22",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_effects_23",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver&.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_effects_26",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method items"
+  },
+  {
+    "name": "safe_effects_27",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver&.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method items"
+  },
+  {
+    "name": "safe_effects_28",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method items"
+  },
+  {
+    "name": "safe_effects_29",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver&.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method items"
+  },
+  {
+    "name": "safe_effects_30",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method method"
+  },
+  {
+    "name": "safe_effects_31",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new([1]);result=r.receiver&.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown array method method"
+  },
+  {
+    "name": "safe_effects_32",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown hash method missing"
+  },
+  {
+    "name": "safe_effects_33",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver&.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown hash method missing"
+  },
+  {
+    "name": "safe_effects_34",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown hash method push"
+  },
+  {
+    "name": "safe_effects_35",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown hash method push"
+  },
+  {
+    "name": "safe_effects_38",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown hash method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_effects_39",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver&.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown hash method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_effects_46",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown hash method method"
+  },
+  {
+    "name": "safe_effects_47",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new({items:[1]});result=r.receiver&.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown hash method method"
+  },
+  {
+    "name": "safe_effects_48",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method missing"
+  },
+  {
+    "name": "safe_effects_49",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method missing"
+  },
+  {
+    "name": "safe_effects_50",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method push"
+  },
+  {
+    "name": "safe_effects_51",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method push"
+  },
+  {
+    "name": "safe_effects_52",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.each{r.callback};[result,r.events]\nend",
+    "go_error": "unknown string method each"
+  },
+  {
+    "name": "safe_effects_53",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.each{r.callback};[result,r.events]\nend",
+    "go_error": "unknown string method each"
+  },
+  {
+    "name": "safe_effects_54",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown string method map!"
+  },
+  {
+    "name": "safe_effects_55",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.map!{r.callback};[result,r.events]\nend",
+    "go_error": "unknown string method map!"
+  },
+  {
+    "name": "safe_effects_58",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method items"
+  },
+  {
+    "name": "safe_effects_59",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method items"
+  },
+  {
+    "name": "safe_effects_60",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method items"
+  },
+  {
+    "name": "safe_effects_61",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method items"
+  },
+  {
+    "name": "safe_effects_62",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method method"
+  },
+  {
+    "name": "safe_effects_63",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(\"a\");result=r.receiver&.method(r.argument);[result,r.events]\nend",
+    "go_error": "unknown string method method"
+  },
+  {
+    "name": "safe_effects_64",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member missing"
+  },
+  {
+    "name": "safe_effects_65",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver&.missing(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member missing"
+  },
+  {
+    "name": "safe_effects_66",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member push"
+  },
+  {
+    "name": "safe_effects_67",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member push"
+  },
+  {
+    "name": "safe_effects_74",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member items"
+  },
+  {
+    "name": "safe_effects_75",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver&.items&.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member items"
+  },
+  {
+    "name": "safe_effects_76",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member items"
+  },
+  {
+    "name": "safe_effects_77",
+    "source": "class Recorder\n getter events\n def initialize(@value);@events=[];end\n def receiver;@events.push(\"receiver\");@value;end\n def argument;@events.push(\"argument\");2;end\n def callback;@events.push(\"block\");3;end\nend\nclass C\n property value\n def initialize(@value=3);end\n def method(a=1, flag: 2);[a,flag];end\n def each;yield @value;end\n def map!;yield @value;end\n def <=>(other);7;end\n private def hidden;7;end\n protected def guarded;8;end\n public\n def probe(other);other&.guarded;end\nend\ndef run(input)\nr=Recorder.new(C.new);result=r.receiver&.items.push(r.argument);[result,r.events]\nend",
+    "go_error": "unknown member items"
+  },
+  {
+    "name": "safe_match_data_1",
+    "source": "\ndef run(input)\nm=\"ab\".match(/(?<first>a)(b)/);m&.captures.clear\nend",
+    "go_error": "assignment cannot modify match data"
+  },
+  {
+    "name": "safe_match_data_4",
+    "source": "\ndef run(input)\nm=\"ab\".match(/(?<first>a)(b)/);m&.captures.map!{|x|x}\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_append_paths_3",
+    "source": "\ndef run(input)\nvalue=nil;value&.items << 2\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "safe_append_paths_4",
+    "source": "\ndef run(input)\nvalue=nil;result=value&.items << 2;[result,value]\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "safe_append_paths_6",
+    "source": "\ndef run(input)\nvalue={items:nil};value&.items << 2\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "safe_append_paths_7",
+    "source": "\ndef run(input)\nvalue={items:nil};result=value&.items << 2;[result,value]\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "safe_index_result_5",
+    "source": "class Box\ndef initialize;@values=[nil,[1]];end\ndef [](index);@values[index];end\ndef stored;@values;end\nend\ndef run(input)\nbox=Box.new;result=box[1]&.map!{|x|x+1};[result,box.stored]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "safe_symbol_seed_9",
+    "source": "def identity(value);value;end\ndef run(input)\n:&.missing\nend",
+    "go_error": "unknown symbol method missing"
+  },
+  {
+    "name": "safe_symbol_boundary_2",
+    "source": "\ndef run(input)\n:&..:&\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_3",
+    "source": "\ndef run(input)\n:&...:&\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_8",
+    "source": "\ndef run(input)\n:&&..:&&\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_9",
+    "source": "\ndef run(input)\n:&&...:&&\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_14",
+    "source": "\ndef run(input)\n:||..:||\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_15",
+    "source": "\ndef run(input)\n:||...:||\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_20",
+    "source": "\ndef run(input)\n:!..:!\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_21",
+    "source": "\ndef run(input)\n:!...:!\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_26",
+    "source": "\ndef run(input)\n:+..:+\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_27",
+    "source": "\ndef run(input)\n:+...:+\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_32",
+    "source": "\ndef run(input)\n:[]..:[]\nend",
+    "go_error": "expected integer value"
+  },
+  {
+    "name": "safe_symbol_boundary_33",
+    "source": "\ndef run(input)\n:[]...:[]\nend",
+    "go_error": "expected integer value"
   }
 ]

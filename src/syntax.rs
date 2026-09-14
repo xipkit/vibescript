@@ -39,9 +39,26 @@ pub(crate) enum Node {
     BlockCall(Box<Expr>, Block),
     Yield(Vec<Expr>),
     Member(Box<Expr>, String),
+    SafeMember(Box<Expr>, String),
     Scope(Box<Expr>, String, Option<Vec<Argument>>),
     Method(Box<Expr>, String, Vec<Argument>),
+    SafeMethod(Box<Expr>, String, Vec<Argument>),
     Index(Box<Expr>, Vec<Expr>),
+}
+impl Expr {
+    fn safe_assignment_target(&self) -> bool {
+        let mut current = self;
+        loop {
+            current = match &current.node {
+                Node::SafeMember(..) | Node::SafeMethod(..) => return true,
+                Node::Member(receiver, _)
+                | Node::Method(receiver, _, _)
+                | Node::Index(receiver, _)
+                | Node::BlockCall(receiver, _) => receiver,
+                _ => return false,
+            };
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Block {
@@ -734,7 +751,12 @@ impl Parser<'_> {
                         let name = self.name()?;
                         Target::Value(self.make(Node::Var(name), 1)?)
                     } else {
-                        Target::Value(self.line_expr(0)?)
+                        let expression = self.line_expr(0)?;
+                        if expression.safe_assignment_target() {
+                            return self
+                                .err("safe navigation cannot be used as an assignment target");
+                        }
+                        Target::Value(expression)
                     })
                 }
             };
@@ -766,6 +788,7 @@ impl Parser<'_> {
     fn assignment_ahead(&self) -> bool {
         let mut nesting = 0usize;
         let mut comma = false;
+        let mut after_member_separator = false;
         for (i, lexeme) in self.tokens.from(self.pos).enumerate() {
             match &lexeme.token {
                 Token::P('(' | '[' | '{') => nesting += 1,
@@ -787,24 +810,23 @@ impl Parser<'_> {
                     if lexeme.line == lexeme.end_line {
                         return false;
                     }
+                    if after_member_separator {
+                        continue;
+                    }
                     let next = self
                         .tokens
                         .from(self.pos + i + 1)
                         .find(|l| !matches!(l.token, Token::EndLine));
                     if !comma
                         && !next.is_some_and(|l| {
-                            l.token == Token::P('.')
+                            matches!(l.token, Token::P('.') | Token::Op("&."))
                                 || matches!(l.token, Token::Op(op) if assignment(op))
                         })
                     {
                         return false;
                     }
                 }
-                Token::Word(w)
-                    if nesting == 0
-                        && reserved(w)
-                        && (i == 0 || self.tokens[self.pos + i - 1].token != Token::P('.')) =>
-                {
+                Token::Word(w) if nesting == 0 && reserved(w) && !after_member_separator => {
                     return false;
                 }
                 Token::Eof => return false,
@@ -812,6 +834,7 @@ impl Parser<'_> {
             }
             if !matches!(lexeme.token, Token::EndLine) {
                 comma = lexeme.token == Token::P(',');
+                after_member_separator = matches!(lexeme.token, Token::P('.') | Token::Op("&."));
             }
         }
         false
@@ -1229,6 +1252,7 @@ impl Parser<'_> {
                 let node = match lhs.node {
                     Node::Var(name) => Node::Call(name, args),
                     Node::Member(receiver, name) => Node::Method(receiver, name, args),
+                    Node::SafeMember(receiver, name) => Node::SafeMethod(receiver, name, args),
                     _ => unreachable!(),
                 };
                 lhs = self.make(node, depth)?;
@@ -1265,7 +1289,7 @@ impl Parser<'_> {
                 let Token::Word(name) = self.bump() else {
                     return self.err("expected scoped member name");
                 };
-                if keyword(&name) && name != "enum" {
+                if name.starts_with('@') || (keyword(&name) && name != "enum") {
                     return self.err("expected scoped member name");
                 }
                 let args = if self.take_p('(') {
@@ -1279,9 +1303,12 @@ impl Parser<'_> {
                 lhs = self.make(Node::Scope(Box::new(lhs), name, args), depth)?;
                 continue;
             }
-            if self.take_p('.') {
+            let safe = self.token() == &Token::Op("&.");
+            if safe || self.token() == &Token::P('.') {
+                self.bump();
+                self.line_breaks();
                 let name = match self.bump() {
-                    Token::Word(name) => name,
+                    Token::Word(name) if !name.starts_with('@') => name,
                     Token::Op("<=>") => "<=>".to_owned(),
                     _ => return self.err("expected member name"),
                 };
@@ -1290,10 +1317,12 @@ impl Parser<'_> {
                     let depth = 1 + lhs
                         .depth
                         .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
-                    self.make(Node::Method(Box::new(lhs), name, args), depth)?
+                    let method = if safe { Node::SafeMethod } else { Node::Method };
+                    self.make(method(Box::new(lhs), name, args), depth)?
                 } else {
                     let depth = lhs.depth + 1;
-                    self.make(Node::Member(Box::new(lhs), name), depth)?
+                    let member = if safe { Node::SafeMember } else { Node::Member };
+                    self.make(member(Box::new(lhs), name), depth)?
                 };
                 continue;
             }
@@ -1493,7 +1522,7 @@ impl Parser<'_> {
         let lexeme = &self.tokens[next];
         let continues = match lexeme.token {
             Token::Word(ref word) if word == "do" => self.can_attach_do(),
-            Token::P('.') | Token::Op("::") => true,
+            Token::P('.') | Token::Op("::" | "&.") => true,
             Token::P('?') => min <= 2,
             Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
             Token::Op(op) => {
@@ -1547,18 +1576,18 @@ impl Parser<'_> {
                 && previous.token != Token::P(',')
                 && !((shaped || comma)
                     && (token.token == Token::Op("=")
-                        || (token.token == Token::P('.')
+                        || (matches!(token.token, Token::P('.') | Token::Op("&."))
                             && matches!(previous.token, Token::Word(_) | Token::P(')' | ']')))))
             {
                 return false;
             }
             if groups == 0 && token.token != Token::Op("=") {
-                let allowed = if previous.token == Token::P('.') {
+                let allowed = if matches!(previous.token, Token::P('.') | Token::Op("&.")) {
                     matches!(token.token, Token::Word(_))
                 } else {
                     match &token.token {
                         Token::Word(w) => !reserved(w),
-                        Token::P(',' | '.' | '(' | ')' | '[' | ']') | Token::Op("*") => true,
+                        Token::P(',' | '.' | '(' | ')' | '[' | ']') | Token::Op("*" | "&.") => true,
                         _ => false,
                     }
                 };
@@ -1591,7 +1620,12 @@ impl Parser<'_> {
                 .is_some_and(|t| t.token == Token::P(':'))
     }
     fn command_start(&self, lhs: &Expr, min: u8) -> bool {
-        if self.line_exprs == 0 || min > 14 || !matches!(lhs.node, Node::Var(_) | Node::Member(..))
+        if self.line_exprs == 0
+            || min > 14
+            || !matches!(
+                lhs.node,
+                Node::Var(_) | Node::Member(..) | Node::SafeMember(..)
+            )
         {
             return false;
         }
