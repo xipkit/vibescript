@@ -40,7 +40,7 @@ impl Bindings<'_> {
 }
 
 pub(crate) struct Address {
-    protected: bool,
+    protected: crate::hash::Tag,
     root: Option<Root>,
     path: Buffer<Hop>,
     pub value: Value,
@@ -57,7 +57,7 @@ impl Address {
     }
     pub fn new(root: Option<usize>, value: Value) -> Self {
         Self {
-            protected: false,
+            protected: crate::hash::Tag::None,
             root: root.map(Root::Local),
             path: Buffer::empty(),
             value,
@@ -88,7 +88,11 @@ impl Address {
         } else {
             crate::sequence::slice(ctx, &self.value, args, false)?
         };
-        self.protected |= matches!(&self.value.0, Kind::Hash(hash) if hash.match_data);
+        if let Kind::Hash(hash) = &self.value.0 {
+            if hash.tag.protected() {
+                self.protected = hash.tag;
+            }
+        }
         let addressed = self.root.is_some()
             && args.len() == 1
             && stored_child(ctx, &self.value, &args[0])?.is_some();
@@ -187,8 +191,8 @@ impl Address {
     }
 
     pub fn check_writable(&self) -> Result<()> {
-        if self.protected {
-            Err(Error::new(ErrorKind::Argument, "cannot modify match data"))
+        if self.protected.protected() {
+            Err(self.protected.mutation_error())
         } else {
             Ok(())
         }

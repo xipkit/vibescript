@@ -9,6 +9,7 @@ use crate::{
 use std::{cmp::Ordering, mem};
 
 pub(crate) enum Target {
+    Raise(Option<crate::ErrorClass>, Value),
     Method(crate::namespace::Call),
     Helper(Value, crate::namespace::Helper),
     Plain(Invocation),

@@ -4789,5 +4789,20 @@
       "base": 80,
       "with_bonus": 90
     }
+  },
+  {
+    "path": "showcase/reliability/resilient_parse.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "known": 5,
+      "unknown": 0,
+      "divide_ok": 25,
+      "divide_guarded": null,
+      "infinity_label": "Infinity",
+      "is_finite": true,
+      "nan_detected": true,
+      "incomparable_is_nil": true
+    }
   }
 ]

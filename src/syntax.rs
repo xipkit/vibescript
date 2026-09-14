@@ -2,6 +2,7 @@ use crate::{Error, Result, Value};
 use std::collections::HashSet;
 
 mod classes;
+mod errors;
 mod lexer;
 pub(crate) mod modules;
 mod tokens;
@@ -21,6 +22,7 @@ pub(crate) struct Expr {
 }
 #[derive(Clone, Debug)]
 pub(crate) enum Node {
+    Try(Box<Try>),
     Regex(Vec<u8>, u8),
     Shape(Box<crate::types::Type>, Option<Box<Expr>>, Vec<String>),
     Integer(u64),
@@ -59,6 +61,33 @@ impl Expr {
                 _ => return false,
             };
         }
+    }
+}
+#[derive(Clone, Debug)]
+pub(crate) struct Try {
+    pub body: Vec<Stmt>,
+    pub rescues: Vec<Rescue>,
+    pub alternate: Vec<Stmt>,
+    pub ensure: Vec<Stmt>,
+}
+#[derive(Clone, Debug)]
+pub(crate) struct Rescue {
+    pub classes: Vec<crate::ErrorClass>,
+    pub binding: Option<String>,
+    pub body: Vec<Stmt>,
+    pub offset: u32,
+}
+impl Try {
+    fn depth(&self) -> u32 {
+        1 + self
+            .body
+            .iter()
+            .chain(&self.alternate)
+            .chain(&self.ensure)
+            .chain(self.rescues.iter().flat_map(|r| &r.body))
+            .map(Stmt::depth)
+            .max()
+            .unwrap_or(0)
     }
 }
 #[derive(Clone, Debug)]
@@ -147,6 +176,8 @@ pub(crate) struct Stmt {
 }
 #[derive(Clone, Debug)]
 pub(crate) enum Statement {
+    Raise(Option<Box<Expr>>, Option<Box<Expr>>),
+    Retry,
     Module(String),
     UnboundClass(String),
     Expr(Expr),
@@ -167,7 +198,13 @@ impl Stmt {
     fn depth(&self) -> u32 {
         let body = |s: &[Stmt]| s.iter().map(Self::depth).max().unwrap_or(0);
         1 + match &self.node {
-            Statement::Module(_) | Statement::UnboundClass(_) => 0,
+            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => 0,
+            Statement::Raise(value, message) => value
+                .iter()
+                .chain(message)
+                .map(|v| v.depth)
+                .max()
+                .unwrap_or(0),
             Statement::Expr(e) => e.depth,
             Statement::Assign(t, _, e) => t.depth().max(e.depth),
             Statement::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
@@ -539,7 +576,7 @@ impl Parser<'_> {
     }
     fn at_end(&self) -> bool {
         matches!(self.token(), Token::Eof)
-            || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"|"when"))
+            || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"|"when"|"rescue"|"ensure"))
     }
     fn enter(&mut self) -> Result<()> {
         self.depth += 1;
@@ -600,6 +637,8 @@ impl Parser<'_> {
         if !matches!(
             stmt,
             Statement::Expr(_)
+                | Statement::Raise(..)
+                | Statement::Retry
                 | Statement::Assign(..)
                 | Statement::Return(_)
                 | Statement::Break(_)
@@ -620,6 +659,17 @@ impl Parser<'_> {
         })
     }
     fn plain_statement(&mut self) -> Result<Statement> {
+        if self.word("raise") {
+            return self.raise_statement();
+        }
+        if self.word("retry") {
+            if self.starts_expression()
+                && !matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
+            {
+                return self.err("retry does not accept a value");
+            }
+            return Ok(Statement::Retry);
+        }
         if self.word("class") {
             let class = self.class()?;
             return Ok(Statement::UnboundClass(class.name));
@@ -1040,26 +1090,7 @@ impl Parser<'_> {
             Token::Template(parts) => self.template(parts, false),
             Token::Words(words) => self.words(*words),
             Token::Invalid(error) => Err(Error::syntax(error.0, error.1)),
-            Token::Word(w) => match w.as_str() {
-                "nil" => self.make(Node::Literal(Value::nil()), 1),
-                "true" => self.make(Node::Literal(Value::boolean(true)), 1),
-                "false" => self.make(Node::Literal(Value::boolean(false)), 1),
-                "if" | "unless" => self.if_expr(w == "unless"),
-                "case" => self.case_expr(),
-                "yield" => self.yield_expr(),
-                "while" | "until" | "for" => {
-                    let stmt = if w == "for" {
-                        self.for_stmt()?
-                    } else {
-                        self.while_stmt(w == "until")?
-                    };
-                    let stmt = stmt.at(offset);
-                    let depth = stmt.depth();
-                    self.make(Node::Loop(Box::new(stmt)), depth)
-                }
-                _ if reserved(&w) => Err(Error::syntax(offset as usize, "expected expression")),
-                _ => self.make(Node::Var(w), 1),
-            },
+            Token::Word(w) => self.word_expression(w, offset),
             Token::P(':') => self.symbol(),
             Token::P('(') => {
                 self.groups += 1;
@@ -1086,6 +1117,34 @@ impl Parser<'_> {
             }
             Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op),
             _ => Err(Error::syntax(offset as usize, "expected expression")),
+        }
+    }
+    fn word_expression(&mut self, w: String, offset: u32) -> Result<Expr> {
+        match w.as_str() {
+            "nil" => self.make(Node::Literal(Value::nil()), 1),
+            "true" => self.make(Node::Literal(Value::boolean(true)), 1),
+            "false" => self.make(Node::Literal(Value::boolean(false)), 1),
+            "if" | "unless" => self.if_expr(w == "unless"),
+            "case" => self.case_expr(),
+            "yield" => self.yield_expr(),
+            "begin" => {
+                let body = self.block(&["rescue", "else", "ensure", "end"])?;
+                let attempt = self.rescue_tail(body, false)?;
+                let depth = attempt.depth();
+                self.make(Node::Try(Box::new(attempt)), depth)
+            }
+            "while" | "until" | "for" => {
+                let stmt = if w == "for" {
+                    self.for_stmt()?
+                } else {
+                    self.while_stmt(w == "until")?
+                };
+                let stmt = stmt.at(offset);
+                let depth = stmt.depth();
+                self.make(Node::Loop(Box::new(stmt)), depth)
+            }
+            _ if reserved(&w) => Err(Error::syntax(offset as usize, "expected expression")),
+            _ => self.make(Node::Var(w), 1),
         }
     }
     fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
@@ -1291,6 +1350,14 @@ impl Parser<'_> {
         loop {
             if let Some(next) = self.continuation_position(min) {
                 self.pos = next;
+            }
+            if min == 0
+                && (self.command_depth == 0 || self.groups > self.command_group)
+                && self.tokens[self.pos].line == self.previous().end_line
+                && self.word("rescue")
+            {
+                lhs = self.rescue_modifier(lhs)?;
+                continue;
             }
             let origin = lhs.offset;
             let offset = self.tokens[self.pos].offset as u32;
@@ -1766,7 +1833,9 @@ impl Parser<'_> {
             return true;
         }
         match &self.tokens[pos].token {
-            Token::Word(w) => !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield"),
+            Token::Word(w) => {
+                !reserved(w) || matches!(w.as_str(), "case" | "for" | "yield" | "begin")
+            }
             Token::Int(_)
             | Token::BigInt(..)
             | Token::Float(_)
@@ -1961,7 +2030,7 @@ impl Parser<'_> {
                 !reserved(w)
                     || matches!(
                         w.as_str(),
-                        "if" | "unless" | "case" | "while" | "until" | "for" | "yield"
+                        "if" | "unless" | "case" | "while" | "until" | "for" | "yield" | "begin"
                     )
             }
             Token::Int(_)
@@ -2011,6 +2080,7 @@ fn reserved(w: &str) -> bool {
             | "until"
             | "begin"
             | "rescue"
+            | "ensure"
             | "def"
             | "unless"
             | "case"

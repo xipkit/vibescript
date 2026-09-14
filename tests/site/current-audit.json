@@ -1,15 +1,14 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "73d51256e8721217df610957347d661271160910",
-  "dirty": " M README.md\n M benchmarks/go/main.go\n M docs/compatibility-cases.json\n M docs/compatibility.md\n M docs/regex.md\n M scripts/audit-compatibility.py\n M scripts/audit-reference-views.py\n M scripts/compare.py\n M scripts/fixtures.py\n M src/address.rs\n M src/bytecode.rs\n M src/json.rs\n M src/lib.rs\n M src/members.rs\n M src/ops.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/text.rs\n M src/text/bounded.rs\n M src/text/inspect.rs\n M src/value.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/language.rs\n M tests/regex_values.rs\n M tests/site/cases.json\n M tests/syntax-errors.json\n M tests/value_semantics.rs\n?? docs/modules.md\n?? src/bytecode/\n?? src/namespace.rs\n?? src/syntax/modules.rs\n?? src/vm/\n?? tests/modules.rs\n",
+  "source_revision": "d48793bb5a7d03936abf8c2c7b7591619d2818d0",
+  "dirty": " M README.md\n M docs/diagnostics.md\n M docs/language-port.md\n M src/address.rs\n M src/arguments.rs\n M src/budget.rs\n M src/builtin.rs\n M src/bytecode.rs\n M src/error.rs\n M src/hash.rs\n M src/iteration.rs\n M src/mutate.rs\n M src/objects.rs\n M src/regex/matches.rs\n M src/source.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/syntax/modules.rs\n M src/text.rs\n M src/text/bounded.rs\n M src/value.rs\n M src/vm.rs\n M tests/error_classes.rs\n M tests/language.json\n M tests/site/README.md\n M tests/site/cases.json\n M tests/syntax-errors.json\n?? docs/errors.md\n?? src/bytecode/errors.rs\n?? src/syntax/errors.rs\n?? src/vm/handlers.rs\n?? tests/error_handling.rs\n",
   "binary_sha256": {
-    "go-simd": "e9fa767b513d51439c197e4cdc3b70875965df04c8fcd96d7a97f4fb2f01548e",
-    "rust-simd": "2db26136067937bbbd67577aa634a268684ecba2f51834bae46fb878534fe86c"
+    "go-simd": "e693dc5f11c466f5334e334835d5f3728b9b2aaa3b7db7068800e6e6a9ddae28",
+    "rust-simd": "ff20e2a790f7febdaf0a060fff53a6ea327645483e48485d5480bdaf3a3029d9"
   },
   "counts": {
-    "match": 187,
-    "harness_gap": 15,
-    "rust_gap": 1
+    "match": 188,
+    "harness_gap": 15
   },
   "examples": [
     {
@@ -7700,7 +7699,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7712,7 +7711,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7724,7 +7723,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7736,7 +7735,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7748,7 +7747,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7760,7 +7759,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7772,7 +7771,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -7934,7 +7933,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"unknown class member email\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"unknown class member email\", offset: Some(492), diagnostic: Some(Diagnostic { position: Position { line: 14, column: 3 }, code_frame: \"  --> line 14, column 3\\n 14 |   email.send(address, subject, body)\\n    |   ^\", frames: [StackFrame { function: \"welcome\", position: Position { line: 14, column: 3 } }, StackFrame { function: \"welcome\", position: Position { line: 18, column: 3 } }, StackFrame { function: \"run\", position: Position { line: 17, column: 1 } }] }), class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8004,7 +8003,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"unknown class member sms\", offset: None }\n"
+        "stderr": "Error: Error { kind: Name, message: \"unknown class member sms\", offset: Some(410), diagnostic: Some(Diagnostic { position: Position { line: 13, column: 3 }, code_frame: \"  --> line 13, column 3\\n 13 |   sms.send(phone, body)\\n    |   ^\", frames: [StackFrame { function: \"delivery_update\", position: Position { line: 13, column: 3 } }, StackFrame { function: \"delivery_update\", position: Position { line: 17, column: 3 } }, StackFrame { function: \"run\", position: Position { line: 16, column: 1 } }] }), class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8186,7 +8185,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -8251,10 +8250,20 @@
         }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Syntax, message: \"expected expression\", offset: Some(385) }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "known": 5,
+          "unknown": 0,
+          "divide_ok": 25,
+          "divide_guarded": null,
+          "infinity_label": "Infinity",
+          "is_finite": true,
+          "nan_detected": true,
+          "incomparable_is_nil": true
+        }
       },
-      "status": "rust_gap"
+      "status": "match"
     },
     {
       "path": "showcase/security/session_expiry.vibe",
@@ -9136,7 +9145,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -9582,7 +9591,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode a duration\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode a duration\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -9640,7 +9649,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"unknown class member assert\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -9652,7 +9661,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },
@@ -9846,7 +9855,7 @@
       },
       "rust-simd": {
         "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None }\n"
+        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
       },
       "status": "harness_gap"
     },

@@ -26,6 +26,8 @@ pub struct Diagnostic {
 /// The category of a compile or execution failure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
+    /// An explicitly raised script exception.
+    Runtime,
     Syntax,
     Type,
     Name,
@@ -121,6 +123,7 @@ pub struct Error {
     pub offset: Option<usize>,
     pub diagnostic: Option<Arc<Diagnostic>>,
     class: ErrorClass,
+    raw_message: Option<Arc<[u8]>>,
 }
 
 impl Error {
@@ -131,6 +134,7 @@ impl Error {
             message: message.into(),
             offset: None,
             diagnostic: None,
+            raw_message: None,
             class: if matches!(
                 kind,
                 ErrorKind::OutputLimit
@@ -158,6 +162,57 @@ impl Error {
     pub fn with_class(mut self, class: ErrorClass) -> Self {
         self.class = class;
         self
+    }
+
+    /// Returns the original message bytes, including non-UTF-8 script strings.
+    /// The public `message` field and Display use replacement characters for invalid UTF-8.
+    pub fn message_bytes(&self) -> &[u8] {
+        self.raw_message
+            .as_deref()
+            .unwrap_or(self.message.as_bytes())
+    }
+
+    pub(crate) fn allocation_bytes(&self) -> usize {
+        self.message.capacity()
+            + self
+                .raw_message
+                .as_ref()
+                .map_or(0, |bytes| bytes.len() + 2 * std::mem::size_of::<usize>())
+    }
+
+    pub(crate) fn from_bytes(ctx: &mut crate::CallContext, bytes: &[u8]) -> Result<Self> {
+        struct Lossy<'a>(&'a [u8]);
+        impl fmt::Display for Lossy<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let mut bytes = self.0;
+                loop {
+                    match std::str::from_utf8(bytes) {
+                        Ok(text) => return f.write_str(text),
+                        Err(error) => {
+                            let valid = error.valid_up_to();
+                            f.write_str(std::str::from_utf8(&bytes[..valid]).unwrap())?;
+                            f.write_str("\u{fffd}")?;
+                            match error.error_len() {
+                                Some(length) => bytes = &bytes[valid + length..],
+                                None => return Ok(()),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ctx.work_bytes(bytes.len())?;
+        let (message, _charge) = crate::source::formatted(ctx, format_args!("{}", Lossy(bytes)))?;
+        let raw_message = if std::str::from_utf8(bytes).is_err() {
+            let _charge = ctx.reserve(bytes.len() + 2 * std::mem::size_of::<usize>())?;
+            Some(Arc::from(bytes))
+        } else {
+            None
+        };
+        Ok(Self {
+            raw_message,
+            ..Self::new(ErrorKind::Runtime, message)
+        })
     }
 
     pub(crate) fn syntax(offset: usize, message: impl Into<String>) -> Self {

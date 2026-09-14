@@ -20,8 +20,11 @@ pub(crate) fn call(
     args: &[Value],
 ) -> Result<(Value, Value)> {
     use Method::*;
-    if matches!(&receiver.0, Kind::Hash(hash) if hash.match_data) {
-        return Err(argument("cannot modify match data"));
+    if matches!(&receiver.0, Kind::Hash(hash) if hash.tag.protected()) {
+        let Kind::Hash(hash) = &receiver.0 else {
+            unreachable!()
+        };
+        return Err(hash.tag.mutation_error());
     }
     if matches!(receiver.0, Kind::Bytes(_)) {
         let result = string(ctx, method, &receiver, args)?;

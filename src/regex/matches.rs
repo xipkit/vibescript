@@ -181,7 +181,7 @@ pub(super) fn data(
     }
     let mut hash = Hash::from_entries(ctx, entries)?;
     hash.object = true;
-    hash.match_data = true;
+    hash.tag = crate::hash::Tag::Match;
     Value::from_hash(ctx, hash)
 }
 

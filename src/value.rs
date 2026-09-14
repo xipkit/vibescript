@@ -603,7 +603,7 @@ impl CallContext {
                 }
                 let mut hash = Hash::from_entries(self, buf)?;
                 hash.object = h.object;
-                hash.match_data = h.match_data;
+                hash.tag = h.tag;
                 Value::from_hash(self, hash)
             }
             _ => Ok(value.clone()),
@@ -625,7 +625,7 @@ impl fmt::Display for Value {
                 "<Shape {}>",
                 String::from_utf8_lossy(&shape.definition.text)
             ),
-            Kind::Hash(hash) if hash.match_data => {
+            Kind::Hash(hash) if hash.tag.protected() => {
                 let value = hash
                     .buffer
                     .data

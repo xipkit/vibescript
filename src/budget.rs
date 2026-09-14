@@ -98,6 +98,20 @@ pub(crate) struct Charge {
     bytes: usize,
 }
 
+impl Charge {
+    pub(crate) fn merge(into: &mut Option<Self>, other: Option<Self>) {
+        if let Some(mut other) = other {
+            if let Some(charge) = into {
+                debug_assert!(Arc::ptr_eq(&charge.memory, &other.memory));
+                charge.bytes += other.bytes;
+                other.bytes = 0;
+            } else {
+                *into = Some(other);
+            }
+        }
+    }
+}
+
 impl Drop for Charge {
     fn drop(&mut self) {
         self.memory.used.fetch_sub(self.bytes, Ordering::Relaxed);
@@ -223,6 +237,10 @@ impl CallContext {
             self.exhausted = Some(err.clone());
         }
         Err(self.exhausted.clone().unwrap_or(err))
+    }
+
+    pub(crate) fn exhausted(&self) -> bool {
+        self.exhausted.is_some()
     }
 
     pub(crate) fn guard<T>(&mut self, kind: ErrorKind, message: &str) -> Result<T> {

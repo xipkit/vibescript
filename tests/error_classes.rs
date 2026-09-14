@@ -239,7 +239,7 @@ fn host_classes_survive_diagnostics_and_cannot_disguise_current_exhaustion() {
 
 #[test]
 #[cfg(target_pointer_width = "64")]
-fn exception_classes_preserve_the_error_and_value_layouts() {
-    assert_eq!(std::mem::size_of::<Error>(), 56);
+fn exception_metadata_keeps_values_small() {
+    assert_eq!(std::mem::size_of::<Error>(), 72);
     assert_eq!(std::mem::size_of::<Value>(), 16);
 }

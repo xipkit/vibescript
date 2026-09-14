@@ -12916,5 +12916,70 @@
     "name": "safe_symbol_seed_23",
     "source": "def identity(value);value;end\ndef run(input)\n: &.to_s\nend",
     "go_error": "parse error at 3:1: unexpected token \":\""
+  },
+  {
+    "name": "error_handling_145_syntax_rescue",
+    "source": "\ndef run(input)\nbegin\n1\nrescue\nend\nend",
+    "go_error": "parse error at 3:1: begin requires rescue and/or ensure"
+  },
+  {
+    "name": "error_handling_146_syntax_rescue_e",
+    "source": "\ndef run(input)\nbegin\n1\nrescue=>e\nend\nend",
+    "go_error": "parse error at 3:1: begin requires rescue and/or ensure"
+  },
+  {
+    "name": "error_handling_147_syntax_rescue_nosucherror_1",
+    "source": "\ndef run(input)\nbegin\n1\nrescue NoSuchError\n1\nend\nend",
+    "go_error": "parse error at 5:1: unknown rescue error type NoSuchError"
+  },
+  {
+    "name": "error_handling_149_syntax_rescue_typeerror_int_1",
+    "source": "\ndef run(input)\nbegin\n1\nrescue (TypeError | int)\n1\nend\nend",
+    "go_error": "parse error at 5:21: unknown rescue error type int"
+  },
+  {
+    "name": "error_handling_150_syntax_rescue_typeerror_argumenterror_1",
+    "source": "\ndef run(input)\nbegin\n1\nrescue TypeError, ArgumentError\n1\nend\nend",
+    "go_error": "parse error at 5:17: unexpected token \",\""
+  },
+  {
+    "name": "error_handling_151_syntax_rescue_e_1",
+    "source": "\ndef run(input)\nbegin\n1\nrescue -> e\n1\nend\nend",
+    "go_error": "parse error at 5:9: rescue binding must use =>"
+  },
+  {
+    "name": "error_handling_152_syntax_rescue_e_1",
+    "source": "\ndef run(input)\nbegin\n1\nrescue=>@e\n1\nend\nend",
+    "go_error": "parse error at 5:9: rescue binding must be an identifier"
+  },
+  {
+    "name": "error_handling_153_syntax_else_1",
+    "source": "\ndef run(input)\nbegin\n1\nelse\n1\nend\nend",
+    "go_error": "parse error at 5:1: begin else requires rescue"
+  },
+  {
+    "name": "error_handling_154_syntax_rescue_1_else_1_rescue_1",
+    "source": "\ndef run(input)\nbegin\n1\nrescue\n1\nelse\n1\nrescue\n1\nend\nend",
+    "go_error": "parse error at 9:1: unexpected token \"rescue\""
+  },
+  {
+    "name": "error_handling_155_syntax_retry_1",
+    "source": "\ndef run(input)\nretry 1\nend",
+    "go_error": "parse error at 3:7: retry does not accept a value"
+  },
+  {
+    "name": "error_handling_156_syntax_retry",
+    "source": "\ndef run(input)\nretry()\nend",
+    "go_error": "parse error at 3:6: retry does not accept a value"
+  },
+  {
+    "name": "error_handling_157_syntax_retry_1",
+    "source": "\ndef run(input)\nretry,1\nend",
+    "go_error": "parse error at 3:6: retry does not accept a value"
+  },
+  {
+    "name": "error_handling_158_syntax_raise_1_2_3",
+    "source": "\ndef run(input)\nraise 1,2,3\nend",
+    "go_error": "parse error at 3:10: unexpected token \",\""
   }
 ]

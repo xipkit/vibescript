@@ -68,7 +68,7 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
             }
             output.append(ctx, b"]")
         }
-        Kind::Hash(hash) if hash.match_data => {
+        Kind::Hash(hash) if hash.tag.protected() => {
             let index = hash.find(ctx, b"to_s")?.unwrap();
             output.append(ctx, hash.buffer.data[index].1.require_bytes()?)
         }

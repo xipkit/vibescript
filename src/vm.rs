@@ -12,8 +12,10 @@ use crate::{
     value::Kind,
 };
 
+mod handlers;
 mod namespaces;
 mod operators;
+use handlers::{Control, Event};
 
 #[derive(Default)]
 enum ReturnTo {
@@ -49,6 +51,7 @@ struct Frame {
 }
 
 struct Storage {
+    handlers: Buffer<handlers::Handler>,
     namespaces: Buffer<crate::namespace::State>,
     declarations: Buffer<(usize, Value)>,
     texts: Buffer<Buffer<u8>>,
@@ -126,6 +129,7 @@ pub(crate) fn execute(
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
     let mut storage = Storage {
+        handlers: Buffer::empty(),
         namespaces: Buffer::empty(),
         declarations: Buffer::empty(),
         texts: Buffer::empty(),
@@ -155,982 +159,584 @@ pub(crate) fn execute(
             0
         };
         loop {
-            if frames.data.is_empty() {
-                while initializer < program.namespaces.len() {
-                    let module = initializer;
-                    initializer += 1;
-                    if let Some(body) = program.namespaces[module].body {
-                        let state = namespaces::state(program, ctx, &mut storage, module)?;
-                        if !storage.namespaces.data[state].initialized {
-                            enter_arguments(
-                                program,
-                                ctx,
-                                &mut frames,
-                                &mut storage,
-                                body,
-                                Arguments::empty(),
-                                0,
-                            )?;
-                            break;
-                        }
-                    }
-                }
-                if frames.data.is_empty() {
-                    let (function, input) = pending_entry.take().unwrap();
-                    enter_arguments(program, ctx, &mut frames, &mut storage, function, input, 0)?;
-                }
-            }
-            let current = frames.data.len() - 1;
-            if frames.data[current].function.is_none() {
-                ctx.charge(1)?;
-                let iteration = &mut storage.iterations.data[frames.data[current].iteration_base];
-                let returned = if iteration.waiting() {
-                    Some(stack.data.pop().unwrap())
-                } else {
-                    None
-                };
-                match iteration.advance(ctx, returned)? {
-                    Progress::Yield(args, count) => {
-                        let block = frames.data[current].block.unwrap();
-                        enter_block(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            block,
-                            &args[..count],
-                            stack.data.len(),
-                        )?;
-                    }
-                    Progress::Done(mut value) => {
-                        let mutation = iteration.take_mutation();
-                        if frames.data[current].mutating {
-                            let address = storage.addresses.data.pop().unwrap();
-                            if let Some(mutation) = mutation {
-                                let guard =
-                                    address_guard(program, ctx, &frames, &mut storage, &address)?;
-                                value = address.apply(
-                                    ctx,
-                                    address::Bindings {
-                                        guard,
-                                        locals: &mut storage.locals.data,
-                                        namespaces: &mut storage.namespaces.data,
-                                    },
-                                    &mut storage.addresses.data,
-                                    |ctx, receiver| mutation.apply(ctx, receiver, value),
-                                )?;
+            let event = (|| -> Result<Event> {
+                loop {
+                    if frames.data.is_empty() {
+                        while initializer < program.namespaces.len() {
+                            let module = initializer;
+                            initializer += 1;
+                            if let Some(body) = program.namespaces[module].body {
+                                let state = namespaces::state(program, ctx, &mut storage, module)?;
+                                if !storage.namespaces.data[state].initialized {
+                                    enter_arguments(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        body,
+                                        Arguments::empty(),
+                                        0,
+                                    )?;
+                                    break;
+                                }
                             }
                         }
-                        unwind(&mut frames, &mut storage, &mut stack, current);
-                        stack.push(ctx, value)?;
-                    }
-                }
-                continue;
-            }
-            let op = {
-                let frame = &mut frames.data[current];
-                let op = program.functions[frame.function.unwrap()].code[frame.ip];
-                frame.ip += 1;
-                op
-            };
-            ctx.charge(1)?;
-            let mut slot =
-                |slot, skip| resolve_slot(program, ctx, &frames, &storage, current, slot, skip);
-            let op = match op {
-                Op::Load(n) => Op::Load(slot(n, false)?),
-                Op::Bypass(n) => Op::Bypass(slot(n, false)?),
-                Op::LoadOptional(n, name) => Op::LoadOptional(slot(n, false)?, name),
-                Op::ReceiverBound(n, next) => Op::ReceiverBound(slot(n, false)?, next),
-                Op::Declare(n) => Op::Declare(slot(n, false)?),
-                Op::Store(n) => Op::Store(slot(n, false)?),
-                Op::AddStore(n) => Op::AddStore(slot(n, false)?),
-                Op::AddressLocal(n) => Op::AddressLocal(slot(n, false)?),
-                Op::AddressBound(n, next) => Op::AddressBound(slot(n, false)?, next),
-                Op::ResolveCall(n, name) => {
-                    Op::ResolveCall(if n == usize::MAX { n } else { slot(n, true)? }, name)
-                }
-                op => op,
-            };
-            let frame = &mut frames.data[current];
-            let namespace = frame
-                .function
-                .and_then(|index| program.functions[index].namespace);
-            let self_value = frame.receiver.clone();
-            let caller_instance = matches!(&self_value, Some(Value(Kind::Instance(_))));
-            match op {
-                Op::UnboundClass(name) => {
-                    return Err(Error::new(
-                        ErrorKind::Name,
-                        format!("class {} is not bound", program.members[name]),
-                    ));
-                }
-                Op::BindIvar(name, local) => {
-                    let Some(Value(Kind::Instance(instance))) = frame.receiver.as_ref() else {
-                        return Err(Error::new(
-                            ErrorKind::Name,
-                            "no instance context for ivar parameter",
-                        ));
-                    };
-                    let instance = instance.clone();
-                    let slot = frame.local_base + local;
-                    let value = storage.locals.data[slot].as_ref().unwrap().clone();
-                    let value = normalize_ivar(
-                        program,
-                        ctx,
-                        &frames,
-                        &mut storage,
-                        &instance,
-                        &program.members[name],
-                        value,
-                    )?;
-                    set_ivar(ctx, &mut storage, &instance, &program.members[name], &value)?;
-                    storage.locals.data[slot] = Some(value);
-                }
-                Op::InitNamespace(module) => {
-                    let state = namespaces::state(program, ctx, &mut storage, module)?;
-                    if !storage.namespaces.data[state].initialized {
-                        let body = program.namespaces[module].body.unwrap();
-                        enter_arguments(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            body,
-                            Arguments::empty(),
-                            stack.data.len(),
-                        )?;
-                        frames.data.last_mut().unwrap().parent = Some(current);
-                    }
-                }
-                Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
-                    let name = &program.members[name];
-                    let address = matches!(op, Op::AmbientAddress(..));
-                    if !address
-                        || !name
-                            .chars()
-                            .next()
-                            .is_some_and(crate::syntax::unicode::upper)
-                    {
-                        if let Some(slot) = namespaces::ambient_slot(
-                            program, ctx, &frames, &storage, current, name,
-                        )? {
-                            let value = storage.locals.data[slot].as_ref().unwrap().clone();
-                            if address {
-                                storage
-                                    .addresses
-                                    .push(ctx, Address::new(Some(slot), value))?;
-                            } else {
-                                stack.push(ctx, value)?;
-                            }
-                            frames.data[current].ip = next;
-                        }
-                    }
-                }
-                Op::NamespaceSelf(module) => {
-                    let value = if let Some(value) = &self_value {
-                        value.clone()
-                    } else {
-                        namespaces::value(program, ctx, &mut storage, module)?
-                    };
-                    stack.push(ctx, value)?;
-                }
-                Op::NamespaceConstant(name, next) => {
-                    if let Some(value) = namespaces::field(
-                        program,
-                        ctx,
-                        &mut storage,
-                        namespace.unwrap(),
-                        &program.members[name],
-                    )? {
-                        stack.push(ctx, value)?;
-                        frames.data[current].ip = next;
-                    }
-                }
-                Op::NamespaceVariable(name, optional) => {
-                    let raw = &program.members[name];
-                    if raw.starts_with('@') && !raw.starts_with("@@") {
-                        let Some(Value(Kind::Instance(instance))) = &self_value else {
-                            return Err(Error::new(
-                                ErrorKind::Name,
-                                "no instance context for ivar",
-                            ));
-                        };
-                        let value =
-                            crate::objects::field(ctx, instance, &raw[1..])?.unwrap_or_default();
-                        stack.push(ctx, value)?;
-                        continue;
-                    }
-                    let (module, name) =
-                        namespaces::variable_name(namespace, &program.members[name])?;
-                    let value = namespaces::field(program, ctx, &mut storage, module, name)?;
-                    let value = if optional {
-                        value.unwrap_or_default()
-                    } else {
-                        value.ok_or_else(|| {
-                            Error::new(ErrorKind::Name, "undefined class variable")
-                        })?
-                    };
-                    stack.push(ctx, value)?;
-                }
-                Op::NamespaceAddress(name, optional) => {
-                    let raw = &program.members[name];
-                    if raw.starts_with('@') && !raw.starts_with("@@") {
-                        let Some(Value(Kind::Instance(instance))) = &self_value else {
-                            return Err(Error::new(
-                                ErrorKind::Name,
-                                "no instance context for ivar",
-                            ));
-                        };
-                        let address = crate::objects::address(ctx, instance, &raw[1..])?;
-                        storage.addresses.push(ctx, address)?;
-                        continue;
-                    }
-                    let (module, name) =
-                        namespaces::variable_name(namespace, &program.members[name])?;
-                    let address = if !optional
-                        && namespaces::field(program, ctx, &mut storage, module, name)?.is_none()
-                    {
-                        if let Some(slot) = namespaces::ambient_slot(
-                            program, ctx, &frames, &storage, current, name,
-                        )? {
-                            Address::new(
-                                Some(slot),
-                                storage.locals.data[slot].as_ref().unwrap().clone(),
-                            )
-                        } else if let Some(&index) = program.declaration_names.get(name) {
-                            Address::new(
-                                None,
-                                declaration_value(program, ctx, &mut storage, index)?,
-                            )
-                        } else {
-                            return Err(Error::new(ErrorKind::Name, "undefined class constant"));
-                        }
-                    } else {
-                        namespaces::address(program, ctx, &mut storage, module, name, optional)?
-                    };
-                    storage.addresses.push(ctx, address)?;
-                }
-                Op::NamespaceStore(name) => {
-                    let raw = &program.members[name];
-                    if raw.starts_with('@') && !raw.starts_with("@@") {
-                        let Some(Value(Kind::Instance(instance))) = &self_value else {
-                            return Err(Error::new(
-                                ErrorKind::Name,
-                                "no instance context for ivar",
-                            ));
-                        };
-                        let value = normalize_ivar(
-                            program,
-                            ctx,
-                            &frames,
-                            &mut storage,
-                            instance,
-                            &raw[1..],
-                            stack.data.last().unwrap().clone(),
-                        )?;
-                        set_ivar(ctx, &mut storage, instance, &raw[1..], &value)?;
-                        *stack.data.last_mut().unwrap() = value;
-                        continue;
-                    }
-                    let (module, name) =
-                        namespaces::variable_name(namespace, &program.members[name])?;
-                    namespaces::set(
-                        program,
-                        ctx,
-                        &mut storage,
-                        module,
-                        name,
-                        stack.data.last().unwrap().clone(),
-                    )?;
-                }
-                Op::StoreDeclaration(index) => {
-                    let mut found = false;
-                    for (key, value) in &mut storage.declarations.data {
-                        ctx.charge(1)?;
-                        if *key == index {
-                            *value = stack.data.last().unwrap().clone();
-                            found = true;
-                            break;
-                        }
-                    }
-                    if !found {
-                        storage
-                            .declarations
-                            .push(ctx, (index, stack.data.last().unwrap().clone()))?;
-                    }
-                }
-                Op::Integer(n, radix) => {
-                    let text = program.constants[n].as_bytes().unwrap();
-                    let value = crate::integer::parse(ctx, text, radix)?;
-                    stack.push(ctx, value)?;
-                }
-                Op::Regex(n, flags) => {
-                    let v = crate::regex::value::Regex::compile(
-                        ctx,
-                        program.constants[n].clone(),
-                        flags,
-                    )?;
-                    stack.push(ctx, v)?;
-                }
-                Op::Constant(n) => {
-                    let v = ctx.import(&program.constants[n])?;
-                    stack.push(ctx, v)?;
-                }
-                Op::TypeShadowed(guard, next) => {
-                    for name in &program.type_guards[guard] {
-                        if runtime_bound(program, ctx, &frames, &storage, current, name)? {
-                            frames.data[current].ip = next;
-                            break;
-                        }
-                    }
-                }
-                Op::Nil => stack.push(ctx, Value::nil())?,
-                Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
-                Op::TextPart => {
-                    let value = stack.data.pop().unwrap();
-                    if let Some(call) = operators::string(program, ctx, &value)? {
-                        enter_arguments(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            call,
-                            Arguments::empty(),
-                            stack.data.len(),
-                        )?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Text(value);
-                        continue;
-                    }
-                    crate::text::append(ctx, &value, storage.texts.data.last_mut().unwrap())?;
-                }
-                Op::TextEnd(symbol) => {
-                    let text = storage.texts.data.pop().unwrap();
-                    let mut value = Value::from_bytes(ctx, text)?;
-                    if symbol {
-                        let Kind::Bytes(bytes) = value.0 else {
-                            unreachable!()
-                        };
-                        value = Value(Kind::Symbol(bytes));
-                    }
-                    stack.push(ctx, value)?;
-                }
-                Op::Load(n) => {
-                    let mut v = storage.locals.data[n].clone().unwrap_or_default();
-                    if let Kind::Offset(offset) = &v.0 {
-                        return Err(offset.value_error());
-                    }
-                    if let Kind::Builtin(builtin) = v.0 {
-                        v = builtin.read(ctx)?;
-                    }
-                    stack.push(ctx, v)?;
-                }
-                Op::LoadOptional(slot, name) => {
-                    if let Some(value) = &storage.locals.data[slot] {
-                        if let Kind::Offset(offset) = &value.0 {
-                            return Err(offset.value_error());
-                        }
-                        let value = if let Kind::Builtin(builtin) = value.0 {
-                            builtin.read(ctx)?
-                        } else {
-                            value.clone()
-                        };
-                        stack.push(ctx, value)?;
-                    } else if let Some(value) = namespaces::constant(
-                        program,
-                        ctx,
-                        &mut storage,
-                        namespace,
-                        &program.members[name],
-                    )? {
-                        stack.push(ctx, value)?;
-                    } else if let Some(slot) = namespaces::ambient_slot(
-                        program,
-                        ctx,
-                        &frames,
-                        &storage,
-                        current,
-                        &program.members[name],
-                    )? {
-                        stack.push(ctx, storage.locals.data[slot].as_ref().unwrap().clone())?;
-                    } else if let Some(&index) =
-                        program.declaration_names.get(&program.members[name])
-                    {
-                        let value = declaration_value(program, ctx, &mut storage, index)?;
-                        stack.push(ctx, value)?;
-                    } else if let Some(&function) = program.names.get(&program.members[name]) {
-                        enter_auto(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            function,
-                            stack.data.len(),
-                        )?;
-                    } else if let Some(host) = program
-                        .hosts
-                        .iter()
-                        .position(|h| h == &program.members[name])
-                    {
-                        return Err(callable_value_error(&program.hosts[host], "method"));
-                    } else if let Some(global) = global_index(program, &program.members[name]) {
-                        let mut value = global_value(program, ctx, &mut storage, global)?;
-                        if let Kind::Offset(offset) = &value.0 {
-                            return Err(offset.value_error());
-                        }
-                        if let Kind::Builtin(builtin) = value.0 {
-                            value = builtin.read(ctx)?;
-                        }
-                        stack.push(ctx, value)?;
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::Name,
-                            format!("undefined variable {}", program.members[name]),
-                        ));
-                    }
-                }
-                Op::ReceiverBound(slot, next) => {
-                    if let Some(value) = &storage.locals.data[slot] {
-                        stack.push(ctx, value.clone())?;
-                        frame.ip = next;
-                    }
-                }
-                Op::Unbound(name) => {
-                    match namespaces::implicit(
-                        program,
-                        ctx,
-                        &mut storage,
-                        namespace,
-                        self_value.as_ref(),
-                        &program.members[name],
-                    )? {
-                        namespaces::Member::Function(function) => {
+                        if frames.data.is_empty() {
+                            let (function, input) = pending_entry.take().unwrap();
                             enter_arguments(
                                 program,
                                 ctx,
                                 &mut frames,
                                 &mut storage,
                                 function,
-                                Arguments::empty(),
-                                stack.data.len(),
+                                input,
+                                0,
                             )?;
                         }
-                        namespaces::Member::Value(value) => stack.push(ctx, value)?,
-                        namespaces::Member::Helper(module, helper) => {
-                            let value = namespaces::call_helper(
-                                program,
-                                ctx,
-                                &mut storage,
-                                module,
-                                helper,
-                                &Arguments::empty(),
-                            )?;
-                            stack.push(ctx, value)?;
-                        }
-                        namespaces::Member::Missing => {
-                            namespaces::fallback(&program.members[name])?;
-                            let module = namespace
-                                .ok_or_else(|| Error::new(ErrorKind::Name, "undefined variable"))?;
-                            let receiver = if let Some(value) = &self_value {
-                                value.clone()
-                            } else {
-                                namespaces::value(program, ctx, &mut storage, module)?
-                            };
-                            let site = crate::bytecode::CallSite {
-                                name,
-                                method: crate::bytecode::Method::parse(&program.members[name]),
-                                auto: true,
-                                scope: false,
-                            };
-                            let (_, value) =
-                                members::call(ctx, site, &program.members[name], receiver, &[])?;
-                            stack.push(ctx, value)?;
-                        }
                     }
-                }
-                Op::Declaration(index) => {
-                    let value = declaration_value(program, ctx, &mut storage, index)?;
-                    stack.push(ctx, value)?;
-                }
-                Op::Global(index) => {
-                    let mut value = global_value(program, ctx, &mut storage, index)?;
-                    if let Kind::Offset(offset) = &value.0 {
-                        return Err(offset.value_error());
-                    }
-                    if let Kind::Builtin(builtin) = value.0 {
-                        value = builtin.read(ctx)?;
-                    }
-                    stack.push(ctx, value)?;
-                }
-                Op::GlobalReceiver(index, auto) => {
-                    let mut value = global_value(program, ctx, &mut storage, index)?;
-                    if auto {
-                        if let (Kind::Builtin(current), Kind::Builtin(original)) =
-                            (&value.0, &program.globals[index].1.0)
-                        {
-                            if current == original {
-                                value = current.read(ctx)?;
+                    let current = frames.data.len() - 1;
+                    if frames.data[current].function.is_none() {
+                        ctx.charge(1)?;
+                        let iteration =
+                            &mut storage.iterations.data[frames.data[current].iteration_base];
+                        let returned = if iteration.waiting() {
+                            Some(stack.data.pop().unwrap())
+                        } else {
+                            None
+                        };
+                        match iteration.advance(ctx, returned)? {
+                            Progress::Yield(args, count) => {
+                                let block = frames.data[current].block.unwrap();
+                                enter_block(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    block,
+                                    &args[..count],
+                                    stack.data.len(),
+                                )?;
+                            }
+                            Progress::Done(mut value) => {
+                                let mutation = iteration.take_mutation();
+                                if frames.data[current].mutating {
+                                    let address = storage.addresses.data.pop().unwrap();
+                                    if let Some(mutation) = mutation {
+                                        let guard = address_guard(
+                                            program,
+                                            ctx,
+                                            &frames,
+                                            &mut storage,
+                                            &address,
+                                        )?;
+                                        value = address.apply(
+                                            ctx,
+                                            address::Bindings {
+                                                guard,
+                                                locals: &mut storage.locals.data,
+                                                namespaces: &mut storage.namespaces.data,
+                                            },
+                                            &mut storage.addresses.data,
+                                            |ctx, receiver| mutation.apply(ctx, receiver, value),
+                                        )?;
+                                    }
+                                }
+                                unwind(&mut frames, &mut storage, &mut stack, current);
+                                stack.push(ctx, value)?;
                             }
                         }
+                        continue;
                     }
-                    stack.push(ctx, value)?;
-                }
-                Op::StoreGlobal(index) => {
-                    storage.locals.data[index] = stack.data.last().cloned();
-                }
-                Op::ResolveGlobalCall(index) => {
-                    let value = global_value(program, ctx, &mut storage, index)?;
-                    let mut arguments = Arguments::empty();
-                    arguments.target = Some(value_invocation(&value));
-                    frame.arguments.push(ctx, arguments)?;
-                }
-                Op::AddressGlobal(index) => {
-                    let mut value = global_value(program, ctx, &mut storage, index)?;
-                    let mut root = Some(index);
-                    if let (Kind::Builtin(current), Kind::Builtin(original)) =
-                        (&value.0, &program.globals[index].1.0)
-                    {
-                        if current == original && current.auto() {
-                            value = current.read(ctx)?;
-                            root = None;
-                        }
-                    }
-                    storage.addresses.push(ctx, Address::new(root, value))?;
-                }
-                Op::NonCallable => {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "attempted to call non-callable value",
-                    ));
-                }
-                Op::Bind(param, next) => {
-                    if let Some(value) = frame.binding.data[0].value(ctx, param)? {
-                        let param = &program.functions[frame.function.unwrap()].params[param];
-                        let slot = frame.local_base + param.slot;
-                        let ty = param.ty;
-                        let value = if let Some(ty) = ty {
-                            normalize_type(program, ctx, &frames, &mut storage, current, ty, value)?
-                        } else {
-                            value
-                        };
-                        storage.locals.data[slot] = Some(value);
-                        frames.data[current].ip = next;
-                    }
-                }
-                Op::Normalize(ty) => {
-                    let value = stack.data.pop().unwrap();
-                    let value =
-                        normalize_type(program, ctx, &frames, &mut storage, current, ty, value)?;
-                    stack.push(ctx, value)?;
-                }
-                Op::BindEnd => frame.binding = Buffer::empty(),
-                Op::Declare(slot) => {
-                    storage.locals.data[slot].get_or_insert_with(Value::nil);
-                }
-                Op::Bypass(slot) => storage.bypasses.push(ctx, slot)?,
-                Op::BypassEnd(n) => {
-                    storage
-                        .bypasses
-                        .data
-                        .truncate(storage.bypasses.data.len() - n);
-                }
-                Op::Shadow(slot) => {
-                    storage.locals.data[frame.local_base + slot] = Some(Value::nil())
-                }
-                Op::BlockArg(index, autosplat) => {
-                    let args = &frame.block_args.data;
-                    let args = if autosplat && args.len() == 1 {
-                        args[0].as_array().unwrap_or(args)
-                    } else {
-                        args.as_slice()
+                    let op = {
+                        let frame = &mut frames.data[current];
+                        let op = program.functions[frame.function.unwrap()].code[frame.ip];
+                        frame.ip += 1;
+                        op
                     };
-                    stack.push(ctx, args.get(index).cloned().unwrap_or_default())?;
-                }
-                Op::Attach(function) => {
-                    frame.arguments.data.last_mut().unwrap().block = Some(Block {
-                        function,
-                        parent: current,
-                    });
-                }
-                Op::BlockGiven(arguments, block) => {
-                    if arguments || block {
-                        return Err(Error::new(
-                            ErrorKind::Argument,
-                            if arguments {
-                                "block_given? takes no arguments"
+                    ctx.charge(1)?;
+                    let mut slot = |slot, skip| {
+                        resolve_slot(program, ctx, &frames, &storage, current, slot, skip)
+                    };
+                    let op = match op {
+                        Op::Load(n) => Op::Load(slot(n, false)?),
+                        Op::Bypass(n) => Op::Bypass(slot(n, false)?),
+                        Op::LoadOptional(n, name) => Op::LoadOptional(slot(n, false)?, name),
+                        Op::ReceiverBound(n, next) => Op::ReceiverBound(slot(n, false)?, next),
+                        Op::Declare(n) => Op::Declare(slot(n, false)?),
+                        Op::Store(n) => Op::Store(slot(n, false)?),
+                        Op::AddStore(n) => Op::AddStore(slot(n, false)?),
+                        Op::AddressLocal(n) => Op::AddressLocal(slot(n, false)?),
+                        Op::AddressBound(n, next) => Op::AddressBound(slot(n, false)?, next),
+                        Op::ResolveCall(n, name) => {
+                            Op::ResolveCall(if n == usize::MAX { n } else { slot(n, true)? }, name)
+                        }
+                        op => op,
+                    };
+                    let frame = &mut frames.data[current];
+                    let namespace = frame
+                        .function
+                        .and_then(|index| program.functions[index].namespace);
+                    let self_value = frame.receiver.clone();
+                    let caller_instance = matches!(&self_value, Some(Value(Kind::Instance(_))));
+                    match op {
+                        Op::TryBegin(spec) => {
+                            handlers::begin(ctx, &frames, &mut storage, &stack, spec)?
+                        }
+                        Op::TryBody | Op::TryEnd => handlers::normal(
+                            program,
+                            ctx,
+                            &mut frames,
+                            &mut storage,
+                            &mut stack,
+                            matches!(op, Op::TryBody),
+                        )?,
+                        Op::EnsureEnd => {
+                            if let Some(event) = handlers::end_ensure(
+                                program,
+                                &mut frames,
+                                &mut storage,
+                                &mut stack,
+                                ctx,
+                            )? {
+                                return Ok(event);
+                            }
+                        }
+                        Op::Retry => {
+                            return Ok(Event::Control(handlers::retry(&storage)?));
+                        }
+                        Op::RaiseStart(named, target) => {
+                            let class = if let Some((name, slot)) = named {
+                                let local = if let Some(slot) = slot {
+                                    let slot = resolve_slot(
+                                        program, ctx, &frames, &storage, current, slot, false,
+                                    )?;
+                                    storage.locals.data[slot].is_some()
+                                } else {
+                                    false
+                                };
+                                let name = &program.members[name];
+                                let bound = local
+                                    || runtime_bound(
+                                        program, ctx, &frames, &storage, current, name,
+                                    )?
+                                    || handlers::class_constant_bound(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        current,
+                                        name,
+                                    )?;
+                                if bound {
+                                    None
+                                } else {
+                                    crate::ErrorClass::from_name(name)
+                                }
                             } else {
-                                "block_given? does not accept a block"
-                            },
-                        ));
-                    }
-                    stack.push(ctx, Value::boolean(frame.block.is_some()))?;
-                }
-                Op::CheckBlock => {
-                    if frame.block.is_none() {
-                        return Err(Error::local_jump("no block given"));
-                    }
-                }
-                Op::Yield(n) => {
-                    let block = frame.block.unwrap();
-                    let base = stack.data.len() - n;
-                    enter_block(
-                        program,
-                        ctx,
-                        &mut frames,
-                        &mut storage,
-                        block,
-                        &stack.data[base..],
-                        base,
-                    )?;
-                    stack.data.truncate(base);
-                }
-                Op::Store(n) => {
-                    let value = stack.data.last().unwrap();
-                    address::refresh(ctx, n, value, &mut storage.addresses.data, &[])?;
-                    storage.locals.data[n] = Some(value.clone());
-                }
-                Op::Pop => {
-                    stack.data.pop().unwrap();
-                }
-                Op::Dup => {
-                    let v = stack.data.last().unwrap().clone();
-                    stack.push(ctx, v)?;
-                }
-                Op::Unary(op) => {
-                    let value = stack.data.pop().unwrap();
-                    let result = ops::unary(ctx, op, value)?;
-                    stack.push(ctx, result)?;
-                }
-                Op::Binary(op) => {
-                    let b = stack.data.pop().unwrap();
-                    let a = stack.data.pop().unwrap();
-                    if let Some(resolved) =
-                        operators::resolve(program, ctx, &a, op, (namespace, caller_instance))?
-                    {
-                        let args = Arguments::from_values(ctx, &[b])?;
-                        enter_arguments(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            resolved.call,
-                            args,
-                            stack.data.len(),
-                        )?;
-                        if resolved.negate {
-                            frames.data.last_mut().unwrap().return_to = ReturnTo::Negate;
+                                None
+                            };
+                            let frame = &mut frames.data[current];
+                            let mut args = Arguments::empty();
+                            args.target =
+                                Some(crate::arguments::Target::Raise(class, Value::nil()));
+                            frame.arguments.push(ctx, args)?;
+                            if class.is_some() {
+                                frame.ip = target;
+                            }
                         }
-                        continue;
-                    }
-                    let value = ops::binary(ctx, op, a, b)?;
-                    stack.push(ctx, value)?;
-                }
-                Op::AddStore(n) => {
-                    let b = stack.data.pop().unwrap();
-                    let a = stack.data.pop().unwrap();
-                    if let Some(resolved) =
-                        operators::resolve(program, ctx, &a, "+", (namespace, caller_instance))?
-                    {
-                        let args = Arguments::from_values(ctx, &[b])?;
-                        enter_arguments(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            resolved.call,
-                            args,
-                            stack.data.len(),
-                        )?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Local(n);
-                        continue;
-                    }
-                    storage.locals.data[n] = None;
-                    let value = ops::binary(ctx, "+", a, b)?;
-                    address::refresh(ctx, n, &value, &mut storage.addresses.data, &[])?;
-                    storage.locals.data[n] = Some(value.clone());
-                    stack.push(ctx, value)?;
-                }
-                Op::Shovel(site) => {
-                    let value = stack.data.pop().unwrap();
-                    let address = storage.addresses.data.pop().unwrap();
-                    if matches!(address.value.0, Kind::Instance(_)) {
-                        let resolved = operators::resolve(
-                            program,
-                            ctx,
-                            &address.value,
-                            "<<",
-                            (namespace, caller_instance),
-                        )?
-                        .ok_or_else(|| {
-                            Error::new(ErrorKind::Type, "unsupported append operands")
-                        })?;
-                        let args = Arguments::from_values(ctx, &[value])?;
-                        enter_arguments(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            resolved.call,
-                            args,
-                            stack.data.len(),
-                        )?;
-                        continue;
-                    }
-                    if !matches!(address.value.0, Kind::Array(_)) {
-                        return Err(Error::new(ErrorKind::Type, "unsupported append operands"));
-                    }
-                    let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
-                    let result = address.apply(
-                        ctx,
-                        address::Bindings {
-                            guard,
-                            locals: &mut storage.locals.data,
-                            namespaces: &mut storage.namespaces.data,
-                        },
-                        &mut storage.addresses.data,
-                        |ctx, receiver| members::call(ctx, site, "push", receiver, &[value]),
-                    )?;
-                    stack.push(ctx, result)?;
-                }
-                Op::Array(n) => {
-                    let base = stack.data.len() - n;
-                    let mut values = Buffer::with_capacity(ctx, n)?;
-                    for value in stack.data.drain(base..) {
-                        ctx.charge(1)?;
-                        values.data.push(value);
-                    }
-                    let value = Value::from_array(ctx, values)?;
-                    stack.push(ctx, value)?;
-                }
-                Op::Hash(n) => {
-                    let base = stack.data.len() - n * 2;
-                    let mut values = Hash::empty();
-                    values.buffer.ensure(ctx, n)?;
-                    let mut iter = stack.data.drain(base..);
-                    while let Some(key) = iter.next() {
-                        let value = iter.next().unwrap();
-                        values.insert(ctx, key, value)?;
-                    }
-                    drop(iter);
-                    let value = Value::from_hash(ctx, values)?;
-                    stack.push(ctx, value)?;
-                }
-                Op::Range(start, end, exclusive) => {
-                    let end = if end {
-                        Some(stack.data.pop().unwrap().require_int()?)
-                    } else {
-                        None
-                    };
-                    let start = if start {
-                        Some(stack.data.pop().unwrap().require_int()?)
-                    } else {
-                        None
-                    };
-                    let value = Value(Kind::Range(Range::new(ctx, start, end, exclusive)?));
-                    stack.push(ctx, value)?;
-                }
-                Op::Index(n) => {
-                    let base = stack.data.len() - n - 1;
-                    let root = &stack.data[base];
-                    let args = &stack.data[base + 1..];
-                    if matches!(root.0, Kind::Instance(_)) {
-                        let call = operators::index(
-                            program,
-                            ctx,
-                            root,
-                            "[]",
-                            (namespace, caller_instance),
-                        )?;
-                        let args = Arguments::from_values(ctx, args)?;
-                        enter_arguments(program, ctx, &mut frames, &mut storage, call, args, base)?;
-                        stack.data.truncate(base);
-                        continue;
-                    }
-                    let value = if n == 1 {
-                        ops::index(ctx, root, &args[0])?
-                    } else {
-                        crate::sequence::slice(ctx, root, args, false)?
-                    };
-                    stack.data.truncate(base);
-                    stack.push(ctx, value)?;
-                }
-                Op::AddressLocal(n) => {
-                    let value = storage.locals.data[n].clone().unwrap_or_default();
-                    storage.addresses.push(ctx, Address::new(Some(n), value))?;
-                }
-                Op::AddressBound(slot, next) => {
-                    if let Some(value) = &storage.locals.data[slot] {
-                        storage
-                            .addresses
-                            .push(ctx, Address::new(Some(slot), value.clone()))?;
-                        frame.ip = next;
-                    }
-                }
-                Op::AddressValue => {
-                    let value = stack.data.pop().unwrap();
-                    storage.addresses.push(ctx, Address::new(None, value))?;
-                }
-                Op::AddressIndex(n) => {
-                    let base = stack.data.len() - n;
-                    let root = &storage.addresses.data.last().unwrap().value;
-                    if matches!(root.0, Kind::Instance(_)) {
-                        let call = operators::index(
-                            program,
-                            ctx,
-                            root,
-                            "[]",
-                            (namespace, caller_instance),
-                        )?;
-                        let args = Arguments::from_values(ctx, &stack.data[base..])?;
-                        storage.addresses.data.pop();
-                        enter_arguments(program, ctx, &mut frames, &mut storage, call, args, base)?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
-                        stack.data.truncate(base);
-                        continue;
-                    }
-                    storage
-                        .addresses
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .index(ctx, &stack.data[base..])?;
-                    stack.data.truncate(base);
-                }
-                Op::AddressNamespaceField(site) => {
-                    let name = &program.members[site.name];
-                    let address = storage.addresses.data.pop().unwrap();
-                    if let Kind::Namespace(receiver) = &address.value.0 {
-                        namespaces::member(
-                            program,
-                            ctx,
-                            &mut storage,
-                            &address.value,
-                            site,
-                            name,
-                            namespaces::Access {
-                                caller: namespace,
-                                implicit: false,
-                                instance: caller_instance,
-                            },
-                        )?;
-                        let address = namespaces::address(
-                            program,
-                            ctx,
-                            &mut storage,
-                            receiver.definition.index,
-                            name,
-                            false,
-                        )?;
-                        storage.addresses.push(ctx, address)?;
-                    } else {
-                        let (_, value) = members::call(ctx, site, name, address.value, &[])?;
-                        storage.addresses.push(ctx, Address::new(None, value))?;
-                    }
-                }
-                Op::AddressMember(site) => {
-                    let name = &program.members[site.name];
-                    if matches!(
-                        storage.addresses.data.last().unwrap().value.0,
-                        Kind::Namespace(_) | Kind::Instance(_)
-                    ) {
-                        let receiver = storage.addresses.data.last().unwrap().value.clone();
-                        match namespaces::member(
-                            program,
-                            ctx,
-                            &mut storage,
-                            &receiver,
-                            site,
-                            name,
-                            namespaces::Access {
-                                caller: namespace,
-                                implicit: false,
-                                instance: caller_instance,
-                            },
-                        )? {
-                            namespaces::Member::Function(function) => {
-                                storage.addresses.data.pop();
+                        Op::RaiseValue => {
+                            let args = frame.arguments.data.last_mut().unwrap();
+                            args.target = Some(crate::arguments::Target::Raise(
+                                None,
+                                stack.data.pop().unwrap(),
+                            ));
+                        }
+                        Op::Raise(count) => {
+                            if count == 0 {
+                                if let Some(error) = handlers::current_error(&storage) {
+                                    return Ok(Event::Error(error));
+                                }
+                                return Err(Error::new(ErrorKind::Runtime, ""));
+                            }
+                            let message = stack.data.pop().unwrap();
+                            if count == 1 {
+                                return Err(handlers::raise(ctx, None, message, false)?);
+                            }
+                            let target = frame.arguments.data.pop().unwrap().target.unwrap();
+                            let crate::arguments::Target::Raise(class, value) = target else {
+                                unreachable!()
+                            };
+                            let class = class.or_else(|| handlers::class(&value));
+                            return Err(handlers::raise(ctx, class, message, true)?);
+                        }
+                        Op::UnboundClass(name) => {
+                            return Err(Error::new(
+                                ErrorKind::Name,
+                                format!("class {} is not bound", program.members[name]),
+                            ));
+                        }
+                        Op::BindIvar(name, local) => {
+                            let Some(Value(Kind::Instance(instance))) = frame.receiver.as_ref()
+                            else {
+                                return Err(Error::new(
+                                    ErrorKind::Name,
+                                    "no instance context for ivar parameter",
+                                ));
+                            };
+                            let instance = instance.clone();
+                            let slot = frame.local_base + local;
+                            let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                            let value = normalize_ivar(
+                                program,
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                &instance,
+                                &program.members[name],
+                                value,
+                            )?;
+                            set_ivar(ctx, &mut storage, &instance, &program.members[name], &value)?;
+                            storage.locals.data[slot] = Some(value);
+                        }
+                        Op::InitNamespace(module) => {
+                            let state = namespaces::state(program, ctx, &mut storage, module)?;
+                            if !storage.namespaces.data[state].initialized {
+                                let body = program.namespaces[module].body.unwrap();
                                 enter_arguments(
                                     program,
                                     ctx,
                                     &mut frames,
                                     &mut storage,
-                                    function,
+                                    body,
                                     Arguments::empty(),
                                     stack.data.len(),
                                 )?;
-                                frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                                frames.data.last_mut().unwrap().parent = Some(current);
+                            }
+                        }
+                        Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
+                            let name = &program.members[name];
+                            let address = matches!(op, Op::AmbientAddress(..));
+                            if !address
+                                || !name
+                                    .chars()
+                                    .next()
+                                    .is_some_and(crate::syntax::unicode::upper)
+                            {
+                                if let Some(slot) = namespaces::ambient_slot(
+                                    program, ctx, &frames, &storage, current, name,
+                                )? {
+                                    let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                                    if address {
+                                        storage
+                                            .addresses
+                                            .push(ctx, Address::new(Some(slot), value))?;
+                                    } else {
+                                        stack.push(ctx, value)?;
+                                    }
+                                    frames.data[current].ip = next;
+                                }
+                            }
+                        }
+                        Op::NamespaceSelf(module) => {
+                            let value = if let Some(value) = &self_value {
+                                value.clone()
+                            } else {
+                                namespaces::value(program, ctx, &mut storage, module)?
+                            };
+                            stack.push(ctx, value)?;
+                        }
+                        Op::NamespaceConstant(name, next) => {
+                            if let Some(value) = namespaces::field(
+                                program,
+                                ctx,
+                                &mut storage,
+                                namespace.unwrap(),
+                                &program.members[name],
+                            )? {
+                                stack.push(ctx, value)?;
+                                frames.data[current].ip = next;
+                            }
+                        }
+                        Op::NamespaceVariable(name, optional) => {
+                            let raw = &program.members[name];
+                            if raw.starts_with('@') && !raw.starts_with("@@") {
+                                let Some(Value(Kind::Instance(instance))) = &self_value else {
+                                    return Err(Error::new(
+                                        ErrorKind::Name,
+                                        "no instance context for ivar",
+                                    ));
+                                };
+                                let value = crate::objects::field(ctx, instance, &raw[1..])?
+                                    .unwrap_or_default();
+                                stack.push(ctx, value)?;
                                 continue;
                             }
-                            namespaces::Member::Value(value) => {
-                                storage.addresses.data.pop();
-                                storage.addresses.push(ctx, Address::new(None, value))?;
+                            let (module, name) =
+                                namespaces::variable_name(namespace, &program.members[name])?;
+                            let value =
+                                namespaces::field(program, ctx, &mut storage, module, name)?;
+                            let value = if optional {
+                                value.unwrap_or_default()
+                            } else {
+                                value.ok_or_else(|| {
+                                    Error::new(ErrorKind::Name, "undefined class variable")
+                                })?
+                            };
+                            stack.push(ctx, value)?;
+                        }
+                        Op::NamespaceAddress(name, optional) => {
+                            let raw = &program.members[name];
+                            if raw.starts_with('@') && !raw.starts_with("@@") {
+                                let Some(Value(Kind::Instance(instance))) = &self_value else {
+                                    return Err(Error::new(
+                                        ErrorKind::Name,
+                                        "no instance context for ivar",
+                                    ));
+                                };
+                                let address = crate::objects::address(ctx, instance, &raw[1..])?;
+                                storage.addresses.push(ctx, address)?;
                                 continue;
                             }
-                            namespaces::Member::Helper(module, helper) => {
-                                let value = namespaces::call_helper(
+                            let (module, name) =
+                                namespaces::variable_name(namespace, &program.members[name])?;
+                            let address = if !optional
+                                && namespaces::field(program, ctx, &mut storage, module, name)?
+                                    .is_none()
+                            {
+                                if let Some(slot) = namespaces::ambient_slot(
+                                    program, ctx, &frames, &storage, current, name,
+                                )? {
+                                    Address::new(
+                                        Some(slot),
+                                        storage.locals.data[slot].as_ref().unwrap().clone(),
+                                    )
+                                } else if let Some(&index) = program.declaration_names.get(name) {
+                                    Address::new(
+                                        None,
+                                        declaration_value(program, ctx, &mut storage, index)?,
+                                    )
+                                } else {
+                                    return Err(Error::new(
+                                        ErrorKind::Name,
+                                        "undefined class constant",
+                                    ));
+                                }
+                            } else {
+                                namespaces::address(
                                     program,
                                     ctx,
                                     &mut storage,
                                     module,
-                                    helper,
-                                    &Arguments::empty(),
+                                    name,
+                                    optional,
+                                )?
+                            };
+                            storage.addresses.push(ctx, address)?;
+                        }
+                        Op::NamespaceStore(name) => {
+                            let raw = &program.members[name];
+                            if raw.starts_with('@') && !raw.starts_with("@@") {
+                                let Some(Value(Kind::Instance(instance))) = &self_value else {
+                                    return Err(Error::new(
+                                        ErrorKind::Name,
+                                        "no instance context for ivar",
+                                    ));
+                                };
+                                let value = normalize_ivar(
+                                    program,
+                                    ctx,
+                                    &frames,
+                                    &mut storage,
+                                    instance,
+                                    &raw[1..],
+                                    stack.data.last().unwrap().clone(),
                                 )?;
-                                stack.push(ctx, value)?;
+                                set_ivar(ctx, &mut storage, instance, &raw[1..], &value)?;
+                                *stack.data.last_mut().unwrap() = value;
                                 continue;
                             }
-                            namespaces::Member::Missing => namespaces::fallback(name)?,
-                        }
-                    }
-                    let address = storage.addresses.data.last_mut().unwrap();
-                    let key = ctx.bytes(name.as_bytes())?;
-                    let data = if let Kind::Hash(hash) = &address.value.0 {
-                        hash.find(ctx, name.as_bytes())?.is_some()
-                    } else {
-                        false
-                    };
-                    if data {
-                        address.index(ctx, &[key])?;
-                    } else {
-                        let address = storage.addresses.data.pop().unwrap();
-                        if !crate::bytecode::mutating_member(name) {
-                            let (_, value) = members::call(ctx, site, name, address.value, &[])?;
-                            storage.addresses.push(ctx, Address::new(None, value))?;
-                            continue;
-                        }
-                        let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
-                        let value = address.apply(
-                            ctx,
-                            address::Bindings {
-                                guard,
-                                locals: &mut storage.locals.data,
-                                namespaces: &mut storage.namespaces.data,
-                            },
-                            &mut storage.addresses.data,
-                            |ctx, receiver| members::call(ctx, site, name, receiver, &[]),
-                        )?;
-                        storage.addresses.push(ctx, Address::new(None, value))?;
-                    }
-                }
-                Op::AddressMemberTarget(site, read) => {
-                    let address = storage.addresses.data.last_mut().unwrap();
-                    let name = &program.members[site.name];
-                    let key = ctx.bytes(name.as_bytes())?;
-                    address.member_target = true;
-                    address.selectors.push(ctx, key)?;
-                    if read {
-                        if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
-                            let receiver = address.value.clone();
-                            match namespaces::member(
+                            let (module, name) =
+                                namespaces::variable_name(namespace, &program.members[name])?;
+                            namespaces::set(
                                 program,
                                 ctx,
                                 &mut storage,
-                                &receiver,
-                                site,
+                                module,
                                 name,
-                                namespaces::Access {
-                                    caller: namespace,
-                                    implicit: false,
-                                    instance: caller_instance,
-                                },
+                                stack.data.last().unwrap().clone(),
+                            )?;
+                        }
+                        Op::StoreDeclaration(index) => {
+                            let mut found = false;
+                            for (key, value) in &mut storage.declarations.data {
+                                ctx.charge(1)?;
+                                if *key == index {
+                                    *value = stack.data.last().unwrap().clone();
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if !found {
+                                storage
+                                    .declarations
+                                    .push(ctx, (index, stack.data.last().unwrap().clone()))?;
+                            }
+                        }
+                        Op::Integer(n, radix) => {
+                            let text = program.constants[n].as_bytes().unwrap();
+                            let value = crate::integer::parse(ctx, text, radix)?;
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Regex(n, flags) => {
+                            let v = crate::regex::value::Regex::compile(
+                                ctx,
+                                program.constants[n].clone(),
+                                flags,
+                            )?;
+                            stack.push(ctx, v)?;
+                        }
+                        Op::Constant(n) => {
+                            let v = ctx.import(&program.constants[n])?;
+                            stack.push(ctx, v)?;
+                        }
+                        Op::TypeShadowed(guard, next) => {
+                            for name in &program.type_guards[guard] {
+                                if runtime_bound(program, ctx, &frames, &storage, current, name)? {
+                                    frames.data[current].ip = next;
+                                    break;
+                                }
+                            }
+                        }
+                        Op::Nil => stack.push(ctx, Value::nil())?,
+                        Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
+                        Op::TextPart => {
+                            let value = stack.data.pop().unwrap();
+                            if let Some(call) = operators::string(program, ctx, &value)? {
+                                enter_arguments(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    call,
+                                    Arguments::empty(),
+                                    stack.data.len(),
+                                )?;
+                                frames.data.last_mut().unwrap().return_to = ReturnTo::Text(value);
+                                continue;
+                            }
+                            crate::text::append(
+                                ctx,
+                                &value,
+                                storage.texts.data.last_mut().unwrap(),
+                            )?;
+                        }
+                        Op::TextEnd(symbol) => {
+                            let text = storage.texts.data.pop().unwrap();
+                            let mut value = Value::from_bytes(ctx, text)?;
+                            if symbol {
+                                let Kind::Bytes(bytes) = value.0 else {
+                                    unreachable!()
+                                };
+                                value = Value(Kind::Symbol(bytes));
+                            }
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Load(n) => {
+                            let mut v = storage.locals.data[n].clone().unwrap_or_default();
+                            if let Kind::Offset(offset) = &v.0 {
+                                return Err(offset.value_error());
+                            }
+                            if let Kind::Builtin(builtin) = v.0 {
+                                v = builtin.read(ctx)?;
+                            }
+                            stack.push(ctx, v)?;
+                        }
+                        Op::LoadOptional(slot, name) => {
+                            if let Some(value) = &storage.locals.data[slot] {
+                                if let Kind::Offset(offset) = &value.0 {
+                                    return Err(offset.value_error());
+                                }
+                                let value = if let Kind::Builtin(builtin) = value.0 {
+                                    builtin.read(ctx)?
+                                } else {
+                                    value.clone()
+                                };
+                                stack.push(ctx, value)?;
+                            } else if let Some(value) = namespaces::constant(
+                                program,
+                                ctx,
+                                &mut storage,
+                                namespace,
+                                &program.members[name],
+                            )? {
+                                stack.push(ctx, value)?;
+                            } else if let Some(slot) = namespaces::ambient_slot(
+                                program,
+                                ctx,
+                                &frames,
+                                &storage,
+                                current,
+                                &program.members[name],
+                            )? {
+                                stack.push(
+                                    ctx,
+                                    storage.locals.data[slot].as_ref().unwrap().clone(),
+                                )?;
+                            } else if let Some(&index) =
+                                program.declaration_names.get(&program.members[name])
+                            {
+                                let value = declaration_value(program, ctx, &mut storage, index)?;
+                                stack.push(ctx, value)?;
+                            } else if let Some(&function) =
+                                program.names.get(&program.members[name])
+                            {
+                                enter_auto(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    function,
+                                    stack.data.len(),
+                                )?;
+                            } else if let Some(host) = program
+                                .hosts
+                                .iter()
+                                .position(|h| h == &program.members[name])
+                            {
+                                return Err(callable_value_error(&program.hosts[host], "method"));
+                            } else if let Some(global) =
+                                global_index(program, &program.members[name])
+                            {
+                                let mut value = global_value(program, ctx, &mut storage, global)?;
+                                if let Kind::Offset(offset) = &value.0 {
+                                    return Err(offset.value_error());
+                                }
+                                if let Kind::Builtin(builtin) = value.0 {
+                                    value = builtin.read(ctx)?;
+                                }
+                                stack.push(ctx, value)?;
+                            } else {
+                                return Err(Error::new(
+                                    ErrorKind::Name,
+                                    format!("undefined variable {}", program.members[name]),
+                                ));
+                            }
+                        }
+                        Op::ReceiverBound(slot, next) => {
+                            if let Some(value) = &storage.locals.data[slot] {
+                                stack.push(ctx, value.clone())?;
+                                frame.ip = next;
+                            }
+                        }
+                        Op::Unbound(name) => {
+                            match namespaces::implicit(
+                                program,
+                                ctx,
+                                &mut storage,
+                                namespace,
+                                self_value.as_ref(),
+                                &program.members[name],
                             )? {
                                 namespaces::Member::Function(function) => {
                                     enter_arguments(
@@ -1142,12 +748,8 @@ pub(crate) fn execute(
                                         Arguments::empty(),
                                         stack.data.len(),
                                     )?;
-                                    continue;
                                 }
-                                namespaces::Member::Value(value) => {
-                                    stack.push(ctx, value)?;
-                                    continue;
-                                }
+                                namespaces::Member::Value(value) => stack.push(ctx, value)?,
                                 namespaces::Member::Helper(module, helper) => {
                                     let value = namespaces::call_helper(
                                         program,
@@ -1158,609 +760,469 @@ pub(crate) fn execute(
                                         &Arguments::empty(),
                                     )?;
                                     stack.push(ctx, value)?;
-                                    continue;
                                 }
-                                namespaces::Member::Missing => namespaces::fallback(name)?,
+                                namespaces::Member::Missing => {
+                                    namespaces::fallback(&program.members[name])?;
+                                    let module = namespace.ok_or_else(|| {
+                                        Error::new(ErrorKind::Name, "undefined variable")
+                                    })?;
+                                    let receiver = if let Some(value) = &self_value {
+                                        value.clone()
+                                    } else {
+                                        namespaces::value(program, ctx, &mut storage, module)?
+                                    };
+                                    let site = crate::bytecode::CallSite {
+                                        name,
+                                        method: crate::bytecode::Method::parse(
+                                            &program.members[name],
+                                        ),
+                                        auto: true,
+                                        scope: false,
+                                    };
+                                    let (_, value) = members::call(
+                                        ctx,
+                                        site,
+                                        &program.members[name],
+                                        receiver,
+                                        &[],
+                                    )?;
+                                    stack.push(ctx, value)?;
+                                }
                             }
                         }
-                        let address = storage.addresses.data.last().unwrap();
-                        let (_, value) =
-                            members::call(ctx, site, name, address.value.clone(), &[])?;
-                        stack.push(ctx, value)?;
-                    }
-                }
-                Op::AddressTarget(n, read) => {
-                    let base = stack.data.len() - n;
-                    let address = storage.addresses.data.last_mut().unwrap();
-                    address.selectors.ensure(ctx, n)?;
-                    for value in stack.data.drain(base..) {
-                        ctx.charge(1)?;
-                        address.selectors.data.push(value);
-                    }
-                    if read {
-                        if matches!(address.value.0, Kind::Instance(_)) {
-                            let call = operators::index(
-                                program,
-                                ctx,
-                                &address.value,
-                                "[]",
-                                (namespace, caller_instance),
-                            )?;
-                            let args = Arguments::from_values(ctx, &address.selectors.data)?;
-                            enter_arguments(
-                                program,
-                                ctx,
-                                &mut frames,
-                                &mut storage,
-                                call,
-                                args,
-                                stack.data.len(),
-                            )?;
-                            continue;
+                        Op::Declaration(index) => {
+                            let value = declaration_value(program, ctx, &mut storage, index)?;
+                            stack.push(ctx, value)?;
                         }
-                        let value = address.read_target(ctx)?;
-                        stack.push(ctx, value)?;
-                    }
-                }
-                Op::AddressStore => {
-                    let address = storage.addresses.data.pop().unwrap();
-                    let value = stack.data.pop().unwrap();
-                    if address.member_target
-                        && matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_))
-                    {
-                        let receiver = &address.value;
-                        let key = address.selectors.data[0].require_bytes()?;
-                        let name = std::str::from_utf8(key).unwrap();
-                        if let Some(function) = namespaces::setter(
-                            program,
-                            ctx,
-                            receiver,
-                            name,
-                            namespace,
-                            caller_instance,
-                        )? {
-                            let args = Arguments::from_values(ctx, std::slice::from_ref(&value))?;
-                            enter_arguments(
+                        Op::Global(index) => {
+                            let mut value = global_value(program, ctx, &mut storage, index)?;
+                            if let Kind::Offset(offset) = &value.0 {
+                                return Err(offset.value_error());
+                            }
+                            if let Kind::Builtin(builtin) = value.0 {
+                                value = builtin.read(ctx)?;
+                            }
+                            stack.push(ctx, value)?;
+                        }
+                        Op::GlobalReceiver(index, auto) => {
+                            let mut value = global_value(program, ctx, &mut storage, index)?;
+                            if auto {
+                                if let (Kind::Builtin(current), Kind::Builtin(original)) =
+                                    (&value.0, &program.globals[index].1.0)
+                                {
+                                    if current == original {
+                                        value = current.read(ctx)?;
+                                    }
+                                }
+                            }
+                            stack.push(ctx, value)?;
+                        }
+                        Op::StoreGlobal(index) => {
+                            storage.locals.data[index] = stack.data.last().cloned();
+                        }
+                        Op::ResolveGlobalCall(index) => {
+                            let value = global_value(program, ctx, &mut storage, index)?;
+                            let mut arguments = Arguments::empty();
+                            arguments.target = Some(value_invocation(&value));
+                            frame.arguments.push(ctx, arguments)?;
+                        }
+                        Op::AddressGlobal(index) => {
+                            let mut value = global_value(program, ctx, &mut storage, index)?;
+                            let mut root = Some(index);
+                            if let (Kind::Builtin(current), Kind::Builtin(original)) =
+                                (&value.0, &program.globals[index].1.0)
+                            {
+                                if current == original && current.auto() {
+                                    value = current.read(ctx)?;
+                                    root = None;
+                                }
+                            }
+                            storage.addresses.push(ctx, Address::new(root, value))?;
+                        }
+                        Op::NonCallable => {
+                            return Err(Error::new(
+                                ErrorKind::Type,
+                                "attempted to call non-callable value",
+                            ));
+                        }
+                        Op::Bind(param, next) => {
+                            if let Some(value) = frame.binding.data[0].value(ctx, param)? {
+                                let param =
+                                    &program.functions[frame.function.unwrap()].params[param];
+                                let slot = frame.local_base + param.slot;
+                                let ty = param.ty;
+                                let value = if let Some(ty) = ty {
+                                    normalize_type(
+                                        program,
+                                        ctx,
+                                        &frames,
+                                        &mut storage,
+                                        current,
+                                        ty,
+                                        value,
+                                    )?
+                                } else {
+                                    value
+                                };
+                                storage.locals.data[slot] = Some(value);
+                                frames.data[current].ip = next;
+                            }
+                        }
+                        Op::Normalize(ty) => {
+                            let value = stack.data.pop().unwrap();
+                            let value = normalize_type(
                                 program,
                                 ctx,
-                                &mut frames,
+                                &frames,
                                 &mut storage,
+                                current,
+                                ty,
+                                value,
+                            )?;
+                            stack.push(ctx, value)?;
+                        }
+                        Op::BindEnd => frame.binding = Buffer::empty(),
+                        Op::Declare(slot) => {
+                            storage.locals.data[slot].get_or_insert_with(Value::nil);
+                        }
+                        Op::Bypass(slot) => storage.bypasses.push(ctx, slot)?,
+                        Op::BypassEnd(n) => {
+                            storage
+                                .bypasses
+                                .data
+                                .truncate(storage.bypasses.data.len() - n);
+                        }
+                        Op::Shadow(slot) => {
+                            storage.locals.data[frame.local_base + slot] = Some(Value::nil())
+                        }
+                        Op::BlockArg(index, autosplat) => {
+                            let args = &frame.block_args.data;
+                            let args = if autosplat && args.len() == 1 {
+                                args[0].as_array().unwrap_or(args)
+                            } else {
+                                args.as_slice()
+                            };
+                            stack.push(ctx, args.get(index).cloned().unwrap_or_default())?;
+                        }
+                        Op::Attach(function) => {
+                            frame.arguments.data.last_mut().unwrap().block = Some(Block {
                                 function,
-                                args,
-                                stack.data.len(),
-                            )?;
-                            frames.data.last_mut().unwrap().return_to = ReturnTo::Assigned(value);
-                            continue;
+                                parent: current,
+                            });
                         }
-                        match &receiver.0 {
-                            Kind::Instance(instance) => {
-                                set_ivar(ctx, &mut storage, instance, name, &value)?
+                        Op::BlockGiven(arguments, block) => {
+                            if arguments || block {
+                                return Err(Error::new(
+                                    ErrorKind::Argument,
+                                    if arguments {
+                                        "block_given? takes no arguments"
+                                    } else {
+                                        "block_given? does not accept a block"
+                                    },
+                                ));
                             }
-                            Kind::Namespace(namespace) => namespaces::set(
+                            stack.push(ctx, Value::boolean(frame.block.is_some()))?;
+                        }
+                        Op::CheckBlock => {
+                            if frame.block.is_none() {
+                                return Err(Error::local_jump("no block given"));
+                            }
+                        }
+                        Op::Yield(n) => {
+                            let block = frame.block.unwrap();
+                            let base = stack.data.len() - n;
+                            enter_block(
                                 program,
                                 ctx,
+                                &mut frames,
                                 &mut storage,
-                                namespace.definition.index,
-                                name,
-                                value.clone(),
-                            )?,
-                            _ => unreachable!(),
+                                block,
+                                &stack.data[base..],
+                                base,
+                            )?;
+                            stack.data.truncate(base);
                         }
-                        stack.push(ctx, value)?;
-                        continue;
-                    }
-                    if matches!(address.value.0, Kind::Instance(_)) {
-                        let call = operators::index(
-                            program,
-                            ctx,
-                            &address.value,
-                            "[]=",
-                            (namespace, caller_instance),
-                        )?;
-                        let mut args = Arguments::empty();
-                        args.positional =
-                            Buffer::with_capacity(ctx, address.selectors.data.len() + 1)?;
-                        args.positional.extend(ctx, &address.selectors.data)?;
-                        args.positional.push(ctx, value.clone())?;
-                        enter_arguments(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            call,
-                            args,
-                            stack.data.len(),
-                        )?;
-                        frames.data.last_mut().unwrap().return_to = ReturnTo::Assigned(value);
-                        continue;
-                    }
-                    let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
-                    let value = address.assign(
-                        ctx,
-                        address::Bindings {
-                            guard,
-                            locals: &mut storage.locals.data,
-                            namespaces: &mut storage.namespaces.data,
-                        },
-                        &mut storage.addresses.data,
-                        value,
-                    )?;
-                    stack.push(ctx, value)?;
-                }
-                Op::AddressDrop => {
-                    storage.addresses.data.pop().unwrap();
-                }
-                Op::Mutate(site, n) => {
-                    let base = stack.data.len() - n;
-                    let address = storage.addresses.data.pop().unwrap();
-                    if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
-                        let receiver = &address.value;
-                        let name = &program.members[site.name];
-                        match namespaces::member(
-                            program,
-                            ctx,
-                            &mut storage,
-                            receiver,
-                            site,
-                            name,
-                            namespaces::Access {
-                                caller: namespace,
-                                implicit: false,
-                                instance: caller_instance,
-                            },
-                        )? {
-                            namespaces::Member::Function(function) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                        Op::Store(n) => {
+                            let value = stack.data.last().unwrap();
+                            address::refresh(ctx, n, value, &mut storage.addresses.data, &[])?;
+                            storage.locals.data[n] = Some(value.clone());
+                        }
+                        Op::Pop => {
+                            stack.data.pop().unwrap();
+                        }
+                        Op::Dup => {
+                            let v = stack.data.last().unwrap().clone();
+                            stack.push(ctx, v)?;
+                        }
+                        Op::Unary(op) => {
+                            let value = stack.data.pop().unwrap();
+                            let result = ops::unary(ctx, op, value)?;
+                            stack.push(ctx, result)?;
+                        }
+                        Op::Binary(op) => {
+                            let b = stack.data.pop().unwrap();
+                            let a = stack.data.pop().unwrap();
+                            if let Some(resolved) = operators::resolve(
+                                program,
+                                ctx,
+                                &a,
+                                op,
+                                (namespace, caller_instance),
+                            )? {
+                                let args = Arguments::from_values(ctx, &[b])?;
                                 enter_arguments(
                                     program,
                                     ctx,
                                     &mut frames,
                                     &mut storage,
-                                    function,
+                                    resolved.call,
+                                    args,
+                                    stack.data.len(),
+                                )?;
+                                if resolved.negate {
+                                    frames.data.last_mut().unwrap().return_to = ReturnTo::Negate;
+                                }
+                                continue;
+                            }
+                            let value = ops::binary(ctx, op, a, b)?;
+                            stack.push(ctx, value)?;
+                        }
+                        Op::AddStore(n) => {
+                            let b = stack.data.pop().unwrap();
+                            let a = stack.data.pop().unwrap();
+                            if let Some(resolved) = operators::resolve(
+                                program,
+                                ctx,
+                                &a,
+                                "+",
+                                (namespace, caller_instance),
+                            )? {
+                                let args = Arguments::from_values(ctx, &[b])?;
+                                enter_arguments(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    resolved.call,
+                                    args,
+                                    stack.data.len(),
+                                )?;
+                                frames.data.last_mut().unwrap().return_to = ReturnTo::Local(n);
+                                continue;
+                            }
+                            storage.locals.data[n] = None;
+                            let value = ops::binary(ctx, "+", a, b)?;
+                            address::refresh(ctx, n, &value, &mut storage.addresses.data, &[])?;
+                            storage.locals.data[n] = Some(value.clone());
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Shovel(site) => {
+                            let value = stack.data.pop().unwrap();
+                            let address = storage.addresses.data.pop().unwrap();
+                            if matches!(address.value.0, Kind::Instance(_)) {
+                                let resolved = operators::resolve(
+                                    program,
+                                    ctx,
+                                    &address.value,
+                                    "<<",
+                                    (namespace, caller_instance),
+                                )?
+                                .ok_or_else(|| {
+                                    Error::new(ErrorKind::Type, "unsupported append operands")
+                                })?;
+                                let args = Arguments::from_values(ctx, &[value])?;
+                                enter_arguments(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    resolved.call,
+                                    args,
+                                    stack.data.len(),
+                                )?;
+                                continue;
+                            }
+                            if !matches!(address.value.0, Kind::Array(_)) {
+                                return Err(Error::new(
+                                    ErrorKind::Type,
+                                    "unsupported append operands",
+                                ));
+                            }
+                            let guard =
+                                address_guard(program, ctx, &frames, &mut storage, &address)?;
+                            let result = address.apply(
+                                ctx,
+                                address::Bindings {
+                                    guard,
+                                    locals: &mut storage.locals.data,
+                                    namespaces: &mut storage.namespaces.data,
+                                },
+                                &mut storage.addresses.data,
+                                |ctx, receiver| {
+                                    members::call(ctx, site, "push", receiver, &[value])
+                                },
+                            )?;
+                            stack.push(ctx, result)?;
+                        }
+                        Op::Array(n) => {
+                            let base = stack.data.len() - n;
+                            let mut values = Buffer::with_capacity(ctx, n)?;
+                            for value in stack.data.drain(base..) {
+                                ctx.charge(1)?;
+                                values.data.push(value);
+                            }
+                            let value = Value::from_array(ctx, values)?;
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Hash(n) => {
+                            let base = stack.data.len() - n * 2;
+                            let mut values = Hash::empty();
+                            values.buffer.ensure(ctx, n)?;
+                            let mut iter = stack.data.drain(base..);
+                            while let Some(key) = iter.next() {
+                                let value = iter.next().unwrap();
+                                values.insert(ctx, key, value)?;
+                            }
+                            drop(iter);
+                            let value = Value::from_hash(ctx, values)?;
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Range(start, end, exclusive) => {
+                            let end = if end {
+                                Some(stack.data.pop().unwrap().require_int()?)
+                            } else {
+                                None
+                            };
+                            let start = if start {
+                                Some(stack.data.pop().unwrap().require_int()?)
+                            } else {
+                                None
+                            };
+                            let value = Value(Kind::Range(Range::new(ctx, start, end, exclusive)?));
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Index(n) => {
+                            let base = stack.data.len() - n - 1;
+                            let root = &stack.data[base];
+                            let args = &stack.data[base + 1..];
+                            if matches!(root.0, Kind::Instance(_)) {
+                                let call = operators::index(
+                                    program,
+                                    ctx,
+                                    root,
+                                    "[]",
+                                    (namespace, caller_instance),
+                                )?;
+                                let args = Arguments::from_values(ctx, args)?;
+                                enter_arguments(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    call,
                                     args,
                                     base,
                                 )?;
                                 stack.data.truncate(base);
                                 continue;
                             }
-                            namespaces::Member::Value(value) => {
-                                let value = members::field_call(
+                            let value = if n == 1 {
+                                ops::index(ctx, root, &args[0])?
+                            } else {
+                                crate::sequence::slice(ctx, root, args, false)?
+                            };
+                            stack.data.truncate(base);
+                            stack.push(ctx, value)?;
+                        }
+                        Op::AddressLocal(n) => {
+                            let value = storage.locals.data[n].clone().unwrap_or_default();
+                            storage.addresses.push(ctx, Address::new(Some(n), value))?;
+                        }
+                        Op::AddressBound(slot, next) => {
+                            if let Some(value) = &storage.locals.data[slot] {
+                                storage
+                                    .addresses
+                                    .push(ctx, Address::new(Some(slot), value.clone()))?;
+                                frame.ip = next;
+                            }
+                        }
+                        Op::AddressValue => {
+                            let value = stack.data.pop().unwrap();
+                            storage.addresses.push(ctx, Address::new(None, value))?;
+                        }
+                        Op::AddressIndex(n) => {
+                            let base = stack.data.len() - n;
+                            let root = &storage.addresses.data.last().unwrap().value;
+                            if matches!(root.0, Kind::Instance(_)) {
+                                let call = operators::index(
+                                    program,
                                     ctx,
-                                    site,
-                                    value,
-                                    &stack.data[base..],
-                                    &[],
-                                    false,
+                                    root,
+                                    "[]",
+                                    (namespace, caller_instance),
                                 )?;
+                                let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                                storage.addresses.data.pop();
+                                enter_arguments(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    call,
+                                    args,
+                                    base,
+                                )?;
+                                frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
                                 stack.data.truncate(base);
-                                stack.push(ctx, value)?;
                                 continue;
                             }
-                            namespaces::Member::Helper(module, helper) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base..])?;
-                                let value = namespaces::call_helper(
+                            storage
+                                .addresses
+                                .data
+                                .last_mut()
+                                .unwrap()
+                                .index(ctx, &stack.data[base..])?;
+                            stack.data.truncate(base);
+                        }
+                        Op::AddressNamespaceField(site) => {
+                            let name = &program.members[site.name];
+                            let address = storage.addresses.data.pop().unwrap();
+                            if let Kind::Namespace(receiver) = &address.value.0 {
+                                namespaces::member(
                                     program,
                                     ctx,
                                     &mut storage,
-                                    module,
-                                    helper,
-                                    &args,
+                                    &address.value,
+                                    site,
+                                    name,
+                                    namespaces::Access {
+                                        caller: namespace,
+                                        implicit: false,
+                                        instance: caller_instance,
+                                    },
                                 )?;
-                                stack.data.truncate(base);
-                                stack.push(ctx, value)?;
-                                continue;
-                            }
-                            namespaces::Member::Missing => namespaces::fallback(name)?,
-                        }
-                    }
-                    let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
-                    let value = address.apply(
-                        ctx,
-                        address::Bindings {
-                            guard,
-                            locals: &mut storage.locals.data,
-                            namespaces: &mut storage.namespaces.data,
-                        },
-                        &mut storage.addresses.data,
-                        |ctx, receiver| {
-                            members::call(
-                                ctx,
-                                site,
-                                &program.members[site.name],
-                                receiver,
-                                &stack.data[base..],
-                            )
-                        },
-                    )?;
-                    stack.data.truncate(base);
-                    stack.push(ctx, value)?;
-                }
-                Op::Extract(selection) => {
-                    let source = stack.data.last().unwrap();
-                    let values = source
-                        .as_array()
-                        .unwrap_or_else(|| std::slice::from_ref(source));
-                    let value = match selection {
-                        Selection::At(n) => values.get(n).cloned().unwrap_or_default(),
-                        Selection::Rest { leading, trailing } => {
-                            let start = leading.min(values.len());
-                            let end = values.len().saturating_sub(trailing).max(start);
-                            ctx.array(&values[start..end])?
-                        }
-                        Selection::Tail {
-                            leading,
-                            trailing,
-                            index,
-                        } => {
-                            let pos = values
-                                .len()
-                                .saturating_sub(trailing)
-                                .max(leading)
-                                .saturating_add(index);
-                            values.get(pos).cloned().unwrap_or_default()
-                        }
-                    };
-                    stack.push(ctx, value)?;
-                }
-                Op::CaseCompare(target, splat) => {
-                    let candidate = stack.data.pop().unwrap();
-                    let target = if target {
-                        Some(stack.data.pop().unwrap())
-                    } else {
-                        None
-                    };
-                    let matched = ops::case_matches(ctx, target.as_ref(), &candidate, splat)?;
-                    stack.push(ctx, Value::boolean(matched))?;
-                }
-                Op::LoopStart {
-                    iterable,
-                    expression,
-                    next,
-                    end,
-                } => {
-                    let source = if iterable {
-                        stack.data.pop().unwrap()
-                    } else {
-                        Value::nil()
-                    };
-                    let length = if iterable {
-                        match &source.0 {
-                            Kind::Array(h) => h.buffer.data.len() as i128,
-                            Kind::Hash(h) => h.buffer.data.len() as i128,
-                            Kind::Range(r) => r.length()?,
-                            _ => {
-                                return Err(Error::new(
-                                    ErrorKind::Type,
-                                    "cannot iterate this value",
-                                ));
-                            }
-                        }
-                    } else {
-                        0
-                    };
-                    frame.loops.push(
-                        ctx,
-                        LoopState {
-                            base: stack.data.len(),
-                            address_base: storage.addresses.data.len(),
-                            bypass_base: storage.bypasses.data.len(),
-                            argument_base: frame.arguments.data.len(),
-                            text_base: storage.texts.data.len(),
-                            next,
-                            end,
-                            expression,
-                            source,
-                            position: 0,
-                            length,
-                            last: Value::nil(),
-                            broken: false,
-                            break_value: None,
-                        },
-                    )?;
-                }
-                Op::LoopTest => {
-                    if !stack.data.pop().unwrap().truthy() {
-                        frame.ip = frame.loops.data.last().unwrap().end;
-                    }
-                }
-                Op::IterNext => {
-                    let state = frame.loops.data.last_mut().unwrap();
-                    if let Some(value) = state.next_value(ctx)? {
-                        stack.push(ctx, value)?;
-                    } else {
-                        frame.ip = state.end;
-                    }
-                }
-                Op::LoopBody => {
-                    let state = frame.loops.data.last_mut().unwrap();
-                    state.last = stack.data.pop().unwrap();
-                    stack.data.truncate(state.base);
-                    storage.addresses.data.truncate(state.address_base);
-                    storage.bypasses.data.truncate(state.bypass_base);
-                    storage.texts.data.truncate(state.text_base);
-                    frame.arguments.data.truncate(state.argument_base);
-                    frame.ip = state.next;
-                }
-                Op::LoopEnd => {
-                    let state = frame.loops.data.pop().unwrap();
-                    stack.data.truncate(state.base);
-                    storage.addresses.data.truncate(state.address_base);
-                    storage.bypasses.data.truncate(state.bypass_base);
-                    storage.texts.data.truncate(state.text_base);
-                    frame.arguments.data.truncate(state.argument_base);
-                    stack.push(ctx, state.result())?;
-                }
-                Op::Break(has_value) => {
-                    if frame.loops.data.is_empty() {
-                        if frame.parent.is_none() {
-                            return Err(Error::new(ErrorKind::Argument, "break outside loop"));
-                        }
-                        let target = (0..current)
-                            .rev()
-                            .find(|&index| {
-                                !frames.data[index].loops.data.is_empty()
-                                    || frames.data[index].parent.is_none()
-                            })
-                            .ok_or_else(|| Error::new(ErrorKind::Argument, "break outside loop"))?;
-                        let value = if has_value {
-                            stack.data.pop().unwrap()
-                        } else {
-                            Value::nil()
-                        };
-                        if !frames.data[target].loops.data.is_empty() {
-                            unwind(&mut frames, &mut storage, &mut stack, target + 1);
-                            let frame = &mut frames.data[target];
-                            let state = frame.loops.data.last_mut().unwrap();
-                            state.broken = true;
-                            state.break_value = has_value.then_some(value);
-                            stack.data.truncate(state.base);
-                            storage.addresses.data.truncate(state.address_base);
-                            storage.bypasses.data.truncate(state.bypass_base);
-                            storage.texts.data.truncate(state.text_base);
-                            frame.arguments.data.truncate(state.argument_base);
-                            frame.ip = state.end;
-                            continue;
-                        }
-                        if frames.data[target].block.is_none() {
-                            return Err(Error::new(ErrorKind::Argument, "break outside loop"));
-                        }
-                        let value =
-                            normalize_return(program, ctx, &frames, &mut storage, target, value)?;
-                        unwind(&mut frames, &mut storage, &mut stack, target);
-                        if frames.data.is_empty() {
-                            ctx.checkpoint()?;
-                            return Ok(value);
-                        }
-                        stack.push(ctx, value)?;
-                        continue;
-                    }
-                    let state = frame
-                        .loops
-                        .data
-                        .last_mut()
-                        .ok_or_else(|| Error::new(ErrorKind::Argument, "break outside loop"))?;
-                    state.broken = true;
-                    state.break_value = if has_value {
-                        Some(stack.data.pop().unwrap())
-                    } else {
-                        None
-                    };
-                    stack.data.truncate(state.base);
-                    storage.addresses.data.truncate(state.address_base);
-                    storage.bypasses.data.truncate(state.bypass_base);
-                    storage.texts.data.truncate(state.text_base);
-                    frame.arguments.data.truncate(state.argument_base);
-                    frame.ip = state.end;
-                }
-                Op::Next(has_value) => {
-                    if frame.loops.data.is_empty() && frame.parent.is_some() {
-                        let value = if has_value {
-                            stack.data.pop().unwrap()
-                        } else {
-                            Value::nil()
-                        };
-                        unwind(&mut frames, &mut storage, &mut stack, current);
-                        stack.push(ctx, value)?;
-                        continue;
-                    }
-                    let state = frame
-                        .loops
-                        .data
-                        .last()
-                        .ok_or_else(|| Error::new(ErrorKind::Argument, "next outside loop"))?;
-                    stack.data.truncate(state.base);
-                    storage.addresses.data.truncate(state.address_base);
-                    storage.bypasses.data.truncate(state.bypass_base);
-                    storage.texts.data.truncate(state.text_base);
-                    frame.arguments.data.truncate(state.argument_base);
-                    frame.ip = state.next;
-                }
-                Op::Call(function, n) => {
-                    let base = stack.data.len() - n;
-                    enter(
-                        program,
-                        ctx,
-                        &mut frames,
-                        &mut storage,
-                        function,
-                        &stack.data[base..],
-                        base,
-                    )?;
-                    stack.data.truncate(base);
-                }
-                Op::AutoCall(function) => {
-                    enter_auto(
-                        program,
-                        ctx,
-                        &mut frames,
-                        &mut storage,
-                        function,
-                        stack.data.len(),
-                    )?;
-                }
-                Op::HostValue(host) => {
-                    return Err(callable_value_error(&program.hosts[host], "method"));
-                }
-                Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
-                Op::ResolveCall(slot, name) => {
-                    let name_index = name;
-                    let name = &program.members[name];
-                    let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
-                        value_invocation(value)
-                    } else if program.declaration_names.contains_key(name) {
-                        crate::arguments::Target::Plain(Invocation::NonCallable)
-                    } else if let Some(&function) = program.names.get(name) {
-                        crate::arguments::Target::Plain(Invocation::Function(function))
-                    } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
-                        crate::arguments::Target::Plain(Invocation::Host(host))
-                    } else if let Some(global) = global_index(program, name) {
-                        value_invocation(&global_value(program, ctx, &mut storage, global)?)
-                    } else {
-                        match namespaces::implicit(
-                            program,
-                            ctx,
-                            &mut storage,
-                            namespace,
-                            self_value.as_ref(),
-                            name,
-                        )? {
-                            namespaces::Member::Function(function) => {
-                                crate::arguments::Target::Method(function)
-                            }
-                            namespaces::Member::Value(value) => value_invocation(&value),
-                            namespaces::Member::Helper(receiver, helper) => {
-                                crate::arguments::Target::Helper(receiver, helper)
-                            }
-                            namespaces::Member::Missing => {
-                                namespaces::fallback(name)?;
-                                let module = namespace.ok_or_else(|| {
-                                    Error::new(ErrorKind::Name, "undefined variable")
-                                })?;
-                                crate::arguments::Target::Plain(Invocation::ImplicitMember(
-                                    module, name_index,
-                                ))
-                            }
-                        }
-                    };
-                    let mut arguments = Arguments::empty();
-                    arguments.target = Some(target);
-                    frame.arguments.push(ctx, arguments)?;
-                }
-                Op::Argument(op) => {
-                    let value = stack.data.pop().unwrap();
-                    let name = if let ArgumentOp::Keyword(name) = op {
-                        &program.members[name]
-                    } else {
-                        ""
-                    };
-                    frame
-                        .arguments
-                        .data
-                        .last_mut()
-                        .unwrap()
-                        .push(ctx, op, name, value)?;
-                }
-                Op::Invoke(target) => {
-                    let mut args = frame.arguments.data.pop().unwrap();
-                    let target = if matches!(target, Invocation::Resolved) {
-                        args.target.take().unwrap()
-                    } else {
-                        crate::arguments::Target::Plain(target)
-                    };
-                    let target = match target {
-                        crate::arguments::Target::Plain(target) => target,
-                        crate::arguments::Target::Method(call) => {
-                            enter_arguments(
-                                program,
-                                ctx,
-                                &mut frames,
-                                &mut storage,
-                                call,
-                                args,
-                                stack.data.len(),
-                            )?;
-                            continue;
-                        }
-                        crate::arguments::Target::Helper(receiver, helper) => {
-                            let value = namespaces::call_helper(
-                                program,
-                                ctx,
-                                &mut storage,
-                                receiver,
-                                helper,
-                                &args,
-                            )?;
-                            stack.push(ctx, value)?;
-                            continue;
-                        }
-                        crate::arguments::Target::Offset(offset) => {
-                            let value = offset.call(
-                                ctx,
-                                &args.positional.data,
-                                &args.keywords.buffer.data,
-                                args.block.is_some(),
-                            )?;
-                            stack.push(ctx, value)?;
-                            continue;
-                        }
-                    };
-                    let target = if let Invocation::ImplicitMember(module, name) = target {
-                        let receiver = if let Some(value) = &self_value {
-                            value.clone()
-                        } else {
-                            namespaces::value(program, ctx, &mut storage, module)?
-                        };
-                        stack.push(ctx, receiver)?;
-                        Invocation::Member(
-                            crate::bytecode::CallSite {
-                                name,
-                                method: crate::bytecode::Method::parse(&program.members[name]),
-                                auto: false,
-                                scope: false,
-                            },
-                            false,
-                        )
-                    } else {
-                        target
-                    };
-                    match target {
-                        Invocation::Builtin(builtin) => {
-                            let value = builtin.call(
-                                ctx,
-                                &args.positional.data,
-                                &args.keywords.buffer.data,
-                                args.block.is_some(),
-                            )?;
-                            stack.push(ctx, value)?;
-                        }
-                        Invocation::Function(function) => {
-                            enter_arguments(
-                                program,
-                                ctx,
-                                &mut frames,
-                                &mut storage,
-                                function,
-                                args,
-                                stack.data.len(),
-                            )?;
-                        }
-                        Invocation::Host(host) => {
-                            ctx.checkpoint()?;
-                            let result =
-                                hosts[host](ctx, &args.positional.data, &args.keywords.buffer.data);
-                            ctx.checkpoint()?;
-                            let value = ctx.import(&result?)?;
-                            stack.push(ctx, value)?;
-                        }
-                        Invocation::Member(site, mutating) => {
-                            let name = &program.members[site.name];
-                            let receiver = if mutating {
-                                &storage.addresses.data.last().unwrap().value
+                                let address = namespaces::address(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    receiver.definition.index,
+                                    name,
+                                    false,
+                                )?;
+                                storage.addresses.push(ctx, address)?;
                             } else {
-                                stack.data.last().unwrap()
-                            };
-                            if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
-                                let receiver = receiver.clone();
+                                let (_, value) =
+                                    members::call(ctx, site, name, address.value, &[])?;
+                                storage.addresses.push(ctx, Address::new(None, value))?;
+                            }
+                        }
+                        Op::AddressMember(site) => {
+                            let name = &program.members[site.name];
+                            if matches!(
+                                storage.addresses.data.last().unwrap().value.0,
+                                Kind::Namespace(_) | Kind::Instance(_)
+                            ) {
+                                let receiver = storage.addresses.data.last().unwrap().value.clone();
                                 match namespaces::member(
                                     program,
                                     ctx,
@@ -1775,37 +1237,23 @@ pub(crate) fn execute(
                                     },
                                 )? {
                                     namespaces::Member::Function(function) => {
-                                        if mutating {
-                                            storage.addresses.data.pop();
-                                        } else {
-                                            stack.data.pop();
-                                        }
+                                        storage.addresses.data.pop();
                                         enter_arguments(
                                             program,
                                             ctx,
                                             &mut frames,
                                             &mut storage,
                                             function,
-                                            args,
+                                            Arguments::empty(),
                                             stack.data.len(),
                                         )?;
+                                        frames.data.last_mut().unwrap().return_to =
+                                            ReturnTo::Address;
                                         continue;
                                     }
                                     namespaces::Member::Value(value) => {
-                                        let value = members::field_call(
-                                            ctx,
-                                            site,
-                                            value,
-                                            &args.positional.data,
-                                            &args.keywords.buffer.data,
-                                            args.block.is_some(),
-                                        )?;
-                                        if mutating {
-                                            storage.addresses.data.pop();
-                                        } else {
-                                            stack.data.pop();
-                                        }
-                                        stack.push(ctx, value)?;
+                                        storage.addresses.data.pop();
+                                        storage.addresses.push(ctx, Address::new(None, value))?;
                                         continue;
                                     }
                                     namespaces::Member::Helper(module, helper) => {
@@ -1815,69 +1263,34 @@ pub(crate) fn execute(
                                             &mut storage,
                                             module,
                                             helper,
-                                            &args,
+                                            &Arguments::empty(),
                                         )?;
-                                        if mutating {
-                                            storage.addresses.data.pop();
-                                        } else {
-                                            stack.data.pop();
-                                        }
                                         stack.push(ctx, value)?;
                                         continue;
                                     }
                                     namespaces::Member::Missing => namespaces::fallback(name)?,
                                 }
                             }
-                            let receiver = if mutating {
-                                &storage.addresses.data.last().unwrap().value
+                            let address = storage.addresses.data.last_mut().unwrap();
+                            let key = ctx.bytes(name.as_bytes())?;
+                            let data = if let Kind::Hash(hash) = &address.value.0 {
+                                hash.find(ctx, name.as_bytes())?.is_some()
                             } else {
-                                stack.data.last().unwrap()
+                                false
                             };
-                            if mutating {
-                                storage.addresses.data.last().unwrap().check_writable()?;
-                            }
-                            let arity = args
-                                .block
-                                .map(|block| program.functions[block.function].block_arity);
-                            let driver = if members::exported(ctx, site, name, receiver)? {
-                                None
+                            if data {
+                                address.index(ctx, &[key])?;
                             } else {
-                                iteration::start(
-                                    ctx,
-                                    name,
-                                    receiver,
-                                    &args.positional.data,
-                                    &args.keywords.buffer.data,
-                                    arity,
-                                )?
-                            };
-                            if let Some(iteration) = driver {
-                                if !mutating {
-                                    stack.data.pop();
-                                }
-                                ctx.charge(1)?;
-                                if frames.data.len() >= ctx.options.limits.recursion {
-                                    return ctx
-                                        .guard(ErrorKind::Recursion, "recursion limit exceeded");
-                                }
-                                let mut frame =
-                                    new_frame(ctx, program, &mut storage, None, stack.data.len())?;
-                                frame.mutating = mutating;
-                                if mutating {
-                                    // The native frame owns this address, including on nonlocal exits.
-                                    frame.address_base -= 1;
-                                }
-                                frame.block = args.block;
-                                frame.arguments.push(ctx, args)?;
-                                storage.iterations.push(ctx, iteration)?;
-                                frames.push(ctx, frame)?;
-                                continue;
-                            }
-                            let value = if mutating {
                                 let address = storage.addresses.data.pop().unwrap();
+                                if !crate::bytecode::mutating_member(name) {
+                                    let (_, value) =
+                                        members::call(ctx, site, name, address.value, &[])?;
+                                    storage.addresses.push(ctx, Address::new(None, value))?;
+                                    continue;
+                                }
                                 let guard =
                                     address_guard(program, ctx, &frames, &mut storage, &address)?;
-                                address.apply(
+                                let value = address.apply(
                                     ctx,
                                     address::Bindings {
                                         guard,
@@ -1885,196 +1298,956 @@ pub(crate) fn execute(
                                         namespaces: &mut storage.namespaces.data,
                                     },
                                     &mut storage.addresses.data,
-                                    |ctx, receiver| {
-                                        members::call_keywords(ctx, site, name, receiver, &args)
-                                    },
-                                )?
-                            } else {
-                                let receiver = stack.data.pop().unwrap();
-                                members::call_keywords(ctx, site, name, receiver, &args)?.1
-                            };
-                            stack.push(ctx, value)?;
+                                    |ctx, receiver| members::call(ctx, site, name, receiver, &[]),
+                                )?;
+                                storage.addresses.push(ctx, Address::new(None, value))?;
+                            }
                         }
-                        Invocation::NonCallable => {
-                            return Err(Error::new(
-                                ErrorKind::Type,
-                                "attempted to call non-callable value",
-                            ));
+                        Op::AddressMemberTarget(site, read) => {
+                            let address = storage.addresses.data.last_mut().unwrap();
+                            let name = &program.members[site.name];
+                            let key = ctx.bytes(name.as_bytes())?;
+                            address.member_target = true;
+                            address.selectors.push(ctx, key)?;
+                            if read {
+                                if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_))
+                                {
+                                    let receiver = address.value.clone();
+                                    match namespaces::member(
+                                        program,
+                                        ctx,
+                                        &mut storage,
+                                        &receiver,
+                                        site,
+                                        name,
+                                        namespaces::Access {
+                                            caller: namespace,
+                                            implicit: false,
+                                            instance: caller_instance,
+                                        },
+                                    )? {
+                                        namespaces::Member::Function(function) => {
+                                            enter_arguments(
+                                                program,
+                                                ctx,
+                                                &mut frames,
+                                                &mut storage,
+                                                function,
+                                                Arguments::empty(),
+                                                stack.data.len(),
+                                            )?;
+                                            continue;
+                                        }
+                                        namespaces::Member::Value(value) => {
+                                            stack.push(ctx, value)?;
+                                            continue;
+                                        }
+                                        namespaces::Member::Helper(module, helper) => {
+                                            let value = namespaces::call_helper(
+                                                program,
+                                                ctx,
+                                                &mut storage,
+                                                module,
+                                                helper,
+                                                &Arguments::empty(),
+                                            )?;
+                                            stack.push(ctx, value)?;
+                                            continue;
+                                        }
+                                        namespaces::Member::Missing => namespaces::fallback(name)?,
+                                    }
+                                }
+                                let address = storage.addresses.data.last().unwrap();
+                                let (_, value) =
+                                    members::call(ctx, site, name, address.value.clone(), &[])?;
+                                stack.push(ctx, value)?;
+                            }
                         }
-                        Invocation::Resolved | Invocation::ImplicitMember(..) => unreachable!(),
-                    }
-                }
-                Op::Host(host, n) => {
-                    let base = stack.data.len() - n;
-                    ctx.checkpoint()?;
-                    let result = hosts[host](ctx, &stack.data[base..], &[]);
-                    ctx.checkpoint()?;
-                    let result = result?;
-                    let value = ctx.import(&result)?;
-                    stack.data.truncate(base);
-                    stack.push(ctx, value)?;
-                }
-                Op::Method(site, n) => {
-                    let base = stack.data.len() - n - 1;
-                    let root = std::mem::take(&mut stack.data[base]);
-                    if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
-                        let receiver = &root;
-                        let name = &program.members[site.name];
-                        match namespaces::member(
-                            program,
-                            ctx,
-                            &mut storage,
-                            receiver,
-                            site,
-                            name,
-                            namespaces::Access {
-                                caller: namespace,
-                                implicit: false,
-                                instance: caller_instance,
-                            },
-                        )? {
-                            namespaces::Member::Function(function) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                        Op::AddressTarget(n, read) => {
+                            let base = stack.data.len() - n;
+                            let address = storage.addresses.data.last_mut().unwrap();
+                            address.selectors.ensure(ctx, n)?;
+                            for value in stack.data.drain(base..) {
+                                ctx.charge(1)?;
+                                address.selectors.data.push(value);
+                            }
+                            if read {
+                                if matches!(address.value.0, Kind::Instance(_)) {
+                                    let call = operators::index(
+                                        program,
+                                        ctx,
+                                        &address.value,
+                                        "[]",
+                                        (namespace, caller_instance),
+                                    )?;
+                                    let args =
+                                        Arguments::from_values(ctx, &address.selectors.data)?;
+                                    enter_arguments(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        call,
+                                        args,
+                                        stack.data.len(),
+                                    )?;
+                                    continue;
+                                }
+                                let value = address.read_target(ctx)?;
+                                stack.push(ctx, value)?;
+                            }
+                        }
+                        Op::AddressStore => {
+                            let address = storage.addresses.data.pop().unwrap();
+                            let value = stack.data.pop().unwrap();
+                            if address.member_target
+                                && matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_))
+                            {
+                                let receiver = &address.value;
+                                let key = address.selectors.data[0].require_bytes()?;
+                                let name = std::str::from_utf8(key).unwrap();
+                                if let Some(function) = namespaces::setter(
+                                    program,
+                                    ctx,
+                                    receiver,
+                                    name,
+                                    namespace,
+                                    caller_instance,
+                                )? {
+                                    let args =
+                                        Arguments::from_values(ctx, std::slice::from_ref(&value))?;
+                                    enter_arguments(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        function,
+                                        args,
+                                        stack.data.len(),
+                                    )?;
+                                    frames.data.last_mut().unwrap().return_to =
+                                        ReturnTo::Assigned(value);
+                                    continue;
+                                }
+                                match &receiver.0 {
+                                    Kind::Instance(instance) => {
+                                        set_ivar(ctx, &mut storage, instance, name, &value)?
+                                    }
+                                    Kind::Namespace(namespace) => namespaces::set(
+                                        program,
+                                        ctx,
+                                        &mut storage,
+                                        namespace.definition.index,
+                                        name,
+                                        value.clone(),
+                                    )?,
+                                    _ => unreachable!(),
+                                }
+                                stack.push(ctx, value)?;
+                                continue;
+                            }
+                            if matches!(address.value.0, Kind::Instance(_)) {
+                                let call = operators::index(
+                                    program,
+                                    ctx,
+                                    &address.value,
+                                    "[]=",
+                                    (namespace, caller_instance),
+                                )?;
+                                let mut args = Arguments::empty();
+                                args.positional =
+                                    Buffer::with_capacity(ctx, address.selectors.data.len() + 1)?;
+                                args.positional.extend(ctx, &address.selectors.data)?;
+                                args.positional.push(ctx, value.clone())?;
                                 enter_arguments(
                                     program,
                                     ctx,
                                     &mut frames,
                                     &mut storage,
-                                    function,
+                                    call,
                                     args,
-                                    base,
+                                    stack.data.len(),
                                 )?;
-                                stack.data.truncate(base);
+                                frames.data.last_mut().unwrap().return_to =
+                                    ReturnTo::Assigned(value);
                                 continue;
                             }
-                            namespaces::Member::Value(value) => {
-                                let value = members::field_call(
-                                    ctx,
-                                    site,
-                                    value,
-                                    &stack.data[base + 1..],
-                                    &[],
-                                    false,
-                                )?;
-                                stack.data.truncate(base);
-                                stack.push(ctx, value)?;
-                                continue;
-                            }
-                            namespaces::Member::Helper(module, helper) => {
-                                let args = Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                                let value = namespaces::call_helper(
+                            let guard =
+                                address_guard(program, ctx, &frames, &mut storage, &address)?;
+                            let value = address.assign(
+                                ctx,
+                                address::Bindings {
+                                    guard,
+                                    locals: &mut storage.locals.data,
+                                    namespaces: &mut storage.namespaces.data,
+                                },
+                                &mut storage.addresses.data,
+                                value,
+                            )?;
+                            stack.push(ctx, value)?;
+                        }
+                        Op::AddressDrop => {
+                            storage.addresses.data.pop().unwrap();
+                        }
+                        Op::Mutate(site, n) => {
+                            let base = stack.data.len() - n;
+                            let address = storage.addresses.data.pop().unwrap();
+                            if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
+                                let receiver = &address.value;
+                                let name = &program.members[site.name];
+                                match namespaces::member(
                                     program,
                                     ctx,
                                     &mut storage,
-                                    module,
-                                    helper,
-                                    &args,
-                                )?;
-                                stack.data.truncate(base);
-                                stack.push(ctx, value)?;
-                                continue;
+                                    receiver,
+                                    site,
+                                    name,
+                                    namespaces::Access {
+                                        caller: namespace,
+                                        implicit: false,
+                                        instance: caller_instance,
+                                    },
+                                )? {
+                                    namespaces::Member::Function(function) => {
+                                        let args =
+                                            Arguments::from_values(ctx, &stack.data[base..])?;
+                                        enter_arguments(
+                                            program,
+                                            ctx,
+                                            &mut frames,
+                                            &mut storage,
+                                            function,
+                                            args,
+                                            base,
+                                        )?;
+                                        stack.data.truncate(base);
+                                        continue;
+                                    }
+                                    namespaces::Member::Value(value) => {
+                                        let value = members::field_call(
+                                            ctx,
+                                            site,
+                                            value,
+                                            &stack.data[base..],
+                                            &[],
+                                            false,
+                                        )?;
+                                        stack.data.truncate(base);
+                                        stack.push(ctx, value)?;
+                                        continue;
+                                    }
+                                    namespaces::Member::Helper(module, helper) => {
+                                        let args =
+                                            Arguments::from_values(ctx, &stack.data[base..])?;
+                                        let value = namespaces::call_helper(
+                                            program,
+                                            ctx,
+                                            &mut storage,
+                                            module,
+                                            helper,
+                                            &args,
+                                        )?;
+                                        stack.data.truncate(base);
+                                        stack.push(ctx, value)?;
+                                        continue;
+                                    }
+                                    namespaces::Member::Missing => namespaces::fallback(name)?,
+                                }
                             }
-                            namespaces::Member::Missing => namespaces::fallback(name)?,
-                        }
-                    }
-                    let (_, value) = members::call(
-                        ctx,
-                        site,
-                        &program.members[site.name],
-                        root,
-                        &stack.data[base + 1..],
-                    )?;
-                    stack.data.truncate(base);
-                    stack.push(ctx, value)?;
-                }
-                Op::JumpNil(target) => {
-                    if matches!(stack.data.last().unwrap().0, Kind::Nil) {
-                        frame.ip = target;
-                    }
-                }
-                Op::AddressJumpNil(target, value_result) => {
-                    if matches!(storage.addresses.data.last().unwrap().value.0, Kind::Nil) {
-                        if value_result {
-                            storage.addresses.data.pop();
-                            stack.push(ctx, Value::nil())?;
-                        } else {
-                            *storage.addresses.data.last_mut().unwrap() =
-                                Address::new(None, Value::nil());
-                        }
-                        frame.ip = target;
-                    }
-                }
-                Op::Jump(target) => frame.ip = target,
-                Op::JumpFalse(target) => {
-                    if !stack.data.pop().unwrap().truthy() {
-                        frame.ip = target;
-                    }
-                }
-                Op::JumpTrue(target) => {
-                    if stack.data.pop().unwrap().truthy() {
-                        frame.ip = target;
-                    }
-                }
-                Op::Return | Op::Finish => {
-                    let value = stack.data.pop().unwrap();
-                    let target = if matches!(op, Op::Return)
-                        && frame.parent.is_some()
-                        && !program.functions[frame.function.unwrap()].initializer
-                    {
-                        frame
-                            .home
-                            .ok_or_else(|| Error::local_jump("unexpected return"))?
-                    } else {
-                        current
-                    };
-                    let value =
-                        normalize_return(program, ctx, &frames, &mut storage, target, value)?;
-                    let return_to = std::mem::take(&mut frames.data[target].return_to);
-                    let initialized = frames.data[target].function.and_then(|function| {
-                        program.functions[function]
-                            .initializer
-                            .then(|| program.functions[function].namespace.unwrap())
-                    });
-                    if let Some(module) = initialized {
-                        let state = namespaces::state(program, ctx, &mut storage, module)?;
-                        storage.namespaces.data[state].initialized = true;
-                    }
-                    unwind(&mut frames, &mut storage, &mut stack, target);
-                    if frames.data.is_empty() {
-                        if pending_entry.is_some() {
-                            continue;
-                        }
-                        ctx.checkpoint()?;
-                        return Ok(value);
-                    }
-                    if initialized.is_some() {
-                        continue;
-                    }
-                    match return_to {
-                        ReturnTo::Stack => stack.push(ctx, value)?,
-                        ReturnTo::Address => {
-                            storage.addresses.push(ctx, Address::new(None, value))?
-                        }
-                        ReturnTo::Assigned(assigned) => stack.push(ctx, assigned)?,
-                        ReturnTo::Negate => stack.push(ctx, Value::boolean(!value.truthy()))?,
-                        ReturnTo::Local(slot) => {
-                            address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
-                            storage.locals.data[slot] = Some(value.clone());
+                            let guard =
+                                address_guard(program, ctx, &frames, &mut storage, &address)?;
+                            let value = address.apply(
+                                ctx,
+                                address::Bindings {
+                                    guard,
+                                    locals: &mut storage.locals.data,
+                                    namespaces: &mut storage.namespaces.data,
+                                },
+                                &mut storage.addresses.data,
+                                |ctx, receiver| {
+                                    members::call(
+                                        ctx,
+                                        site,
+                                        &program.members[site.name],
+                                        receiver,
+                                        &stack.data[base..],
+                                    )
+                                },
+                            )?;
+                            stack.data.truncate(base);
                             stack.push(ctx, value)?;
                         }
-                        ReturnTo::Text(original) => {
-                            let rendered = if matches!(value.0, Kind::Bytes(_)) {
-                                value
-                            } else {
-                                original
+                        Op::Extract(selection) => {
+                            let source = stack.data.last().unwrap();
+                            let values = source
+                                .as_array()
+                                .unwrap_or_else(|| std::slice::from_ref(source));
+                            let value = match selection {
+                                Selection::At(n) => values.get(n).cloned().unwrap_or_default(),
+                                Selection::Rest { leading, trailing } => {
+                                    let start = leading.min(values.len());
+                                    let end = values.len().saturating_sub(trailing).max(start);
+                                    ctx.array(&values[start..end])?
+                                }
+                                Selection::Tail {
+                                    leading,
+                                    trailing,
+                                    index,
+                                } => {
+                                    let pos = values
+                                        .len()
+                                        .saturating_sub(trailing)
+                                        .max(leading)
+                                        .saturating_add(index);
+                                    values.get(pos).cloned().unwrap_or_default()
+                                }
                             };
-                            crate::text::append(
+                            stack.push(ctx, value)?;
+                        }
+                        Op::CaseCompare(target, splat) => {
+                            let candidate = stack.data.pop().unwrap();
+                            let target = if target {
+                                Some(stack.data.pop().unwrap())
+                            } else {
+                                None
+                            };
+                            let matched =
+                                ops::case_matches(ctx, target.as_ref(), &candidate, splat)?;
+                            stack.push(ctx, Value::boolean(matched))?;
+                        }
+                        Op::LoopStart {
+                            iterable,
+                            expression,
+                            next,
+                            end,
+                        } => {
+                            let source = if iterable {
+                                stack.data.pop().unwrap()
+                            } else {
+                                Value::nil()
+                            };
+                            let length = if iterable {
+                                match &source.0 {
+                                    Kind::Array(h) => h.buffer.data.len() as i128,
+                                    Kind::Hash(h) => h.buffer.data.len() as i128,
+                                    Kind::Range(r) => r.length()?,
+                                    _ => {
+                                        return Err(Error::new(
+                                            ErrorKind::Type,
+                                            "cannot iterate this value",
+                                        ));
+                                    }
+                                }
+                            } else {
+                                0
+                            };
+                            frame.loops.push(
                                 ctx,
-                                &rendered,
-                                storage.texts.data.last_mut().unwrap(),
+                                LoopState {
+                                    base: stack.data.len(),
+                                    address_base: storage.addresses.data.len(),
+                                    bypass_base: storage.bypasses.data.len(),
+                                    argument_base: frame.arguments.data.len(),
+                                    text_base: storage.texts.data.len(),
+                                    next,
+                                    end,
+                                    expression,
+                                    source,
+                                    position: 0,
+                                    length,
+                                    last: Value::nil(),
+                                    broken: false,
+                                    break_value: None,
+                                },
                             )?;
                         }
+                        Op::LoopTest => {
+                            if !stack.data.pop().unwrap().truthy() {
+                                frame.ip = frame.loops.data.last().unwrap().end;
+                            }
+                        }
+                        Op::IterNext => {
+                            let state = frame.loops.data.last_mut().unwrap();
+                            if let Some(value) = state.next_value(ctx)? {
+                                stack.push(ctx, value)?;
+                            } else {
+                                frame.ip = state.end;
+                            }
+                        }
+                        Op::LoopBody => {
+                            let state = frame.loops.data.last_mut().unwrap();
+                            state.last = stack.data.pop().unwrap();
+                            stack.data.truncate(state.base);
+                            storage.addresses.data.truncate(state.address_base);
+                            storage.bypasses.data.truncate(state.bypass_base);
+                            storage.texts.data.truncate(state.text_base);
+                            frame.arguments.data.truncate(state.argument_base);
+                            frame.ip = state.next;
+                        }
+                        Op::LoopEnd => {
+                            let state = frame.loops.data.pop().unwrap();
+                            stack.data.truncate(state.base);
+                            storage.addresses.data.truncate(state.address_base);
+                            storage.bypasses.data.truncate(state.bypass_base);
+                            storage.texts.data.truncate(state.text_base);
+                            frame.arguments.data.truncate(state.argument_base);
+                            stack.push(ctx, state.result())?;
+                        }
+                        Op::LoopGuard(breaking) => {
+                            handlers::guard_loop(program, ctx, &frames, breaking)?
+                        }
+                        Op::Break(has_value) | Op::Next(has_value) => {
+                            let value = has_value.then(|| stack.data.pop().unwrap());
+                            let control = handlers::loop_control(
+                                program,
+                                &frames,
+                                matches!(op, Op::Break(_)),
+                                value,
+                            )?;
+                            return Ok(Event::Control(control));
+                        }
+                        Op::Call(function, n) => {
+                            let base = stack.data.len() - n;
+                            enter(
+                                program,
+                                ctx,
+                                &mut frames,
+                                &mut storage,
+                                function,
+                                &stack.data[base..],
+                                base,
+                            )?;
+                            stack.data.truncate(base);
+                        }
+                        Op::AutoCall(function) => {
+                            enter_auto(
+                                program,
+                                ctx,
+                                &mut frames,
+                                &mut storage,
+                                function,
+                                stack.data.len(),
+                            )?;
+                        }
+                        Op::HostValue(host) => {
+                            return Err(callable_value_error(&program.hosts[host], "method"));
+                        }
+                        Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
+                        Op::ResolveCall(slot, name) => {
+                            let name_index = name;
+                            let name = &program.members[name];
+                            let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
+                                value_invocation(value)
+                            } else if program.declaration_names.contains_key(name) {
+                                crate::arguments::Target::Plain(Invocation::NonCallable)
+                            } else if let Some(&function) = program.names.get(name) {
+                                crate::arguments::Target::Plain(Invocation::Function(function))
+                            } else if let Some(host) = program.hosts.iter().position(|h| h == name)
+                            {
+                                crate::arguments::Target::Plain(Invocation::Host(host))
+                            } else if let Some(global) = global_index(program, name) {
+                                value_invocation(&global_value(program, ctx, &mut storage, global)?)
+                            } else {
+                                match namespaces::implicit(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    namespace,
+                                    self_value.as_ref(),
+                                    name,
+                                )? {
+                                    namespaces::Member::Function(function) => {
+                                        crate::arguments::Target::Method(function)
+                                    }
+                                    namespaces::Member::Value(value) => value_invocation(&value),
+                                    namespaces::Member::Helper(receiver, helper) => {
+                                        crate::arguments::Target::Helper(receiver, helper)
+                                    }
+                                    namespaces::Member::Missing => {
+                                        namespaces::fallback(name)?;
+                                        let module = namespace.ok_or_else(|| {
+                                            Error::new(ErrorKind::Name, "undefined variable")
+                                        })?;
+                                        crate::arguments::Target::Plain(Invocation::ImplicitMember(
+                                            module, name_index,
+                                        ))
+                                    }
+                                }
+                            };
+                            let mut arguments = Arguments::empty();
+                            arguments.target = Some(target);
+                            frame.arguments.push(ctx, arguments)?;
+                        }
+                        Op::Argument(op) => {
+                            let value = stack.data.pop().unwrap();
+                            let name = if let ArgumentOp::Keyword(name) = op {
+                                &program.members[name]
+                            } else {
+                                ""
+                            };
+                            frame
+                                .arguments
+                                .data
+                                .last_mut()
+                                .unwrap()
+                                .push(ctx, op, name, value)?;
+                        }
+                        Op::Invoke(target) => {
+                            let mut args = frame.arguments.data.pop().unwrap();
+                            let target = if matches!(target, Invocation::Resolved) {
+                                args.target.take().unwrap()
+                            } else {
+                                crate::arguments::Target::Plain(target)
+                            };
+                            let target = match target {
+                                crate::arguments::Target::Raise(..) => unreachable!(),
+                                crate::arguments::Target::Plain(target) => target,
+                                crate::arguments::Target::Method(call) => {
+                                    enter_arguments(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        call,
+                                        args,
+                                        stack.data.len(),
+                                    )?;
+                                    continue;
+                                }
+                                crate::arguments::Target::Helper(receiver, helper) => {
+                                    let value = namespaces::call_helper(
+                                        program,
+                                        ctx,
+                                        &mut storage,
+                                        receiver,
+                                        helper,
+                                        &args,
+                                    )?;
+                                    stack.push(ctx, value)?;
+                                    continue;
+                                }
+                                crate::arguments::Target::Offset(offset) => {
+                                    let value = offset.call(
+                                        ctx,
+                                        &args.positional.data,
+                                        &args.keywords.buffer.data,
+                                        args.block.is_some(),
+                                    )?;
+                                    stack.push(ctx, value)?;
+                                    continue;
+                                }
+                            };
+                            let target = if let Invocation::ImplicitMember(module, name) = target {
+                                let receiver = if let Some(value) = &self_value {
+                                    value.clone()
+                                } else {
+                                    namespaces::value(program, ctx, &mut storage, module)?
+                                };
+                                stack.push(ctx, receiver)?;
+                                Invocation::Member(
+                                    crate::bytecode::CallSite {
+                                        name,
+                                        method: crate::bytecode::Method::parse(
+                                            &program.members[name],
+                                        ),
+                                        auto: false,
+                                        scope: false,
+                                    },
+                                    false,
+                                )
+                            } else {
+                                target
+                            };
+                            match target {
+                                Invocation::Builtin(builtin) => {
+                                    let value = builtin.call(
+                                        ctx,
+                                        &args.positional.data,
+                                        &args.keywords.buffer.data,
+                                        args.block.is_some(),
+                                    )?;
+                                    stack.push(ctx, value)?;
+                                }
+                                Invocation::Function(function) => {
+                                    enter_arguments(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        function,
+                                        args,
+                                        stack.data.len(),
+                                    )?;
+                                }
+                                Invocation::Host(host) => {
+                                    ctx.checkpoint()?;
+                                    let result = hosts[host](
+                                        ctx,
+                                        &args.positional.data,
+                                        &args.keywords.buffer.data,
+                                    );
+                                    ctx.checkpoint()?;
+                                    let value = ctx.import(&result?)?;
+                                    stack.push(ctx, value)?;
+                                }
+                                Invocation::Member(site, mutating) => {
+                                    let name = &program.members[site.name];
+                                    let receiver = if mutating {
+                                        &storage.addresses.data.last().unwrap().value
+                                    } else {
+                                        stack.data.last().unwrap()
+                                    };
+                                    if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_))
+                                    {
+                                        let receiver = receiver.clone();
+                                        match namespaces::member(
+                                            program,
+                                            ctx,
+                                            &mut storage,
+                                            &receiver,
+                                            site,
+                                            name,
+                                            namespaces::Access {
+                                                caller: namespace,
+                                                implicit: false,
+                                                instance: caller_instance,
+                                            },
+                                        )? {
+                                            namespaces::Member::Function(function) => {
+                                                if mutating {
+                                                    storage.addresses.data.pop();
+                                                } else {
+                                                    stack.data.pop();
+                                                }
+                                                enter_arguments(
+                                                    program,
+                                                    ctx,
+                                                    &mut frames,
+                                                    &mut storage,
+                                                    function,
+                                                    args,
+                                                    stack.data.len(),
+                                                )?;
+                                                continue;
+                                            }
+                                            namespaces::Member::Value(value) => {
+                                                let value = members::field_call(
+                                                    ctx,
+                                                    site,
+                                                    value,
+                                                    &args.positional.data,
+                                                    &args.keywords.buffer.data,
+                                                    args.block.is_some(),
+                                                )?;
+                                                if mutating {
+                                                    storage.addresses.data.pop();
+                                                } else {
+                                                    stack.data.pop();
+                                                }
+                                                stack.push(ctx, value)?;
+                                                continue;
+                                            }
+                                            namespaces::Member::Helper(module, helper) => {
+                                                let value = namespaces::call_helper(
+                                                    program,
+                                                    ctx,
+                                                    &mut storage,
+                                                    module,
+                                                    helper,
+                                                    &args,
+                                                )?;
+                                                if mutating {
+                                                    storage.addresses.data.pop();
+                                                } else {
+                                                    stack.data.pop();
+                                                }
+                                                stack.push(ctx, value)?;
+                                                continue;
+                                            }
+                                            namespaces::Member::Missing => {
+                                                namespaces::fallback(name)?
+                                            }
+                                        }
+                                    }
+                                    let receiver = if mutating {
+                                        &storage.addresses.data.last().unwrap().value
+                                    } else {
+                                        stack.data.last().unwrap()
+                                    };
+                                    if mutating {
+                                        storage.addresses.data.last().unwrap().check_writable()?;
+                                    }
+                                    let arity = args
+                                        .block
+                                        .map(|block| program.functions[block.function].block_arity);
+                                    let driver = if members::exported(ctx, site, name, receiver)? {
+                                        None
+                                    } else {
+                                        iteration::start(
+                                            ctx,
+                                            name,
+                                            receiver,
+                                            &args.positional.data,
+                                            &args.keywords.buffer.data,
+                                            arity,
+                                        )?
+                                    };
+                                    if let Some(iteration) = driver {
+                                        if !mutating {
+                                            stack.data.pop();
+                                        }
+                                        ctx.charge(1)?;
+                                        if frames.data.len() >= ctx.options.limits.recursion {
+                                            return ctx.guard(
+                                                ErrorKind::Recursion,
+                                                "recursion limit exceeded",
+                                            );
+                                        }
+                                        let mut frame = new_frame(
+                                            ctx,
+                                            program,
+                                            &mut storage,
+                                            None,
+                                            stack.data.len(),
+                                        )?;
+                                        frame.mutating = mutating;
+                                        if mutating {
+                                            // The native frame owns this address, including on nonlocal exits.
+                                            frame.address_base -= 1;
+                                        }
+                                        frame.block = args.block;
+                                        frame.arguments.push(ctx, args)?;
+                                        storage.iterations.push(ctx, iteration)?;
+                                        frames.push(ctx, frame)?;
+                                        continue;
+                                    }
+                                    let value = if mutating {
+                                        let address = storage.addresses.data.pop().unwrap();
+                                        let guard = address_guard(
+                                            program,
+                                            ctx,
+                                            &frames,
+                                            &mut storage,
+                                            &address,
+                                        )?;
+                                        address.apply(
+                                            ctx,
+                                            address::Bindings {
+                                                guard,
+                                                locals: &mut storage.locals.data,
+                                                namespaces: &mut storage.namespaces.data,
+                                            },
+                                            &mut storage.addresses.data,
+                                            |ctx, receiver| {
+                                                members::call_keywords(
+                                                    ctx, site, name, receiver, &args,
+                                                )
+                                            },
+                                        )?
+                                    } else {
+                                        let receiver = stack.data.pop().unwrap();
+                                        members::call_keywords(ctx, site, name, receiver, &args)?.1
+                                    };
+                                    stack.push(ctx, value)?;
+                                }
+                                Invocation::NonCallable => {
+                                    return Err(Error::new(
+                                        ErrorKind::Type,
+                                        "attempted to call non-callable value",
+                                    ));
+                                }
+                                Invocation::Resolved | Invocation::ImplicitMember(..) => {
+                                    unreachable!()
+                                }
+                            }
+                        }
+                        Op::Host(host, n) => {
+                            let base = stack.data.len() - n;
+                            ctx.checkpoint()?;
+                            let result = hosts[host](ctx, &stack.data[base..], &[]);
+                            ctx.checkpoint()?;
+                            let result = result?;
+                            let value = ctx.import(&result)?;
+                            stack.data.truncate(base);
+                            stack.push(ctx, value)?;
+                        }
+                        Op::Method(site, n) => {
+                            let base = stack.data.len() - n - 1;
+                            let root = std::mem::take(&mut stack.data[base]);
+                            if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
+                                let receiver = &root;
+                                let name = &program.members[site.name];
+                                match namespaces::member(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    receiver,
+                                    site,
+                                    name,
+                                    namespaces::Access {
+                                        caller: namespace,
+                                        implicit: false,
+                                        instance: caller_instance,
+                                    },
+                                )? {
+                                    namespaces::Member::Function(function) => {
+                                        let args =
+                                            Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                                        enter_arguments(
+                                            program,
+                                            ctx,
+                                            &mut frames,
+                                            &mut storage,
+                                            function,
+                                            args,
+                                            base,
+                                        )?;
+                                        stack.data.truncate(base);
+                                        continue;
+                                    }
+                                    namespaces::Member::Value(value) => {
+                                        let value = members::field_call(
+                                            ctx,
+                                            site,
+                                            value,
+                                            &stack.data[base + 1..],
+                                            &[],
+                                            false,
+                                        )?;
+                                        stack.data.truncate(base);
+                                        stack.push(ctx, value)?;
+                                        continue;
+                                    }
+                                    namespaces::Member::Helper(module, helper) => {
+                                        let args =
+                                            Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                                        let value = namespaces::call_helper(
+                                            program,
+                                            ctx,
+                                            &mut storage,
+                                            module,
+                                            helper,
+                                            &args,
+                                        )?;
+                                        stack.data.truncate(base);
+                                        stack.push(ctx, value)?;
+                                        continue;
+                                    }
+                                    namespaces::Member::Missing => namespaces::fallback(name)?,
+                                }
+                            }
+                            let (_, value) = members::call(
+                                ctx,
+                                site,
+                                &program.members[site.name],
+                                root,
+                                &stack.data[base + 1..],
+                            )?;
+                            stack.data.truncate(base);
+                            stack.push(ctx, value)?;
+                        }
+                        Op::JumpNil(target) => {
+                            if matches!(stack.data.last().unwrap().0, Kind::Nil) {
+                                frame.ip = target;
+                            }
+                        }
+                        Op::AddressJumpNil(target, value_result) => {
+                            if matches!(storage.addresses.data.last().unwrap().value.0, Kind::Nil) {
+                                if value_result {
+                                    storage.addresses.data.pop();
+                                    stack.push(ctx, Value::nil())?;
+                                } else {
+                                    *storage.addresses.data.last_mut().unwrap() =
+                                        Address::new(None, Value::nil());
+                                }
+                                frame.ip = target;
+                            }
+                        }
+                        Op::Jump(target) => frame.ip = target,
+                        Op::JumpFalse(target) => {
+                            if !stack.data.pop().unwrap().truthy() {
+                                frame.ip = target;
+                            }
+                        }
+                        Op::JumpTrue(target) => {
+                            if stack.data.pop().unwrap().truthy() {
+                                frame.ip = target;
+                            }
+                        }
+                        Op::Return | Op::Finish => {
+                            let value = stack.data.pop().unwrap();
+                            let target = if matches!(op, Op::Return)
+                                && frame.parent.is_some()
+                                && !program.functions[frame.function.unwrap()].initializer
+                            {
+                                let Some(home) = frame.home else {
+                                    return Ok(Event::Control(Control::Invalid {
+                                        frame: current,
+                                        jump: handlers::Jump::Return,
+                                        _value: Some(value),
+                                    }));
+                                };
+                                home
+                            } else {
+                                current
+                            };
+                            return Ok(Event::Control(Control::Return {
+                                target,
+                                value,
+                                normalize: true,
+                            }));
+                        }
                     }
+                }
+            })();
+            let outcome = (|| -> Result<Option<Value>> {
+                match event? {
+                    Event::Error(error) => {
+                        handlers::error(
+                            program,
+                            ctx,
+                            &mut frames,
+                            &mut storage,
+                            &mut stack,
+                            error,
+                        )?;
+                        Ok(None)
+                    }
+                    Event::Control(control) => {
+                        if let Some(control) = handlers::intercept(
+                            program,
+                            ctx,
+                            &mut frames,
+                            &mut storage,
+                            &mut stack,
+                            control,
+                        )? {
+                            handlers::apply_control(
+                                program,
+                                ctx,
+                                &mut frames,
+                                &mut storage,
+                                &mut stack,
+                                pending_entry.is_some(),
+                                control,
+                            )
+                        } else {
+                            Ok(None)
+                        }
+                    }
+                }
+            })();
+            match outcome {
+                Ok(Some(value)) => return Ok(value),
+                Ok(None) => (),
+                Err(error) => {
+                    if ctx.exhausted() || storage.handlers.data.is_empty() {
+                        return Err(error);
+                    }
+                    ctx.checkpoint()?;
+                    let error =
+                        handlers::SavedError::new(program, ctx, &frames.data, function, error)?;
+                    handlers::error(program, ctx, &mut frames, &mut storage, &mut stack, error)?;
                 }
             }
         }
@@ -2093,10 +2266,11 @@ fn frame_offset(program: &Program, frame: &Frame) -> Option<u32> {
     )
 }
 
-fn diagnose(program: &Program, mut frames: &[Frame], mut entry: usize, mut error: Error) -> Error {
-    if error.diagnostic.is_some() {
-        return error;
-    }
+fn diagnostic_site<'a>(
+    program: &Program,
+    mut frames: &'a [Frame],
+    mut entry: usize,
+) -> (&'a [Frame], u32) {
     while let Some((index, frame)) = frames
         .iter()
         .enumerate()
@@ -2120,7 +2294,14 @@ fn diagnose(program: &Program, mut frames: &[Frame], mut entry: usize, mut error
         .rev()
         .find_map(|frame| frame_offset(program, frame))
         .unwrap_or(program.functions[entry].offset);
-    let mut trace = Vec::new();
+    (frames, offset)
+}
+
+fn trace_entries<'a>(
+    program: &'a Program,
+    frames: &'a [Frame],
+    offset: u32,
+) -> impl Iterator<Item = (Option<&'a std::sync::Arc<str>>, u32)> + 'a {
     let name = frames
         .iter()
         .rev()
@@ -2128,34 +2309,38 @@ fn diagnose(program: &Program, mut frames: &[Frame], mut entry: usize, mut error
         .filter_map(|frame| frame.function.map(|index| &program.functions[index]))
         .find(|function| function.name != "<block>" && !function.initializer)
         .filter(|function| function.name != "__main__")
-        .map(|function| function.trace_name.clone())
-        .unwrap_or_else(|| "<script>".into());
-    trace.push(crate::StackFrame {
-        function: name,
-        position: program.source.position(offset),
-    });
-    for (index, frame) in frames.iter().enumerate().rev() {
-        let Some(function) = frame.function else {
-            continue;
-        };
-        let function = &program.functions[function];
-        if function.name == "<block>"
-            || function.name == "__main__"
-            || function.initializer
-            || !frame.binding.data.is_empty()
-        {
-            continue;
-        }
-        let at = frames[..index]
-            .iter()
-            .rev()
-            .find_map(|frame| frame_offset(program, frame))
-            .unwrap_or(function.offset);
-        trace.push(crate::StackFrame {
-            function: function.trace_name.clone(),
-            position: program.source.position(at),
-        });
+        .map(|function| &function.trace_name);
+    std::iter::once((name, offset)).chain(frames.iter().enumerate().rev().filter_map(
+        move |(index, frame)| {
+            let function = &program.functions[frame.function?];
+            if function.name == "<block>"
+                || function.name == "__main__"
+                || function.initializer
+                || !frame.binding.data.is_empty()
+            {
+                return None;
+            }
+            let at = frames[..index]
+                .iter()
+                .rev()
+                .find_map(|frame| frame_offset(program, frame))
+                .unwrap_or(function.offset);
+            Some((Some(&function.trace_name), at))
+        },
+    ))
+}
+
+fn diagnose(program: &Program, frames: &[Frame], entry: usize, mut error: Error) -> Error {
+    if error.diagnostic.is_some() {
+        return error;
     }
+    let (frames, offset) = diagnostic_site(program, frames, entry);
+    let trace = trace_entries(program, frames, offset)
+        .map(|(name, at)| crate::StackFrame {
+            function: name.cloned().unwrap_or_else(|| "<script>".into()),
+            position: program.source.position(at),
+        })
+        .collect();
     error.offset = Some(offset as usize);
     error.diagnostic = Some(std::sync::Arc::new(crate::Diagnostic {
         position: program.source.position(offset),

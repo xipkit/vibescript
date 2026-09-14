@@ -291,10 +291,13 @@ pub(crate) fn start(
         )
         .map(|state| state.map(Iteration::Hash));
     }
-    if matches!(&receiver.0, Kind::Hash(hash) if hash.match_data)
+    if matches!(&receiver.0, Kind::Hash(hash) if hash.tag.protected())
         && matches!(name, "delete_if" | "keep_if" | "delete")
     {
-        return Err(argument("cannot modify match data"));
+        let Kind::Hash(hash) = &receiver.0 else {
+            unreachable!()
+        };
+        return Err(hash.tag.mutation_error());
     }
     let Some(method) = MethodKind::parse(name) else {
         return Ok(None);

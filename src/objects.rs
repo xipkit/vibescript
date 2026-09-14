@@ -276,7 +276,7 @@ impl Data {
                     .map(|buffer| {
                         let mut mapped = Hash::from_entries(ctx, buffer)?;
                         mapped.object = hash.object;
-                        mapped.match_data = hash.match_data;
+                        mapped.tag = hash.tag;
                         Value::from_hash(ctx, mapped)
                     })
                     .transpose()

@@ -5,10 +5,19 @@ use crate::{
 };
 use std::collections::{HashMap, HashSet};
 
+mod errors;
 mod namespaces;
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    TryBegin(usize),
+    TryBody,
+    TryEnd,
+    EnsureEnd,
+    Retry,
+    RaiseStart(Option<(usize, Option<usize>)>, usize),
+    RaiseValue,
+    Raise(u8),
     InitNamespace(usize),
     UnboundClass(usize),
     BindIvar(usize, usize),
@@ -83,6 +92,7 @@ pub(crate) enum Op {
     IterNext,
     LoopBody,
     LoopEnd,
+    LoopGuard(bool),
     Break(bool),
     Next(bool),
     Call(usize, usize),
@@ -328,6 +338,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub handlers: Vec<errors::TrySpec>,
     pub source: crate::source::Source,
     pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
     pub type_guards: Vec<Vec<String>>,
@@ -363,6 +374,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         declarations.push(crate::enums::compile(name, members)?);
     }
     let mut program = Program {
+        handlers: Vec::new(),
         source: crate::source::Source::new(source),
         namespaces: Vec::new(),
         type_guards: Vec::new(),
@@ -386,6 +398,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             instance: contexts[index].2,
             program: &mut program,
             locals: HashMap::new(),
+            slots: 0,
             code: Vec::new(),
             locations: Vec::new(),
             offset: def.offset,
@@ -454,8 +467,8 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             params,
             binds_parameters,
             plain,
-            locals: c.locals.len(),
-            local_names: local_names(&c.locals),
+            locals: c.slots,
+            local_names: local_names(&c.locals, c.slots),
             code: c.code,
             captures: Vec::new(),
             block_arity: 0,
@@ -466,8 +479,8 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
     Ok(program)
 }
 
-fn local_names(locals: &HashMap<String, usize>) -> Vec<String> {
-    let mut names = vec![String::new(); locals.len()];
+fn local_names(locals: &HashMap<String, usize>, slots: usize) -> Vec<String> {
+    let mut names = vec![String::new(); slots];
     for (name, &index) in locals {
         names[index] = name.clone();
     }
@@ -484,6 +497,7 @@ struct Compiler<'a> {
     namespace: Option<usize>,
     program: &'a mut Program,
     locals: HashMap<String, usize>,
+    slots: usize,
     code: Vec<Op>,
     locations: Vec<u32>,
     offset: u32,
@@ -495,8 +509,13 @@ struct Compiler<'a> {
 }
 impl Compiler<'_> {
     fn slot(&mut self, name: &str) -> usize {
-        let n = self.locals.len();
-        *self.locals.entry(name.to_owned()).or_insert(n)
+        if let Some(&slot) = self.locals.get(name) {
+            return slot;
+        }
+        let slot = self.slots;
+        self.slots += 1;
+        self.locals.insert(name.to_owned(), slot);
+        slot
     }
     fn capture_name(&mut self, name: &str) {
         if self.outer.iter().any(|scope| scope.contains_key(name)) {
@@ -506,7 +525,12 @@ impl Compiler<'_> {
     fn declare(&mut self, body: &[Stmt]) {
         for stmt in body {
             match &stmt.node {
-                Statement::Module(_) | Statement::UnboundClass(_) => (),
+                Statement::Raise(value, message) => {
+                    for value in value.iter().chain(message) {
+                        self.declare_expr(value);
+                    }
+                }
+                Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => (),
                 Statement::Expr(e) => self.declare_expr(e),
                 Statement::Assign(target, _, value) => {
                     self.declare_target(target);
@@ -560,6 +584,14 @@ impl Compiler<'_> {
     }
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
+            Node::Try(attempt) => {
+                self.declare(&attempt.body);
+                for rescue in &attempt.rescues {
+                    self.declare(&rescue.body);
+                }
+                self.declare(&attempt.alternate);
+                self.declare(&attempt.ensure);
+            }
             Node::Regex(..) => (),
             Node::Shape(_, fallback, _) => {
                 if let Some(fallback) = fallback {
@@ -654,7 +686,8 @@ impl Compiler<'_> {
     }
     fn patch(&mut self, pos: usize, target: usize) {
         match &mut self.code[pos] {
-            Op::Jump(n)
+            Op::RaiseStart(_, n)
+            | Op::Jump(n)
             | Op::JumpFalse(n)
             | Op::JumpTrue(n)
             | Op::JumpNil(n)
@@ -778,6 +811,10 @@ impl Compiler<'_> {
     }
     fn statement(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
         match &stmt.node {
+            Statement::Raise(value, message) => self.raise(value.as_deref(), message.as_deref())?,
+            Statement::Retry => {
+                self.emit(Op::Retry);
+            }
             Statement::UnboundClass(name) => {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::UnboundClass(name));
@@ -980,12 +1017,18 @@ impl Compiler<'_> {
             }
             Statement::Break(value) => {
                 if let Some(value) = value {
+                    if self.loop_bindings.is_empty() && self.outer.is_empty() {
+                        self.emit(Op::LoopGuard(true));
+                    }
                     self.expr(value)?;
                 }
                 self.emit(Op::Break(value.is_some()));
             }
             Statement::Next(value) => {
                 if let Some(value) = value {
+                    if self.loop_bindings.is_empty() && self.outer.is_empty() {
+                        self.emit(Op::LoopGuard(false));
+                    }
                     self.expr(value)?;
                 }
                 if let Some(bindings) = self.loop_bindings.last() {
@@ -1070,6 +1113,7 @@ impl Compiler<'_> {
     }
     fn expression(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
+            Node::Try(attempt) => self.attempt(attempt)?,
             Node::Regex(pattern, flags) => {
                 let index = self.program.constants.len();
                 self.program.constants.push(Value::bytes(pattern.clone()));
@@ -1544,6 +1588,7 @@ impl Compiler<'_> {
             namespace: self.namespace,
             program: self.program,
             locals: HashMap::new(),
+            slots: 0,
             code: Vec::new(),
             locations: Vec::new(),
             offset: self.offset,
@@ -1588,8 +1633,11 @@ impl Compiler<'_> {
         child.block(&block.body)?;
         child.emit(Op::Finish);
         debug_assert_eq!(child.code.len(), child.locations.len());
-        let mut captures = vec![None; child.locals.len()];
+        let mut captures = vec![None; child.slots];
         for (name, &slot) in &child.locals {
+            if name.starts_with('\0') {
+                continue;
+            }
             captures[slot] =
                 child.outer.iter().enumerate().find_map(|(depth, scope)| {
                     scope.get(name).map(|&slot| Capture { depth, slot })
@@ -1602,8 +1650,8 @@ impl Compiler<'_> {
             instance: self.instance,
             namespace: self.namespace,
             name: "<block>".into(),
-            locals: child.locals.len(),
-            local_names: local_names(&child.locals),
+            locals: child.slots,
+            local_names: local_names(&child.locals, child.slots),
             code: child.code,
             captures,
             block_arity,
@@ -1746,6 +1794,14 @@ impl Compiler<'_> {
 
 fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
     match &expr.node {
+        Node::Try(attempt) => {
+            block_call_names(&attempt.body, names);
+            for rescue in &attempt.rescues {
+                block_call_names(&rescue.body, names);
+            }
+            block_call_names(&attempt.alternate, names);
+            block_call_names(&attempt.ensure, names);
+        }
         Node::Shape(_, fallback, _) => {
             if let Some(fallback) = fallback {
                 call_names(fallback, names);
@@ -1846,7 +1902,12 @@ fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
 fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
     for stmt in body {
         match &stmt.node {
-            Statement::Module(_) | Statement::UnboundClass(_) => (),
+            Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => (),
+            Statement::Raise(value, message) => {
+                for value in value.iter().chain(message) {
+                    call_names(value, names);
+                }
+            }
             Statement::Expr(expr) => call_names(expr, names),
             Statement::Assign(target, _, value) => {
                 target_call_names(target, names);
@@ -1896,6 +1957,23 @@ fn target_names<'a>(target: &'a Target, names: &mut Vec<&'a str>) {
 fn statement_names<'a>(body: &'a [Stmt], names: &mut Vec<&'a str>) {
     for stmt in body {
         match &stmt.node {
+            Statement::Expr(Expr {
+                node: Node::Try(attempt),
+                ..
+            }) => {
+                statement_names(&attempt.body, names);
+                for rescue in &attempt.rescues {
+                    let mut scoped = Vec::new();
+                    statement_names(&rescue.body, &mut scoped);
+                    names.extend(
+                        scoped
+                            .into_iter()
+                            .filter(|name| Some(*name) != rescue.binding.as_deref()),
+                    );
+                }
+                statement_names(&attempt.alternate, names);
+                statement_names(&attempt.ensure, names);
+            }
             Statement::Assign(target, _, _) => target_names(target, names),
             Statement::If(_, yes, no) => {
                 statement_names(yes, names);

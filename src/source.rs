@@ -1,4 +1,8 @@
-use crate::{Diagnostic, Error, Position};
+use crate::{
+    CallContext, Diagnostic, Error, Position, Result,
+    budget::{Buffer, Charge},
+};
+use std::fmt::{self, Write};
 use std::sync::Arc;
 
 const STRIDE: usize = 4096;
@@ -41,20 +45,32 @@ impl Source {
         }
     }
 
-    pub fn position(&self, offset: u32) -> Position {
+    fn location(&self, offset: u32) -> (&str, Position) {
         let offset = boundary(&self.text, offset as usize);
         let checkpoint = &self.checkpoints[self
             .checkpoints
             .partition_point(|p| p.offset as usize <= offset)
             - 1];
-        let mut position = Position {
-            line: checkpoint.line as usize,
-            column: checkpoint.column as usize,
-        };
-        for ch in self.text[checkpoint.offset as usize..offset].chars() {
+        (
+            &self.text[checkpoint.offset as usize..offset],
+            Position {
+                line: checkpoint.line as usize,
+                column: checkpoint.column as usize,
+            },
+        )
+    }
+
+    pub fn position(&self, offset: u32) -> Position {
+        let (text, mut position) = self.location(offset);
+        for ch in text.chars() {
             advance(&mut position, ch);
         }
         position
+    }
+
+    pub fn position_metered(&self, ctx: &mut CallContext, offset: u32) -> Result<Position> {
+        ctx.work_bytes(self.location(offset).0.len())?;
+        Ok(self.position(offset))
     }
 
     pub fn frame(&self, offset: u32) -> String {
@@ -63,6 +79,17 @@ impl Source {
             boundary(&self.text, offset as usize),
             self.position(offset),
         )
+    }
+
+    pub fn frame_metered(
+        &self,
+        ctx: &mut CallContext,
+        offset: u32,
+        position: Position,
+    ) -> Result<(String, Option<Charge>)> {
+        ctx.work_bytes(WINDOW * 12)?;
+        let snippet = Snippet::new(&self.text, boundary(&self.text, offset as usize), position);
+        formatted(ctx, format_args!("{snippet}"))
     }
 }
 
@@ -83,54 +110,99 @@ fn boundary(text: &str, offset: usize) -> usize {
     offset
 }
 
-fn frame(text: &str, offset: usize, position: Position) -> String {
-    let mut start = offset;
-    for ch in text[..offset].chars().rev().take(WINDOW / 2) {
-        if ch == '\n' {
-            break;
-        }
-        start -= ch.len_utf8();
-    }
-    let mut end = start;
-    let mut count = 0;
-    for ch in text[start..].chars().take(WINDOW) {
-        if ch == '\n' {
-            break;
-        }
-        end += ch.len_utf8();
-        count += 1;
-    }
-    if count < WINDOW {
-        for ch in text[..start].chars().rev().take(WINDOW - count) {
+struct Snippet<'a> {
+    text: &'a str,
+    caret: &'a str,
+    prefix: bool,
+    suffix: bool,
+    position: Position,
+}
+
+impl<'a> Snippet<'a> {
+    fn new(text: &'a str, offset: usize, position: Position) -> Self {
+        let mut start = offset;
+        for ch in text[..offset].chars().rev().take(WINDOW / 2) {
             if ch == '\n' {
                 break;
             }
             start -= ch.len_utf8();
         }
+        let mut end = start;
+        let mut count = 0;
+        for ch in text[start..].chars().take(WINDOW) {
+            if ch == '\n' {
+                break;
+            }
+            end += ch.len_utf8();
+            count += 1;
+        }
+        if count < WINDOW {
+            for ch in text[..start].chars().rev().take(WINDOW - count) {
+                if ch == '\n' {
+                    break;
+                }
+                start -= ch.len_utf8();
+            }
+        }
+        Self {
+            text: &text[start..end],
+            caret: &text[start..offset],
+            prefix: start > 0 && text.as_bytes()[start - 1] != b'\n',
+            suffix: end < text.len() && text.as_bytes()[end] != b'\n',
+            position,
+        }
     }
-    let prefix = start > 0 && text.as_bytes()[start - 1] != b'\n';
-    let suffix = end < text.len() && text.as_bytes()[end] != b'\n';
-    let mut caret = String::new();
-    if prefix {
-        caret.push_str("   ");
+}
+
+impl fmt::Display for Snippet<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Position { line, column } = self.position;
+        write!(
+            f,
+            "  --> line {line}, column {column}\n {line} | {}{}{}\n ",
+            if self.prefix { "..." } else { "" },
+            self.text,
+            if self.suffix { "..." } else { "" }
+        )?;
+        for _ in 0..line.checked_ilog10().unwrap_or(0) + 1 {
+            f.write_char(' ')?;
+        }
+        f.write_str(" | ")?;
+        if self.prefix {
+            f.write_str("   ")?;
+        }
+        for ch in self.caret.chars() {
+            f.write_char(if ch == '\t' { '\t' } else { ' ' })?;
+        }
+        f.write_char('^')
     }
-    caret.extend(
-        text[start..offset]
-            .chars()
-            .map(|ch| if ch == '\t' { '\t' } else { ' ' }),
-    );
-    let label = position.line.to_string();
-    format!(
-        "  --> line {}, column {}\n {} | {}{}{}\n {} | {}^",
-        position.line,
-        position.column,
-        label,
-        if prefix { "..." } else { "" },
-        &text[start..end],
-        if suffix { "..." } else { "" },
-        " ".repeat(label.len()),
-        caret
-    )
+}
+
+fn frame(text: &str, offset: usize, position: Position) -> String {
+    Snippet::new(text, offset, position).to_string()
+}
+
+pub(crate) fn formatted(
+    ctx: &mut CallContext,
+    args: fmt::Arguments<'_>,
+) -> Result<(String, Option<Charge>)> {
+    struct Count(usize);
+    impl fmt::Write for Count {
+        fn write_str(&mut self, text: &str) -> fmt::Result {
+            self.0 = self.0.checked_add(text.len()).ok_or(fmt::Error)?;
+            Ok(())
+        }
+    }
+    let mut length = Count(0);
+    if length.write_fmt(args).is_err() {
+        return ctx.fail(crate::ErrorKind::Memory, "diagnostic size overflow");
+    }
+    ctx.work_bytes(length.0)?;
+    let mut buffer = Buffer::with_capacity(ctx, length.0)?;
+    std::io::Write::write_fmt(&mut buffer.data, args).unwrap();
+    debug_assert_eq!(buffer.data.len(), length.0);
+    let (bytes, charge) = buffer.into_parts();
+    Ok((String::from_utf8(bytes).unwrap(), charge))
 }
 
 pub(crate) fn parse_error(source: &str, mut error: Error) -> Error {

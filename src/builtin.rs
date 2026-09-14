@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    Assert,
     Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
     Time(crate::time::Constructor),
@@ -42,6 +43,7 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Assert,
     Regexp,
     Regex,
     Time,
@@ -59,6 +61,7 @@ pub(crate) enum Global {
 impl Global {
     pub fn name(self) -> &'static str {
         match self {
+            Self::Assert => "assert",
             Self::Regexp => "Regexp",
             Self::Regex => "Regex",
             Self::Time => "Time",
@@ -75,6 +78,7 @@ impl Global {
     }
     pub fn parse(name: &str) -> Option<Self> {
         match name {
+            "assert" => Some(Self::Assert),
             "Regexp" => Some(Self::Regexp),
             "Regex" => Some(Self::Regex),
             "Time" => Some(Self::Time),
@@ -97,6 +101,7 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Assert => return Value(Kind::Builtin(Assert)),
             Self::Regexp => [
                 crate::regex::value::Constructor::New,
                 crate::regex::value::Constructor::Union,
@@ -226,6 +231,7 @@ impl Builtin {
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::Assert => "assert",
             Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
             Self::Time(constructor) => constructor.name(),
@@ -277,6 +283,27 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        if self == Self::Assert {
+            let Some(condition) = args.first() else {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "assert requires a condition argument",
+                ));
+            };
+            if condition.truthy() {
+                return Ok(Value::nil());
+            }
+            let keyword = keywords
+                .iter()
+                .find(|(key, _)| key.as_bytes() == Some(b"message"))
+                .map(|(_, value)| value);
+            let message = match args.get(1).or(keyword) {
+                Some(value) => ops::to_string(ctx, value)?,
+                None => ctx.bytes(b"assertion failed")?,
+            };
+            let bytes = message.require_bytes()?;
+            return Err(Error::from_bytes(ctx, bytes)?.with_class(crate::ErrorClass::Assertion));
+        }
         if let Self::Random(method) = self {
             return method.call(ctx, args, keywords, block);
         }
@@ -399,7 +426,8 @@ impl Builtin {
             | Self::Now
             | Self::Random(_)
             | Self::Regex(_)
-            | Self::Regexp(_) => unreachable!(),
+            | Self::Regexp(_)
+            | Self::Assert => unreachable!(),
         }
     }
 }

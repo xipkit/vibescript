@@ -59,8 +59,22 @@ impl Parser<'_> {
             None
         };
         self.lines();
-        let body = self.block(&["end"])?;
-        self.expect_word("end")?;
+        let body = self.block(&["rescue", "else", "ensure", "end"])?;
+        let body = if matches!(self.token(), Token::Word(w) if w != "end") {
+            let attempt = self.rescue_tail(body, true)?;
+            let depth = attempt.depth();
+            vec![
+                super::Statement::Expr(self.make_at(
+                    super::Node::Try(Box::new(attempt)),
+                    depth,
+                    offset,
+                )?)
+                .at(offset),
+            ]
+        } else {
+            self.expect_word("end")?;
+            body
+        };
         self.locals = outer_locals;
         self.declared_it = outer_it;
         Ok(Definition {
