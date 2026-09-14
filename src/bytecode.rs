@@ -1216,23 +1216,7 @@ impl Compiler<'_> {
         auto: bool,
         block: Option<usize>,
     ) -> Result<()> {
-        let mutating = matches!(
-            name,
-            "push"
-                | "append"
-                | "prepend"
-                | "unshift"
-                | "pop"
-                | "shift"
-                | "delete"
-                | "delete_if"
-                | "keep_if"
-                | "insert"
-                | "clear"
-                | "fill"
-                | "store"
-                | "replace"
-        );
+        let mutating = mutating_member(name);
         if mutating {
             self.address(receiver)?;
         } else {
@@ -1675,4 +1659,24 @@ fn statement_names<'a>(body: &'a [Stmt], names: &mut Vec<&'a str>) {
             _ => (),
         }
     }
+}
+
+pub(crate) fn mutating_member(name: &str) -> bool {
+    matches!(
+        name,
+        "push"
+            | "append"
+            | "prepend"
+            | "unshift"
+            | "pop"
+            | "shift"
+            | "delete"
+            | "delete_if"
+            | "keep_if"
+            | "insert"
+            | "clear"
+            | "fill"
+            | "store"
+            | "replace"
+    )
 }

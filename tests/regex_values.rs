@@ -206,6 +206,12 @@ fn protected_fields_and_bad_accessors_stop_later_host_effects() {
         "m.captures[0]=\"x\"",
         "m.named_captures[:x]=\"q\"",
         "m.dup.clear",
+        "m.dup.captures.push(\"x\")",
+        "m.dup.captures[0]=\"x\"",
+        "m.dup.named_captures[:x]=\"x\"",
+        "m.dup.captures.delete_if{effect()}",
+        "m.itself.captures.clear",
+        "\"a\".match(/(a)/).captures.push(\"x\")",
         "[m].dup[0].clear",
         "m.to_s=7",
         "m.clear",
@@ -278,6 +284,15 @@ fn streaming_matches_observe_limits_and_cancellation() {
 
 #[test]
 fn selected_regex_policies_preserve_anchors_and_match_data_identity() {
+    let copy = Engine::new()
+        .compile("m=\"a\".match(/(a)/);x=m.captures.dup.push(\"x\");[x,m.captures,m.dup.to_s]")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap();
+    assert_eq!(
+        json(&copy.value),
+        serde_json::json!([["a", "x"], ["a"], "a"])
+    );
     let cases: serde_json::Value =
         serde_json::from_str(include_str!("../docs/compatibility-cases.json")).unwrap();
     for case in cases.as_array().unwrap() {

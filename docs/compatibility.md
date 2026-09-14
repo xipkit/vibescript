@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: twenty-five intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: twenty-seven intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
 
 ## Documented value semantics take precedence
 
@@ -83,7 +83,7 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes twenty-five intentional cases from five open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes twenty-seven intentional cases from five open cases.
 
 
 ## Builtin descriptors
@@ -105,3 +105,7 @@ The selected policy preserves match data's protected fields through nested write
 Go's behavior varies by operation: `m.captures.push("x")` succeeds, while `m.captures.clear` fails when its write reaches the protected parent. Go's deep clone also drops the protection and published rendering, making `m.dup.clear` succeed and interpolation render `<object>`. Three audit records preserve these observations and verify Rust's chosen rejection or value. Ten focused comparisons cover nested captures, named captures, duplicate containers and rendering. These intentional differences are excluded from matching conformance totals.
 
 Go's bounded replacement-block conversion also emits `<object>` when the block returns match data. Rust keeps its whole-match rendering in this context. A fourth match-data audit record and four focused substitution comparisons preserve that selected behavior.
+
+## Nested match-data protection
+
+Match-data protection survives temporary results and duplication, including nested capture writes. Block mutators reject protected paths before running callbacks. Explicit copies of the capture array itself remain independent mutable values. Two additional compatibility cases record the selected rejection behavior.

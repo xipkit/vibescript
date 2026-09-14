@@ -6,6 +6,7 @@ struct Hop {
 }
 
 pub(crate) struct Address {
+    protected: bool,
     root: Option<usize>,
     path: Buffer<Hop>,
     pub value: Value,
@@ -15,6 +16,7 @@ pub(crate) struct Address {
 impl Address {
     pub fn new(root: Option<usize>, value: Value) -> Self {
         Self {
+            protected: false,
             root,
             path: Buffer::empty(),
             value,
@@ -28,6 +30,7 @@ impl Address {
         } else {
             crate::sequence::slice(ctx, &self.value, args, false)?
         };
+        self.protected |= matches!(&self.value.0, Kind::Hash(hash) if hash.match_data);
         let addressed = self.root.is_some()
             && args.len() == 1
             && stored_child(ctx, &self.value, &args[0])?.is_some();
@@ -82,7 +85,9 @@ impl Address {
         pending: &mut [Self],
         action: impl FnOnce(&mut CallContext, Value) -> Result<(Value, Value)>,
     ) -> Result<Value> {
+        self.check_writable()?;
         let Self {
+            protected: _,
             root,
             mut path,
             value,
@@ -115,6 +120,14 @@ impl Address {
         refresh(ctx, root, &updated, pending, &changes.data)?;
         locals[root] = Some(updated);
         Ok(result)
+    }
+
+    pub fn check_writable(&self) -> Result<()> {
+        if self.protected {
+            Err(Error::new(ErrorKind::Argument, "cannot modify match data"))
+        } else {
+            Ok(())
+        }
     }
 }
 

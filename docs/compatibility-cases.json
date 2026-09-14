@@ -1120,5 +1120,27 @@
     "expected": ["aa", "aa"],
     "policy": "protected_match_data",
     "reason": "Match data retains its published whole-match rendering when a replacement block returns it. Go's bounded conversion loses the specialized rendering and emits an object placeholder."
+  },
+  {
+    "name": "match_data_duplicate_nested_write",
+    "body": "m=\"a\".match(/(a)/);m.dup.captures.push(\"x\")",
+    "go": [
+      "a",
+      "x"
+    ],
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "Duplicating match data preserves protection when addressing its nested captures."
+  },
+  {
+    "name": "match_data_temporary_nested_write",
+    "body": "\"a\".match(/(a)/).captures.push(\"x\")",
+    "go": [
+      "a",
+      "x"
+    ],
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "A temporary match-data result retains protection when addressing its nested captures."
   }
 ]

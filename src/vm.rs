@@ -554,6 +554,11 @@ pub(crate) fn execute(
                     address.index(ctx, &[key])?;
                 } else {
                     let address = storage.addresses.data.pop().unwrap();
+                    if !crate::bytecode::mutating_member(name) {
+                        let (_, value) = members::call(ctx, site, name, address.value, &[])?;
+                        storage.addresses.push(ctx, Address::new(None, value))?;
+                        continue;
+                    }
                     let value = address.apply(
                         ctx,
                         &mut storage.locals.data,
@@ -934,6 +939,9 @@ pub(crate) fn execute(
                         } else {
                             stack.data.last().unwrap()
                         };
+                        if mutating {
+                            storage.addresses.data.last().unwrap().check_writable()?;
+                        }
                         let arity = args
                             .block
                             .map(|block| program.functions[block.function].block_arity);
