@@ -13,12 +13,23 @@ use crate::{
 };
 
 mod namespaces;
+mod operators;
+
+#[derive(Default)]
+enum ReturnTo {
+    #[default]
+    Stack,
+    Address,
+    Assigned(Value),
+    Local(usize),
+    Negate,
+    Text(Value),
+}
 
 struct Frame {
     receiver: Option<Value>,
     constructor: bool,
-    assignment_result: Option<Value>,
-    result_address: bool,
+    return_to: ReturnTo,
     function: Option<usize>,
     mutating: bool,
     ip: usize,
@@ -455,6 +466,19 @@ pub(crate) fn execute(
             Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
             Op::TextPart => {
                 let value = stack.data.pop().unwrap();
+                if let Some(call) = operators::string(program, ctx, &value)? {
+                    enter_arguments(
+                        program,
+                        ctx,
+                        &mut frames,
+                        &mut storage,
+                        call,
+                        Arguments::empty(),
+                        stack.data.len(),
+                    )?;
+                    frames.data.last_mut().unwrap().return_to = ReturnTo::Text(value);
+                    continue;
+                }
                 crate::text::append(ctx, &value, storage.texts.data.last_mut().unwrap())?;
             }
             Op::TextEnd(symbol) => {
@@ -753,17 +777,91 @@ pub(crate) fn execute(
             Op::Binary(op) => {
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
+                if let Some(resolved) =
+                    operators::resolve(program, ctx, &a, op, (namespace, caller_instance))?
+                {
+                    let args = Arguments::from_values(ctx, &[b])?;
+                    enter_arguments(
+                        program,
+                        ctx,
+                        &mut frames,
+                        &mut storage,
+                        resolved.call,
+                        args,
+                        stack.data.len(),
+                    )?;
+                    if resolved.negate {
+                        frames.data.last_mut().unwrap().return_to = ReturnTo::Negate;
+                    }
+                    continue;
+                }
                 let value = ops::binary(ctx, op, a, b)?;
                 stack.push(ctx, value)?;
             }
             Op::AddStore(n) => {
                 let b = stack.data.pop().unwrap();
                 let a = stack.data.pop().unwrap();
+                if let Some(resolved) =
+                    operators::resolve(program, ctx, &a, "+", (namespace, caller_instance))?
+                {
+                    let args = Arguments::from_values(ctx, &[b])?;
+                    enter_arguments(
+                        program,
+                        ctx,
+                        &mut frames,
+                        &mut storage,
+                        resolved.call,
+                        args,
+                        stack.data.len(),
+                    )?;
+                    frames.data.last_mut().unwrap().return_to = ReturnTo::Local(n);
+                    continue;
+                }
                 storage.locals.data[n] = None;
                 let value = ops::binary(ctx, "+", a, b)?;
                 address::refresh(ctx, n, &value, &mut storage.addresses.data, &[])?;
                 storage.locals.data[n] = Some(value.clone());
                 stack.push(ctx, value)?;
+            }
+            Op::Shovel(site) => {
+                let value = stack.data.pop().unwrap();
+                let address = storage.addresses.data.pop().unwrap();
+                if matches!(address.value.0, Kind::Instance(_)) {
+                    let resolved = operators::resolve(
+                        program,
+                        ctx,
+                        &address.value,
+                        "<<",
+                        (namespace, caller_instance),
+                    )?
+                    .ok_or_else(|| Error::new(ErrorKind::Type, "unsupported append operands"))?;
+                    let args = Arguments::from_values(ctx, &[value])?;
+                    enter_arguments(
+                        program,
+                        ctx,
+                        &mut frames,
+                        &mut storage,
+                        resolved.call,
+                        args,
+                        stack.data.len(),
+                    )?;
+                    continue;
+                }
+                if !matches!(address.value.0, Kind::Array(_)) {
+                    return Err(Error::new(ErrorKind::Type, "unsupported append operands"));
+                }
+                let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
+                let result = address.apply(
+                    ctx,
+                    address::Bindings {
+                        guard,
+                        locals: &mut storage.locals.data,
+                        namespaces: &mut storage.namespaces.data,
+                    },
+                    &mut storage.addresses.data,
+                    |ctx, receiver| members::call(ctx, site, "push", receiver, &[value]),
+                )?;
+                stack.push(ctx, result)?;
             }
             Op::Array(n) => {
                 let base = stack.data.len() - n;
@@ -806,6 +904,14 @@ pub(crate) fn execute(
                 let base = stack.data.len() - n - 1;
                 let root = &stack.data[base];
                 let args = &stack.data[base + 1..];
+                if matches!(root.0, Kind::Instance(_)) {
+                    let call =
+                        operators::index(program, ctx, root, "[]", (namespace, caller_instance))?;
+                    let args = Arguments::from_values(ctx, args)?;
+                    enter_arguments(program, ctx, &mut frames, &mut storage, call, args, base)?;
+                    stack.data.truncate(base);
+                    continue;
+                }
                 let value = if n == 1 {
                     ops::index(ctx, root, &args[0])?
                 } else {
@@ -832,6 +938,17 @@ pub(crate) fn execute(
             }
             Op::AddressIndex(n) => {
                 let base = stack.data.len() - n;
+                let root = &storage.addresses.data.last().unwrap().value;
+                if matches!(root.0, Kind::Instance(_)) {
+                    let call =
+                        operators::index(program, ctx, root, "[]", (namespace, caller_instance))?;
+                    let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                    storage.addresses.data.pop();
+                    enter_arguments(program, ctx, &mut frames, &mut storage, call, args, base)?;
+                    frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                    stack.data.truncate(base);
+                    continue;
+                }
                 storage
                     .addresses
                     .data
@@ -902,7 +1019,7 @@ pub(crate) fn execute(
                                 Arguments::empty(),
                                 stack.data.len(),
                             )?;
-                            frames.data.last_mut().unwrap().result_address = true;
+                            frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
                             continue;
                         }
                         namespaces::Member::Value(value) => {
@@ -1022,6 +1139,26 @@ pub(crate) fn execute(
                     address.selectors.data.push(value);
                 }
                 if read {
+                    if matches!(address.value.0, Kind::Instance(_)) {
+                        let call = operators::index(
+                            program,
+                            ctx,
+                            &address.value,
+                            "[]",
+                            (namespace, caller_instance),
+                        )?;
+                        let args = Arguments::from_values(ctx, &address.selectors.data)?;
+                        enter_arguments(
+                            program,
+                            ctx,
+                            &mut frames,
+                            &mut storage,
+                            call,
+                            args,
+                            stack.data.len(),
+                        )?;
+                        continue;
+                    }
                     let value = address.read_target(ctx)?;
                     stack.push(ctx, value)?;
                 }
@@ -1053,7 +1190,7 @@ pub(crate) fn execute(
                             args,
                             stack.data.len(),
                         )?;
-                        frames.data.last_mut().unwrap().assignment_result = Some(value);
+                        frames.data.last_mut().unwrap().return_to = ReturnTo::Assigned(value);
                         continue;
                     }
                     match &receiver.0 {
@@ -1071,6 +1208,30 @@ pub(crate) fn execute(
                         _ => unreachable!(),
                     }
                     stack.push(ctx, value)?;
+                    continue;
+                }
+                if matches!(address.value.0, Kind::Instance(_)) {
+                    let call = operators::index(
+                        program,
+                        ctx,
+                        &address.value,
+                        "[]=",
+                        (namespace, caller_instance),
+                    )?;
+                    let mut args = Arguments::empty();
+                    args.positional = Buffer::with_capacity(ctx, address.selectors.data.len() + 1)?;
+                    args.positional.extend(ctx, &address.selectors.data)?;
+                    args.positional.push(ctx, value.clone())?;
+                    enter_arguments(
+                        program,
+                        ctx,
+                        &mut frames,
+                        &mut storage,
+                        call,
+                        args,
+                        stack.data.len(),
+                    )?;
+                    frames.data.last_mut().unwrap().return_to = ReturnTo::Assigned(value);
                     continue;
                 }
                 let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
@@ -1803,11 +1964,7 @@ pub(crate) fn execute(
                     current
                 };
                 let value = normalize_return(program, ctx, &frames, &mut storage, target, value)?;
-                let value = frames.data[target]
-                    .assignment_result
-                    .take()
-                    .unwrap_or(value);
-                let result_address = frames.data[target].result_address;
+                let return_to = std::mem::take(&mut frames.data[target].return_to);
                 let initialized = frames.data[target].function.and_then(|function| {
                     program.functions[function]
                         .initializer
@@ -1828,10 +1985,28 @@ pub(crate) fn execute(
                 if initialized.is_some() {
                     continue;
                 }
-                if result_address {
-                    storage.addresses.push(ctx, Address::new(None, value))?;
-                } else {
-                    stack.push(ctx, value)?;
+                match return_to {
+                    ReturnTo::Stack => stack.push(ctx, value)?,
+                    ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value))?,
+                    ReturnTo::Assigned(assigned) => stack.push(ctx, assigned)?,
+                    ReturnTo::Negate => stack.push(ctx, Value::boolean(!value.truthy()))?,
+                    ReturnTo::Local(slot) => {
+                        address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
+                        storage.locals.data[slot] = Some(value.clone());
+                        stack.push(ctx, value)?;
+                    }
+                    ReturnTo::Text(original) => {
+                        let rendered = if matches!(value.0, Kind::Bytes(_)) {
+                            value
+                        } else {
+                            original
+                        };
+                        crate::text::append(
+                            ctx,
+                            &rendered,
+                            storage.texts.data.last_mut().unwrap(),
+                        )?;
+                    }
                 }
             }
         }
@@ -2354,8 +2529,7 @@ fn new_frame(
     Ok(Frame {
         receiver: None,
         constructor: false,
-        assignment_result: None,
-        result_address: false,
+        return_to: ReturnTo::Stack,
         function,
         mutating: false,
         ip: 0,

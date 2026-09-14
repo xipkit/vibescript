@@ -10,7 +10,7 @@
     "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
   },
   "counts": {
-    "cases": 30,
+    "cases": 31,
     "rust_matches_normal": 0,
     "rust_matches_copy": 21
   },
@@ -1211,12 +1211,41 @@
       ],
       "rust_matches_normal": false,
       "rust_matches_copy": false
+    },
+    {
+      "name": "class_index_getter_snapshot",
+      "go_normal": [
+        [
+          8
+        ],
+        [
+          8
+        ]
+      ],
+      "go_always_copy": [
+        [
+          8
+        ],
+        [
+          8
+        ]
+      ],
+      "rust": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
     }
   ],
   "probe_sha256": "e96086e9d86c91119f5c95c810a8aa428a700350de1f943604a6201aeacf0c8f",
   "binary_sha256": {
-    "go-test": "d6a67e8185eccddc1aa30a02dc460e29a2fa6abcc62de044f628c80ca5628052",
-    "rust-portable": "91d1ad39225fe3538f56e0b760d6b60259da44345f183b48bba117218fdd7d5a",
-    "rust-simd": "2db26136067937bbbd67577aa634a268684ecba2f51834bae46fb878534fe86c"
+    "go-test": "2acda7fd3f290f4185c663ab463eaf26f3ea48c7c1b5c26ee3584ccb6a57f492",
+    "rust-portable": "cbbdc76f4fcc345beee59d69022594f51a8cf8972c439c304c88184ae9056958",
+    "rust-simd": "99695e6d2e76856c36a47d48f0029e83eb51b45b3e1399e5095183aa635c6704"
   }
 }

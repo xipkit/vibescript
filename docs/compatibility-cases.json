@@ -1208,5 +1208,36 @@
     "expected_error": "Argument",
     "policy": "protected_match_data",
     "reason": "A temporary match-data result retains protection when addressing its nested captures."
+  },
+  {
+    "name": "class_index_getter_snapshot",
+    "source": "class Grid\ndef initialize;@slots={};end\ndef [](row,col);@slots.fetch(\"#{row}:#{col}\",nil);end\ndef []=(row,col,value);@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input)\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];grid[0,0][0]=8;[saved,grid[0,0]]\nend",
+    "source_with_alias": "class Grid\ndef initialize;@slots={};end\ndef [](row,col);@slots.fetch(\"#{row}:#{col}\",nil);end\ndef []=(row,col,value);@slots[\"#{row}:#{col}\"]=value;\"ignored\";end\nend\ndef run(input)\ngrid=Grid.new;grid[0,0]=[1];saved=grid[0,0];unused_snapshot=saved;grid[0,0][0]=8;[saved,grid[0,0]]\nend",
+    "go": [
+      [
+        8
+      ],
+      [
+        8
+      ]
+    ],
+    "rust": [
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "expected": [
+      [
+        1
+      ],
+      [
+        1
+      ]
+    ],
+    "reason": "An array returned by an index method is a logical value; a nested write to that temporary cannot change the stored array or an earlier snapshot."
   }
 ]

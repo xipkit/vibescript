@@ -85,10 +85,67 @@ Methods and accessors support public, private and protected sections, inline mod
 
 Instances expose `class`, `respond_to?`, `is_a?`, `kind_of?` and `instance_of?`. The class predicates compare exact class identity. Private and protected methods are reported by `respond_to?` when called implicitly on the current receiver or with a true second argument.
 
+## Operators and indexed access
+
+Instances can define `+`, `-`, `*`, `/`, `%`, `**`, `<<`, `&`, `==`, `!=`, `<`, `<=`, `>`, `>=` and `<=>`. Operator syntax calls the left instance's method. Compound assignments use the corresponding operator and store its result. An explicit `!=` takes precedence; otherwise `!=` negates the truthiness of the result from `==`.
+
+```vibe
+class Counter
+  getter value: int
+
+  def initialize(@value)
+  end
+
+  def +(amount: int)
+    Counter.new(@value + amount)
+  end
+
+  def to_s
+    "count=#{@value}"
+  end
+end
+
+def run(input)
+  before = Counter.new(2)
+  after = before + 3
+  [before.value, after.value, "#{after}"]
+end
+```
+
+This returns `[2, 5, "count=5"]`. Direct interpolation calls a `to_s` that accepts zero arguments, including private methods and methods with optional parameters. A required parameter or a non-string result preserves the default instance rendering. Containers keep their own element rendering. Errors and exhausted limits propagate through the conversion.
+
+`[]` receives the index selectors; `[]=` receives those selectors followed by the assigned value. Indexed assignment returns the assigned value, while still enforcing the setter's return annotation. Plain assignment evaluates the RHS before its target; compound assignment evaluates its receiver and selectors once before reading and updating the value.
+
+```vibe
+class Grid
+  def initialize
+    @cells = {}
+  end
+
+  def [](row, column)
+    @cells.fetch("#{row}:#{column}", nil)
+  end
+
+  def []=(row, column, value)
+    @cells["#{row}:#{column}"] = value
+  end
+end
+
+def run(input)
+  grid = Grid.new
+  grid[1, 2] = 4
+  grid[1, 2] += 5
+  grid[3, 4] ||= 7
+  [grid[1, 2], grid[3, 4]]
+end
+```
+
+This returns `[9, 7]`. Arrays and hashes returned by an index getter remain collection values. Mutating the returned temporary does not write into stored collections or earlier snapshots; returned instances retain their shared identity. Operator and index syntax enforce method visibility and normal call boundaries.
+
 ## Limits and retained values
 
 Object fields, identity storage, imports and graph traversal are accounted. Cycles are supported and unreachable objects are reclaimed. Cancellation, deadlines and exhausted limits stay latched through constructors, methods and cleanup. A host may retain an instance after a successful or failed call.
 
 Instances returned to Rust can be passed back to the same compiled script. Imports preserve shared references and cycles within the new call while isolating mutations from the source value. Concurrent calls also get independent imported objects and class state.
 
-The class port is incomplete. Operator and index dispatch, custom `to_s` rendering, general `is_type?` coverage and transfer of live namespace state between compiled scripts remain pending. Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.
+The class port is incomplete. Safe navigation, `puts`/`print` output, general `is_type?` coverage and transfer of live namespace state between compiled scripts remain pending. Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.

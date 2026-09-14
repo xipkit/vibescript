@@ -113679,5 +113679,2375 @@
     "name": "class_initial_26",
     "source": "class C\n property n: int\n def initialize(@n); end\nend\ndef run(input)\nC.new(\"x\").n\nend",
     "go_error": "instance variable @n expected int, got string"
+  },
+  {
+    "name": "operator_signature_0",
+    "source": "class C\ndef +();7;end\nend\ndef run(input)\nC.new + 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_3",
+    "source": "class C\ndef +(a,b);7;end\nend\ndef run(input)\nC.new + 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_5",
+    "source": "class C\ndef +(value:);7;end\nend\ndef run(input)\nC.new + 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_6",
+    "source": "class C\ndef +(value: 2);7;end\nend\ndef run(input)\nC.new + 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_8",
+    "source": "class C\ndef +(**opts);7;end\nend\ndef run(input)\nC.new + 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_5",
+    "source": "class C\nprivate def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_visibility_6",
+    "source": "class C\nprivate def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_visibility_7",
+    "source": "class C\nprivate def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_visibility_8",
+    "source": "class C\nprivate def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_visibility_9",
+    "source": "class C\nprivate def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nC.new + 1\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_visibility_11",
+    "source": "class C\nprotected def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method +"
+  },
+  {
+    "name": "operator_visibility_12",
+    "source": "class C\nprotected def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method +"
+  },
+  {
+    "name": "operator_visibility_13",
+    "source": "class C\nprotected def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method +"
+  },
+  {
+    "name": "operator_visibility_14",
+    "source": "class C\nprotected def +(other);7;end\npublic\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\nclass D\ndef probe(other);other + 1;end\ndef self.probe(other);other + 1;end\nend\ndef run(input)\nC.new + 1\nend",
+    "go_error": "protected method +"
+  },
+  {
+    "name": "operator_return_type_1",
+    "source": "class C\ndef +(other) -> string;7;end\nend\ndef run(input)\nC.new + 1\nend",
+    "go_error": "return value for + expected string, got int"
+  },
+  {
+    "name": "operator_return_type_3",
+    "source": "class C\ndef +(other) -> bool;7;end\nend\ndef run(input)\nC.new + 1\nend",
+    "go_error": "return value for + expected bool, got int"
+  },
+  {
+    "name": "operator_control_0",
+    "source": "class C\ndef +(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new + n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_1",
+    "source": "class C\ndef +(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new + n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_11",
+    "source": "class C\ndef -();7;end\nend\ndef run(input)\nC.new - 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_14",
+    "source": "class C\ndef -(a,b);7;end\nend\ndef run(input)\nC.new - 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_16",
+    "source": "class C\ndef -(value:);7;end\nend\ndef run(input)\nC.new - 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_17",
+    "source": "class C\ndef -(value: 2);7;end\nend\ndef run(input)\nC.new - 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_19",
+    "source": "class C\ndef -(**opts);7;end\nend\ndef run(input)\nC.new - 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_20",
+    "source": "class C\nprivate def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_visibility_21",
+    "source": "class C\nprivate def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_visibility_22",
+    "source": "class C\nprivate def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_visibility_23",
+    "source": "class C\nprivate def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_visibility_24",
+    "source": "class C\nprivate def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nC.new - 1\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_visibility_26",
+    "source": "class C\nprotected def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method -"
+  },
+  {
+    "name": "operator_visibility_27",
+    "source": "class C\nprotected def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method -"
+  },
+  {
+    "name": "operator_visibility_28",
+    "source": "class C\nprotected def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method -"
+  },
+  {
+    "name": "operator_visibility_29",
+    "source": "class C\nprotected def -(other);7;end\npublic\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\nclass D\ndef probe(other);other - 1;end\ndef self.probe(other);other - 1;end\nend\ndef run(input)\nC.new - 1\nend",
+    "go_error": "protected method -"
+  },
+  {
+    "name": "operator_return_type_5",
+    "source": "class C\ndef -(other) -> string;7;end\nend\ndef run(input)\nC.new - 1\nend",
+    "go_error": "return value for - expected string, got int"
+  },
+  {
+    "name": "operator_return_type_7",
+    "source": "class C\ndef -(other) -> bool;7;end\nend\ndef run(input)\nC.new - 1\nend",
+    "go_error": "return value for - expected bool, got int"
+  },
+  {
+    "name": "operator_control_3",
+    "source": "class C\ndef -(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new - n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_4",
+    "source": "class C\ndef -(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new - n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_22",
+    "source": "class C\ndef *();7;end\nend\ndef run(input)\nC.new * 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_25",
+    "source": "class C\ndef *(a,b);7;end\nend\ndef run(input)\nC.new * 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_27",
+    "source": "class C\ndef *(value:);7;end\nend\ndef run(input)\nC.new * 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_28",
+    "source": "class C\ndef *(value: 2);7;end\nend\ndef run(input)\nC.new * 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_30",
+    "source": "class C\ndef *(**opts);7;end\nend\ndef run(input)\nC.new * 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_35",
+    "source": "class C\nprivate def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_visibility_36",
+    "source": "class C\nprivate def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_visibility_37",
+    "source": "class C\nprivate def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_visibility_38",
+    "source": "class C\nprivate def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_visibility_39",
+    "source": "class C\nprivate def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nC.new * 1\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_visibility_41",
+    "source": "class C\nprotected def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method *"
+  },
+  {
+    "name": "operator_visibility_42",
+    "source": "class C\nprotected def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method *"
+  },
+  {
+    "name": "operator_visibility_43",
+    "source": "class C\nprotected def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method *"
+  },
+  {
+    "name": "operator_visibility_44",
+    "source": "class C\nprotected def *(other);7;end\npublic\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\nclass D\ndef probe(other);other * 1;end\ndef self.probe(other);other * 1;end\nend\ndef run(input)\nC.new * 1\nend",
+    "go_error": "protected method *"
+  },
+  {
+    "name": "operator_return_type_9",
+    "source": "class C\ndef *(other) -> string;7;end\nend\ndef run(input)\nC.new * 1\nend",
+    "go_error": "return value for * expected string, got int"
+  },
+  {
+    "name": "operator_return_type_11",
+    "source": "class C\ndef *(other) -> bool;7;end\nend\ndef run(input)\nC.new * 1\nend",
+    "go_error": "return value for * expected bool, got int"
+  },
+  {
+    "name": "operator_control_6",
+    "source": "class C\ndef *(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new * n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_7",
+    "source": "class C\ndef *(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new * n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_33",
+    "source": "class C\ndef /();7;end\nend\ndef run(input)\nC.new / 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_36",
+    "source": "class C\ndef /(a,b);7;end\nend\ndef run(input)\nC.new / 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_38",
+    "source": "class C\ndef /(value:);7;end\nend\ndef run(input)\nC.new / 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_39",
+    "source": "class C\ndef /(value: 2);7;end\nend\ndef run(input)\nC.new / 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_41",
+    "source": "class C\ndef /(**opts);7;end\nend\ndef run(input)\nC.new / 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_50",
+    "source": "class C\nprivate def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_visibility_51",
+    "source": "class C\nprivate def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_visibility_52",
+    "source": "class C\nprivate def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_visibility_53",
+    "source": "class C\nprivate def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_visibility_54",
+    "source": "class C\nprivate def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nC.new / 1\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_visibility_56",
+    "source": "class C\nprotected def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method /"
+  },
+  {
+    "name": "operator_visibility_57",
+    "source": "class C\nprotected def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method /"
+  },
+  {
+    "name": "operator_visibility_58",
+    "source": "class C\nprotected def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method /"
+  },
+  {
+    "name": "operator_visibility_59",
+    "source": "class C\nprotected def /(other);7;end\npublic\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\nclass D\ndef probe(other);other / 1;end\ndef self.probe(other);other / 1;end\nend\ndef run(input)\nC.new / 1\nend",
+    "go_error": "protected method /"
+  },
+  {
+    "name": "operator_return_type_13",
+    "source": "class C\ndef /(other) -> string;7;end\nend\ndef run(input)\nC.new / 1\nend",
+    "go_error": "return value for / expected string, got int"
+  },
+  {
+    "name": "operator_return_type_15",
+    "source": "class C\ndef /(other) -> bool;7;end\nend\ndef run(input)\nC.new / 1\nend",
+    "go_error": "return value for / expected bool, got int"
+  },
+  {
+    "name": "operator_control_9",
+    "source": "class C\ndef /(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new / n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_10",
+    "source": "class C\ndef /(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new / n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_44",
+    "source": "class C\ndef %();7;end\nend\ndef run(input)\nC.new % 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_47",
+    "source": "class C\ndef %(a,b);7;end\nend\ndef run(input)\nC.new % 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_49",
+    "source": "class C\ndef %(value:);7;end\nend\ndef run(input)\nC.new % 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_50",
+    "source": "class C\ndef %(value: 2);7;end\nend\ndef run(input)\nC.new % 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_52",
+    "source": "class C\ndef %(**opts);7;end\nend\ndef run(input)\nC.new % 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_65",
+    "source": "class C\nprivate def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_visibility_66",
+    "source": "class C\nprivate def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_visibility_67",
+    "source": "class C\nprivate def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_visibility_68",
+    "source": "class C\nprivate def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_visibility_69",
+    "source": "class C\nprivate def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nC.new % 1\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_visibility_71",
+    "source": "class C\nprotected def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method %"
+  },
+  {
+    "name": "operator_visibility_72",
+    "source": "class C\nprotected def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method %"
+  },
+  {
+    "name": "operator_visibility_73",
+    "source": "class C\nprotected def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method %"
+  },
+  {
+    "name": "operator_visibility_74",
+    "source": "class C\nprotected def %(other);7;end\npublic\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\nclass D\ndef probe(other);other % 1;end\ndef self.probe(other);other % 1;end\nend\ndef run(input)\nC.new % 1\nend",
+    "go_error": "protected method %"
+  },
+  {
+    "name": "operator_return_type_17",
+    "source": "class C\ndef %(other) -> string;7;end\nend\ndef run(input)\nC.new % 1\nend",
+    "go_error": "return value for % expected string, got int"
+  },
+  {
+    "name": "operator_return_type_19",
+    "source": "class C\ndef %(other) -> bool;7;end\nend\ndef run(input)\nC.new % 1\nend",
+    "go_error": "return value for % expected bool, got int"
+  },
+  {
+    "name": "operator_control_12",
+    "source": "class C\ndef %(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new % n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_13",
+    "source": "class C\ndef %(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new % n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_55",
+    "source": "class C\ndef **();7;end\nend\ndef run(input)\nC.new ** 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_58",
+    "source": "class C\ndef **(a,b);7;end\nend\ndef run(input)\nC.new ** 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_60",
+    "source": "class C\ndef **(value:);7;end\nend\ndef run(input)\nC.new ** 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_61",
+    "source": "class C\ndef **(value: 2);7;end\nend\ndef run(input)\nC.new ** 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_63",
+    "source": "class C\ndef **(**opts);7;end\nend\ndef run(input)\nC.new ** 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_80",
+    "source": "class C\nprivate def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_visibility_81",
+    "source": "class C\nprivate def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_visibility_82",
+    "source": "class C\nprivate def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_visibility_83",
+    "source": "class C\nprivate def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_visibility_84",
+    "source": "class C\nprivate def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nC.new ** 1\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_visibility_86",
+    "source": "class C\nprotected def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method **"
+  },
+  {
+    "name": "operator_visibility_87",
+    "source": "class C\nprotected def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method **"
+  },
+  {
+    "name": "operator_visibility_88",
+    "source": "class C\nprotected def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method **"
+  },
+  {
+    "name": "operator_visibility_89",
+    "source": "class C\nprotected def **(other);7;end\npublic\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\nclass D\ndef probe(other);other ** 1;end\ndef self.probe(other);other ** 1;end\nend\ndef run(input)\nC.new ** 1\nend",
+    "go_error": "protected method **"
+  },
+  {
+    "name": "operator_return_type_21",
+    "source": "class C\ndef **(other) -> string;7;end\nend\ndef run(input)\nC.new ** 1\nend",
+    "go_error": "return value for ** expected string, got int"
+  },
+  {
+    "name": "operator_return_type_23",
+    "source": "class C\ndef **(other) -> bool;7;end\nend\ndef run(input)\nC.new ** 1\nend",
+    "go_error": "return value for ** expected bool, got int"
+  },
+  {
+    "name": "operator_control_15",
+    "source": "class C\ndef **(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new ** n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_16",
+    "source": "class C\ndef **(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new ** n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_66",
+    "source": "class C\ndef <<();7;end\nend\ndef run(input)\nC.new << 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_69",
+    "source": "class C\ndef <<(a,b);7;end\nend\ndef run(input)\nC.new << 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_71",
+    "source": "class C\ndef <<(value:);7;end\nend\ndef run(input)\nC.new << 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_72",
+    "source": "class C\ndef <<(value: 2);7;end\nend\ndef run(input)\nC.new << 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_74",
+    "source": "class C\ndef <<(**opts);7;end\nend\ndef run(input)\nC.new << 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_95",
+    "source": "class C\nprivate def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_visibility_96",
+    "source": "class C\nprivate def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_visibility_97",
+    "source": "class C\nprivate def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_visibility_98",
+    "source": "class C\nprivate def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_visibility_99",
+    "source": "class C\nprivate def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nC.new << 1\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_visibility_101",
+    "source": "class C\nprotected def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method <<"
+  },
+  {
+    "name": "operator_visibility_102",
+    "source": "class C\nprotected def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method <<"
+  },
+  {
+    "name": "operator_visibility_103",
+    "source": "class C\nprotected def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method <<"
+  },
+  {
+    "name": "operator_visibility_104",
+    "source": "class C\nprotected def <<(other);7;end\npublic\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\nclass D\ndef probe(other);other << 1;end\ndef self.probe(other);other << 1;end\nend\ndef run(input)\nC.new << 1\nend",
+    "go_error": "protected method <<"
+  },
+  {
+    "name": "operator_return_type_25",
+    "source": "class C\ndef <<(other) -> string;7;end\nend\ndef run(input)\nC.new << 1\nend",
+    "go_error": "return value for << expected string, got int"
+  },
+  {
+    "name": "operator_return_type_27",
+    "source": "class C\ndef <<(other) -> bool;7;end\nend\ndef run(input)\nC.new << 1\nend",
+    "go_error": "return value for << expected bool, got int"
+  },
+  {
+    "name": "operator_control_18",
+    "source": "class C\ndef <<(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new << n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_19",
+    "source": "class C\ndef <<(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new << n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_77",
+    "source": "class C\ndef &();7;end\nend\ndef run(input)\nC.new & 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_80",
+    "source": "class C\ndef &(a,b);7;end\nend\ndef run(input)\nC.new & 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_82",
+    "source": "class C\ndef &(value:);7;end\nend\ndef run(input)\nC.new & 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_83",
+    "source": "class C\ndef &(value: 2);7;end\nend\ndef run(input)\nC.new & 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_85",
+    "source": "class C\ndef &(**opts);7;end\nend\ndef run(input)\nC.new & 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_110",
+    "source": "class C\nprivate def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_visibility_111",
+    "source": "class C\nprivate def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_visibility_112",
+    "source": "class C\nprivate def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_visibility_113",
+    "source": "class C\nprivate def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_visibility_114",
+    "source": "class C\nprivate def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nC.new & 1\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_visibility_116",
+    "source": "class C\nprotected def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method &"
+  },
+  {
+    "name": "operator_visibility_117",
+    "source": "class C\nprotected def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method &"
+  },
+  {
+    "name": "operator_visibility_118",
+    "source": "class C\nprotected def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method &"
+  },
+  {
+    "name": "operator_visibility_119",
+    "source": "class C\nprotected def &(other);7;end\npublic\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\nclass D\ndef probe(other);other & 1;end\ndef self.probe(other);other & 1;end\nend\ndef run(input)\nC.new & 1\nend",
+    "go_error": "protected method &"
+  },
+  {
+    "name": "operator_return_type_29",
+    "source": "class C\ndef &(other) -> string;7;end\nend\ndef run(input)\nC.new & 1\nend",
+    "go_error": "return value for & expected string, got int"
+  },
+  {
+    "name": "operator_return_type_31",
+    "source": "class C\ndef &(other) -> bool;7;end\nend\ndef run(input)\nC.new & 1\nend",
+    "go_error": "return value for & expected bool, got int"
+  },
+  {
+    "name": "operator_control_21",
+    "source": "class C\ndef &(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new & n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_22",
+    "source": "class C\ndef &(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new & n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_88",
+    "source": "class C\ndef ==();7;end\nend\ndef run(input)\nC.new == 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_91",
+    "source": "class C\ndef ==(a,b);7;end\nend\ndef run(input)\nC.new == 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_93",
+    "source": "class C\ndef ==(value:);7;end\nend\ndef run(input)\nC.new == 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_94",
+    "source": "class C\ndef ==(value: 2);7;end\nend\ndef run(input)\nC.new == 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_96",
+    "source": "class C\ndef ==(**opts);7;end\nend\ndef run(input)\nC.new == 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_125",
+    "source": "class C\nprivate def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_visibility_126",
+    "source": "class C\nprivate def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_visibility_127",
+    "source": "class C\nprivate def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_visibility_128",
+    "source": "class C\nprivate def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_visibility_129",
+    "source": "class C\nprivate def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nC.new == 1\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_visibility_131",
+    "source": "class C\nprotected def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method =="
+  },
+  {
+    "name": "operator_visibility_132",
+    "source": "class C\nprotected def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method =="
+  },
+  {
+    "name": "operator_visibility_133",
+    "source": "class C\nprotected def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method =="
+  },
+  {
+    "name": "operator_visibility_134",
+    "source": "class C\nprotected def ==(other);7;end\npublic\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\nclass D\ndef probe(other);other == 1;end\ndef self.probe(other);other == 1;end\nend\ndef run(input)\nC.new == 1\nend",
+    "go_error": "protected method =="
+  },
+  {
+    "name": "operator_return_type_33",
+    "source": "class C\ndef ==(other) -> string;7;end\nend\ndef run(input)\nC.new == 1\nend",
+    "go_error": "return value for == expected string, got int"
+  },
+  {
+    "name": "operator_return_type_35",
+    "source": "class C\ndef ==(other) -> bool;7;end\nend\ndef run(input)\nC.new == 1\nend",
+    "go_error": "return value for == expected bool, got int"
+  },
+  {
+    "name": "operator_control_24",
+    "source": "class C\ndef ==(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new == n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_25",
+    "source": "class C\ndef ==(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new == n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_99",
+    "source": "class C\ndef !=();7;end\nend\ndef run(input)\nC.new != 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_102",
+    "source": "class C\ndef !=(a,b);7;end\nend\ndef run(input)\nC.new != 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_104",
+    "source": "class C\ndef !=(value:);7;end\nend\ndef run(input)\nC.new != 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_105",
+    "source": "class C\ndef !=(value: 2);7;end\nend\ndef run(input)\nC.new != 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_107",
+    "source": "class C\ndef !=(**opts);7;end\nend\ndef run(input)\nC.new != 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_140",
+    "source": "class C\nprivate def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_visibility_141",
+    "source": "class C\nprivate def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_visibility_142",
+    "source": "class C\nprivate def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_visibility_143",
+    "source": "class C\nprivate def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_visibility_144",
+    "source": "class C\nprivate def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nC.new != 1\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_visibility_146",
+    "source": "class C\nprotected def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method !="
+  },
+  {
+    "name": "operator_visibility_147",
+    "source": "class C\nprotected def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method !="
+  },
+  {
+    "name": "operator_visibility_148",
+    "source": "class C\nprotected def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method !="
+  },
+  {
+    "name": "operator_visibility_149",
+    "source": "class C\nprotected def !=(other);7;end\npublic\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\nclass D\ndef probe(other);other != 1;end\ndef self.probe(other);other != 1;end\nend\ndef run(input)\nC.new != 1\nend",
+    "go_error": "protected method !="
+  },
+  {
+    "name": "operator_return_type_37",
+    "source": "class C\ndef !=(other) -> string;7;end\nend\ndef run(input)\nC.new != 1\nend",
+    "go_error": "return value for != expected string, got int"
+  },
+  {
+    "name": "operator_return_type_39",
+    "source": "class C\ndef !=(other) -> bool;7;end\nend\ndef run(input)\nC.new != 1\nend",
+    "go_error": "return value for != expected bool, got int"
+  },
+  {
+    "name": "operator_control_27",
+    "source": "class C\ndef !=(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new != n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_28",
+    "source": "class C\ndef !=(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new != n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_110",
+    "source": "class C\ndef <();7;end\nend\ndef run(input)\nC.new < 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_113",
+    "source": "class C\ndef <(a,b);7;end\nend\ndef run(input)\nC.new < 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_115",
+    "source": "class C\ndef <(value:);7;end\nend\ndef run(input)\nC.new < 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_116",
+    "source": "class C\ndef <(value: 2);7;end\nend\ndef run(input)\nC.new < 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_118",
+    "source": "class C\ndef <(**opts);7;end\nend\ndef run(input)\nC.new < 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_155",
+    "source": "class C\nprivate def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_visibility_156",
+    "source": "class C\nprivate def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_visibility_157",
+    "source": "class C\nprivate def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_visibility_158",
+    "source": "class C\nprivate def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_visibility_159",
+    "source": "class C\nprivate def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nC.new < 1\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_visibility_161",
+    "source": "class C\nprotected def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method <"
+  },
+  {
+    "name": "operator_visibility_162",
+    "source": "class C\nprotected def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method <"
+  },
+  {
+    "name": "operator_visibility_163",
+    "source": "class C\nprotected def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method <"
+  },
+  {
+    "name": "operator_visibility_164",
+    "source": "class C\nprotected def <(other);7;end\npublic\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\nclass D\ndef probe(other);other < 1;end\ndef self.probe(other);other < 1;end\nend\ndef run(input)\nC.new < 1\nend",
+    "go_error": "protected method <"
+  },
+  {
+    "name": "operator_return_type_41",
+    "source": "class C\ndef <(other) -> string;7;end\nend\ndef run(input)\nC.new < 1\nend",
+    "go_error": "return value for < expected string, got int"
+  },
+  {
+    "name": "operator_return_type_43",
+    "source": "class C\ndef <(other) -> bool;7;end\nend\ndef run(input)\nC.new < 1\nend",
+    "go_error": "return value for < expected bool, got int"
+  },
+  {
+    "name": "operator_control_30",
+    "source": "class C\ndef <(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new < n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_31",
+    "source": "class C\ndef <(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new < n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_121",
+    "source": "class C\ndef <=();7;end\nend\ndef run(input)\nC.new <= 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_124",
+    "source": "class C\ndef <=(a,b);7;end\nend\ndef run(input)\nC.new <= 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_126",
+    "source": "class C\ndef <=(value:);7;end\nend\ndef run(input)\nC.new <= 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_127",
+    "source": "class C\ndef <=(value: 2);7;end\nend\ndef run(input)\nC.new <= 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_129",
+    "source": "class C\ndef <=(**opts);7;end\nend\ndef run(input)\nC.new <= 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_170",
+    "source": "class C\nprivate def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_visibility_171",
+    "source": "class C\nprivate def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_visibility_172",
+    "source": "class C\nprivate def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_visibility_173",
+    "source": "class C\nprivate def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_visibility_174",
+    "source": "class C\nprivate def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nC.new <= 1\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_visibility_176",
+    "source": "class C\nprotected def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method <="
+  },
+  {
+    "name": "operator_visibility_177",
+    "source": "class C\nprotected def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method <="
+  },
+  {
+    "name": "operator_visibility_178",
+    "source": "class C\nprotected def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method <="
+  },
+  {
+    "name": "operator_visibility_179",
+    "source": "class C\nprotected def <=(other);7;end\npublic\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\nclass D\ndef probe(other);other <= 1;end\ndef self.probe(other);other <= 1;end\nend\ndef run(input)\nC.new <= 1\nend",
+    "go_error": "protected method <="
+  },
+  {
+    "name": "operator_return_type_45",
+    "source": "class C\ndef <=(other) -> string;7;end\nend\ndef run(input)\nC.new <= 1\nend",
+    "go_error": "return value for <= expected string, got int"
+  },
+  {
+    "name": "operator_return_type_47",
+    "source": "class C\ndef <=(other) -> bool;7;end\nend\ndef run(input)\nC.new <= 1\nend",
+    "go_error": "return value for <= expected bool, got int"
+  },
+  {
+    "name": "operator_control_33",
+    "source": "class C\ndef <=(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new <= n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_34",
+    "source": "class C\ndef <=(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new <= n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_132",
+    "source": "class C\ndef >();7;end\nend\ndef run(input)\nC.new > 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_135",
+    "source": "class C\ndef >(a,b);7;end\nend\ndef run(input)\nC.new > 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_137",
+    "source": "class C\ndef >(value:);7;end\nend\ndef run(input)\nC.new > 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_138",
+    "source": "class C\ndef >(value: 2);7;end\nend\ndef run(input)\nC.new > 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_140",
+    "source": "class C\ndef >(**opts);7;end\nend\ndef run(input)\nC.new > 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_185",
+    "source": "class C\nprivate def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_visibility_186",
+    "source": "class C\nprivate def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_visibility_187",
+    "source": "class C\nprivate def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_visibility_188",
+    "source": "class C\nprivate def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_visibility_189",
+    "source": "class C\nprivate def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nC.new > 1\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_visibility_191",
+    "source": "class C\nprotected def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method >"
+  },
+  {
+    "name": "operator_visibility_192",
+    "source": "class C\nprotected def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method >"
+  },
+  {
+    "name": "operator_visibility_193",
+    "source": "class C\nprotected def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method >"
+  },
+  {
+    "name": "operator_visibility_194",
+    "source": "class C\nprotected def >(other);7;end\npublic\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\nclass D\ndef probe(other);other > 1;end\ndef self.probe(other);other > 1;end\nend\ndef run(input)\nC.new > 1\nend",
+    "go_error": "protected method >"
+  },
+  {
+    "name": "operator_return_type_49",
+    "source": "class C\ndef >(other) -> string;7;end\nend\ndef run(input)\nC.new > 1\nend",
+    "go_error": "return value for > expected string, got int"
+  },
+  {
+    "name": "operator_return_type_51",
+    "source": "class C\ndef >(other) -> bool;7;end\nend\ndef run(input)\nC.new > 1\nend",
+    "go_error": "return value for > expected bool, got int"
+  },
+  {
+    "name": "operator_control_36",
+    "source": "class C\ndef >(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new > n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_37",
+    "source": "class C\ndef >(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new > n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_143",
+    "source": "class C\ndef >=();7;end\nend\ndef run(input)\nC.new >= 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_146",
+    "source": "class C\ndef >=(a,b);7;end\nend\ndef run(input)\nC.new >= 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_148",
+    "source": "class C\ndef >=(value:);7;end\nend\ndef run(input)\nC.new >= 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_149",
+    "source": "class C\ndef >=(value: 2);7;end\nend\ndef run(input)\nC.new >= 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_151",
+    "source": "class C\ndef >=(**opts);7;end\nend\ndef run(input)\nC.new >= 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_200",
+    "source": "class C\nprivate def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_visibility_201",
+    "source": "class C\nprivate def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_visibility_202",
+    "source": "class C\nprivate def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_visibility_203",
+    "source": "class C\nprivate def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_visibility_204",
+    "source": "class C\nprivate def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nC.new >= 1\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_visibility_206",
+    "source": "class C\nprotected def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method >="
+  },
+  {
+    "name": "operator_visibility_207",
+    "source": "class C\nprotected def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method >="
+  },
+  {
+    "name": "operator_visibility_208",
+    "source": "class C\nprotected def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method >="
+  },
+  {
+    "name": "operator_visibility_209",
+    "source": "class C\nprotected def >=(other);7;end\npublic\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\nclass D\ndef probe(other);other >= 1;end\ndef self.probe(other);other >= 1;end\nend\ndef run(input)\nC.new >= 1\nend",
+    "go_error": "protected method >="
+  },
+  {
+    "name": "operator_return_type_53",
+    "source": "class C\ndef >=(other) -> string;7;end\nend\ndef run(input)\nC.new >= 1\nend",
+    "go_error": "return value for >= expected string, got int"
+  },
+  {
+    "name": "operator_return_type_55",
+    "source": "class C\ndef >=(other) -> bool;7;end\nend\ndef run(input)\nC.new >= 1\nend",
+    "go_error": "return value for >= expected bool, got int"
+  },
+  {
+    "name": "operator_control_39",
+    "source": "class C\ndef >=(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new >= n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_40",
+    "source": "class C\ndef >=(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new >= n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_signature_154",
+    "source": "class C\ndef <=>();7;end\nend\ndef run(input)\nC.new <=> 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_157",
+    "source": "class C\ndef <=>(a,b);7;end\nend\ndef run(input)\nC.new <=> 3\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_signature_159",
+    "source": "class C\ndef <=>(value:);7;end\nend\ndef run(input)\nC.new <=> 3\nend",
+    "go_error": "missing keyword argument value"
+  },
+  {
+    "name": "operator_signature_160",
+    "source": "class C\ndef <=>(value: 2);7;end\nend\ndef run(input)\nC.new <=> 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_signature_162",
+    "source": "class C\ndef <=>(**opts);7;end\nend\ndef run(input)\nC.new <=> 3\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_visibility_215",
+    "source": "class C\nprivate def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_visibility_216",
+    "source": "class C\nprivate def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_visibility_217",
+    "source": "class C\nprivate def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_visibility_218",
+    "source": "class C\nprivate def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_visibility_219",
+    "source": "class C\nprivate def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nC.new <=> 1\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_visibility_221",
+    "source": "class C\nprotected def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method <=>"
+  },
+  {
+    "name": "operator_visibility_222",
+    "source": "class C\nprotected def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method <=>"
+  },
+  {
+    "name": "operator_visibility_223",
+    "source": "class C\nprotected def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method <=>"
+  },
+  {
+    "name": "operator_visibility_224",
+    "source": "class C\nprotected def <=>(other);7;end\npublic\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\nclass D\ndef probe(other);other <=> 1;end\ndef self.probe(other);other <=> 1;end\nend\ndef run(input)\nC.new <=> 1\nend",
+    "go_error": "protected method <=>"
+  },
+  {
+    "name": "operator_return_type_57",
+    "source": "class C\ndef <=>(other) -> string;7;end\nend\ndef run(input)\nC.new <=> 1\nend",
+    "go_error": "return value for <=> expected string, got int"
+  },
+  {
+    "name": "operator_return_type_59",
+    "source": "class C\ndef <=>(other) -> bool;7;end\nend\ndef run(input)\nC.new <=> 1\nend",
+    "go_error": "return value for <=> expected bool, got int"
+  },
+  {
+    "name": "operator_control_42",
+    "source": "class C\ndef <=>(other);break;end\nend\ndef run(input)\nfor n in [1,2];C.new <=> n;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_control_43",
+    "source": "class C\ndef <=>(other);next;end\nend\ndef run(input)\nfor n in [1,2];C.new <=> n;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_left_receiver_30",
+    "source": "class C\ndef +(other);7;end\nend\nclass D\ndef +(other);9;end\nend\ndef run(input)\n1 + C.new\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "operator_left_receiver_31",
+    "source": "class C\ndef -(other);7;end\nend\nclass D\ndef -(other);9;end\nend\ndef run(input)\n1 - C.new\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "operator_left_receiver_32",
+    "source": "class C\ndef *(other);7;end\nend\nclass D\ndef *(other);9;end\nend\ndef run(input)\n1 * C.new\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "operator_left_receiver_33",
+    "source": "class C\ndef /(other);7;end\nend\nclass D\ndef /(other);9;end\nend\ndef run(input)\n1 / C.new\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "operator_left_receiver_34",
+    "source": "class C\ndef %(other);7;end\nend\nclass D\ndef %(other);9;end\nend\ndef run(input)\n1 % C.new\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "operator_left_receiver_35",
+    "source": "class C\ndef **(other);7;end\nend\nclass D\ndef **(other);9;end\nend\ndef run(input)\n1 ** C.new\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "operator_left_receiver_36",
+    "source": "class C\ndef <<(other);7;end\nend\nclass D\ndef <<(other);9;end\nend\ndef run(input)\n1 << C.new\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_left_receiver_37",
+    "source": "class C\ndef &(other);7;end\nend\nclass D\ndef &(other);9;end\nend\ndef run(input)\n1 & C.new\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "operator_left_receiver_40",
+    "source": "class C\ndef <(other);7;end\nend\nclass D\ndef <(other);9;end\nend\ndef run(input)\n1 < C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_41",
+    "source": "class C\ndef <=(other);7;end\nend\nclass D\ndef <=(other);9;end\nend\ndef run(input)\n1 <= C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_42",
+    "source": "class C\ndef >(other);7;end\nend\nclass D\ndef >(other);9;end\nend\ndef run(input)\n1 > C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_43",
+    "source": "class C\ndef >=(other);7;end\nend\nclass D\ndef >=(other);9;end\nend\ndef run(input)\n1 >= C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_45",
+    "source": "class C\ndef +(other);7;end\nend\nclass D\ndef +(other);9;end\nend\ndef run(input)\nnil + C.new\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "operator_left_receiver_46",
+    "source": "class C\ndef -(other);7;end\nend\nclass D\ndef -(other);9;end\nend\ndef run(input)\nnil - C.new\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "operator_left_receiver_47",
+    "source": "class C\ndef *(other);7;end\nend\nclass D\ndef *(other);9;end\nend\ndef run(input)\nnil * C.new\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "operator_left_receiver_48",
+    "source": "class C\ndef /(other);7;end\nend\nclass D\ndef /(other);9;end\nend\ndef run(input)\nnil / C.new\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "operator_left_receiver_49",
+    "source": "class C\ndef %(other);7;end\nend\nclass D\ndef %(other);9;end\nend\ndef run(input)\nnil % C.new\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "operator_left_receiver_50",
+    "source": "class C\ndef **(other);7;end\nend\nclass D\ndef **(other);9;end\nend\ndef run(input)\nnil ** C.new\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "operator_left_receiver_51",
+    "source": "class C\ndef <<(other);7;end\nend\nclass D\ndef <<(other);9;end\nend\ndef run(input)\nnil << C.new\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_left_receiver_52",
+    "source": "class C\ndef &(other);7;end\nend\nclass D\ndef &(other);9;end\nend\ndef run(input)\nnil & C.new\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "operator_left_receiver_55",
+    "source": "class C\ndef <(other);7;end\nend\nclass D\ndef <(other);9;end\nend\ndef run(input)\nnil < C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_56",
+    "source": "class C\ndef <=(other);7;end\nend\nclass D\ndef <=(other);9;end\nend\ndef run(input)\nnil <= C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_57",
+    "source": "class C\ndef >(other);7;end\nend\nclass D\ndef >(other);9;end\nend\ndef run(input)\nnil > C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_58",
+    "source": "class C\ndef >=(other);7;end\nend\nclass D\ndef >=(other);9;end\nend\ndef run(input)\nnil >= C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_60",
+    "source": "class C\ndef +(other);7;end\nend\nclass D\ndef +(other);9;end\nend\ndef run(input)\n[] + C.new\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "operator_left_receiver_61",
+    "source": "class C\ndef -(other);7;end\nend\nclass D\ndef -(other);9;end\nend\ndef run(input)\n[] - C.new\nend",
+    "go_error": "unsupported subtraction operands"
+  },
+  {
+    "name": "operator_left_receiver_62",
+    "source": "class C\ndef *(other);7;end\nend\nclass D\ndef *(other);9;end\nend\ndef run(input)\n[] * C.new\nend",
+    "go_error": "unsupported multiplication operands"
+  },
+  {
+    "name": "operator_left_receiver_63",
+    "source": "class C\ndef /(other);7;end\nend\nclass D\ndef /(other);9;end\nend\ndef run(input)\n[] / C.new\nend",
+    "go_error": "unsupported division operands"
+  },
+  {
+    "name": "operator_left_receiver_64",
+    "source": "class C\ndef %(other);7;end\nend\nclass D\ndef %(other);9;end\nend\ndef run(input)\n[] % C.new\nend",
+    "go_error": "unsupported modulo operands"
+  },
+  {
+    "name": "operator_left_receiver_65",
+    "source": "class C\ndef **(other);7;end\nend\nclass D\ndef **(other);9;end\nend\ndef run(input)\n[] ** C.new\nend",
+    "go_error": "unsupported exponentiation operands"
+  },
+  {
+    "name": "operator_left_receiver_67",
+    "source": "class C\ndef &(other);7;end\nend\nclass D\ndef &(other);9;end\nend\ndef run(input)\n[] & C.new\nend",
+    "go_error": "unsupported intersection operands"
+  },
+  {
+    "name": "operator_left_receiver_70",
+    "source": "class C\ndef <(other);7;end\nend\nclass D\ndef <(other);9;end\nend\ndef run(input)\n[] < C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_71",
+    "source": "class C\ndef <=(other);7;end\nend\nclass D\ndef <=(other);9;end\nend\ndef run(input)\n[] <= C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_72",
+    "source": "class C\ndef >(other);7;end\nend\nclass D\ndef >(other);9;end\nend\ndef run(input)\n[] > C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_left_receiver_73",
+    "source": "class C\ndef >=(other);7;end\nend\nclass D\ndef >=(other);9;end\nend\ndef run(input)\n[] >= C.new\nend",
+    "go_error": "unsupported comparison operands"
+  },
+  {
+    "name": "operator_aliases_1",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"+\", :original\nend\ndef run(input)\nC.new + 1\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_aliases_3",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"+\" :original\nend\ndef run(input)\nC.new + 1\nend",
+    "go_error": "private method +"
+  },
+  {
+    "name": "operator_aliases_5",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"-\", :original\nend\ndef run(input)\nC.new - 1\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_aliases_7",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"-\" :original\nend\ndef run(input)\nC.new - 1\nend",
+    "go_error": "private method -"
+  },
+  {
+    "name": "operator_aliases_9",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"*\", :original\nend\ndef run(input)\nC.new * 1\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_aliases_11",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"*\" :original\nend\ndef run(input)\nC.new * 1\nend",
+    "go_error": "private method *"
+  },
+  {
+    "name": "operator_aliases_13",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"/\", :original\nend\ndef run(input)\nC.new / 1\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_aliases_15",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"/\" :original\nend\ndef run(input)\nC.new / 1\nend",
+    "go_error": "private method /"
+  },
+  {
+    "name": "operator_aliases_17",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"%\", :original\nend\ndef run(input)\nC.new % 1\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_aliases_19",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"%\" :original\nend\ndef run(input)\nC.new % 1\nend",
+    "go_error": "private method %"
+  },
+  {
+    "name": "operator_aliases_21",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"**\", :original\nend\ndef run(input)\nC.new ** 1\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_aliases_23",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"**\" :original\nend\ndef run(input)\nC.new ** 1\nend",
+    "go_error": "private method **"
+  },
+  {
+    "name": "operator_aliases_25",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"<<\", :original\nend\ndef run(input)\nC.new << 1\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_aliases_27",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"<<\" :original\nend\ndef run(input)\nC.new << 1\nend",
+    "go_error": "private method <<"
+  },
+  {
+    "name": "operator_aliases_29",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"&\", :original\nend\ndef run(input)\nC.new & 1\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_aliases_31",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"&\" :original\nend\ndef run(input)\nC.new & 1\nend",
+    "go_error": "private method &"
+  },
+  {
+    "name": "operator_aliases_33",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"==\", :original\nend\ndef run(input)\nC.new == 1\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_aliases_35",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"==\" :original\nend\ndef run(input)\nC.new == 1\nend",
+    "go_error": "private method =="
+  },
+  {
+    "name": "operator_aliases_37",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"!=\", :original\nend\ndef run(input)\nC.new != 1\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_aliases_39",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"!=\" :original\nend\ndef run(input)\nC.new != 1\nend",
+    "go_error": "private method !="
+  },
+  {
+    "name": "operator_aliases_41",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"<\", :original\nend\ndef run(input)\nC.new < 1\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_aliases_43",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"<\" :original\nend\ndef run(input)\nC.new < 1\nend",
+    "go_error": "private method <"
+  },
+  {
+    "name": "operator_aliases_45",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"<=\", :original\nend\ndef run(input)\nC.new <= 1\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_aliases_47",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"<=\" :original\nend\ndef run(input)\nC.new <= 1\nend",
+    "go_error": "private method <="
+  },
+  {
+    "name": "operator_aliases_49",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\">\", :original\nend\ndef run(input)\nC.new > 1\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_aliases_51",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\">\" :original\nend\ndef run(input)\nC.new > 1\nend",
+    "go_error": "private method >"
+  },
+  {
+    "name": "operator_aliases_53",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\">=\", :original\nend\ndef run(input)\nC.new >= 1\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_aliases_55",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\">=\" :original\nend\ndef run(input)\nC.new >= 1\nend",
+    "go_error": "private method >="
+  },
+  {
+    "name": "operator_aliases_57",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"<=>\", :original\nend\ndef run(input)\nC.new <=> 1\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_aliases_59",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"<=>\" :original\nend\ndef run(input)\nC.new <=> 1\nend",
+    "go_error": "private method <=>"
+  },
+  {
+    "name": "operator_aliases_61",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"[]\", :original\nend\ndef run(input)\nC.new[1]\nend",
+    "go_error": "private method []"
+  },
+  {
+    "name": "operator_aliases_63",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"[]\" :original\nend\ndef run(input)\nC.new[1]\nend",
+    "go_error": "private method []"
+  },
+  {
+    "name": "operator_aliases_65",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias_method :\"[]=\", :original\nend\ndef run(input)\nc=C.new;c[1]=2\nend",
+    "go_error": "private method []="
+  },
+  {
+    "name": "operator_aliases_67",
+    "source": "class C\nprivate def original(*args);args.length;end\nalias :\"[]=\" :original\nend\ndef run(input)\nc=C.new;c[1]=2\nend",
+    "go_error": "private method []="
+  },
+  {
+    "name": "operator_index_read_1",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[0]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_1",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_2",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_2",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_3",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_3",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_4",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[:key]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_4",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_5",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[nil]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_5",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_6",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[[1,2]]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_6",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_7",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[{a:1}]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_7",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_9",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_10",
+    "source": "class C\ndef [](index);7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_10",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_11",
+    "source": "class C\ndef [](index);7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_11",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_12",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_13",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_14",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_15",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_17",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[0]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_write_18",
+    "source": "class C\ndef []=(a,b);7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_19",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_19",
+    "source": "class C\ndef []=(a,b);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_20",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[:key]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_read_21",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[nil]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_read_22",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[[1,2]]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_read_23",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[{a:1}]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_read_25",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[0]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_write_25",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "missing argument c"
+  },
+  {
+    "name": "operator_index_read_26",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "missing argument c"
+  },
+  {
+    "name": "operator_index_write_27",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_28",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[:key]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_write_28",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "missing argument c"
+  },
+  {
+    "name": "operator_index_read_29",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[nil]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_write_29",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "missing argument c"
+  },
+  {
+    "name": "operator_index_read_30",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[[1,2]]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_write_30",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "missing argument c"
+  },
+  {
+    "name": "operator_index_read_31",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[{a:1}]\nend",
+    "go_error": "missing argument b"
+  },
+  {
+    "name": "operator_index_write_31",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "missing argument c"
+  },
+  {
+    "name": "operator_index_write_41",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_42",
+    "source": "class C\ndef [](index=2);7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_42",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_43",
+    "source": "class C\ndef [](index=2);7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_43",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_44",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_45",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_46",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_47",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_49",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_50",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_50",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_51",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_51",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_52",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[:key]\nend",
+    "go_error": "argument index expected int, got symbol"
+  },
+  {
+    "name": "operator_index_write_52",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_53",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[nil]\nend",
+    "go_error": "argument index expected int, got nil"
+  },
+  {
+    "name": "operator_index_write_53",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_54",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[[1,2]]\nend",
+    "go_error": "argument index expected int, got array<int>"
+  },
+  {
+    "name": "operator_index_write_54",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_55",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[{a:1}]\nend",
+    "go_error": "argument index expected int, got { a: int }"
+  },
+  {
+    "name": "operator_index_write_55",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_57",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[0]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_57",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_58",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_58",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_59",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_59",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_60",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[:key]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_60",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_61",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[nil]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_61",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_62",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[[1,2]]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_62",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_63",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[{a:1}]\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_write_63",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "missing keyword argument index"
+  },
+  {
+    "name": "operator_index_read_65",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[0]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_65",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[0]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_66",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[1,2]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_66",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[1,2]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_67",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[1,2,3]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_67",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[1,2,3]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_68",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[:key]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_68",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[:key]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_69",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[nil]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_69",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[nil]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_70",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[[1,2]]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_70",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[[1,2]]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_read_71",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[{a:1}]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_write_71",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[{a:1}]=9\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "operator_index_visibility_8",
+    "source": "class C\nprivate def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method []"
+  },
+  {
+    "name": "operator_index_visibility_9",
+    "source": "class C\nprivate def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method []"
+  },
+  {
+    "name": "operator_index_visibility_10",
+    "source": "class C\nprivate def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method []"
+  },
+  {
+    "name": "operator_index_visibility_11",
+    "source": "class C\nprivate def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method []"
+  },
+  {
+    "name": "operator_index_visibility_12",
+    "source": "class C\nprivate def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nC.new.probe(C.new)\nend",
+    "go_error": "private method []="
+  },
+  {
+    "name": "operator_index_visibility_13",
+    "source": "class C\nprivate def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "private method []="
+  },
+  {
+    "name": "operator_index_visibility_14",
+    "source": "class C\nprivate def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "private method []="
+  },
+  {
+    "name": "operator_index_visibility_15",
+    "source": "class C\nprivate def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "private method []="
+  },
+  {
+    "name": "operator_index_visibility_17",
+    "source": "class C\nprotected def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method []"
+  },
+  {
+    "name": "operator_index_visibility_18",
+    "source": "class C\nprotected def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method []"
+  },
+  {
+    "name": "operator_index_visibility_19",
+    "source": "class C\nprotected def [](key);7;end\npublic\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\nclass D\ndef probe(other);other[1];end\ndef self.probe(other);other[1];end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method []"
+  },
+  {
+    "name": "operator_index_visibility_21",
+    "source": "class C\nprotected def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nC.probe(C.new)\nend",
+    "go_error": "protected method []="
+  },
+  {
+    "name": "operator_index_visibility_22",
+    "source": "class C\nprotected def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nD.new.probe(C.new)\nend",
+    "go_error": "protected method []="
+  },
+  {
+    "name": "operator_index_visibility_23",
+    "source": "class C\nprotected def []=(key,value);7;end\npublic\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\nclass D\ndef probe(other);other[1]=2;end\ndef self.probe(other);other[1]=2;end\nend\ndef run(input)\nD.probe(C.new)\nend",
+    "go_error": "protected method []="
+  },
+  {
+    "name": "operator_index_values_4",
+    "source": "class C\ndef initialize;@value=[1];end\ndef [](index);@value;end\ndef []=(index,value);@value=value;99;end\ndef read;@value;end\nend\ndef run(input)\nc=C.new;c[0].map!{|v|v+1};c.read\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "operator_index_control_0",
+    "source": "class C\ndef [](key);break;end\nend\ndef run(input)\nc=C.new;c[1]\nend",
+    "go_error": "break used outside of loop"
+  },
+  {
+    "name": "operator_index_control_1",
+    "source": "class C\ndef [](key);break;end\nend\ndef run(input)\nc=C.new;for n in [1,2];c[1];end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_index_control_2",
+    "source": "class C\ndef [](key);next;end\nend\ndef run(input)\nc=C.new;c[1]\nend",
+    "go_error": "next used outside of loop"
+  },
+  {
+    "name": "operator_index_control_3",
+    "source": "class C\ndef [](key);next;end\nend\ndef run(input)\nc=C.new;for n in [1,2];c[1];end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_index_control_6",
+    "source": "class C\ndef []=(key,value);break;end\nend\ndef run(input)\nc=C.new;c[1]=2\nend",
+    "go_error": "break used outside of loop"
+  },
+  {
+    "name": "operator_index_control_7",
+    "source": "class C\ndef []=(key,value);break;end\nend\ndef run(input)\nc=C.new;for n in [1,2];c[1]=2;end\nend",
+    "go_error": "break cannot cross call boundary"
+  },
+  {
+    "name": "operator_index_control_8",
+    "source": "class C\ndef []=(key,value);next;end\nend\ndef run(input)\nc=C.new;c[1]=2\nend",
+    "go_error": "next used outside of loop"
+  },
+  {
+    "name": "operator_index_control_9",
+    "source": "class C\ndef []=(key,value);next;end\nend\ndef run(input)\nc=C.new;for n in [1,2];c[1]=2;end\nend",
+    "go_error": "next cannot cross call boundary"
+  },
+  {
+    "name": "operator_index_missing_0",
+    "source": "class C\nend\ndef run(input)\nc=C.new;c[0]\nend",
+    "go_error": "cannot index instance: C does not define []"
+  },
+  {
+    "name": "operator_index_missing_1",
+    "source": "class C\nend\ndef run(input)\nc=C.new;c[0]=7\nend",
+    "go_error": "cannot index instance: C does not define []="
+  },
+  {
+    "name": "operator_index_missing_2",
+    "source": "class C\nend\ndef run(input)\nc=C.new;c[0]+=7\nend",
+    "go_error": "cannot index instance: C does not define []"
+  },
+  {
+    "name": "operator_index_missing_3",
+    "source": "class C\nend\ndef run(input)\nc=C.new;c[0]||=7\nend",
+    "go_error": "cannot index instance: C does not define []"
+  },
+  {
+    "name": "operator_index_missing_4",
+    "source": "class C\nend\ndef run(input)\nc=C.new;c[0].push(2)\nend",
+    "go_error": "cannot index instance: C does not define []"
+  },
+  {
+    "name": "operator_render_routes_5",
+    "source": "class C\n@@calls=0\ndef to_s;@@calls+=1;\"custom\";end\ndef self.calls;@@calls;end\nend\ndef run(input)\nc=C.new;[inspect(c),C.calls]\nend",
+    "go_error": "undefined variable inspect"
+  },
+  {
+    "name": "operator_render_routes_6",
+    "source": "class C\n@@calls=0\ndef to_s;@@calls+=1;\"custom\";end\ndef self.calls;@@calls;end\nend\ndef run(input)\nc=C.new;[\"x\"+c,C.calls]\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "operator_render_control_0",
+    "source": "class C\ndef to_s;break;end\nend\ndef run(input)\n\"#{C.new}\"\nend",
+    "go_error": "break used outside of loop"
+  },
+  {
+    "name": "operator_render_control_1",
+    "source": "class C\ndef to_s;next;end\nend\ndef run(input)\n\"#{C.new}\"\nend",
+    "go_error": "next used outside of loop"
+  },
+  {
+    "name": "operator_render_control_3",
+    "source": "class C\ndef to_s;1/0;end\nend\ndef run(input)\n\"#{C.new}\"\nend",
+    "go_error": "division by zero"
+  },
+  {
+    "name": "operator_render_control_4",
+    "source": "class C\ndef to_s;\"#{self}\";end\nend\ndef run(input)\n\"#{C.new}\"\nend",
+    "go_error": "recursion depth exceeded (limit 256)"
+  },
+  {
+    "name": "operator_render_type_1",
+    "source": "class C\ndef to_s -> string;1;end\nend\ndef run(input)\n\"#{C.new}\"\nend",
+    "go_error": "return value for to_s expected string, got int"
+  },
+  {
+    "name": "operator_render_type_3",
+    "source": "class C\ndef to_s -> int;\"ok\";end\nend\ndef run(input)\n\"#{C.new}\"\nend",
+    "go_error": "return value for to_s expected int, got string"
+  },
+  {
+    "name": "operator_shovel_nonarray_0",
+    "source": "\ndef run(input)\nnil << 4\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_shovel_nonarray_1",
+    "source": "\ndef run(input)\n1 << 4\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_shovel_nonarray_2",
+    "source": "\ndef run(input)\n\"x\" << 4\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_shovel_nonarray_3",
+    "source": "\ndef run(input)\n{} << 4\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_shovel_nonarray_4",
+    "source": "\ndef run(input)\n{push: Math::sqrt} << 4\nend",
+    "go_error": "unsupported shovel operands"
+  },
+  {
+    "name": "operator_shovel_nonarray_5",
+    "source": "\ndef run(input)\nMath << 4\nend",
+    "go_error": "unsupported shovel operands"
   }
 ]

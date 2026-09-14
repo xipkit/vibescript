@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: twenty-nine intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: thirty intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
 
 ## Documented value semantics take precedence
 
@@ -8,7 +8,7 @@ The Rust port follows Vibescript's documented collection value semantics when th
 
 An evaluated operand or argument retains its value. Iteration and transformation traverse captured values, so callback writes to a surrounding binding cannot change already captured elements. Adding an unused alias cannot change the result. For `a=[1]; x=a+a.push(2); [x,a]`, the selected result is `[[1,1,2],[1,2]]`: the left operand remains `[1]`, the right operand is `[1,2]`, and the local `a` contains `[1,2]`.
 
-[compatibility-cases.json](compatibility-cases.json) records each policy and its reason. Twenty-one cases have explicit documented expectations, exercised by [value_semantics.rs](../tests/value_semantics.rs) both with and without an extra alias. They are intentional reference differences, not missing language features. This decision does not by itself settle control flow or publication through a nested path that changes during argument or callback evaluation.
+[compatibility-cases.json](compatibility-cases.json) records each policy and its reason. Twenty-two cases have explicit documented expectations, exercised by [value_semantics.rs](../tests/value_semantics.rs) both with and without an extra alias. They are intentional reference differences, not missing language features. This decision does not by itself settle control flow or publication through a nested path that changes during argument or callback evaluation.
 
 ## Inclusive range endpoints
 
@@ -75,7 +75,7 @@ The audit accepts intentional results only when Rust matches their documented ex
 
 The reference's `internal/runtime/collection_values.go` tracks durable script bindings separately from temporary values held by the evaluator. The test-only `VIBES_COW_ALWAYS_COPY` mode forces addressed writes to copy, bypassing that optimization. This mode helps explain the implementation differences; the documented semantics determine the Rust contract.
 
-The [recorded oracle results](reference-view-results.json) compare both Go modes with the Rust builds. Rust matches Go's copy mode on twenty-one of thirty cases, including all five adjacent-grouping, merge and deep-transform records. The compound indexed assignment produces three different results: normal Go returns `[[1,2,1,2]]`, copying Go returns `[[1,2]]`, and Rust returns the selected `[[1,1,2]]`. Integer endpoint wrapping and hash-loop break results are also unaffected by copy mode. Copy mode preserves a returned module array's snapshot, but an indexed write to a module field still changes the original local array in both Go modes. Agreement with either Go mode is evidence about the implementation, not a substitute for the language contract.
+The [recorded oracle results](reference-view-results.json) compare both Go modes with the Rust builds. Rust matches Go's copy mode on twenty-one of thirty-one cases, including all five adjacent-grouping, merge and deep-transform records. The compound indexed assignment produces three different results: normal Go returns `[[1,2,1,2]]`, copying Go returns `[[1,2]]`, and Rust returns the selected `[[1,1,2]]`. Integer endpoint wrapping and hash-loop break results are also unaffected by copy mode. Copy mode preserves a returned module array's snapshot, but an indexed write to a module field still changes the original local array in both Go modes. The index getter case also changes both saved and stored arrays in both Go modes. Agreement with either Go mode is evidence about the implementation, not a substitute for the language contract.
 
 After building the comparison binaries, reproduce the investigation with:
 
@@ -83,7 +83,7 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes twenty-nine intentional cases from five open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes thirty intentional cases from five open cases.
 
 
 ## Builtin descriptors
@@ -113,3 +113,7 @@ Module aliases share state within an invocation, but their array and hash fields
 ## Nested match-data protection
 
 Match-data protection survives temporary results and duplication, including nested capture writes. Block mutators reject protected paths before running callbacks. Explicit copies of the capture array itself remain independent mutable values. Two additional compatibility cases record the selected rejection behavior.
+
+## Collections returned by index methods
+
+An index getter returns a logical collection value. A nested write to that temporary leaves both the stored collection and an earlier snapshot unchanged. The `class_index_getter_snapshot` record exercises a grid backed by a hash: after storing `[1]`, saving the getter result and writing `grid[0,0][0] = 8`, Rust returns `[[1],[1]]`. Go v0.70.0 returns `[[8],[8]]`. The Rust expectation follows the selected value-semantics policy and is checked with and without an extra alias.

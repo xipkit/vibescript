@@ -11701,5 +11701,440 @@
     "name": "class_initial_28",
     "source": "class C\n property next\nend\ndef run(input)\na=C.new; a.next=a; [a==a.next,a.equal?(a.next)]\nend",
     "go_error": "parse error at 2:11: expected property name, got \"next\""
+  },
+  {
+    "name": "operator_rejected_definition_0",
+    "source": "def +(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method + must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_1",
+    "source": "class C\ndef self.+(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"+\""
+  },
+  {
+    "name": "operator_rejected_definition_2",
+    "source": "module C\ndef +(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method + is not supported in module C; an operator dispatches on an instance and a module has none, so define + on a class"
+  },
+  {
+    "name": "operator_rejected_definition_3",
+    "source": "def -(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method - must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_4",
+    "source": "class C\ndef self.-(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"-\""
+  },
+  {
+    "name": "operator_rejected_definition_5",
+    "source": "module C\ndef -(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method - is not supported in module C; an operator dispatches on an instance and a module has none, so define - on a class"
+  },
+  {
+    "name": "operator_rejected_definition_6",
+    "source": "def *(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method * must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_7",
+    "source": "class C\ndef self.*(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"*\""
+  },
+  {
+    "name": "operator_rejected_definition_8",
+    "source": "module C\ndef *(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method * is not supported in module C; an operator dispatches on an instance and a module has none, so define * on a class"
+  },
+  {
+    "name": "operator_rejected_definition_9",
+    "source": "def /(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method / must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_10",
+    "source": "class C\ndef self./(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: unterminated regex literal"
+  },
+  {
+    "name": "operator_rejected_definition_11",
+    "source": "module C\ndef /(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method / is not supported in module C; an operator dispatches on an instance and a module has none, so define / on a class"
+  },
+  {
+    "name": "operator_rejected_definition_12",
+    "source": "def %(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method % must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_13",
+    "source": "class C\ndef self.%(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"%\""
+  },
+  {
+    "name": "operator_rejected_definition_14",
+    "source": "module C\ndef %(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method % is not supported in module C; an operator dispatches on an instance and a module has none, so define % on a class"
+  },
+  {
+    "name": "operator_rejected_definition_15",
+    "source": "def **(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method ** must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_16",
+    "source": "class C\ndef self.**(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"**\""
+  },
+  {
+    "name": "operator_rejected_definition_17",
+    "source": "module C\ndef **(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method ** is not supported in module C; an operator dispatches on an instance and a module has none, so define ** on a class"
+  },
+  {
+    "name": "operator_rejected_definition_18",
+    "source": "def <<(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method << must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_19",
+    "source": "class C\ndef self.<<(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"<<\""
+  },
+  {
+    "name": "operator_rejected_definition_20",
+    "source": "module C\ndef <<(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method << is not supported in module C; an operator dispatches on an instance and a module has none, so define << on a class"
+  },
+  {
+    "name": "operator_rejected_definition_21",
+    "source": "def &(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method & must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_22",
+    "source": "class C\ndef self.&(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"&\""
+  },
+  {
+    "name": "operator_rejected_definition_23",
+    "source": "module C\ndef &(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method & is not supported in module C; an operator dispatches on an instance and a module has none, so define & on a class"
+  },
+  {
+    "name": "operator_rejected_definition_24",
+    "source": "def ==(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method == must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_25",
+    "source": "class C\ndef self.==(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"==\""
+  },
+  {
+    "name": "operator_rejected_definition_26",
+    "source": "module C\ndef ==(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method == is not supported in module C; an operator dispatches on an instance and a module has none, so define == on a class"
+  },
+  {
+    "name": "operator_rejected_definition_27",
+    "source": "def !=(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method != must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_28",
+    "source": "class C\ndef self.!=(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"!=\""
+  },
+  {
+    "name": "operator_rejected_definition_29",
+    "source": "module C\ndef !=(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method != is not supported in module C; an operator dispatches on an instance and a module has none, so define != on a class"
+  },
+  {
+    "name": "operator_rejected_definition_30",
+    "source": "def <(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method < must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_31",
+    "source": "class C\ndef self.<(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"<\""
+  },
+  {
+    "name": "operator_rejected_definition_32",
+    "source": "module C\ndef <(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method < is not supported in module C; an operator dispatches on an instance and a module has none, so define < on a class"
+  },
+  {
+    "name": "operator_rejected_definition_33",
+    "source": "def <=(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method <= must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_34",
+    "source": "class C\ndef self.<=(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"<=\""
+  },
+  {
+    "name": "operator_rejected_definition_35",
+    "source": "module C\ndef <=(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method <= is not supported in module C; an operator dispatches on an instance and a module has none, so define <= on a class"
+  },
+  {
+    "name": "operator_rejected_definition_36",
+    "source": "def >(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method > must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_37",
+    "source": "class C\ndef self.>(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \">\""
+  },
+  {
+    "name": "operator_rejected_definition_38",
+    "source": "module C\ndef >(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method > is not supported in module C; an operator dispatches on an instance and a module has none, so define > on a class"
+  },
+  {
+    "name": "operator_rejected_definition_39",
+    "source": "def >=(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method >= must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_40",
+    "source": "class C\ndef self.>=(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \">=\""
+  },
+  {
+    "name": "operator_rejected_definition_41",
+    "source": "module C\ndef >=(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method >= is not supported in module C; an operator dispatches on an instance and a module has none, so define >= on a class"
+  },
+  {
+    "name": "operator_rejected_definition_42",
+    "source": "def <=>(other);7;end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:1: operator method <=> must be defined in a class"
+  },
+  {
+    "name": "operator_rejected_definition_43",
+    "source": "class C\ndef self.<=>(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:10: expected identifier, got \"<=>\""
+  },
+  {
+    "name": "operator_rejected_definition_44",
+    "source": "module C\ndef <=>(other);7;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: operator method <=> is not supported in module C; an operator dispatches on an instance and a module has none, so define <=> on a class"
+  },
+  {
+    "name": "operator_index_read_0",
+    "source": "class C\ndef []();7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_0",
+    "source": "class C\ndef []=();7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_8",
+    "source": "class C\ndef [](index);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_8",
+    "source": "class C\ndef []=(index);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_16",
+    "source": "class C\ndef [](a,b);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_16",
+    "source": "class C\ndef []=(a,b);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_24",
+    "source": "class C\ndef [](a,b,c);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_24",
+    "source": "class C\ndef []=(a,b,c);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_32",
+    "source": "class C\ndef [](*indices);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_32",
+    "source": "class C\ndef []=(*indices);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_40",
+    "source": "class C\ndef [](index=2);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_40",
+    "source": "class C\ndef []=(index=2);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_48",
+    "source": "class C\ndef [](index: int);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_48",
+    "source": "class C\ndef []=(index: int);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_56",
+    "source": "class C\ndef [](index:);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_56",
+    "source": "class C\ndef []=(index:);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_64",
+    "source": "class C\ndef [](index: 2);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_64",
+    "source": "class C\ndef []=(index: 2);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_read_72",
+    "source": "class C\ndef [](index,*rest);7;end\nend\ndef run(input)\nC.new[]\nend",
+    "go_error": "parse error at 5:7: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_index_write_72",
+    "source": "class C\ndef []=(index,*rest);7;end\nend\ndef run(input)\nc=C.new;c[]=9\nend",
+    "go_error": "parse error at 5:11: index expression requires at least one selector"
+  },
+  {
+    "name": "operator_assignment_boundaries_0",
+    "source": "\ndef run(input)\n(a=1)\nend",
+    "go_error": "parse error at 3:3: expected \")\", got \"=\""
+  },
+  {
+    "name": "operator_assignment_boundaries_1",
+    "source": "\ndef run(input)\na=(b=2);[a,b]\nend",
+    "go_error": "parse error at 3:5: expected \")\", got \"=\""
+  },
+  {
+    "name": "operator_assignment_boundaries_2",
+    "source": "\ndef run(input)\na=1;(a+=2)\nend",
+    "go_error": "parse error at 3:8: expected \")\", got \"+=\""
+  },
+  {
+    "name": "operator_assignment_boundaries_3",
+    "source": "\ndef run(input)\na=[1];r=(a[0]=2);[r,a]\nend",
+    "go_error": "parse error at 3:14: expected \")\", got \"=\""
+  },
+  {
+    "name": "operator_assignment_boundaries_4",
+    "source": "\ndef run(input)\na=1;[a+=2]\nend",
+    "go_error": "parse error at 3:8: expected \"]\", got \"+=\""
+  },
+  {
+    "name": "operator_assignment_boundaries_5",
+    "source": "\ndef run(input)\na=1;v=if true;a+=2;end;[v,a]\nend",
+    "go_error": "parse error at 3:17: expected end, got \"+=\""
+  },
+  {
+    "name": "operator_explicit_operator_0",
+    "source": "class C\ndef +(other);7;end\nend\ndef run(input)\nc=C.new;c.+(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"+\""
+  },
+  {
+    "name": "operator_explicit_operator_1",
+    "source": "class C\ndef -(other);7;end\nend\ndef run(input)\nc=C.new;c.-(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"-\""
+  },
+  {
+    "name": "operator_explicit_operator_2",
+    "source": "class C\ndef *(other);7;end\nend\ndef run(input)\nc=C.new;c.*(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"*\""
+  },
+  {
+    "name": "operator_explicit_operator_3",
+    "source": "class C\ndef /(other);7;end\nend\ndef run(input)\nc=C.new;c./(1)\nend",
+    "go_error": "parse error at 5:11: unterminated regex literal"
+  },
+  {
+    "name": "operator_explicit_operator_4",
+    "source": "class C\ndef %(other);7;end\nend\ndef run(input)\nc=C.new;c.%(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"%\""
+  },
+  {
+    "name": "operator_explicit_operator_5",
+    "source": "class C\ndef **(other);7;end\nend\ndef run(input)\nc=C.new;c.**(1)\nend",
+    "go_error": "parse error at 5:12: expected member name, got \"**\""
+  },
+  {
+    "name": "operator_explicit_operator_6",
+    "source": "class C\ndef <<(other);7;end\nend\ndef run(input)\nc=C.new;c.<<(1)\nend",
+    "go_error": "parse error at 5:12: expected member name, got \"<<\""
+  },
+  {
+    "name": "operator_explicit_operator_7",
+    "source": "class C\ndef &(other);7;end\nend\ndef run(input)\nc=C.new;c.&(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"&\""
+  },
+  {
+    "name": "operator_explicit_operator_8",
+    "source": "class C\ndef ==(other);7;end\nend\ndef run(input)\nc=C.new;c.==(1)\nend",
+    "go_error": "parse error at 5:12: expected member name, got \"==\""
+  },
+  {
+    "name": "operator_explicit_operator_9",
+    "source": "class C\ndef !=(other);7;end\nend\ndef run(input)\nc=C.new;c.!=(1)\nend",
+    "go_error": "parse error at 5:12: expected member name, got \"!=\""
+  },
+  {
+    "name": "operator_explicit_operator_10",
+    "source": "class C\ndef <(other);7;end\nend\ndef run(input)\nc=C.new;c.<(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"<\""
+  },
+  {
+    "name": "operator_explicit_operator_11",
+    "source": "class C\ndef <=(other);7;end\nend\ndef run(input)\nc=C.new;c.<=(1)\nend",
+    "go_error": "parse error at 5:12: expected member name, got \"<=\""
+  },
+  {
+    "name": "operator_explicit_operator_12",
+    "source": "class C\ndef >(other);7;end\nend\ndef run(input)\nc=C.new;c.>(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \">\""
+  },
+  {
+    "name": "operator_explicit_operator_13",
+    "source": "class C\ndef >=(other);7;end\nend\ndef run(input)\nc=C.new;c.>=(1)\nend",
+    "go_error": "parse error at 5:12: expected member name, got \">=\""
+  },
+  {
+    "name": "operator_explicit_operator_15",
+    "source": "class C\ndef [](*args);7;end\nend\ndef run(input)\nc=C.new;c.[](1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"[\""
+  },
+  {
+    "name": "operator_explicit_operator_16",
+    "source": "class C\ndef []=(*args);7;end\nend\ndef run(input)\nc=C.new;c.[]=(1)\nend",
+    "go_error": "parse error at 5:11: expected member name, got \"[\""
   }
 ]

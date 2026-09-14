@@ -51,6 +51,7 @@ pub(crate) enum Op {
     Dup,
     Unary(&'static str),
     Binary(&'static str),
+    Shovel(CallSite),
     AddStore(usize),
     Array(usize),
     TextStart,
@@ -1191,7 +1192,7 @@ impl Compiler<'_> {
                 self.address(a)?;
                 self.expr(b)?;
                 let site = self.call_site("push", false);
-                self.emit(Op::Mutate(site, 1));
+                self.emit(Op::Shovel(site));
             }
             Node::Binary(op, a, b) => {
                 self.expr(a)?;
