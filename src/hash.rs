@@ -62,6 +62,7 @@ pub(crate) struct Hash {
     pub header: Option<Charge>,
     pub depth: usize,
     pub object: bool,
+    pub match_data: bool,
 }
 
 impl Hash {
@@ -72,6 +73,7 @@ impl Hash {
             header: None,
             depth: 1,
             object: false,
+            match_data: false,
         }
     }
 
@@ -104,6 +106,12 @@ impl Hash {
     }
 
     pub fn make_mut<'a>(ctx: &mut CallContext, hash: &'a mut Arc<Self>) -> Result<&'a mut Self> {
+        if hash.match_data {
+            return Err(crate::Error::new(
+                ErrorKind::Argument,
+                "cannot modify match data",
+            ));
+        }
         if Arc::get_mut(hash).is_none() {
             let mut buffer = Buffer::with_capacity(ctx, hash.buffer.data.len())?;
             buffer.extend(ctx, &hash.buffer.data)?;
@@ -113,6 +121,7 @@ impl Hash {
                 header: None,
                 depth: hash.depth,
                 object: hash.object,
+                match_data: hash.match_data,
             }
             .into_arc(ctx)?;
         }

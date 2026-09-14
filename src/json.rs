@@ -475,7 +475,10 @@ fn write_value(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: us
         return ctx.fail(ErrorKind::Recursion, "JSON nesting too deep");
     }
     match &value.0 {
-        Kind::Builtin(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a builtin")),
+        Kind::Regex(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a regex")),
+        Kind::Builtin(_) | Kind::Offset(_) => {
+            return Err(Error::new(ErrorKind::Json, "cannot encode a builtin"));
+        }
         Kind::Shape(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a type literal")),
         Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),
         Kind::EnumMember(m) => write_string(ctx, m.definition().symbol.as_bytes(), out)?,

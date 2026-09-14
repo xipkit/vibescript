@@ -2,6 +2,7 @@ use crate::{Error, Result};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Token {
+    Regex(Vec<u8>, u8),
     Word(String),
     Int(u64),
     BigInt(String, u32),
@@ -94,6 +95,22 @@ pub(super) fn resume(
     .tokens(until, start.line, false, false, previous)
 }
 
+pub(super) fn regex(
+    source: &str,
+    start: &Lexeme,
+    limit: usize,
+    depth: usize,
+) -> Result<Vec<Lexeme>> {
+    Lexer {
+        source,
+        pos: start.offset,
+        limit,
+        depth,
+        speculative: 0,
+    }
+    .tokens(start.offset + 1, start.line, false, false, None)
+}
+
 impl Lexer<'_> {
     fn tokens(
         &mut self,
@@ -148,6 +165,29 @@ impl Lexer<'_> {
                     return Ok(Token::Word(source[start..i].to_owned()));
                 }
                 Ok(match s[i] {
+                    b'/' if out.last().or(previous).is_none_or(|last| {
+                        if matches!(&last.token, Token::Word(name) if name == "def") {
+                            return false;
+                        }
+                        if last.token == Token::P(':') && last.end == i {
+                            let label = out
+                                .len()
+                                .checked_sub(2)
+                                .and_then(|index| out.get(index))
+                                .is_some_and(|word| {
+                                    matches!(word.token, Token::Word(_)) && word.end == last.offset
+                                });
+                            if !label {
+                                return false;
+                            }
+                        }
+                        last.end_line < line || !ends_expression(&last.token)
+                    }) =>
+                    {
+                        let token = self.regex()?;
+                        i = self.pos;
+                        token
+                    }
                     b'\n' | b';' => {
                         i += 1;
                         Token::EndLine
@@ -288,7 +328,8 @@ impl Lexer<'_> {
                         let mut found = None;
                         for op in [
                             "...", "..", "===", "<=>", "||=", "&&=", "**=", "==", "!=", "<=", ">=",
-                            "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "<<", "::", "->",
+                            "&&", "||", "+=", "-=", "*=", "/=", "%=", "**", "<<", "::", "->", "=~",
+                            "!~",
                         ] {
                             if s[i..].starts_with(op.as_bytes()) {
                                 found = Some(op);
@@ -400,6 +441,90 @@ impl Lexer<'_> {
                 .count();
         }
         Err(Error::syntax(start, "unterminated string"))
+    }
+
+    fn regex(&mut self) -> Result<Token> {
+        let start = self.pos;
+        let bytes = &self.source.as_bytes()[..self.limit];
+        self.pos += 1;
+        let body = self.pos;
+        let mut class = false;
+        let mut members = 0;
+        while self.pos < self.limit {
+            match bytes[self.pos] {
+                0 | b'\n' => break,
+                b'\\' => {
+                    self.pos += 1;
+                    if self.pos == self.limit || matches!(bytes[self.pos], 0 | b'\n') {
+                        break;
+                    }
+                    self.pos += self.source[self.pos..self.limit]
+                        .chars()
+                        .next()
+                        .unwrap()
+                        .len_utf8();
+                    members += 1;
+                }
+                b'[' if !class => {
+                    class = true;
+                    members = 0;
+                    self.pos += 1;
+                    if bytes.get(self.pos) == Some(&b'^') {
+                        self.pos += 1;
+                    }
+                }
+                b'[' if class && bytes.get(self.pos + 1) == Some(&b':') => {
+                    let mut end = self.pos + 2;
+                    if bytes.get(end) == Some(&b'^') {
+                        end += 1;
+                    }
+                    let name = end;
+                    while bytes.get(end).is_some_and(u8::is_ascii_alphabetic) {
+                        end += 1;
+                    }
+                    if end > name && bytes.get(end..end + 2) == Some(b":]") {
+                        self.pos = end + 2;
+                    } else {
+                        self.pos += 1;
+                    }
+                    members += 1;
+                }
+                b']' if class => {
+                    if members != 0 {
+                        class = false;
+                    }
+                    members += 1;
+                    self.pos += 1;
+                }
+                b'/' if !class => {
+                    let pattern = bytes[body..self.pos].to_vec();
+                    self.pos += 1;
+                    let mut flags = 0;
+                    while bytes.get(self.pos).is_some_and(u8::is_ascii_alphabetic) {
+                        let bit = match bytes[self.pos] {
+                            b'i' => 1,
+                            b'm' => 2,
+                            _ => return Err(Error::syntax(start, "unsupported regex flag")),
+                        };
+                        if flags & bit != 0 {
+                            return Err(Error::syntax(start, "repeated regex flag"));
+                        }
+                        flags |= bit;
+                        self.pos += 1;
+                    }
+                    return Ok(Token::Regex(pattern, flags));
+                }
+                _ => {
+                    self.pos += self.source[self.pos..self.limit]
+                        .chars()
+                        .next()
+                        .unwrap()
+                        .len_utf8();
+                    members += 1;
+                }
+            }
+        }
+        Err(Error::syntax(start, "unterminated regex literal"))
     }
 
     fn interpolation(&mut self, line: usize) -> Result<Vec<Lexeme>> {
@@ -599,6 +724,7 @@ fn ends_expression(token: &Token) -> bool {
         | Token::BigInt(..)
         | Token::Float(_)
         | Token::Bytes(_)
+        | Token::Regex(..)
         | Token::Template(_)
         | Token::Words(..)
         | Token::P(')' | ']' | '}') => true,

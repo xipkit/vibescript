@@ -97,6 +97,8 @@ impl Bytes {
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
+    Offset(Arc<crate::regex::matches::Offset>),
+    Regex(Arc<crate::regex::value::Regex>),
     Shape(Arc<crate::shapes::Shape>),
     Nil,
     Builtin(crate::builtin::Builtin),
@@ -128,6 +130,35 @@ impl Default for Value {
 }
 
 impl Value {
+    /// Compiles a regex with optional `i` and `m` flags; imports charge retained storage per call.
+    pub fn regex(pattern: &[u8], flags: &str) -> Result<Self> {
+        let mut bits = 0;
+        for flag in flags.bytes() {
+            let bit = match flag {
+                b'i' => 1,
+                b'm' => 2,
+                _ => return Err(Error::new(ErrorKind::Argument, "unsupported regex flag")),
+            };
+            if bits & bit != 0 {
+                return Err(Error::new(ErrorKind::Argument, "repeated regex flag"));
+            }
+            bits |= bit;
+        }
+        crate::regex::value::Regex::compile(
+            &mut crate::integer::unlimited_context(),
+            Self::bytes(pattern),
+            bits,
+        )
+    }
+    /// Returns a regex's source bytes and canonical flag letters.
+    pub fn as_regex(&self) -> Option<(&[u8], &str)> {
+        if let Kind::Regex(regex) = &self.0 {
+            Some((regex.source.as_bytes().unwrap(), regex.flags()))
+        } else {
+            None
+        }
+    }
+
     /// Returns a type literal's canonical annotation bytes, or `None` for other values.
     pub fn as_type_literal(&self) -> Option<&[u8]> {
         if let Kind::Shape(shape) = &self.0 {
@@ -319,9 +350,10 @@ impl Value {
     /// Reports this value's language type.
     pub fn type_name(&self) -> &'static str {
         match self.0 {
+            Kind::Regex(_) => "regex",
             Kind::Shape(_) => "shape",
             Kind::Nil => "nil",
-            Kind::Builtin(_) => "builtin",
+            Kind::Builtin(_) | Kind::Offset(_) => "builtin",
             Kind::Enum(_) => "enum",
             Kind::EnumMember(_) => "enum value",
             Kind::Bool(_) => "bool",
@@ -513,6 +545,12 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Offset(offset) => Ok(Value(Kind::Offset(crate::regex::matches::Offset::import(
+                self, offset,
+            )?))),
+            Kind::Regex(regex) => Ok(Value(Kind::Regex(crate::regex::value::Regex::import(
+                self, regex,
+            )?))),
             Kind::Shape(shape) => Ok(Value(Kind::Shape(crate::shapes::Shape::import(
                 self, shape,
             )?))),
@@ -556,6 +594,7 @@ impl CallContext {
                 }
                 let mut hash = Hash::from_entries(self, buf)?;
                 hash.object = h.object;
+                hash.match_data = h.match_data;
                 Value::from_hash(self, hash)
             }
             _ => Ok(value.clone()),
@@ -566,11 +605,26 @@ impl CallContext {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
+            Kind::Regex(regex) => {
+                let text = regex
+                    .text(&mut crate::integer::unlimited_context())
+                    .map_err(|_| fmt::Error)?;
+                f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
+            }
             Kind::Shape(shape) => write!(
                 f,
                 "<Shape {}>",
                 String::from_utf8_lossy(&shape.definition.text)
             ),
+            Kind::Hash(hash) if hash.match_data => {
+                let value = hash
+                    .buffer
+                    .data
+                    .iter()
+                    .find(|(key, _)| key.as_bytes() == Some(b"to_s"))
+                    .unwrap();
+                write!(f, "{}", value.1)
+            }
             Kind::Hash(hash) if hash.object => f.write_str("<object>"),
             Kind::Nil => f.write_str("nil"),
             Kind::Money(money) => write!(f, "{money}"),
@@ -581,6 +635,7 @@ impl fmt::Display for Value {
                 f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
             }
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
+            Kind::Offset(offset) => write!(f, "<builtin {}>", offset.name()),
             Kind::Enum(e) => write!(f, "<Enum {}>", e.definition.name),
             Kind::EnumMember(m) => write!(
                 f,

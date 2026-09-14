@@ -125,6 +125,7 @@ pub(crate) fn method(name: &str) -> bool {
         || ordering::method(name)
         || hash_blocks::method(name)
         || crate::text::iteration::method(name)
+        || matches!(name, "match" | "scan")
 }
 
 pub(crate) enum Progress {
@@ -162,6 +163,7 @@ pub(crate) enum Iteration {
     Order(ordering::Driver),
     Hash(hash_blocks::Driver),
     Text(crate::text::iteration::Driver),
+    Regex(crate::regex::operations::Driver),
 }
 
 impl Iteration {
@@ -171,13 +173,14 @@ impl Iteration {
             Self::Order(state) => state.waiting,
             Self::Hash(state) => state.waiting(),
             Self::Text(state) => state.waiting,
+            Self::Regex(state) => state.waiting,
         }
     }
 
     pub fn take_mutation(&mut self) -> Option<Mutation> {
         match self {
             Self::Loop(state) => state.mutation.take(),
-            Self::Order(_) | Self::Hash(_) | Self::Text(_) => None,
+            Self::Order(_) | Self::Hash(_) | Self::Text(_) | Self::Regex(_) => None,
         }
     }
 
@@ -187,6 +190,7 @@ impl Iteration {
             Self::Order(state) => state.advance(ctx, returned),
             Self::Hash(state) => state.advance(ctx, returned),
             Self::Text(state) => state.advance(ctx, returned),
+            Self::Regex(state) => state.advance(ctx, returned),
         }
     }
 }
@@ -230,6 +234,17 @@ pub(crate) fn start(
     block_arity: Option<usize>,
 ) -> Result<Option<Iteration>> {
     use MethodKind::*;
+    if matches!(name, "match" | "scan") {
+        return crate::regex::operations::Driver::new(
+            ctx,
+            name,
+            receiver,
+            args,
+            keywords,
+            block_arity.is_some(),
+        )
+        .map(|state| state.map(Iteration::Regex));
+    }
     if crate::text::iteration::method(name) {
         return crate::text::iteration::Driver::new(
             ctx,
@@ -255,6 +270,11 @@ pub(crate) fn start(
             block_arity.is_some(),
         )
         .map(|state| state.map(Iteration::Hash));
+    }
+    if matches!(&receiver.0, Kind::Hash(hash) if hash.match_data)
+        && matches!(name, "delete_if" | "keep_if" | "delete")
+    {
+        return Err(argument("cannot modify match data"));
     }
     let Some(method) = MethodKind::parse(name) else {
         return Ok(None);

@@ -95758,5 +95758,1710 @@
     "name": "regex_forms_139",
     "source": "def run(input)\np=\"\\x5b\\x5c\\x51\\x78\\x5c\\x45\\x5d\";t=\"\\x2a\";r=\"\\x3c\\x24\\x30\\x7c\\x24\\x31\\x7c\\x24\\x32\\x7c\\x24\\x33\\x7c\\x24\\x78\\x3e\";m=Regex.match(p,t);[m.nil? ? nil : m.bytes,Regex.replace(t,p,r).bytes,Regex.replace_all(t,p,r).bytes,t.match?(p)]\nend",
     "go_error": "Regex.match invalid regex: error parsing regexp: invalid escape sequence: `\\Q`"
+  },
+  {
+    "name": "regex_value_constructor_128",
+    "source": "def run(input)\nr=Regexp.new(\"\\x5b\");t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "regex_value_constructor_129",
+    "source": "def run(input)\nr=Regexp.new(\"\\x5b\");t=\"\\x41\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "regex_value_constructor_130",
+    "source": "def run(input)\nr=Regexp.new(\"\\x5b\");t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "regex_value_constructor_131",
+    "source": "def run(input)\nr=Regexp.new(\"\\x5b\");t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "regex_value_constructor_132",
+    "source": "def run(input)\nr=Regexp.new(\"\\x28\\x3f\\x3d\\x61\\x29\");t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid or unsupported Perl syntax: `(?=`"
+  },
+  {
+    "name": "regex_value_constructor_133",
+    "source": "def run(input)\nr=Regexp.new(\"\\x28\\x3f\\x3d\\x61\\x29\");t=\"\\x41\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid or unsupported Perl syntax: `(?=`"
+  },
+  {
+    "name": "regex_value_constructor_134",
+    "source": "def run(input)\nr=Regexp.new(\"\\x28\\x3f\\x3d\\x61\\x29\");t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid or unsupported Perl syntax: `(?=`"
+  },
+  {
+    "name": "regex_value_constructor_135",
+    "source": "def run(input)\nr=Regexp.new(\"\\x28\\x3f\\x3d\\x61\\x29\");t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid or unsupported Perl syntax: `(?=`"
+  },
+  {
+    "name": "regex_value_constructor_136",
+    "source": "def run(input)\nr=Regexp.new(\"\\xff\");t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_constructor_137",
+    "source": "def run(input)\nr=Regexp.new(\"\\xff\");t=\"\\x41\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_constructor_138",
+    "source": "def run(input)\nr=Regexp.new(\"\\xff\");t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_constructor_139",
+    "source": "def run(input)\nr=Regexp.new(\"\\xff\");t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_union_35",
+    "source": "def run(input)\nr=Regexp.union(\"\\xff\");t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_union_36",
+    "source": "def run(input)\nr=Regexp.union(\"\\xff\");t=\"\\x66\\x6f\\x6f\\x2f\\x62\\x61\\x72\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_union_37",
+    "source": "def run(input)\nr=Regexp.union(\"\\xff\");t=\"\\x78\\x78\\x61\\x2e\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_union_38",
+    "source": "def run(input)\nr=Regexp.union(\"\\xff\");t=\"\\x62\\x61\\x7a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_union_39",
+    "source": "def run(input)\nr=Regexp.union(\"\\xff\");t=\"\\xc3\\xa9\\x61\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union invalid regex: error parsing regexp: invalid UTF-8: `�`"
+  },
+  {
+    "name": "regex_value_union_40",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",1);t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_41",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",1);t=\"\\x66\\x6f\\x6f\\x2f\\x62\\x61\\x72\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_42",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",1);t=\"\\x78\\x78\\x61\\x2e\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_43",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",1);t=\"\\x62\\x61\\x7a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_44",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",1);t=\"\\xc3\\xa9\\x61\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_45",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",nil);t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_46",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",nil);t=\"\\x66\\x6f\\x6f\\x2f\\x62\\x61\\x72\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_47",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",nil);t=\"\\x78\\x78\\x61\\x2e\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_48",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",nil);t=\"\\x62\\x61\\x7a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_union_49",
+    "source": "def run(input)\nr=Regexp.union(\"\\x61\",nil);t=\"\\xc3\\xa9\\x61\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_constructor_contract_0",
+    "source": "def run(input)\nr=Regexp.new();\"#{r}\"\nend",
+    "go_error": "Regexp.new expects a pattern"
+  },
+  {
+    "name": "regex_value_constructor_contract_1",
+    "source": "def run(input)\nr=Regexp.new(){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_3",
+    "source": "def run(input)\nr=Regexp.new(\"a\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_4",
+    "source": "def run(input)\nr=Regexp.new(\"a\",\"b\");\"#{r}\"\nend",
+    "go_error": "Regexp.new expects a pattern"
+  },
+  {
+    "name": "regex_value_constructor_contract_5",
+    "source": "def run(input)\nr=Regexp.new(\"a\",\"b\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_6",
+    "source": "def run(input)\nr=Regexp.new(:a);\"#{r}\"\nend",
+    "go_error": "Regexp.new pattern must be string"
+  },
+  {
+    "name": "regex_value_constructor_contract_7",
+    "source": "def run(input)\nr=Regexp.new(:a){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_8",
+    "source": "def run(input)\nr=Regexp.new(/a/);\"#{r}\"\nend",
+    "go_error": "Regexp.new pattern must be string"
+  },
+  {
+    "name": "regex_value_constructor_contract_9",
+    "source": "def run(input)\nr=Regexp.new(/a/){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_10",
+    "source": "def run(input)\nr=Regexp.new(nil);\"#{r}\"\nend",
+    "go_error": "Regexp.new pattern must be string"
+  },
+  {
+    "name": "regex_value_constructor_contract_11",
+    "source": "def run(input)\nr=Regexp.new(nil){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_12",
+    "source": "def run(input)\nr=Regexp.new(\"[\");\"#{r}\"\nend",
+    "go_error": "Regexp.new invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "regex_value_constructor_contract_13",
+    "source": "def run(input)\nr=Regexp.new(\"[\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_14",
+    "source": "def run(input)\nr=Regexp.new(\"a\", x:1);\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_15",
+    "source": "def run(input)\nr=Regexp.new(\"a\", x:1){7};\"#{r}\"\nend",
+    "go_error": "Regexp.new does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_16",
+    "source": "def run(input)\nr=Regexp.escape();\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_17",
+    "source": "def run(input)\nr=Regexp.escape(){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_19",
+    "source": "def run(input)\nr=Regexp.escape(\"a\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_20",
+    "source": "def run(input)\nr=Regexp.escape(\"a\",\"b\");\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_21",
+    "source": "def run(input)\nr=Regexp.escape(\"a\",\"b\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_22",
+    "source": "def run(input)\nr=Regexp.escape(:a);\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_23",
+    "source": "def run(input)\nr=Regexp.escape(:a){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_24",
+    "source": "def run(input)\nr=Regexp.escape(/a/);\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_25",
+    "source": "def run(input)\nr=Regexp.escape(/a/){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_26",
+    "source": "def run(input)\nr=Regexp.escape(nil);\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_27",
+    "source": "def run(input)\nr=Regexp.escape(nil){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_29",
+    "source": "def run(input)\nr=Regexp.escape(\"[\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_30",
+    "source": "def run(input)\nr=Regexp.escape(\"a\", x:1);\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_31",
+    "source": "def run(input)\nr=Regexp.escape(\"a\", x:1){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_32",
+    "source": "def run(input)\nr=Regexp.quote();\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_33",
+    "source": "def run(input)\nr=Regexp.quote(){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_35",
+    "source": "def run(input)\nr=Regexp.quote(\"a\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_36",
+    "source": "def run(input)\nr=Regexp.quote(\"a\",\"b\");\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_37",
+    "source": "def run(input)\nr=Regexp.quote(\"a\",\"b\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_38",
+    "source": "def run(input)\nr=Regexp.quote(:a);\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_39",
+    "source": "def run(input)\nr=Regexp.quote(:a){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_40",
+    "source": "def run(input)\nr=Regexp.quote(/a/);\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_41",
+    "source": "def run(input)\nr=Regexp.quote(/a/){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_42",
+    "source": "def run(input)\nr=Regexp.quote(nil);\"#{r}\"\nend",
+    "go_error": "Regexp.escape expects a string"
+  },
+  {
+    "name": "regex_value_constructor_contract_43",
+    "source": "def run(input)\nr=Regexp.quote(nil){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_45",
+    "source": "def run(input)\nr=Regexp.quote(\"[\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_46",
+    "source": "def run(input)\nr=Regexp.quote(\"a\", x:1);\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_47",
+    "source": "def run(input)\nr=Regexp.quote(\"a\", x:1){7};\"#{r}\"\nend",
+    "go_error": "Regexp.escape does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_49",
+    "source": "def run(input)\nr=Regexp.union(){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_51",
+    "source": "def run(input)\nr=Regexp.union(\"a\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_53",
+    "source": "def run(input)\nr=Regexp.union(\"a\",\"b\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_54",
+    "source": "def run(input)\nr=Regexp.union(:a);\"#{r}\"\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_constructor_contract_55",
+    "source": "def run(input)\nr=Regexp.union(:a){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_56",
+    "source": "def run(input)\nr=Regexp.union(/a/);\"#{r}\"\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_constructor_contract_57",
+    "source": "def run(input)\nr=Regexp.union(/a/){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_58",
+    "source": "def run(input)\nr=Regexp.union(nil);\"#{r}\"\nend",
+    "go_error": "Regexp.union expects string patterns"
+  },
+  {
+    "name": "regex_value_constructor_contract_59",
+    "source": "def run(input)\nr=Regexp.union(nil){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_61",
+    "source": "def run(input)\nr=Regexp.union(\"[\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_62",
+    "source": "def run(input)\nr=Regexp.union(\"a\", x:1);\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_63",
+    "source": "def run(input)\nr=Regexp.union(\"a\", x:1){7};\"#{r}\"\nend",
+    "go_error": "Regexp.union does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_65",
+    "source": "def run(input)\nr=Regexp.last_match(){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not accept blocks"
+  },
+  {
+    "name": "regex_value_constructor_contract_66",
+    "source": "def run(input)\nr=Regexp.last_match(\"a\");\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_67",
+    "source": "def run(input)\nr=Regexp.last_match(\"a\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_68",
+    "source": "def run(input)\nr=Regexp.last_match(\"a\",\"b\");\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_69",
+    "source": "def run(input)\nr=Regexp.last_match(\"a\",\"b\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_70",
+    "source": "def run(input)\nr=Regexp.last_match(:a);\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_71",
+    "source": "def run(input)\nr=Regexp.last_match(:a){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_72",
+    "source": "def run(input)\nr=Regexp.last_match(/a/);\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_73",
+    "source": "def run(input)\nr=Regexp.last_match(/a/){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_74",
+    "source": "def run(input)\nr=Regexp.last_match(nil);\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_75",
+    "source": "def run(input)\nr=Regexp.last_match(nil){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_76",
+    "source": "def run(input)\nr=Regexp.last_match(\"[\");\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_77",
+    "source": "def run(input)\nr=Regexp.last_match(\"[\"){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_78",
+    "source": "def run(input)\nr=Regexp.last_match(\"a\", x:1);\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_constructor_contract_79",
+    "source": "def run(input)\nr=Regexp.last_match(\"a\", x:1){7};\"#{r}\"\nend",
+    "go_error": "Regexp.last_match does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_4",
+    "source": "def run(input)\nr=/a/mi;\"#{r.source(\"a\")}\"\nend",
+    "go_error": "regex.source does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_5",
+    "source": "def run(input)\nr=/a/mi;\"#{r.source(\"a\"){7}}\"\nend",
+    "go_error": "regex.source does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_12",
+    "source": "def run(input)\nr=/a/mi;\"#{r.flags(\"a\")}\"\nend",
+    "go_error": "regex.flags does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_13",
+    "source": "def run(input)\nr=/a/mi;\"#{r.flags(\"a\"){7}}\"\nend",
+    "go_error": "regex.flags does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_17",
+    "source": "def run(input)\nr=/a/mi;\"#{r.inspect{7}}\"\nend",
+    "go_error": "regex.inspect does not take a block"
+  },
+  {
+    "name": "regex_value_value_contract_19",
+    "source": "def run(input)\nr=/a/mi;\"#{r.inspect(){7}}\"\nend",
+    "go_error": "regex.inspect does not take a block"
+  },
+  {
+    "name": "regex_value_value_contract_20",
+    "source": "def run(input)\nr=/a/mi;\"#{r.inspect(\"a\")}\"\nend",
+    "go_error": "regex.inspect does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_21",
+    "source": "def run(input)\nr=/a/mi;\"#{r.inspect(\"a\"){7}}\"\nend",
+    "go_error": "regex.inspect does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_22",
+    "source": "def run(input)\nr=/a/mi;\"#{r.inspect(x:1)}\"\nend",
+    "go_error": "regex.inspect does not take keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_23",
+    "source": "def run(input)\nr=/a/mi;\"#{r.inspect(x:1){7}}\"\nend",
+    "go_error": "regex.inspect does not take keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_24",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_25",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s{7}}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_26",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s()}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_27",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s(){7}}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_28",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s(\"a\")}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_29",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s(\"a\"){7}}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_30",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s(x:1)}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_31",
+    "source": "def run(input)\nr=/a/mi;\"#{r.to_s(x:1){7}}\"\nend",
+    "go_error": "unknown regex method to_s"
+  },
+  {
+    "name": "regex_value_value_contract_33",
+    "source": "def run(input)\nr=/a/mi;\"#{r.nil?{7}}\"\nend",
+    "go_error": "regex.nil? does not take a block"
+  },
+  {
+    "name": "regex_value_value_contract_35",
+    "source": "def run(input)\nr=/a/mi;\"#{r.nil?(){7}}\"\nend",
+    "go_error": "regex.nil? does not take a block"
+  },
+  {
+    "name": "regex_value_value_contract_36",
+    "source": "def run(input)\nr=/a/mi;\"#{r.nil?(\"a\")}\"\nend",
+    "go_error": "regex.nil? does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_37",
+    "source": "def run(input)\nr=/a/mi;\"#{r.nil?(\"a\"){7}}\"\nend",
+    "go_error": "regex.nil? does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_38",
+    "source": "def run(input)\nr=/a/mi;\"#{r.nil?(x:1)}\"\nend",
+    "go_error": "regex.nil? does not take keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_39",
+    "source": "def run(input)\nr=/a/mi;\"#{r.nil?(x:1){7}}\"\nend",
+    "go_error": "regex.nil? does not take keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_41",
+    "source": "def run(input)\nr=/a/mi;\"#{r.dup{7}}\"\nend",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "regex_value_value_contract_43",
+    "source": "def run(input)\nr=/a/mi;\"#{r.dup(){7}}\"\nend",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "regex_value_value_contract_44",
+    "source": "def run(input)\nr=/a/mi;\"#{r.dup(\"a\")}\"\nend",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_45",
+    "source": "def run(input)\nr=/a/mi;\"#{r.dup(\"a\"){7}}\"\nend",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "regex_value_value_contract_46",
+    "source": "def run(input)\nr=/a/mi;\"#{r.dup(x:1)}\"\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_47",
+    "source": "def run(input)\nr=/a/mi;\"#{r.dup(x:1){7}}\"\nend",
+    "go_error": "dup does not take keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_49",
+    "source": "def run(input)\nr=/a/mi;\"#{r.itself{7}}\"\nend",
+    "go_error": "regex.itself does not accept a block"
+  },
+  {
+    "name": "regex_value_value_contract_51",
+    "source": "def run(input)\nr=/a/mi;\"#{r.itself(){7}}\"\nend",
+    "go_error": "regex.itself does not accept a block"
+  },
+  {
+    "name": "regex_value_value_contract_52",
+    "source": "def run(input)\nr=/a/mi;\"#{r.itself(\"a\")}\"\nend",
+    "go_error": "regex.itself expects 0 arguments, got 1"
+  },
+  {
+    "name": "regex_value_value_contract_53",
+    "source": "def run(input)\nr=/a/mi;\"#{r.itself(\"a\"){7}}\"\nend",
+    "go_error": "regex.itself does not accept a block"
+  },
+  {
+    "name": "regex_value_value_contract_54",
+    "source": "def run(input)\nr=/a/mi;\"#{r.itself(x:1)}\"\nend",
+    "go_error": "regex.itself does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_55",
+    "source": "def run(input)\nr=/a/mi;\"#{r.itself(x:1){7}}\"\nend",
+    "go_error": "regex.itself does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_56",
+    "source": "def run(input)\nr=/a/mi;\"#{r.match?}\"\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_value_value_contract_57",
+    "source": "def run(input)\nr=/a/mi;\"#{r.match?{7}}\"\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_value_value_contract_58",
+    "source": "def run(input)\nr=/a/mi;\"#{r.match?()}\"\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_value_value_contract_59",
+    "source": "def run(input)\nr=/a/mi;\"#{r.match?(){7}}\"\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_value_value_contract_62",
+    "source": "def run(input)\nr=/a/mi;\"#{r.match?(x:1)}\"\nend",
+    "go_error": "regex.match? does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_value_contract_63",
+    "source": "def run(input)\nr=/a/mi;\"#{r.match?(x:1){7}}\"\nend",
+    "go_error": "regex.match? does not accept keyword arguments"
+  },
+  {
+    "name": "regex_value_syntax_29",
+    "source": "def run(input)\nJSON.stringify(/a/)\nend",
+    "go_error": "JSON.stringify unsupported value type regex"
+  },
+  {
+    "name": "regex_match_behavior_4",
+    "source": "def run(input)\nm=\"a\".match(/a/);f=m[:begin];f\nend",
+    "go_error": "f is a method and cannot be used as a value; call it with f(...)"
+  },
+  {
+    "name": "regex_match_behavior_5",
+    "source": "def run(input)\nm=\"a\".match(/a/);m.begin\nend",
+    "go_error": "begin is a method and cannot be used as a value; call it with begin(...)"
+  },
+  {
+    "name": "regex_match_behavior_8",
+    "source": "def run(input)\nm=\"a\".match(/a/);Time=m[:begin];Time\nend",
+    "go_error": "Time is a method and cannot be used as a value; call it with Time(...)"
+  },
+  {
+    "name": "regex_match_behavior_11",
+    "source": "def run(input)\nm=\"a\".match(/a/);[m.to_s,m.inspect,\"x\"+m,m+\"x\"]\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "regex_match_behavior_13",
+    "source": "def run(input)\nm=\"a\".match(/a/);m.to_s()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "regex_match_behavior_14",
+    "source": "def run(input)\nm=\"a\".match(/a/);m[:begin].inspect\nend",
+    "go_error": "a method has no member inspect; call match_data.begin(...) directly"
+  },
+  {
+    "name": "regex_match_behavior_15",
+    "source": "def run(input)\nm=\"a\".match(/a/);f=m[:begin];x=f(0){7};x\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_behavior_16",
+    "source": "def run(input)\nm=\"a\".match(/a/);f=m[:begin];x=f(0,x:1);x\nend",
+    "go_error": "match_data.begin does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_behavior_27",
+    "source": "def run(input)\n\"a\".match(\"[\",-999)\nend",
+    "go_error": "string.match invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "regex_match_behavior_28",
+    "source": "def run(input)\n\"\".scan(\"(\")\nend",
+    "go_error": "string.scan invalid regex: error parsing regexp: missing closing ): `(`"
+  },
+  {
+    "name": "regex_match_mutation_0",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m[0]=7\nend",
+    "go_error": "index assignment cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_1",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m[:to_s]=\"q\"\nend",
+    "go_error": "index assignment cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_2",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.to_s=\"q\"\nend",
+    "go_error": "member assignment cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_3",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.clear\nend",
+    "go_error": "clear cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_4",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.replace({a:1})\nend",
+    "go_error": "replace cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_5",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.merge!({a:1})\nend",
+    "go_error": "unknown hash method merge! (did you mean \"merge\"?)"
+  },
+  {
+    "name": "regex_match_mutation_6",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.delete(:missing)\nend",
+    "go_error": "delete cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_7",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.delete(:to_s)\nend",
+    "go_error": "delete cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_8",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.delete_if {false}\nend",
+    "go_error": "delete_if cannot modify match data"
+  },
+  {
+    "name": "regex_match_mutation_9",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.keep_if {true}\nend",
+    "go_error": "keep_if cannot modify match data"
+  },
+  {
+    "name": "regex_match_contract_0",
+    "source": "def run(input)\n\"ab\".match()\nend",
+    "go_error": "string.match expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_1",
+    "source": "def run(input)\n\"ab\".match(){7}\nend",
+    "go_error": "string.match expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_2",
+    "source": "def run(input)\n\"ab\".match(nil)\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_3",
+    "source": "def run(input)\n\"ab\".match(nil){7}\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_4",
+    "source": "def run(input)\n\"ab\".match(:a)\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_5",
+    "source": "def run(input)\n\"ab\".match(:a){7}\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_6",
+    "source": "def run(input)\n\"ab\".match(7)\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_7",
+    "source": "def run(input)\n\"ab\".match(7){7}\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_8",
+    "source": "def run(input)\n\"ab\".match([])\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_9",
+    "source": "def run(input)\n\"ab\".match([]){7}\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_10",
+    "source": "def run(input)\n\"ab\".match({})\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_11",
+    "source": "def run(input)\n\"ab\".match({}){7}\nend",
+    "go_error": "string.match pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_12",
+    "source": "def run(input)\n\"ab\".match(\"a\",1,2)\nend",
+    "go_error": "string.match expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_13",
+    "source": "def run(input)\n\"ab\".match(\"a\",1,2){7}\nend",
+    "go_error": "string.match expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_14",
+    "source": "def run(input)\n\"ab\".match(\"a\",nil)\nend",
+    "go_error": "string.match offset must be integer"
+  },
+  {
+    "name": "regex_match_contract_15",
+    "source": "def run(input)\n\"ab\".match(\"a\",nil){7}\nend",
+    "go_error": "string.match offset must be integer"
+  },
+  {
+    "name": "regex_match_contract_16",
+    "source": "def run(input)\n\"ab\".match(\"a\",x:1)\nend",
+    "go_error": "string.match does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_17",
+    "source": "def run(input)\n\"ab\".match(\"a\",x:1){7}\nend",
+    "go_error": "string.match does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_20",
+    "source": "def run(input)\n/ab/.match()\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_21",
+    "source": "def run(input)\n/ab/.match(){7}\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_22",
+    "source": "def run(input)\n/ab/.match(nil)\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_23",
+    "source": "def run(input)\n/ab/.match(nil){7}\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_24",
+    "source": "def run(input)\n/ab/.match(:a)\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_25",
+    "source": "def run(input)\n/ab/.match(:a){7}\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_26",
+    "source": "def run(input)\n/ab/.match(7)\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_27",
+    "source": "def run(input)\n/ab/.match(7){7}\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_28",
+    "source": "def run(input)\n/ab/.match([])\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_29",
+    "source": "def run(input)\n/ab/.match([]){7}\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_30",
+    "source": "def run(input)\n/ab/.match({})\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_31",
+    "source": "def run(input)\n/ab/.match({}){7}\nend",
+    "go_error": "regex.match text must be string"
+  },
+  {
+    "name": "regex_match_contract_32",
+    "source": "def run(input)\n/ab/.match(\"a\",1,2)\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_33",
+    "source": "def run(input)\n/ab/.match(\"a\",1,2){7}\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_34",
+    "source": "def run(input)\n/ab/.match(\"a\",nil)\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_35",
+    "source": "def run(input)\n/ab/.match(\"a\",nil){7}\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_36",
+    "source": "def run(input)\n/ab/.match(\"a\",x:1)\nend",
+    "go_error": "regex.match does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_37",
+    "source": "def run(input)\n/ab/.match(\"a\",x:1){7}\nend",
+    "go_error": "regex.match does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_38",
+    "source": "def run(input)\n/ab/.match(\"a\",-1)\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_39",
+    "source": "def run(input)\n/ab/.match(\"a\",-1){7}\nend",
+    "go_error": "regex.match expects text"
+  },
+  {
+    "name": "regex_match_contract_40",
+    "source": "def run(input)\n\"ab\".scan()\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_41",
+    "source": "def run(input)\n\"ab\".scan(){7}\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_42",
+    "source": "def run(input)\n\"ab\".scan(nil)\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_43",
+    "source": "def run(input)\n\"ab\".scan(nil){7}\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_44",
+    "source": "def run(input)\n\"ab\".scan(:a)\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_45",
+    "source": "def run(input)\n\"ab\".scan(:a){7}\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_46",
+    "source": "def run(input)\n\"ab\".scan(7)\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_47",
+    "source": "def run(input)\n\"ab\".scan(7){7}\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_48",
+    "source": "def run(input)\n\"ab\".scan([])\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_49",
+    "source": "def run(input)\n\"ab\".scan([]){7}\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_50",
+    "source": "def run(input)\n\"ab\".scan({})\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_51",
+    "source": "def run(input)\n\"ab\".scan({}){7}\nend",
+    "go_error": "string.scan pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_52",
+    "source": "def run(input)\n\"ab\".scan(\"a\",1,2)\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_53",
+    "source": "def run(input)\n\"ab\".scan(\"a\",1,2){7}\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_54",
+    "source": "def run(input)\n\"ab\".scan(\"a\",nil)\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_55",
+    "source": "def run(input)\n\"ab\".scan(\"a\",nil){7}\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_56",
+    "source": "def run(input)\n\"ab\".scan(\"a\",x:1)\nend",
+    "go_error": "string.scan does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_57",
+    "source": "def run(input)\n\"ab\".scan(\"a\",x:1){7}\nend",
+    "go_error": "string.scan does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_58",
+    "source": "def run(input)\n\"ab\".scan(\"a\",-1)\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_59",
+    "source": "def run(input)\n\"ab\".scan(\"a\",-1){7}\nend",
+    "go_error": "string.scan expects exactly one pattern"
+  },
+  {
+    "name": "regex_match_contract_60",
+    "source": "def run(input)\n/ab/.scan()\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_61",
+    "source": "def run(input)\n/ab/.scan(){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_62",
+    "source": "def run(input)\n/ab/.scan(nil)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_63",
+    "source": "def run(input)\n/ab/.scan(nil){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_64",
+    "source": "def run(input)\n/ab/.scan(:a)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_65",
+    "source": "def run(input)\n/ab/.scan(:a){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_66",
+    "source": "def run(input)\n/ab/.scan(7)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_67",
+    "source": "def run(input)\n/ab/.scan(7){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_68",
+    "source": "def run(input)\n/ab/.scan([])\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_69",
+    "source": "def run(input)\n/ab/.scan([]){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_70",
+    "source": "def run(input)\n/ab/.scan({})\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_71",
+    "source": "def run(input)\n/ab/.scan({}){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_72",
+    "source": "def run(input)\n/ab/.scan(\"a\",1,2)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_73",
+    "source": "def run(input)\n/ab/.scan(\"a\",1,2){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_74",
+    "source": "def run(input)\n/ab/.scan(\"a\",nil)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_75",
+    "source": "def run(input)\n/ab/.scan(\"a\",nil){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_76",
+    "source": "def run(input)\n/ab/.scan(\"a\",x:1)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_77",
+    "source": "def run(input)\n/ab/.scan(\"a\",x:1){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_78",
+    "source": "def run(input)\n/ab/.scan(\"a\",-1)\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_79",
+    "source": "def run(input)\n/ab/.scan(\"a\",-1){7}\nend",
+    "go_error": "unknown regex method scan"
+  },
+  {
+    "name": "regex_match_contract_80",
+    "source": "def run(input)\n\"ab\".match?()\nend",
+    "go_error": "string.match? expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_81",
+    "source": "def run(input)\n\"ab\".match?(){7}\nend",
+    "go_error": "string.match? expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_82",
+    "source": "def run(input)\n\"ab\".match?(nil)\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_83",
+    "source": "def run(input)\n\"ab\".match?(nil){7}\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_84",
+    "source": "def run(input)\n\"ab\".match?(:a)\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_85",
+    "source": "def run(input)\n\"ab\".match?(:a){7}\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_86",
+    "source": "def run(input)\n\"ab\".match?(7)\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_87",
+    "source": "def run(input)\n\"ab\".match?(7){7}\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_88",
+    "source": "def run(input)\n\"ab\".match?([])\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_89",
+    "source": "def run(input)\n\"ab\".match?([]){7}\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_90",
+    "source": "def run(input)\n\"ab\".match?({})\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_91",
+    "source": "def run(input)\n\"ab\".match?({}){7}\nend",
+    "go_error": "string.match? pattern must be string or regex"
+  },
+  {
+    "name": "regex_match_contract_92",
+    "source": "def run(input)\n\"ab\".match?(\"a\",1,2)\nend",
+    "go_error": "string.match? expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_93",
+    "source": "def run(input)\n\"ab\".match?(\"a\",1,2){7}\nend",
+    "go_error": "string.match? expects a pattern and optional offset"
+  },
+  {
+    "name": "regex_match_contract_94",
+    "source": "def run(input)\n\"ab\".match?(\"a\",nil)\nend",
+    "go_error": "string.match? offset must be non-negative integer"
+  },
+  {
+    "name": "regex_match_contract_95",
+    "source": "def run(input)\n\"ab\".match?(\"a\",nil){7}\nend",
+    "go_error": "string.match? offset must be non-negative integer"
+  },
+  {
+    "name": "regex_match_contract_96",
+    "source": "def run(input)\n\"ab\".match?(\"a\",x:1)\nend",
+    "go_error": "string.match? does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_97",
+    "source": "def run(input)\n\"ab\".match?(\"a\",x:1){7}\nend",
+    "go_error": "string.match? does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_98",
+    "source": "def run(input)\n\"ab\".match?(\"a\",-1)\nend",
+    "go_error": "string.match? offset must be non-negative integer"
+  },
+  {
+    "name": "regex_match_contract_99",
+    "source": "def run(input)\n\"ab\".match?(\"a\",-1){7}\nend",
+    "go_error": "string.match? offset must be non-negative integer"
+  },
+  {
+    "name": "regex_match_contract_100",
+    "source": "def run(input)\n/ab/.match?()\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_101",
+    "source": "def run(input)\n/ab/.match?(){7}\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_102",
+    "source": "def run(input)\n/ab/.match?(nil)\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_103",
+    "source": "def run(input)\n/ab/.match?(nil){7}\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_104",
+    "source": "def run(input)\n/ab/.match?(:a)\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_105",
+    "source": "def run(input)\n/ab/.match?(:a){7}\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_106",
+    "source": "def run(input)\n/ab/.match?(7)\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_107",
+    "source": "def run(input)\n/ab/.match?(7){7}\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_108",
+    "source": "def run(input)\n/ab/.match?([])\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_109",
+    "source": "def run(input)\n/ab/.match?([]){7}\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_110",
+    "source": "def run(input)\n/ab/.match?({})\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_111",
+    "source": "def run(input)\n/ab/.match?({}){7}\nend",
+    "go_error": "regex.match? text must be string"
+  },
+  {
+    "name": "regex_match_contract_112",
+    "source": "def run(input)\n/ab/.match?(\"a\",1,2)\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_113",
+    "source": "def run(input)\n/ab/.match?(\"a\",1,2){7}\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_114",
+    "source": "def run(input)\n/ab/.match?(\"a\",nil)\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_115",
+    "source": "def run(input)\n/ab/.match?(\"a\",nil){7}\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_116",
+    "source": "def run(input)\n/ab/.match?(\"a\",x:1)\nend",
+    "go_error": "regex.match? does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_117",
+    "source": "def run(input)\n/ab/.match?(\"a\",x:1){7}\nend",
+    "go_error": "regex.match? does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_contract_118",
+    "source": "def run(input)\n/ab/.match?(\"a\",-1)\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_contract_119",
+    "source": "def run(input)\n/ab/.match?(\"a\",-1){7}\nend",
+    "go_error": "regex.match? expects text"
+  },
+  {
+    "name": "regex_match_accessor_0",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin()\nend",
+    "go_error": "match_data.begin expects a capture index"
+  },
+  {
+    "name": "regex_match_accessor_1",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_2",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-9)\nend",
+    "go_error": "match_data.begin capture index out of bounds"
+  },
+  {
+    "name": "regex_match_accessor_3",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-9){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_4",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-4)\nend",
+    "go_error": "match_data.begin capture index out of bounds"
+  },
+  {
+    "name": "regex_match_accessor_5",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-4){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_7",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-3){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_9",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-2){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_11",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(-1){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_13",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(0){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_15",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(1){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_17",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(2){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_18",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(3)\nend",
+    "go_error": "match_data.begin capture index out of bounds"
+  },
+  {
+    "name": "regex_match_accessor_19",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(3){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_21",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(1.5){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_22",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(nil)\nend",
+    "go_error": "match_data.begin capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_23",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(nil){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_24",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(:x)\nend",
+    "go_error": "match_data.begin capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_25",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(:x){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_26",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(\"0\")\nend",
+    "go_error": "match_data.begin capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_27",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(\"0\"){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_28",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(0,x:1)\nend",
+    "go_error": "match_data.begin does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_accessor_29",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(0,x:1){7}\nend",
+    "go_error": "match_data.begin does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_accessor_30",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(0,1)\nend",
+    "go_error": "match_data.begin expects a capture index"
+  },
+  {
+    "name": "regex_match_accessor_31",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(0,1){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_32",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(9223372036854775808)\nend",
+    "go_error": "match_data.begin capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_33",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.begin(9223372036854775808){7}\nend",
+    "go_error": "match_data.begin does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_34",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end()\nend",
+    "go_error": "match_data.end expects a capture index"
+  },
+  {
+    "name": "regex_match_accessor_35",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_36",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-9)\nend",
+    "go_error": "match_data.end capture index out of bounds"
+  },
+  {
+    "name": "regex_match_accessor_37",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-9){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_38",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-4)\nend",
+    "go_error": "match_data.end capture index out of bounds"
+  },
+  {
+    "name": "regex_match_accessor_39",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-4){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_41",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-3){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_43",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-2){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_45",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(-1){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_47",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(0){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_49",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(1){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_51",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(2){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_52",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(3)\nend",
+    "go_error": "match_data.end capture index out of bounds"
+  },
+  {
+    "name": "regex_match_accessor_53",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(3){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_55",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(1.5){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_56",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(nil)\nend",
+    "go_error": "match_data.end capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_57",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(nil){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_58",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(:x)\nend",
+    "go_error": "match_data.end capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_59",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(:x){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_60",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(\"0\")\nend",
+    "go_error": "match_data.end capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_61",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(\"0\"){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_62",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(0,x:1)\nend",
+    "go_error": "match_data.end does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_accessor_63",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(0,x:1){7}\nend",
+    "go_error": "match_data.end does not accept keyword arguments"
+  },
+  {
+    "name": "regex_match_accessor_64",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(0,1)\nend",
+    "go_error": "match_data.end expects a capture index"
+  },
+  {
+    "name": "regex_match_accessor_65",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(0,1){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_accessor_66",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(9223372036854775808)\nend",
+    "go_error": "match_data.end capture index must be integer"
+  },
+  {
+    "name": "regex_match_accessor_67",
+    "source": "def run(input)\nm=\"a\".match(/(a)(b)?/);m.end(9223372036854775808){7}\nend",
+    "go_error": "match_data.end does not accept blocks"
+  },
+  {
+    "name": "regex_match_nested_4",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.captures.replace([7]);m.captures\nend",
+    "go_error": "unknown array method replace"
+  },
+  {
+    "name": "regex_match_nested_5",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.captures.clear;m.captures\nend",
+    "go_error": "assignment cannot modify match data"
+  },
+  {
+    "name": "regex_match_nested_6",
+    "source": "def run(input)\nm=\"ab\".match(/(?<x>a)(b)/);m.named_captures.clear;m.named_captures\nend",
+    "go_error": "assignment cannot modify match data"
+  },
+  {
+    "name": "regex_match_scoped_2",
+    "source": "def run(input)\nRegexp::enum\nend",
+    "go_error": "unknown member enum"
+  },
+  {
+    "name": "regex_match_scoped_16",
+    "source": "def run(input)\nRegexp::public\nend",
+    "go_error": "unknown member public"
+  },
+  {
+    "name": "regex_match_scoped_17",
+    "source": "def run(input)\nRegexp::attr_reader\nend",
+    "go_error": "unknown member attr_reader"
+  },
+  {
+    "name": "regex_match_scoped_21",
+    "source": "def run(input)\nRegexp::and\nend",
+    "go_error": "unknown member and"
+  },
+  {
+    "name": "regex_match_scoped_22",
+    "source": "def run(input)\nRegexp::or\nend",
+    "go_error": "unknown member or"
+  },
+  {
+    "name": "regex_match_scoped_23",
+    "source": "def run(input)\nRegexp::not\nend",
+    "go_error": "unknown member not"
   }
 ]

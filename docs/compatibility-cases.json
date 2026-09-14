@@ -1064,7 +1064,43 @@
       "aba",
       false
     ],
-    "policy": "unresolved",
-    "reason": "Go Regex namespace helpers use a completed literal prefix without enforcing its anchors; the same Go pattern passed to string.match? correctly reports no match. Rust honors the anchors. This is separate from the selected collection value-semantics policy."
+    "policy": "honor_regex_anchors",
+    "reason": "The selected regex policy honors all anchors. Go helpers bypass assertions when using a completed literal prefix; Rust applies the complete expression, matching the predicate.",
+    "expected": [
+      null,
+      "ab",
+      "aba",
+      false
+    ]
+  },
+  {
+    "name": "match_data_nested_mutation",
+    "body": "m=\"a\".match(/(a)/);m.captures.push(\"x\");m.captures",
+    "go": [
+      "a",
+      "x"
+    ],
+    "rust_error": "Argument",
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "Match-data protection applies through nested write paths. A copied capture array may be modified independently; a write through the protected result is rejected."
+  },
+  {
+    "name": "match_data_duplicate_mutation",
+    "body": "m=\"a\".match(/a/);m.dup.clear",
+    "go": {},
+    "rust_error": "Argument",
+    "expected_error": "Argument",
+    "policy": "protected_match_data",
+    "reason": "Duplicating match data preserves its protection. Go deep cloning drops the tag and permits the resulting object to be cleared."
+  },
+  {
+    "name": "match_data_duplicate_rendering",
+    "body": "m=\"a\".match(/a/);\"#{m.dup}\"",
+    "go": "<object>",
+    "rust": "a",
+    "expected": "a",
+    "policy": "protected_match_data",
+    "reason": "Duplicating match data preserves its published string rendering. Go deep cloning drops that rendering together with the protected tag."
   }
 ]

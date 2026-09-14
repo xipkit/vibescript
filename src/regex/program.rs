@@ -30,6 +30,17 @@ pub(super) struct Program {
     pub names: Buffer<(usize, usize)>,
     pub source: Value,
     pub start: usize,
+    pub minimum: usize,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct View<'a> {
+    pub instructions: &'a [Instruction],
+    pub parts: &'a [Part],
+    pub names: &'a [(usize, usize)],
+    pub source: &'a [u8],
+    pub start: usize,
+    pub minimum: usize,
 }
 
 enum Build {
@@ -55,9 +66,24 @@ enum Build {
 }
 
 impl Program {
+    pub fn view(&self) -> View<'_> {
+        View {
+            instructions: &self.instructions.data,
+            parts: &self.parts.data,
+            names: &self.names.data,
+            source: self.source.as_bytes().unwrap(),
+            start: self.start,
+            minimum: self.minimum,
+        }
+    }
+
     pub fn compile(ctx: &mut CallContext, source: Value) -> Result<Self> {
+        Self::compile_limit(ctx, source, super::MAX_PATTERN)
+    }
+
+    pub fn compile_limit(ctx: &mut CallContext, source: Value, limit: usize) -> Result<Self> {
         let bytes = source.require_bytes()?;
-        if bytes.len() > super::MAX_PATTERN {
+        if bytes.len() > limit {
             return ctx.fail(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
         }
         let source = ctx.import(&source)?;
@@ -76,6 +102,7 @@ impl Program {
             names: parsed.names,
             source,
             start: 0,
+            minimum: parsed.nodes.data[parsed.root].minimum,
         };
         program.emit(ctx, Op::Fail, 0, 0)?;
         program.emit(ctx, Op::Match, 0, 0)?;

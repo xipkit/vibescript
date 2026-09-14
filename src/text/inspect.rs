@@ -96,8 +96,9 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) 
             out.append(ctx, b":")?;
             return label(ctx, &bytes.data, out);
         }
+        Kind::Regex(regex) => return regex.render(ctx, |ctx, piece| out.append(ctx, piece)),
         Kind::Nil => return out.append(ctx, b"nil"),
-        Kind::Builtin(_) => return out.append(ctx, b"<builtin>"),
+        Kind::Builtin(_) | Kind::Offset(_) => return out.append(ctx, b"<builtin>"),
         Kind::Array(array) => {
             out.append(ctx, b"[")?;
             for (index, element) in array.buffer.data.iter().enumerate() {

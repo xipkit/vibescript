@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: nineteen intentional differences follow the documented collection value semantics, and six remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: twenty-three intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
 
 ## Documented value semantics take precedence
 
@@ -69,7 +69,7 @@ The first two results follow the selected value semantics: an already evaluated 
 python3 scripts/audit-compatibility.py --out .cache/compatibility-audit
 ```
 
-The audit accepts intentional results only when Rust matches their documented expectations. It fails on unresolved cases, changed Rust behavior, or changed reference output, and preserves results for all four builds. The nineteen intentional cases remain separate from the matching conformance count.
+The audit accepts intentional results only when Rust matches their documented expectations. It fails on unresolved cases, changed Rust behavior, or changed reference output, and preserves results for all four builds. All intentional cases remain separate from the matching conformance count.
 
 ## Copy oracle investigation
 
@@ -83,7 +83,7 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes nineteen intentional cases from five open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes twenty-three intentional cases from five open cases.
 
 
 ## Builtin descriptors
@@ -94,4 +94,10 @@ The reference permits a stateless builtin descriptor to be obtained through inde
 
 Go's `Regex.match`, `Regex.replace` and `Regex.replace_all` helpers can take a literal-prefix shortcut for anchored patterns. The shortcut omits the anchors: `Regex.match("(?:^a$)", "ab")` returns `"a"`, while `"ab".match?("(?:^a$)")` correctly returns false. Replacement helpers can likewise replace text that the complete expression does not match. Rust's state machine retains the anchor assertions, returning nil and preserving the input in those cases.
 
-One aggregate audit case records all three helpers alongside the predicate. Fifty-one focused probes reproduce this discrepancy across grouping, flags and subjects; they are excluded from matching conformance counts. The collection value-semantics decision does not settle this regex behavior, so the case remains unresolved while the semantic choice is pending.
+One aggregate audit case records all three helpers alongside the predicate. Fifty-one focused probes reproduce this discrepancy across grouping, flags and subjects; they are excluded from matching conformance counts. The selected regex policy honors anchors. This aggregate case is an intentional difference, with explicit expected results and native regression coverage.
+
+## Match-data protection
+
+The selected policy preserves match data's protected fields through nested writes and duplication. Copying its captures into a separate variable produces an ordinary array that can be changed independently. Direct writes such as `m.captures.push("x")` and clearing `m.dup` are rejected. A duplicate retains the original match's string rendering.
+
+Go's behavior varies by operation: `m.captures.push("x")` succeeds, while `m.captures.clear` fails when its write reaches the protected parent. Go's deep clone also drops the protection and published rendering, making `m.dup.clear` succeed and interpolation render `<object>`. Three audit records preserve these observations and verify Rust's chosen rejection or value. Ten focused comparisons cover nested captures, named captures, duplicate containers and rendering. These intentional differences are excluded from matching conformance totals.

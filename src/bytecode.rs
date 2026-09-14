@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    Regex(usize, u8),
     TypeShadowed(usize, usize),
     Normalize(usize),
     Declaration(usize),
@@ -500,6 +501,7 @@ impl Compiler<'_> {
     }
     fn declare_expr(&mut self, e: &Expr) {
         match &e.node {
+            Node::Regex(..) => (),
             Node::Shape(_, fallback, _) => {
                 if let Some(fallback) = fallback {
                     self.declare_expr(fallback);
@@ -948,6 +950,11 @@ impl Compiler<'_> {
     }
     fn expr(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
+            Node::Regex(pattern, flags) => {
+                let index = self.program.constants.len();
+                self.program.constants.push(Value::bytes(pattern.clone()));
+                self.emit(Op::Regex(index, *flags));
+            }
             Node::Shape(ty, fallback, names) => {
                 let guard = fallback.as_ref().map(|_| {
                     let index = self.program.type_guards.len();
@@ -1513,7 +1520,11 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
                 call_names(fallback, names);
             }
         }
-        Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) | Node::Var(_) => (),
+        Node::Regex(..)
+        | Node::Literal(_)
+        | Node::Integer(_)
+        | Node::BigInteger(..)
+        | Node::Var(_) => (),
         Node::Call(name, args) => {
             names.insert(name);
             for arg in args {

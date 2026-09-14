@@ -8,11 +8,16 @@ use crate::{
 };
 use std::{cmp::Ordering, mem};
 
+pub(crate) enum Target {
+    Plain(Invocation),
+    Offset(std::sync::Arc<crate::regex::matches::Offset>),
+}
+
 pub(crate) struct Arguments {
     pub positional: Buffer<Value>,
     pub keywords: Hash,
     pub options_hash: bool,
-    pub target: Option<Invocation>,
+    pub target: Option<Target>,
     pub block: Option<Block>,
 }
 
@@ -243,7 +248,10 @@ fn compare_keys(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering>
     Ok(a.len().cmp(&b.len()))
 }
 
-fn ordered_hash(ctx: &mut CallContext, mut buffer: Buffer<(Value, Value)>) -> Result<Hash> {
+pub(crate) fn ordered_hash(
+    ctx: &mut CallContext,
+    mut buffer: Buffer<(Value, Value)>,
+) -> Result<Hash> {
     fn sift(ctx: &mut CallContext, values: &mut [(Value, Value)], mut root: usize) -> Result<()> {
         while root < values.len() / 2 {
             ctx.charge(1)?;

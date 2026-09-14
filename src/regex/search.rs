@@ -1,4 +1,8 @@
-use super::{Assertion, Program, program::Op, unicode};
+use super::{
+    Assertion,
+    program::{Op, View},
+    unicode,
+};
 use crate::{CallContext, Result, budget::Buffer, scan};
 
 pub(super) const ABSENT: usize = usize::MAX;
@@ -30,9 +34,9 @@ pub(super) struct Search {
 }
 
 impl Search {
-    pub fn new(ctx: &mut CallContext, program: &Program, captures: bool) -> Result<Self> {
-        let mut visited = Buffer::with_capacity(ctx, program.instructions.data.len())?;
-        for chunk in program.instructions.data.chunks(4096 / size_of::<u32>()) {
+    pub fn new(ctx: &mut CallContext, program: View<'_>, captures: bool) -> Result<Self> {
+        let mut visited = Buffer::with_capacity(ctx, program.instructions.len())?;
+        for chunk in program.instructions.chunks(4096 / size_of::<u32>()) {
             ctx.work_bytes(chunk.len() * size_of::<u32>())?;
             visited.data.resize(visited.data.len() + chunk.len(), 0);
         }
@@ -43,11 +47,7 @@ impl Search {
             actions: Buffer::empty(),
             pool: Buffer::empty(),
             epoch: 0,
-            slots: if captures {
-                2 * program.names.data.len()
-            } else {
-                2
-            },
+            slots: if captures { 2 * program.names.len() } else { 2 },
         })
     }
 
@@ -78,7 +78,7 @@ impl Search {
     fn add(
         &mut self,
         ctx: &mut CallContext,
-        program: &Program,
+        program: View<'_>,
         pc: usize,
         mut captures: Buffer<usize>,
         boundary: Boundary,
@@ -98,7 +98,7 @@ impl Search {
                         continue;
                     }
                     self.visited.data[pc] = self.epoch;
-                    let instruction = program.instructions.data[pc];
+                    let instruction = program.instructions[pc];
                     match instruction.op {
                         Op::Fail => (),
                         Op::Split => {
@@ -141,7 +141,7 @@ impl Search {
     pub fn find(
         &mut self,
         ctx: &mut CallContext,
-        program: &Program,
+        program: View<'_>,
         text: &[u8],
         from: usize,
     ) -> Result<Option<Buffer<usize>>> {
@@ -196,7 +196,7 @@ impl Search {
                     self.pool.push(ctx, thread.captures)?;
                     continue;
                 }
-                let instruction = program.instructions.data[thread.pc];
+                let instruction = program.instructions[thread.pc];
                 if matches!(instruction.op, Op::Match) {
                     thread.captures.data[1] = position;
                     if let Some(old) = best.replace(thread.captures) {
@@ -209,9 +209,7 @@ impl Search {
                     (Some(rune), Op::Rune(expected, fold)) => {
                         unicode::folded(rune, fold, |point| point == expected)
                     }
-                    (Some(rune), Op::Class(class)) => {
-                        class.matches(ctx, &program.parts.data, rune)?
-                    }
+                    (Some(rune), Op::Class(class)) => class.matches(ctx, program.parts, rune)?,
                     (Some(rune), Op::Any(newline)) => newline || rune != '\n' as u32,
                     _ => false,
                 };

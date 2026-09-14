@@ -24,6 +24,9 @@ pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Val
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
+    if matches!(op, "=~" | "!~") {
+        return crate::regex::value::binary(ctx, op, &a, &b);
+    }
     if op == "<=>" {
         return crate::ordering::spaceship(ctx, &a, &b);
     }
@@ -69,6 +72,7 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                     | Kind::Time(_)
                     | Kind::Zoned(_)
                     | Kind::EnumMember(_)
+                    | Kind::Regex(_)
             )
         };
         if !scalar(&a) || !scalar(&b) {
@@ -196,7 +200,9 @@ pub(crate) fn case_matches(
     for candidate in candidates {
         ctx.charge(1)?;
         let matched = if let Some(target) = target {
-            if let Kind::Range(range) = &candidate.0 {
+            if let Kind::Regex(regex) = &candidate.0 {
+                regex.matches(ctx, target)?
+            } else if let Kind::Range(range) = &candidate.0 {
                 range.contains(target)
             } else {
                 equal(ctx, candidate, target, 0)?
@@ -254,6 +260,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
     }
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
+        (Kind::Regex(a), Kind::Regex(b)) => a.equal(ctx, b),
         (Kind::Shape(a), Kind::Shape(b)) => {
             json::bytes_equal(ctx, &a.definition.text, &b.definition.text)
         }
@@ -266,6 +273,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
             Ok(crate::time::stamp(a) == crate::time::stamp(b))
         }
         (Kind::Builtin(a), Kind::Builtin(b)) => Ok(a == b),
+        (Kind::Offset(a), Kind::Offset(b)) => Ok(std::sync::Arc::ptr_eq(a, b)),
         (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
         (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
         (Kind::Big(_), Kind::Big(_)) => Ok(crate::integer::compare(ctx, a, b)? == Ordering::Equal),
@@ -325,6 +333,9 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
                 .unwrap_or_default())
         }
         Kind::Hash(h) => {
+            if let Some(value) = crate::regex::matches::index(ctx, h, index)? {
+                return Ok(value);
+            }
             let key = index.require_bytes()?;
             Ok(h.find(ctx, key)?
                 .map(|i| h.buffer.data[i].1.clone())
@@ -804,6 +815,8 @@ fn join_into(
 pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut text = json::Number::new();
     match &value.0 {
+        Kind::Regex(regex) => return regex.text(ctx),
+        Kind::Offset(offset) => return Err(offset.value_error()),
         Kind::Builtin(builtin) => return Err(builtin.value_error()),
         Kind::Enum(_) | Kind::EnumMember(_) => return crate::enums::text(ctx, value),
         Kind::Money(money) => return money.text(ctx),

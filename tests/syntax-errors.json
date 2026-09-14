@@ -9718,5 +9718,780 @@
     "name": "string_iteration_defaults_3",
     "source": "\ndef run(input)\nout=[];\"ab\".each_line{|x,y=out.push(x)|[x,y]};out\nend",
     "go_error": "parse error at 3:27: expected \"|\", got \"=\""
+  },
+  {
+    "name": "regex_value_literal_270",
+    "source": "def run(input)\nr=/a/b/;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_271",
+    "source": "def run(input)\nr=/a/b/;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_272",
+    "source": "def run(input)\nr=/a/b/;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_273",
+    "source": "def run(input)\nr=/a/b/;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_274",
+    "source": "def run(input)\nr=/a/b/;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_275",
+    "source": "def run(input)\nr=/a/b/;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_276",
+    "source": "def run(input)\nr=/a/b/i;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_277",
+    "source": "def run(input)\nr=/a/b/i;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_278",
+    "source": "def run(input)\nr=/a/b/i;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_279",
+    "source": "def run(input)\nr=/a/b/i;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_280",
+    "source": "def run(input)\nr=/a/b/i;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_281",
+    "source": "def run(input)\nr=/a/b/i;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_282",
+    "source": "def run(input)\nr=/a/b/m;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_283",
+    "source": "def run(input)\nr=/a/b/m;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_284",
+    "source": "def run(input)\nr=/a/b/m;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_285",
+    "source": "def run(input)\nr=/a/b/m;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_286",
+    "source": "def run(input)\nr=/a/b/m;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_287",
+    "source": "def run(input)\nr=/a/b/m;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_288",
+    "source": "def run(input)\nr=/a/b/im;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_289",
+    "source": "def run(input)\nr=/a/b/im;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_290",
+    "source": "def run(input)\nr=/a/b/im;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_291",
+    "source": "def run(input)\nr=/a/b/im;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_292",
+    "source": "def run(input)\nr=/a/b/im;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_293",
+    "source": "def run(input)\nr=/a/b/im;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_294",
+    "source": "def run(input)\nr=/a/b/mi;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_295",
+    "source": "def run(input)\nr=/a/b/mi;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_296",
+    "source": "def run(input)\nr=/a/b/mi;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_297",
+    "source": "def run(input)\nr=/a/b/mi;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_298",
+    "source": "def run(input)\nr=/a/b/mi;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_299",
+    "source": "def run(input)\nr=/a/b/mi;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"b\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_600",
+    "source": "def run(input)\nr=/\\Q/a\\E/;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_601",
+    "source": "def run(input)\nr=/\\Q/a\\E/;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_602",
+    "source": "def run(input)\nr=/\\Q/a\\E/;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_603",
+    "source": "def run(input)\nr=/\\Q/a\\E/;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_604",
+    "source": "def run(input)\nr=/\\Q/a\\E/;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_605",
+    "source": "def run(input)\nr=/\\Q/a\\E/;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_606",
+    "source": "def run(input)\nr=/\\Q/a\\E/i;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_607",
+    "source": "def run(input)\nr=/\\Q/a\\E/i;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_608",
+    "source": "def run(input)\nr=/\\Q/a\\E/i;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_609",
+    "source": "def run(input)\nr=/\\Q/a\\E/i;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_610",
+    "source": "def run(input)\nr=/\\Q/a\\E/i;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_611",
+    "source": "def run(input)\nr=/\\Q/a\\E/i;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_612",
+    "source": "def run(input)\nr=/\\Q/a\\E/m;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_613",
+    "source": "def run(input)\nr=/\\Q/a\\E/m;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_614",
+    "source": "def run(input)\nr=/\\Q/a\\E/m;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_615",
+    "source": "def run(input)\nr=/\\Q/a\\E/m;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_616",
+    "source": "def run(input)\nr=/\\Q/a\\E/m;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_617",
+    "source": "def run(input)\nr=/\\Q/a\\E/m;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_618",
+    "source": "def run(input)\nr=/\\Q/a\\E/im;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_619",
+    "source": "def run(input)\nr=/\\Q/a\\E/im;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_620",
+    "source": "def run(input)\nr=/\\Q/a\\E/im;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_621",
+    "source": "def run(input)\nr=/\\Q/a\\E/im;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_622",
+    "source": "def run(input)\nr=/\\Q/a\\E/im;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_623",
+    "source": "def run(input)\nr=/\\Q/a\\E/im;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_624",
+    "source": "def run(input)\nr=/\\Q/a\\E/mi;t=\"\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_625",
+    "source": "def run(input)\nr=/\\Q/a\\E/mi;t=\"\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_626",
+    "source": "def run(input)\nr=/\\Q/a\\E/mi;t=\"\\x41\\x0a\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_627",
+    "source": "def run(input)\nr=/\\Q/a\\E/mi;t=\"\\xc3\\xa9\\x61\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_628",
+    "source": "def run(input)\nr=/\\Q/a\\E/mi;t=\"\\x61\\x2f\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_literal_629",
+    "source": "def run(input)\nr=/\\Q/a\\E/mi;t=\"\\x61\\xff\\x62\";[r.source.bytes,r.flags,r.inspect,\"#{r}\",r.match?(t),t.match?(r),t =~ r,r =~ t,t !~ r,r !~ t,r === t,t === r]\nend",
+    "go_error": "parse error at 2:3: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_equality_0",
+    "source": "def run(input)\na=/a/;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_1",
+    "source": "def run(input)\na=/a/;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_2",
+    "source": "def run(input)\na=/a/;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_3",
+    "source": "def run(input)\na=/a/;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_4",
+    "source": "def run(input)\na=/a/;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_5",
+    "source": "def run(input)\na=/a/;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_6",
+    "source": "def run(input)\na=/a/i;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_7",
+    "source": "def run(input)\na=/a/i;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_8",
+    "source": "def run(input)\na=/a/i;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:24: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_9",
+    "source": "def run(input)\na=/a/i;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_10",
+    "source": "def run(input)\na=/a/i;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_11",
+    "source": "def run(input)\na=/a/i;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_12",
+    "source": "def run(input)\na=/a/m;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_13",
+    "source": "def run(input)\na=/a/m;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_14",
+    "source": "def run(input)\na=/a/m;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:24: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_15",
+    "source": "def run(input)\na=/a/m;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_16",
+    "source": "def run(input)\na=/a/m;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_17",
+    "source": "def run(input)\na=/a/m;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_18",
+    "source": "def run(input)\na=/a/mi;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_19",
+    "source": "def run(input)\na=/a/mi;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:24: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_20",
+    "source": "def run(input)\na=/a/mi;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:25: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_21",
+    "source": "def run(input)\na=/a/mi;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:35: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_22",
+    "source": "def run(input)\na=/a/mi;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_23",
+    "source": "def run(input)\na=/a/mi;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_24",
+    "source": "def run(input)\na=/b/;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_25",
+    "source": "def run(input)\na=/b/;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_26",
+    "source": "def run(input)\na=/b/;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_27",
+    "source": "def run(input)\na=/b/;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_28",
+    "source": "def run(input)\na=/b/;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_29",
+    "source": "def run(input)\na=/b/;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_30",
+    "source": "def run(input)\na=Regexp.new(\"a\");b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_31",
+    "source": "def run(input)\na=Regexp.new(\"a\");b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:34: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_32",
+    "source": "def run(input)\na=Regexp.new(\"a\");b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:35: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_33",
+    "source": "def run(input)\na=Regexp.new(\"a\");b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:45: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_34",
+    "source": "def run(input)\na=Regexp.new(\"a\");b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_35",
+    "source": "def run(input)\na=Regexp.new(\"a\");b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_36",
+    "source": "def run(input)\na=\"a\";b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_37",
+    "source": "def run(input)\na=\"a\";b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_38",
+    "source": "def run(input)\na=\"a\";b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_39",
+    "source": "def run(input)\na=\"a\";b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_40",
+    "source": "def run(input)\na=\"a\";b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_41",
+    "source": "def run(input)\na=\"a\";b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_42",
+    "source": "def run(input)\na=nil;b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_43",
+    "source": "def run(input)\na=nil;b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_44",
+    "source": "def run(input)\na=nil;b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:23: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_45",
+    "source": "def run(input)\na=nil;b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:33: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_46",
+    "source": "def run(input)\na=nil;b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_47",
+    "source": "def run(input)\na=nil;b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_48",
+    "source": "def run(input)\na={};b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_49",
+    "source": "def run(input)\na={};b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_50",
+    "source": "def run(input)\na={};b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_51",
+    "source": "def run(input)\na={};b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_52",
+    "source": "def run(input)\na={};b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_53",
+    "source": "def run(input)\na={};b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_54",
+    "source": "def run(input)\na=[];b=/a/;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_55",
+    "source": "def run(input)\na=[];b=/a/i;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:21: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_56",
+    "source": "def run(input)\na=[];b=/a/im;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:22: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_57",
+    "source": "def run(input)\na=[];b=Regexp.new(\"a\");[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:32: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_58",
+    "source": "def run(input)\na=[];b=\"a\";[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_equality_59",
+    "source": "def run(input)\na=[];b=nil;[a==b,a!=b,a===b]\nend",
+    "go_error": "parse error at 2:20: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_syntax_7",
+    "source": "def take(x);x.source;end\ndef run(input)\ntake /unterminated\nend",
+    "go_error": "parse error at 3:6: unterminated regex literal"
+  },
+  {
+    "name": "regex_value_syntax_19",
+    "source": "def run(input)\na=\"éa\";a!~/a/\nend",
+    "go_error": "parse error at 2:10: unexpected token invalid token"
+  },
+  {
+    "name": "regex_value_syntax_21",
+    "source": "def run(input)\n[:/, :/=, :=~, :!~]\nend",
+    "go_error": "parse error at 2:8: expected \"]\", got \"=\""
+  },
+  {
+    "name": "regex_value_flags_0",
+    "source": "def run(input)\n/a/ii\nend",
+    "go_error": "parse error at 2:1: repeated regex flag \"i\""
+  },
+  {
+    "name": "regex_value_flags_1",
+    "source": "def run(input)\n/a/mm\nend",
+    "go_error": "parse error at 2:1: repeated regex flag \"m\""
+  },
+  {
+    "name": "regex_value_flags_2",
+    "source": "def run(input)\n/a/imi\nend",
+    "go_error": "parse error at 2:1: repeated regex flag \"i\""
+  },
+  {
+    "name": "regex_value_flags_3",
+    "source": "def run(input)\n/a/mim\nend",
+    "go_error": "parse error at 2:1: repeated regex flag \"m\""
+  },
+  {
+    "name": "regex_value_flags_4",
+    "source": "def run(input)\n/a/x\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"x\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_flags_5",
+    "source": "def run(input)\n/a/s\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"s\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_flags_6",
+    "source": "def run(input)\n/a/u\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"u\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_flags_7",
+    "source": "def run(input)\n/a/I\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"I\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_flags_8",
+    "source": "def run(input)\n/a/M\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"M\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_flags_9",
+    "source": "def run(input)\n/a/a\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"a\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_value_flags_10",
+    "source": "def run(input)\n/a/imx\nend",
+    "go_error": "parse error at 2:1: unsupported regex flag \"x\"; supported flags are i and m"
+  },
+  {
+    "name": "regex_match_behavior_3",
+    "source": "def run(input)\nm=\"a\".match(/a/);f=m::begin;f(0)\nend",
+    "go_error": "parse error at 2:23: expected identifier, got \"begin\""
+  },
+  {
+    "name": "regex_match_behavior_7",
+    "source": "def run(input)\nm=\"a\".match(/a/);m::begin\nend",
+    "go_error": "parse error at 2:21: expected identifier, got \"begin\""
+  },
+  {
+    "name": "regex_match_command_5",
+    "source": "def take(*args)\nargs.map {|v| \"#{v}\"}\nend\ndef run(input)\ntake /#/, # hi\n7\nend",
+    "go_error": "parse error at 5:1: invalid destructuring assignment target"
+  },
+  {
+    "name": "regex_match_scoped_0",
+    "source": "def run(input)\nRegexp::begin\nend",
+    "go_error": "parse error at 2:9: expected identifier, got \"begin\""
+  },
+  {
+    "name": "regex_match_scoped_1",
+    "source": "def run(input)\nRegexp::end\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'end'"
+  },
+  {
+    "name": "regex_match_scoped_3",
+    "source": "def run(input)\nRegexp::true\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'true'"
+  },
+  {
+    "name": "regex_match_scoped_4",
+    "source": "def run(input)\nRegexp::false\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'false'"
+  },
+  {
+    "name": "regex_match_scoped_5",
+    "source": "def run(input)\nRegexp::nil\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'nil'"
+  },
+  {
+    "name": "regex_match_scoped_6",
+    "source": "def run(input)\nRegexp::self\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'self'"
+  },
+  {
+    "name": "regex_match_scoped_7",
+    "source": "def run(input)\nRegexp::export\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'export'"
+  },
+  {
+    "name": "regex_match_scoped_8",
+    "source": "def run(input)\nRegexp::private\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'private'"
+  },
+  {
+    "name": "regex_match_scoped_9",
+    "source": "def run(input)\nRegexp::raise\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'raise'"
+  },
+  {
+    "name": "regex_match_scoped_10",
+    "source": "def run(input)\nRegexp::rescue\nend",
+    "go_error": "parse error at 2:9: expected identifier, got \"rescue\""
+  },
+  {
+    "name": "regex_match_scoped_11",
+    "source": "def run(input)\nRegexp::return\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'return'"
+  },
+  {
+    "name": "regex_match_scoped_12",
+    "source": "def run(input)\nRegexp::if\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'if'"
+  },
+  {
+    "name": "regex_match_scoped_13",
+    "source": "def run(input)\nRegexp::class\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'class'"
+  },
+  {
+    "name": "regex_match_scoped_14",
+    "source": "def run(input)\nRegexp::in\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'in'"
+  },
+  {
+    "name": "regex_match_scoped_15",
+    "source": "def run(input)\nRegexp::next\nend",
+    "go_error": "parse error at 2:9: expected identifier, got \"next\""
+  },
+  {
+    "name": "regex_match_scoped_18",
+    "source": "def run(input)\nRegexp::property\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'property'"
+  },
+  {
+    "name": "regex_match_scoped_19",
+    "source": "def run(input)\nRegexp::then\nend",
+    "go_error": "parse error at 2:9: expected identifier, got 'then'"
+  },
+  {
+    "name": "regex_match_scoped_20",
+    "source": "def run(input)\nRegexp::retry\nend",
+    "go_error": "parse error at 2:9: expected identifier, got \"retry\""
   }
 ]

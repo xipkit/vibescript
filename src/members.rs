@@ -96,6 +96,25 @@ pub(crate) fn call_keywords(
     )? {
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::regex::value::member(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::regex::operations::member(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+    )? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::regex::member(
         ctx,
         name,
@@ -247,6 +266,12 @@ pub(crate) fn call(
     if let Some(result) = crate::text::template::call(ctx, name, &receiver, args, &[])? {
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::regex::value::member(ctx, name, &receiver, args, false, false)? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::regex::operations::member(ctx, name, &receiver, args, false)? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::regex::member(ctx, name, &receiver, args, false)? {
         return Ok((receiver, result));
     }
@@ -342,6 +367,9 @@ fn field(
     name: &str,
     receiver: &Value,
 ) -> Result<Option<Value>> {
+    if let Kind::Offset(offset) = &receiver.0 {
+        return Err(offset.value_error());
+    }
     if let Kind::Builtin(builtin) = receiver.0 {
         return Err(builtin.value_error());
     }
@@ -376,6 +404,11 @@ fn field_call(
     block: bool,
 ) -> Result<Value> {
     if site.auto {
+        if let Kind::Offset(offset) = &value.0 {
+            if !site.scope {
+                return Err(offset.value_error());
+            }
+        }
         if let Kind::Builtin(builtin) = value.0 {
             if !site.scope {
                 if builtin.auto() {
@@ -385,6 +418,9 @@ fn field_call(
             }
         }
         return Ok(value);
+    }
+    if let Kind::Offset(offset) = &value.0 {
+        return offset.call(ctx, args, keywords, block);
     }
     if let Kind::Builtin(builtin) = value.0 {
         return builtin.call(ctx, args, keywords, block);

@@ -199,6 +199,11 @@ pub(crate) fn execute(
                 let value = crate::integer::parse(ctx, text, radix)?;
                 stack.push(ctx, value)?;
             }
+            Op::Regex(n, flags) => {
+                let v =
+                    crate::regex::value::Regex::compile(ctx, program.constants[n].clone(), flags)?;
+                stack.push(ctx, v)?;
+            }
             Op::Constant(n) => {
                 let v = ctx.import(&program.constants[n])?;
                 stack.push(ctx, v)?;
@@ -230,6 +235,9 @@ pub(crate) fn execute(
             }
             Op::Load(n) => {
                 let mut v = storage.locals.data[n].clone().unwrap_or_default();
+                if let Kind::Offset(offset) = &v.0 {
+                    return Err(offset.value_error());
+                }
                 if let Kind::Builtin(builtin) = v.0 {
                     v = builtin.read(ctx)?;
                 }
@@ -237,6 +245,9 @@ pub(crate) fn execute(
             }
             Op::LoadOptional(slot, name) => {
                 if let Some(value) = &storage.locals.data[slot] {
+                    if let Kind::Offset(offset) = &value.0 {
+                        return Err(offset.value_error());
+                    }
                     let value = if let Kind::Builtin(builtin) = value.0 {
                         builtin.read(ctx)?
                     } else {
@@ -263,6 +274,9 @@ pub(crate) fn execute(
                     return Err(callable_value_error(&program.hosts[host], "method"));
                 } else if let Some(global) = global_index(program, &program.members[name]) {
                     let mut value = global_value(program, ctx, &mut storage, global)?;
+                    if let Kind::Offset(offset) = &value.0 {
+                        return Err(offset.value_error());
+                    }
                     if let Kind::Builtin(builtin) = value.0 {
                         value = builtin.read(ctx)?;
                     }
@@ -292,6 +306,9 @@ pub(crate) fn execute(
             }
             Op::Global(index) => {
                 let mut value = global_value(program, ctx, &mut storage, index)?;
+                if let Kind::Offset(offset) = &value.0 {
+                    return Err(offset.value_error());
+                }
                 if let Kind::Builtin(builtin) = value.0 {
                     value = builtin.read(ctx)?;
                 }
@@ -827,18 +844,14 @@ pub(crate) fn execute(
             Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
             Op::ResolveCall(slot, name) => {
                 let name = &program.members[name];
-                let target = if let Some(Some(Value(Kind::Builtin(builtin)))) =
-                    storage.locals.data.get(slot)
-                {
-                    Invocation::Builtin(*builtin)
-                } else if storage.locals.data.get(slot).is_some_and(Option::is_some)
-                    || program.declaration_names.contains_key(name)
-                {
-                    Invocation::NonCallable
+                let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
+                    value_invocation(value)
+                } else if program.declaration_names.contains_key(name) {
+                    crate::arguments::Target::Plain(Invocation::NonCallable)
                 } else if let Some(&function) = program.names.get(name) {
-                    Invocation::Function(function)
+                    crate::arguments::Target::Plain(Invocation::Function(function))
                 } else if let Some(host) = program.hosts.iter().position(|h| h == name) {
-                    Invocation::Host(host)
+                    crate::arguments::Target::Plain(Invocation::Host(host))
                 } else if let Some(global) = global_index(program, name) {
                     value_invocation(&global_value(program, ctx, &mut storage, global)?)
                 } else {
@@ -866,11 +879,24 @@ pub(crate) fn execute(
                     .push(ctx, op, name, value)?;
             }
             Op::Invoke(target) => {
-                let args = frame.arguments.data.pop().unwrap();
+                let mut args = frame.arguments.data.pop().unwrap();
                 let target = if matches!(target, Invocation::Resolved) {
-                    args.target.unwrap()
+                    args.target.take().unwrap()
                 } else {
-                    target
+                    crate::arguments::Target::Plain(target)
+                };
+                let target = match target {
+                    crate::arguments::Target::Plain(target) => target,
+                    crate::arguments::Target::Offset(offset) => {
+                        let value = offset.call(
+                            ctx,
+                            &args.positional.data,
+                            &args.keywords.buffer.data,
+                            args.block.is_some(),
+                        )?;
+                        stack.push(ctx, value)?;
+                        continue;
+                    }
                 };
                 match target {
                     Invocation::Builtin(builtin) => {
@@ -1233,10 +1259,11 @@ fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
     Ok(())
 }
 
-fn value_invocation(value: &Value) -> Invocation {
-    match value.0 {
-        Kind::Builtin(builtin) => Invocation::Builtin(builtin),
-        _ => Invocation::NonCallable,
+fn value_invocation(value: &Value) -> crate::arguments::Target {
+    match &value.0 {
+        Kind::Builtin(builtin) => crate::arguments::Target::Plain(Invocation::Builtin(*builtin)),
+        Kind::Offset(offset) => crate::arguments::Target::Offset(offset.clone()),
+        _ => crate::arguments::Target::Plain(Invocation::NonCallable),
     }
 }
 

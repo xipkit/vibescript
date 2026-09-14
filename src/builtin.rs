@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
     Time(crate::time::Constructor),
     Now,
@@ -40,6 +41,7 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Regexp,
     Regex,
     Time,
     Now,
@@ -55,6 +57,7 @@ pub(crate) enum Global {
 impl Global {
     pub fn name(self) -> &'static str {
         match self {
+            Self::Regexp => "Regexp",
             Self::Regex => "Regex",
             Self::Time => "Time",
             Self::Now => "now",
@@ -69,6 +72,7 @@ impl Global {
     }
     pub fn parse(name: &str) -> Option<Self> {
         match name {
+            "Regexp" => Some(Self::Regexp),
             "Regex" => Some(Self::Regex),
             "Time" => Some(Self::Time),
             "now" => Some(Self::Now),
@@ -86,6 +90,21 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Regexp => [
+                crate::regex::value::Constructor::New,
+                crate::regex::value::Constructor::Union,
+                crate::regex::value::Constructor::Escape,
+                crate::regex::value::Constructor::Quote,
+                crate::regex::value::Constructor::LastMatch,
+            ]
+            .into_iter()
+            .map(|constructor| {
+                (
+                    constructor.member(),
+                    Value(Kind::Builtin(Regexp(constructor))),
+                )
+            })
+            .collect(),
             Self::Regex => vec![
                 (
                     "match",
@@ -179,7 +198,9 @@ impl Global {
 
 impl Builtin {
     pub fn auto(self) -> bool {
-        self == Self::Now || matches!(self, Self::Time(constructor) if constructor.auto())
+        self == Self::Now
+            || self == Self::Regexp(crate::regex::value::Constructor::LastMatch)
+            || matches!(self, Self::Time(constructor) if constructor.auto())
     }
 
     pub fn read(self, ctx: &mut CallContext) -> Result<Value> {
@@ -193,6 +214,7 @@ impl Builtin {
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
             Self::Time(constructor) => constructor.name(),
             Self::Now => "now",
@@ -242,6 +264,9 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        if let Self::Regexp(constructor) = self {
+            return constructor.call(ctx, args, keywords, block);
+        }
         if let Self::Regex(utility) = self {
             return utility.call(ctx, args, keywords, block);
         }
@@ -356,7 +381,8 @@ impl Builtin {
             | Self::DurationParse
             | Self::Time(_)
             | Self::Now
-            | Self::Regex(_) => unreachable!(),
+            | Self::Regex(_)
+            | Self::Regexp(_) => unreachable!(),
         }
     }
 }

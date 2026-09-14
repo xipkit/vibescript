@@ -39,6 +39,10 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, depth: usi
             }
             out.push(ctx, b']')?;
         }
+        Kind::Hash(h) if h.match_data => {
+            let index = h.find(ctx, b"to_s")?.unwrap();
+            out.extend(ctx, h.buffer.data[index].1.require_bytes()?)?;
+        }
         Kind::Hash(h) if h.object => out.extend(ctx, b"<object>")?,
         Kind::Hash(h) => {
             out.push(ctx, b'{')?;

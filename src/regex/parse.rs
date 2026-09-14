@@ -31,6 +31,7 @@ pub(super) struct Node {
     pub kind: Kind,
     pub nullable: bool,
     pub cost: usize,
+    pub minimum: usize,
     repetitions: usize,
     height: usize,
     literal: Option<bool>,
@@ -352,6 +353,14 @@ impl Parser<'_> {
                 )
             }
         };
+        let minimum = match kind {
+            Kind::Rune(..) | Kind::Class(_) | Kind::Any(_) => 1,
+            Kind::Capture(_, child) => node(child).minimum,
+            Kind::Concat(a, b) => node(a).minimum.saturating_add(node(b).minimum),
+            Kind::Alt(a, b) => node(a).minimum.min(node(b).minimum),
+            Kind::Repeat { child, min, .. } => node(child).minimum.saturating_mul(min),
+            _ => 0,
+        };
         let id = self.parsed.nodes.data.len();
         self.parsed.nodes.push(
             self.ctx,
@@ -359,6 +368,7 @@ impl Parser<'_> {
                 kind,
                 nullable,
                 cost: cost.min(super::MAX_INSTRUCTIONS + 1),
+                minimum,
                 repetitions,
                 height,
                 literal,

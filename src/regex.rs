@@ -4,13 +4,16 @@ use crate::{
     ops, scan,
     value::{Bytes, Kind},
 };
-use program::Program;
+use program::{Program, View};
 use search::{ABSENT, Search};
 
+pub(crate) mod matches;
+pub(crate) mod operations;
 mod parse;
 mod program;
 mod search;
 mod unicode;
+pub(crate) mod value;
 
 const MAX_PATTERN: usize = 16 << 10;
 const MAX_TEXT: usize = 1 << 20;
@@ -135,16 +138,16 @@ impl Utility {
             text_limit(ctx, args[2].require_bytes()?)?;
         }
         let program = Program::compile(ctx, pattern.clone())?;
-        let mut search = Search::new(ctx, &program, self != Self::Match)?;
+        let mut search = Search::new(ctx, program.view(), self != Self::Match)?;
         if self == Self::Match {
-            return match search.find(ctx, &program, text.require_bytes()?, 0)? {
+            return match search.find(ctx, program.view(), text.require_bytes()?, 0)? {
                 Some(indices) => window(ctx, text, indices.data[0], indices.data[1]),
                 None => Ok(Value::nil()),
             };
         }
         replace(
             ctx,
-            &program,
+            program.view(),
             &mut search,
             text,
             args[2].require_bytes()?,
@@ -189,7 +192,7 @@ pub(crate) fn member(
             "string.match? expects a pattern and optional offset without keywords",
         ));
     }
-    if !matches!(args[0].0, Kind::Bytes(_)) {
+    if !matches!(args[0].0, Kind::Bytes(_) | Kind::Regex(_)) {
         return Err(Error::new(
             ErrorKind::Type,
             "string.match? expects a string pattern",
@@ -208,7 +211,15 @@ pub(crate) fn member(
     }
     let text = receiver.require_bytes()?;
     text_limit(ctx, text)?;
-    let program = Program::compile(ctx, args[0].clone())?;
+    let compiled = if matches!(args[0].0, Kind::Regex(_)) {
+        None
+    } else {
+        Some(Program::compile(ctx, args[0].clone())?)
+    };
+    let program = match &args[0].0 {
+        Kind::Regex(regex) => regex.view(),
+        _ => compiled.as_ref().unwrap().view(),
+    };
     let mut position = 0;
     let mut remaining = offset as u64;
     while remaining > 0 && position < text.len() {
@@ -219,9 +230,9 @@ pub(crate) fn member(
     if remaining > 0 {
         return Ok(Some(Value::boolean(false)));
     }
-    let mut search = Search::new(ctx, &program, false)?;
+    let mut search = Search::new(ctx, program, false)?;
     Ok(Some(Value::boolean(
-        search.find(ctx, &program, text, position)?.is_some(),
+        search.find(ctx, program, text, position)?.is_some(),
     )))
 }
 
@@ -253,13 +264,13 @@ fn replacement_name<'a>(
 
 fn expand(
     ctx: &mut CallContext,
-    program: &Program,
+    program: View<'_>,
     mut template: &[u8],
     text: &[u8],
     indices: &[usize],
     mut emit: impl FnMut(&mut CallContext, &[u8]) -> Result<()>,
 ) -> Result<()> {
-    let source = program.source.require_bytes()?;
+    let source = program.source;
     while !template.is_empty() {
         let mut offset = 0;
         while offset < template.len() {
@@ -300,7 +311,7 @@ fn expand(
                 slot = Some(index);
             }
         } else {
-            for (index, &(start, end)) in program.names.data.iter().enumerate() {
+            for (index, &(start, end)) in program.names.iter().enumerate() {
                 ctx.charge(1)?;
                 if end - start == name.len() {
                     ctx.work_bytes(name.len())?;
@@ -320,7 +331,7 @@ fn expand(
 
 fn replacements(
     ctx: &mut CallContext,
-    program: &Program,
+    program: View<'_>,
     search: &mut Search,
     text: &[u8],
     replacement: &[u8],
@@ -365,7 +376,7 @@ fn replacements(
 
 fn replace(
     ctx: &mut CallContext,
-    program: &Program,
+    program: View<'_>,
     search: &mut Search,
     text: &Value,
     replacement: &[u8],
@@ -415,9 +426,9 @@ mod tests {
         let mut ctx = CallContext::new(CallOptions::default());
         let program = Program::compile(&mut ctx, Value::bytes(b"(a+)(b?)")).unwrap();
         assert!(ctx.stats().retained_memory_bytes > 0);
-        let mut search = Search::new(&mut ctx, &program, true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         let captures = search
-            .find(&mut ctx, &program, b"zaab", 0)
+            .find(&mut ctx, program.view(), b"zaab", 0)
             .unwrap()
             .unwrap();
         assert_eq!(captures.data, [1, 4, 1, 3, 3, 4]);
@@ -448,16 +459,16 @@ mod tests {
         ctx.options.limits.steps = None;
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let program = Program::compile(&mut ctx, Value::bytes(b"(x+)")).unwrap();
-        let mut search = Search::new(&mut ctx, &program, true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         drop(
             search
-                .find(&mut ctx, &program, text.as_bytes().unwrap(), 0)
+                .find(&mut ctx, program.view(), text.as_bytes().unwrap(), 0)
                 .unwrap(),
         );
         let baseline = ctx.stats();
         let error = replace(
             &mut ctx,
-            &program,
+            program.view(),
             &mut search,
             &text,
             b"$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1$1",
@@ -475,16 +486,24 @@ mod tests {
         let text = ctx.bytes(&vec![b'x'; 65536]).unwrap();
         let input_memory = ctx.stats().retained_memory_bytes;
         let program = Program::compile(&mut ctx, Value::bytes(b"^z")).unwrap();
-        let mut search = Search::new(&mut ctx, &program, true).unwrap();
+        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
         assert!(
             search
-                .find(&mut ctx, &program, text.as_bytes().unwrap(), 0)
+                .find(&mut ctx, program.view(), text.as_bytes().unwrap(), 0)
                 .unwrap()
                 .is_none()
         );
         let baseline = ctx.stats();
         ctx.options.limits.memory_bytes = Some(baseline.peak_memory_bytes + 1024);
-        let output = replace(&mut ctx, &program, &mut search, &text, b"replacement", true).unwrap();
+        let output = replace(
+            &mut ctx,
+            program.view(),
+            &mut search,
+            &text,
+            b"replacement",
+            true,
+        )
+        .unwrap();
         assert_eq!(
             output.as_bytes().unwrap().as_ptr(),
             text.as_bytes().unwrap().as_ptr()
@@ -500,8 +519,8 @@ mod tests {
         let program = Program::compile(&mut ctx, Value::bytes(b"(a?){1000}")).unwrap();
         let baseline = ctx.stats().retained_memory_bytes;
         ctx.options.limits.memory_bytes = Some(baseline + 32768);
-        let mut search = Search::new(&mut ctx, &program, true).unwrap();
-        let error = search.find(&mut ctx, &program, b"a", 0).unwrap_err();
+        let mut search = Search::new(&mut ctx, program.view(), true).unwrap();
+        let error = search.find(&mut ctx, program.view(), b"a", 0).unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory);
         drop(search);
         assert_eq!(ctx.stats().retained_memory_bytes, baseline);

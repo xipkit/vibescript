@@ -69,7 +69,7 @@ def main():
         subprocess.run([str(GO), "test", "-c", "-overlay", str(overlay),
                         "-o", str(binary), "./internal/runtime"],
                        cwd=reference, stdout=log, stderr=subprocess.STDOUT, check=True)
-    cases = json.loads((ROOT / "docs/compatibility-cases.json").read_text())
+    cases = [c for c in json.loads((ROOT / "docs/compatibility-cases.json").read_text()) if "expected_error" not in c]
     inputs = out / "oracle-inputs.json"
     inputs.write_text(json.dumps(cases) + "\n")
     oracle = {}

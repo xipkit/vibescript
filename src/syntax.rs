@@ -18,6 +18,7 @@ pub(crate) struct Expr {
 }
 #[derive(Debug)]
 pub(crate) enum Node {
+    Regex(Vec<u8>, u8),
     Shape(Box<crate::types::Type>, Option<Box<Expr>>, Vec<String>),
     Integer(u64),
     BigInteger(String, u32),
@@ -937,6 +938,7 @@ impl Parser<'_> {
             Token::Int(n) => self.make(Node::Integer(n), 1),
             Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1),
+            Token::Regex(pattern, flags) => self.make(Node::Regex(pattern, flags), 1),
             Token::Bytes(b) => self.make(Node::Literal(Value::bytes(b)), 1),
             Token::Template(parts) => self.template(parts, false),
             Token::Words(words) => self.words(*words),
@@ -1127,14 +1129,24 @@ impl Parser<'_> {
         // A quoted index can extend past a tentative percent-literal delimiter.
         // Re-lex its suffix through the next intact token boundary.
         let limit = self.tokens.last().unwrap().offset;
-        let mut tokens = lexer::modulo(self.source, &self.tokens[self.pos], limit, self.lex_depth)?;
+        let tokens = lexer::modulo(self.source, &self.tokens[self.pos], limit, self.lex_depth)?;
+        self.replace_lexed(tokens, limit)
+    }
+
+    fn expand_regex(&mut self) -> Result<()> {
+        let limit = self.tokens.last().unwrap().offset;
+        let tokens = lexer::regex(self.source, &self.tokens[self.pos], limit, self.lex_depth)?;
+        self.replace_lexed(tokens, limit)
+    }
+
+    fn replace_lexed(&mut self, mut tokens: Vec<Lexeme>, limit: usize) -> Result<()> {
         let mut cursor = tokens.pop().unwrap();
         let mut finish = self.pos + 1;
         loop {
             while self.tokens[finish].offset < cursor.offset {
                 finish += 1;
             }
-            let end = self.tokens[finish - 1].end;
+            let end = self.tokens[finish - 1].end.max(self.tokens[finish].offset);
             if end <= cursor.offset {
                 break;
             }
@@ -1187,6 +1199,9 @@ impl Parser<'_> {
                     return self.err("parenless call nesting too deep");
                 }
                 let group = std::mem::replace(&mut self.command_group, self.groups);
+                if self.token() == &Token::Op("/") {
+                    self.expand_regex()?;
+                }
                 let args = self.command_arguments()?;
                 self.command_group = group;
                 self.command_depth -= 1;
@@ -1232,6 +1247,9 @@ impl Parser<'_> {
                 let Token::Word(name) = self.bump() else {
                     return self.err("expected scoped member name");
                 };
+                if keyword(&name) && name != "enum" {
+                    return self.err("expected scoped member name");
+                }
                 let args = if self.take_p('(') {
                     Some(self.call_arguments()?)
                 } else {
@@ -1580,8 +1598,17 @@ impl Parser<'_> {
                 false
             }
             Token::P('[') => !local && previous.end != next.offset,
-            Token::Words(..) => !local && previous.end != next.offset,
-            Token::Op(op @ ("*" | "**" | "/" | "&")) => {
+            Token::Words(..) | Token::Regex(..) => !local && previous.end != next.offset,
+            Token::Op("/") => {
+                !local
+                    && previous.end != next.offset
+                    && self
+                        .source
+                        .as_bytes()
+                        .get(next.end)
+                        .is_some_and(|byte| !matches!(byte, b' ' | b'\t' | b'\r' | b'\n'))
+            }
+            Token::Op(op @ ("*" | "**" | "&")) => {
                 // Go v0.70.0 locates a power token at its second star.
                 let start = next.offset + usize::from(op == "**");
                 !local
@@ -1605,6 +1632,7 @@ impl Parser<'_> {
             | Token::BigInt(..)
             | Token::Float(_)
             | Token::Bytes(_)
+            | Token::Regex(..)
             | Token::Template(_)
             | Token::Words(..) => true,
             Token::P(':') => self.symbol_start(pos),
@@ -1641,6 +1669,8 @@ impl Parser<'_> {
                                 | ">="
                                 | "=="
                                 | "==="
+                                | "=~"
+                                | "!~"
                                 | "!="
                                 | "!"
                                 | "&&"
@@ -1799,6 +1829,7 @@ impl Parser<'_> {
             | Token::BigInt(..)
             | Token::Float(_)
             | Token::Bytes(_)
+            | Token::Regex(..)
             | Token::Template(_)
             | Token::Words(..) => true,
             Token::P('(' | '[' | '{' | ':') | Token::Op("+" | "-" | "!") => true,
@@ -1818,7 +1849,7 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
     Some(match op {
         "||" => (3, 4),
         "&&" => (4, 5),
-        "==" | "!=" | "===" => (5, 6),
+        "==" | "!=" | "===" | "=~" | "!~" => (5, 6),
         "<" | "<=" | ">" | ">=" | "<=>" => (6, 7),
         ".." | "..." => (7, 8),
         "&" => (9, 10),
