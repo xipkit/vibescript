@@ -210,10 +210,24 @@ impl CallContext {
 
     pub(crate) fn fail<T>(&mut self, kind: ErrorKind, message: &str) -> Result<T> {
         let err = Error::new(kind, message);
-        if err.exhaustion() && self.exhausted.is_none() {
+        if matches!(
+            kind,
+            ErrorKind::Steps
+                | ErrorKind::OutputLimit
+                | ErrorKind::Memory
+                | ErrorKind::Recursion
+                | ErrorKind::Cancelled
+                | ErrorKind::Deadline
+        ) && self.exhausted.is_none()
+        {
             self.exhausted = Some(err.clone());
         }
         Err(self.exhausted.clone().unwrap_or(err))
+    }
+
+    pub(crate) fn guard<T>(&mut self, kind: ErrorKind, message: &str) -> Result<T> {
+        self.checkpoint()?;
+        Err(Error::limit(kind, message))
     }
 
     pub(crate) fn check_memory(&mut self, bytes: usize) -> Result<()> {
@@ -407,5 +421,149 @@ impl<T: Clone> Buffer<T> {
             self.data.extend_from_slice(chunk);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+    use crate::{ErrorClass, json, regex};
+
+    #[test]
+    fn rejected_json_and_regex_inputs_allow_further_work_without_retaining_scratch() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let oversized = vec![b'?'; (1 << 20) + 1];
+        let before = ctx.stats();
+        let error = json::parse_builtin(&mut ctx, &oversized).unwrap_err();
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        assert_eq!(ctx.stats().peak_memory_bytes, before.peak_memory_bytes);
+        assert_eq!(
+            json::parse_builtin(&mut ctx, b"7").unwrap().as_int(),
+            Some(7)
+        );
+        let deep = format!("{}0{}", "[".repeat(129), "]".repeat(129));
+        let error = json::parse_builtin(&mut ctx, deep.as_bytes()).unwrap_err();
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        let error = regex::Utility::Match
+            .call(
+                &mut ctx,
+                &[Value::bytes(b"a"), Value::bytes(oversized)],
+                &[],
+                false,
+            )
+            .unwrap_err();
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        let steps = ctx.stats().steps;
+        ctx.charge(1).unwrap();
+        assert_eq!(ctx.stats().steps, steps + 1);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn scan_table_guard_and_output_exhaustion_have_different_continuation_rules() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.options.limits.steps = None;
+        let error = regex::operations::member(
+            &mut ctx,
+            "scan",
+            &Value::bytes(vec![b'a'; 20000]),
+            &[Value::bytes(b"()".repeat(1000))],
+            false,
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "string.scan match table exceeds 256 MiB");
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        ctx.charge(1).unwrap();
+        let error = regex::operations::member(
+            &mut ctx,
+            "scan",
+            &Value::bytes(vec![b'a'; 40000]),
+            &[Value::bytes(b"a")],
+            false,
+        )
+        .unwrap_err();
+        assert_eq!(error.message, "string.scan output exceeds 1 MiB");
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        assert_eq!(ctx.bytes(b"x").unwrap_err(), error);
+    }
+
+    #[test]
+    fn guards_cannot_replace_existing_budget_exhaustion_or_host_cancellation() {
+        for kind in [
+            ErrorKind::Steps,
+            ErrorKind::Memory,
+            ErrorKind::Cancelled,
+            ErrorKind::Deadline,
+        ] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let error = match kind {
+                ErrorKind::Steps => ctx.charge(u64::MAX).unwrap_err(),
+                ErrorKind::Memory => ctx.check_memory(usize::MAX).unwrap_err(),
+                ErrorKind::Cancelled => {
+                    ctx.cancellation().cancel();
+                    ctx.checkpoint().unwrap_err()
+                }
+                ErrorKind::Deadline => {
+                    ctx.options.deadline = Some(Instant::now());
+                    ctx.checkpoint().unwrap_err()
+                }
+                _ => unreachable!(),
+            };
+            let steps = ctx.stats().steps;
+            assert_eq!(
+                json::parse_builtin(&mut ctx, &vec![b'?'; (1 << 20) + 1]).unwrap_err(),
+                error
+            );
+            assert_eq!(ctx.bytes(b"x").unwrap_err(), error);
+            assert_eq!(ctx.stats().steps, steps);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn guards_observe_new_cancellation_and_deadlines_before_reporting_input_errors() {
+        for deadline in [false, true] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            if deadline {
+                ctx.options.deadline = Some(Instant::now());
+            } else {
+                ctx.cancellation().cancel();
+            }
+            let error = json::parse_builtin(&mut ctx, &vec![b'?'; (1 << 20) + 1]).unwrap_err();
+            assert_eq!(
+                error.kind,
+                if deadline {
+                    ErrorKind::Deadline
+                } else {
+                    ErrorKind::Cancelled
+                }
+            );
+            assert_eq!(error.class(), None);
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        }
+    }
+
+    #[test]
+    fn foreign_entropy_errors_preserve_metadata_without_spending_the_current_budget() {
+        let mut foreign = CallContext::new(CallOptions::default());
+        let original = foreign.charge(u64::MAX).unwrap_err();
+        let mut ctx = CallContext::new(CallOptions::default());
+        let supplied = original.clone();
+        ctx.random_source = Some(Arc::new(move |_, _| Err(supplied.clone())));
+        let error = crate::random::Method::Id
+            .call(&mut ctx, &[], &[], false)
+            .unwrap_err();
+        assert_eq!(error, original);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        ctx.charge(1).unwrap();
+        assert_eq!(
+            json::parse_builtin(&mut ctx, b"7").unwrap().as_int(),
+            Some(7)
+        );
+        assert_eq!(foreign.checkpoint().unwrap_err(), original);
     }
 }

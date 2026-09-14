@@ -221,7 +221,7 @@ impl Data {
     ) -> Result<Option<Value>> {
         ctx.charge(1)?;
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "instance field nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "instance field nesting too deep");
         }
         match &value.0 {
             Kind::Instance(instance) => {
@@ -504,9 +504,7 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
 
 fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> {
     let mut data = heap.data.lock().unwrap();
-    if let Err(err) = reclaim(&mut data, &mut || ctx.charge(1)) {
-        return ctx.fail(err.kind, &err.message);
-    }
+    reclaim(&mut data, &mut || ctx.charge(1))?;
     if shrink {
         data.imports = Buffer::empty();
         let mut slot = 0;
@@ -607,7 +605,7 @@ fn mark_references(
 ) -> Result<()> {
     tick()?;
     if depth > MAX_VALUE_DEPTH {
-        return Err(Error::new(
+        return Err(Error::limit(
             ErrorKind::Recursion,
             "instance field nesting too deep",
         ));

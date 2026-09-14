@@ -116,7 +116,7 @@ impl Compare {
     ) -> Result<Option<Ordering>> {
         ctx.charge(1)?;
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         match (&a.0, &b.0) {
             (Kind::Array(a), Kind::Array(b)) => {

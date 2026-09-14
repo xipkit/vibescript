@@ -20,7 +20,7 @@ impl<T> Heap<T> {
 
     pub fn new(ctx: &mut CallContext, buffer: Buffer<T>, depth: usize) -> Result<Arc<Self>> {
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         let header = ctx.reserve(Self::header_bytes())?;
         Ok(Arc::new(Self {
@@ -421,7 +421,7 @@ impl Value {
             depth = depth.max(value.depth() + 1);
         }
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         if !values.is_empty() {
             let Some(capacity) = heap.buffer.data.len().checked_add(values.len()) else {
@@ -507,7 +507,7 @@ impl Value {
             }
         }
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         let len = heap.buffer.data.len();
         let writable = Heap::make_mut(ctx, &mut heap, len)?;
@@ -546,7 +546,7 @@ impl CallContext {
     fn import_depth(&mut self, value: &Value, depth: usize) -> Result<Value> {
         self.charge(1)?;
         if depth > MAX_VALUE_DEPTH {
-            return self.fail(ErrorKind::Recursion, "value nesting too deep");
+            return self.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
             Kind::Instance(instance) => crate::objects::import(self, instance)

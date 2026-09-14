@@ -179,32 +179,23 @@ impl Binding {
                         } else {
                             "argument"
                         };
-                        return Err(Error::new(
-                            ErrorKind::Argument,
-                            format!("missing {label} {}", param.name),
-                        ));
+                        return Err(Error::argument(format!("missing {label} {}", param.name)));
                     }
                 }
             };
             sources.data.push(source);
         }
         if positional < arguments.positional.data.len() {
-            return Err(Error::new(
-                ErrorKind::Argument,
-                "unexpected positional arguments",
-            ));
+            return Err(Error::argument("unexpected positional arguments"));
         }
         if !keyword_rest {
             for (index, used) in used.data.iter().enumerate() {
                 ctx.charge(1)?;
                 if !used {
-                    return Err(Error::new(
-                        ErrorKind::Argument,
-                        format!(
-                            "unexpected keyword argument {}",
-                            arguments.keywords.buffer.data[index].0
-                        ),
-                    ));
+                    return Err(Error::argument(format!(
+                        "unexpected keyword argument {}",
+                        arguments.keywords.buffer.data[index].0
+                    )));
                 }
             }
         }

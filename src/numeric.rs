@@ -140,6 +140,7 @@ fn division(ctx: &mut CallContext, name: &str, a: &Value, b: &Value) -> Result<V
 
 fn zero_division() -> Error {
     Error::new(ErrorKind::Arithmetic, "division by zero")
+        .with_class(crate::ErrorClass::ZeroDivision)
 }
 
 fn exact_order(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering> {

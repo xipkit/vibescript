@@ -15,7 +15,7 @@ struct Output {
 impl Output {
     fn append(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
         if bytes.len() > self.limit - self.length {
-            return ctx.fail(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
+            return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
         }
         self.length += bytes.len();
         if let Some(output) = &mut self.bytes {
@@ -30,7 +30,7 @@ impl Output {
 pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
     if let Kind::Bytes(bytes) = &value.0 {
         if bytes.data.len() > limit {
-            return ctx.fail(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
+            return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
         }
         ctx.work_bytes(bytes.data.len())?;
         return Ok(value.clone());
@@ -51,7 +51,7 @@ pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
 fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize) -> Result<()> {
     ctx.charge(1)?;
     if depth >= MAX_VALUE_DEPTH && matches!(value.0, Kind::Array(_) | Kind::Hash(_)) {
-        return ctx.fail(ErrorKind::Recursion, "replacement string nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "replacement string nesting too deep");
     }
     let mut scalar = json::Number::new();
     match &value.0 {
@@ -120,7 +120,7 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
                 let bits = crate::integer::bits(value);
                 let minimum = (bits.saturating_sub(1) as u128 * 301029 / 1_000_000) + 1;
                 if minimum > (output.limit - output.length) as u128 {
-                    return ctx.fail(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
+                    return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
                 }
             }
             let text = ops::to_string(ctx, value)?;
@@ -151,7 +151,7 @@ mod tests {
             ctx.stats().retained_memory_bytes,
             baseline.retained_memory_bytes
         );
-        assert_eq!(ctx.charge(0).unwrap_err().kind, ErrorKind::OutputLimit);
+        ctx.charge(1).unwrap();
         drop(value);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
@@ -186,7 +186,7 @@ mod tests {
             ErrorKind::OutputLimit
         );
         assert_eq!(ctx.stats().peak_memory_bytes, baseline.peak_memory_bytes);
-        assert_eq!(ctx.charge(0).unwrap_err().kind, ErrorKind::OutputLimit);
+        ctx.charge(1).unwrap();
     }
 
     #[test]

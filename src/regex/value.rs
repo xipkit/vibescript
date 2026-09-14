@@ -33,7 +33,7 @@ pub(crate) struct Regex {
 impl Regex {
     pub fn compile(ctx: &mut CallContext, source: Value, flags: u8) -> Result<Value> {
         if source.require_bytes()?.len() > super::MAX_PATTERN {
-            return ctx.fail(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+            return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
         }
         let source = ctx.import(&source)?;
         let pattern = if flags == 0 {
@@ -265,14 +265,14 @@ impl Constructor {
         };
         let mut size = args.len().saturating_sub(1);
         if size > limit {
-            return ctx.fail(ErrorKind::Memory, "Regexp union pattern exceeds 16 KiB");
+            return ctx.guard(ErrorKind::Memory, "Regexp union pattern exceeds 16 KiB");
         }
         for arg in args {
             for &byte in arg.require_bytes()? {
                 ctx.charge(1)?;
                 let width = 1 + usize::from(meta(byte));
                 if width > limit - size {
-                    return ctx.fail(ErrorKind::Memory, "Regexp escaped pattern exceeds limit");
+                    return ctx.guard(ErrorKind::Memory, "Regexp escaped pattern exceeds limit");
                 }
                 size += width;
             }

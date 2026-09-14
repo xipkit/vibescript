@@ -778,7 +778,7 @@ impl Loop {
             _ => 0,
         };
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         match self.method {
             Tap | Each | EachIndex | EachKey | EachValue | EachSlice | EachCons | ReverseEach
@@ -935,7 +935,7 @@ impl Loop {
         let array = self.receiver.as_array().unwrap();
         let part = array_copy(ctx, &array[self.start as usize..end])?;
         if part.depth() + 1 > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         self.output.push(ctx, part)?;
         self.start = end as i128;

@@ -350,7 +350,8 @@ fn divide(
     b: Magnitude<'_>,
 ) -> Result<(Buffer<u32>, Buffer<u32>)> {
     if b.len() == 0 {
-        return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
+        return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+            .with_class(crate::ErrorClass::ZeroDivision));
     }
     if compare_magnitude(ctx, a, b)? == Ordering::Less {
         return Ok((Buffer::empty(), copy(ctx, a)?));
@@ -452,7 +453,7 @@ fn power(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Value> {
         }));
     }
     let Some(mut exponent) = b.as_int().map(|n| n as u64) else {
-        return Err(Error::new(ErrorKind::Arithmetic, "exponent is too large"));
+        return ctx.guard(ErrorKind::Arithmetic, "exponent is too large");
     };
     let bits = parts(a).1.bits() as u128;
     let projected = (bits - 1) * exponent as u128 + 1;
@@ -525,10 +526,10 @@ pub(crate) fn from_float(ctx: &mut CallContext, value: f64) -> Result<Value> {
 pub(crate) fn parse(ctx: &mut CallContext, text: &[u8], radix: u32) -> Result<Value> {
     let digits = text.len() - usize::from(matches!(text.first(), Some(b'-' | b'+')));
     if digits > 100_000 {
-        return Err(Error::new(
+        return ctx.guard(
             ErrorKind::Argument,
             "integer conversion exceeds 100000 digits",
-        ));
+        );
     }
     parse_digits(ctx, text, radix)
 }

@@ -28,7 +28,7 @@ pub(crate) fn append(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>)
 fn render(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, depth: usize) -> Result<()> {
     ctx.charge(1)?;
     if depth > crate::budget::MAX_VALUE_DEPTH {
-        return ctx.fail(ErrorKind::Recursion, "string conversion nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "string conversion nesting too deep");
     }
     match &value.0 {
         Kind::Instance(instance) => {

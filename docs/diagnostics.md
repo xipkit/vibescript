@@ -3,12 +3,13 @@
 Compile and execution failures expose an `Error` with a category, a bare message, and optional source context. `offset` is a zero-based byte offset. `diagnostic.position` contains a one-based line and Unicode character column; `diagnostic.code_frame` is a bounded source snippet, and `diagnostic.frames` contains the complete script call trace.
 
 ```rust
-use vibescript::{CallOptions, Engine, ErrorKind, Position, Value};
+use vibescript::{CallOptions, Engine, ErrorClass, ErrorKind, Position, Value};
 
 fn main() -> vibescript::Result<()> {
     let script = Engine::new().compile("def divide(a, b)\n  a / b\nend")?;
     let error = script.call("divide", &[Value::int(1), Value::int(0)], CallOptions::default()).unwrap_err();
     assert_eq!(error.kind, ErrorKind::Arithmetic);
+    assert_eq!(error.class(), Some(ErrorClass::ZeroDivision));
     assert_eq!(error.message, "division by zero");
     assert_eq!(error.diagnostic.as_ref().unwrap().position, Position { line: 2, column: 5 });
     Ok(())
@@ -23,4 +24,8 @@ Code frames show at most 160 source characters with clipping markers. Tabs are p
 
 Each compiled script retains its source and a sparse position index, plus a four-byte source offset per bytecode instruction. Position checkpoints occur roughly every 4 KiB of source, including long lines. Diagnostic objects retain a snippet and shared function names; they hold no compiled script, host callback, argument or runtime value. Cloned errors share the diagnostic. Diagnostic formatting happens after execution fails and is outside the script's allocation counters. Retaining an error therefore does not retain a call's runtime allocations.
 
-This is the source-context foundation for language error handling. `raise`, `rescue`, `else`, `ensure`, `retry` and script-visible error objects remain pending.
+`Error::class()` exposes the script exception class independently of `ErrorKind`. For example, an unsupported addition has class `RuntimeError` and kind `Type`, while incompatible relational operands have class `ArgumentError` with the same kind. Script argument binding uses `ArgumentError`, and integer division by zero uses `ZeroDivisionError`. Syntax errors, cancellation and deadlines have no script class. Hosts can attach a class with `Error::with_class`; this does not change the invocation's budget state.
+
+Fixed input, output, recursion and value-depth guards report `LimitError` without exhausting the invocation. A host callback may handle such a rejected operation and continue within the remaining budget. Actual step or memory exhaustion, the materialized `string.scan` output cap, cancellation and deadlines remain latched. Once latched, the original termination wins even if a callback returns a different error. An error returned from another invocation does not prove that the current invocation has spent its budget.
+
+The source context, exception classes and guard distinction are foundations for language error handling. `raise`, `rescue`, `else`, `ensure`, `retry` and script-visible error objects remain pending. Runtime values and JSON nesting currently use Rust's 128-level structural guard; the Go JSON implementation permits 10,000 container levels. Aligning these depth limits requires further work.

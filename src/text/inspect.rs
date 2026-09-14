@@ -87,7 +87,7 @@ impl Output {
 fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) -> Result<()> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
-        return ctx.fail(ErrorKind::Recursion, "inspect nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "inspect nesting too deep");
     }
     let mut scalar = json::Number::new();
     match &value.0 {

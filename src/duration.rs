@@ -150,7 +150,8 @@ fn scale(seconds: i64, factor: f64, divide: bool) -> Result<i64> {
         ));
     }
     if divide && factor == 0.0 {
-        return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
+        return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+            .with_class(crate::ErrorClass::ZeroDivision));
     }
     if seconds == 0 || factor == 0.0 {
         return Ok(0);
@@ -200,7 +201,8 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
         (Kind::Duration(a), Kind::Duration(b), "-") => a.checked_sub(*b).ok_or_else(overflow)?,
         (Kind::Duration(a), Kind::Duration(b), "/" | "%") => {
             if *b == 0 {
-                return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
+                return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+                    .with_class(crate::ErrorClass::ZeroDivision));
             }
             if op == "/" {
                 return Ok(Value::float(*a as f64 / *b as f64));
@@ -229,7 +231,8 @@ pub(crate) fn binary(op: &str, left: &Value, right: &Value) -> Result<Value> {
         (Kind::Duration(seconds), Kind::Int(_) | Kind::Big(_), "/") => {
             let divisor = numeric(right)?;
             if divisor == 0 {
-                return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
+                return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+                    .with_class(crate::ErrorClass::ZeroDivision));
             }
             seconds.checked_div(divisor).ok_or_else(overflow)?
         }

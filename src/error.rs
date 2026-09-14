@@ -42,6 +42,77 @@ pub enum ErrorKind {
     Host,
 }
 
+/// A script-visible exception class, independent of the host error category.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ErrorClass {
+    Runtime,
+    Standard,
+    Assertion,
+    Limit,
+    Type,
+    ZeroDivision,
+    LocalJump,
+    Argument,
+}
+
+impl ErrorClass {
+    /// Returns the canonical Vibescript class name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Runtime => "RuntimeError",
+            Self::Standard => "StandardError",
+            Self::Assertion => "AssertionError",
+            Self::Limit => "LimitError",
+            Self::Type => "TypeError",
+            Self::ZeroDivision => "ZeroDivisionError",
+            Self::LocalJump => "LocalJumpError",
+            Self::Argument => "ArgumentError",
+        }
+    }
+
+    /// Recognizes case-insensitive class names and the `Error` alias.
+    pub fn from_name(name: &str) -> Option<Self> {
+        let same = |canonical: &str| {
+            name.chars()
+                .map(|c| {
+                    if c == 'ſ' {
+                        's'
+                    } else {
+                        c.to_ascii_lowercase()
+                    }
+                })
+                .eq(canonical.bytes().map(|b| b.to_ascii_lowercase() as char))
+        };
+        if same("Error") {
+            return Some(Self::Runtime);
+        }
+        [
+            Self::Runtime,
+            Self::Standard,
+            Self::Assertion,
+            Self::Limit,
+            Self::Type,
+            Self::ZeroDivision,
+            Self::LocalJump,
+            Self::Argument,
+        ]
+        .into_iter()
+        .find(|class| same(class.name()))
+    }
+
+    /// Tests a rescue filter against an exception class.
+    ///
+    /// `RuntimeError` includes every class; `StandardError` excludes `LimitError`.
+    /// Execution exhaustion and host cancellation prohibit rescue independently.
+    pub fn matches(self, error: Self) -> bool {
+        match self {
+            Self::Runtime => true,
+            Self::Standard => error != Self::Limit,
+            _ => self == error,
+        }
+    }
+}
+
 /// An interpreter failure with optional source context and a byte offset.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Error {
@@ -49,6 +120,7 @@ pub struct Error {
     pub message: String,
     pub offset: Option<usize>,
     pub diagnostic: Option<Arc<Diagnostic>>,
+    class: ErrorClass,
 }
 
 impl Error {
@@ -59,28 +131,52 @@ impl Error {
             message: message.into(),
             offset: None,
             diagnostic: None,
+            class: if matches!(
+                kind,
+                ErrorKind::OutputLimit
+                    | ErrorKind::Steps
+                    | ErrorKind::Memory
+                    | ErrorKind::Recursion
+            ) {
+                ErrorClass::Limit
+            } else {
+                ErrorClass::Runtime
+            },
         }
+    }
+
+    /// Returns the script exception class, or none for syntax and host control errors.
+    pub fn class(&self) -> Option<ErrorClass> {
+        (!matches!(
+            self.kind,
+            ErrorKind::Syntax | ErrorKind::Cancelled | ErrorKind::Deadline
+        ))
+        .then_some(self.class)
+    }
+
+    /// Sets the script exception class without changing the execution's budget state.
+    pub fn with_class(mut self, class: ErrorClass) -> Self {
+        self.class = class;
+        self
     }
 
     pub(crate) fn syntax(offset: usize, message: impl Into<String>) -> Self {
         Self {
-            kind: ErrorKind::Syntax,
-            message: message.into(),
             offset: Some(offset),
-            diagnostic: None,
+            ..Self::new(ErrorKind::Syntax, message)
         }
     }
 
-    pub(crate) fn exhaustion(&self) -> bool {
-        matches!(
-            self.kind,
-            ErrorKind::Steps
-                | ErrorKind::OutputLimit
-                | ErrorKind::Memory
-                | ErrorKind::Recursion
-                | ErrorKind::Cancelled
-                | ErrorKind::Deadline
-        )
+    pub(crate) fn limit(kind: ErrorKind, message: impl Into<String>) -> Self {
+        Self::new(kind, message).with_class(ErrorClass::Limit)
+    }
+
+    pub(crate) fn argument(message: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Argument, message).with_class(ErrorClass::Argument)
+    }
+
+    pub(crate) fn local_jump(message: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Argument, message).with_class(ErrorClass::LocalJump)
     }
 }
 

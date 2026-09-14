@@ -58,7 +58,7 @@ fn arguments(
     if let Kind::Bytes(bytes) = &args[0].0
         && bytes.data.len() > super::MAX_PATTERN
     {
-        return ctx.fail(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+        return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
     }
     let offset = if args.len() == 2 {
         crate::sequence::integer(&args[1])?
@@ -216,7 +216,7 @@ fn materialize(ctx: &mut CallContext, regex: &Regex, subject: &Value) -> Result<
     let runes = ops::runes(ctx, text)?.0;
     let maximum = runes.checked_div(program.minimum).unwrap_or(runes + 1);
     if maximum.saturating_mul(program.names.len() * 16 + 24) > 256 << 20 {
-        return ctx.fail(ErrorKind::Memory, "string.scan match table exceeds 256 MiB");
+        return ctx.guard(ErrorKind::Memory, "string.scan match table exceeds 256 MiB");
     }
     let mut search = Search::new(ctx, program, true)?;
     let mut cursor = Cursor::default();

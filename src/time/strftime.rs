@@ -428,7 +428,7 @@ pub(super) fn format(ctx: &mut CallContext, value: &Value, input: &[u8]) -> Resu
     let view = View::new(ctx, value)?;
     if layout_signature(ctx, input)? {
         if input.len() > OUTPUT_LIMIT {
-            return ctx.fail(
+            return ctx.guard(
                 ErrorKind::OutputLimit,
                 "time formatting output limit exceeded",
             );
@@ -486,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn output_guards_latch_without_allocating_requested_padding() {
+    fn output_guards_allow_recovery_without_allocating_requested_padding() {
         for layout in [
             "%1000000000N",
             "%1000000000F",
@@ -503,7 +503,7 @@ mod tests {
                 ErrorKind::OutputLimit
             );
             assert_eq!(ctx.stats().peak_memory_bytes, before);
-            assert_eq!(ctx.bytes(b"x").unwrap_err().kind, ErrorKind::OutputLimit);
+            assert_eq!(ctx.bytes(b"x").unwrap().as_bytes(), Some(b"x".as_slice()));
         }
     }
 

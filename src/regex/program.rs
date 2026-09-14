@@ -84,14 +84,14 @@ impl Program {
     pub fn compile_limit(ctx: &mut CallContext, source: Value, limit: usize) -> Result<Self> {
         let bytes = source.require_bytes()?;
         if bytes.len() > limit {
-            return ctx.fail(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+            return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
         }
         let source = ctx.import(&source)?;
         let bytes = source.require_bytes()?;
         let parsed = parse::parse(ctx, bytes)?;
         let capacity = parsed.nodes.data[parsed.root].cost.saturating_add(2);
         if capacity > super::MAX_INSTRUCTIONS {
-            return ctx.fail(
+            return ctx.guard(
                 ErrorKind::Memory,
                 "compiled regex exceeds instruction limit",
             );

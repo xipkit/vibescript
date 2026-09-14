@@ -73,8 +73,15 @@ pub(crate) fn float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
         hex_float(ctx, input)?
     } else {
         let input = input.strip_prefix(b"+").unwrap_or(input);
-        json::parse_float(ctx, input)
-            .map_err(|error| if error.exhaustion() { error } else { invalid() })?
+        json::parse_float(ctx, input).map_err(|error| {
+            if error.class() == Some(crate::ErrorClass::Limit)
+                || matches!(error.kind, ErrorKind::Cancelled | ErrorKind::Deadline)
+            {
+                error
+            } else {
+                invalid()
+            }
+        })?
     };
     if value.is_finite() {
         Ok(value)

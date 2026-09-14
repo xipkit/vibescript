@@ -207,7 +207,7 @@ impl Deep {
             if let Some(child) = child {
                 if child.as_hash().is_some() || child.as_array().is_some() {
                     if self.frames.data.len() >= MAX_VALUE_DEPTH {
-                        return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+                        return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
                     }
                     self.frames.push(ctx, WalkFrame::new(child))?;
                 } else {

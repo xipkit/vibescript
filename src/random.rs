@@ -76,11 +76,7 @@ fn read(ctx: &mut CallContext, mut output: &mut [u8]) -> Result<()> {
                 })
         };
         ctx.checkpoint()?;
-        let count = match read {
-            Ok(count) => count,
-            Err(error) if error.exhaustion() => return ctx.fail(error.kind, &error.message),
-            Err(error) => return Err(error),
-        };
+        let count = read?;
         if count == 0 || count > output.len() {
             return Err(Error::new(
                 ErrorKind::Host,
@@ -247,7 +243,7 @@ fn identifier(ctx: &mut CallContext, argument: Option<&Value>) -> Result<Value> 
         }
     };
     if length > 1024 {
-        return ctx.fail(ErrorKind::OutputLimit, "random_id length exceeds 1024");
+        return ctx.guard(ErrorKind::OutputLimit, "random_id length exceeds 1024");
     }
     let length = length as usize;
     ctx.check_memory(Bytes::header_bytes() + length)?;

@@ -53,7 +53,7 @@ mod value;
 mod vm;
 
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
-pub use error::{Diagnostic, Error, ErrorKind, Position, Result, StackFrame};
+pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
 

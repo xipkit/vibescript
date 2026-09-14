@@ -186,7 +186,7 @@ impl Hash {
             }
         }
         if depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         if let Some(i) = existing {
             self.buffer.data[i].1 = value;
@@ -238,7 +238,7 @@ impl Hash {
 
     fn check_depth(&self, ctx: &mut CallContext) -> Result<()> {
         if self.depth > MAX_VALUE_DEPTH {
-            return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+            return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         Ok(())
     }

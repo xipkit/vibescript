@@ -766,7 +766,7 @@ pub(crate) fn execute(
                 }
                 Op::CheckBlock => {
                     if frame.block.is_none() {
-                        return Err(Error::new(ErrorKind::Argument, "no block given"));
+                        return Err(Error::local_jump("no block given"));
                     }
                 }
                 Op::Yield(n) => {
@@ -1858,7 +1858,7 @@ pub(crate) fn execute(
                                 ctx.charge(1)?;
                                 if frames.data.len() >= ctx.options.limits.recursion {
                                     return ctx
-                                        .fail(ErrorKind::Recursion, "recursion limit exceeded");
+                                        .guard(ErrorKind::Recursion, "recursion limit exceeded");
                                 }
                                 let mut frame =
                                     new_frame(ctx, program, &mut storage, None, stack.data.len())?;
@@ -2023,7 +2023,7 @@ pub(crate) fn execute(
                     {
                         frame
                             .home
-                            .ok_or_else(|| Error::new(ErrorKind::Argument, "unexpected return"))?
+                            .ok_or_else(|| Error::local_jump("unexpected return"))?
                     } else {
                         current
                     };
@@ -2573,18 +2573,15 @@ fn enter(
     }
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
+        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
     }
     if args.len() != fun.params.len() {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            format!(
-                "{} expects {} arguments, got {}",
-                fun.name,
-                fun.params.len(),
-                args.len()
-            ),
-        ));
+        return Err(Error::argument(format!(
+            "{} expects {} arguments, got {}",
+            fun.name,
+            fun.params.len(),
+            args.len()
+        )));
     }
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0 && !fun.initializer).then_some(frames.data.len());
@@ -2642,7 +2639,7 @@ fn enter_arguments(
     }
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
+        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
     }
     let block = arguments.block;
     let binding = Binding::new(ctx, &fun.params, arguments)?;
@@ -2763,7 +2760,7 @@ fn enter_block(
 ) -> Result<()> {
     ctx.charge(1)?;
     if frames.data.len() >= ctx.options.limits.recursion {
-        return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
+        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
     }
     let mut frame = new_frame(ctx, program, storage, Some(block.function), base)?;
     frame.receiver = frames.data[block.parent].receiver.clone();

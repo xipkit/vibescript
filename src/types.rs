@@ -122,7 +122,7 @@ fn resolve_names(
     ctx.charge(1)?;
     // A union adds an AST level without increasing the parser's type depth.
     if depth > 130 {
-        return ctx.fail(
+        return ctx.guard(
             ErrorKind::Recursion,
             "type normalization exceeded maximum depth",
         );
@@ -161,7 +161,7 @@ fn visit(
 ) -> Result<Option<(Value, bool)>> {
     ctx.charge(1)?;
     if depth >= 64 {
-        return ctx.fail(
+        return ctx.guard(
             ErrorKind::Recursion,
             "type normalization exceeded maximum depth",
         );
@@ -696,7 +696,7 @@ mod tests {
                 .kind,
             ErrorKind::Recursion
         );
-        assert_eq!(ctx.checkpoint().unwrap_err().kind, ErrorKind::Recursion);
+        ctx.charge(1).unwrap();
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 

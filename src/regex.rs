@@ -159,7 +159,7 @@ impl Utility {
 
 fn text_limit(ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
     if bytes.len() > MAX_TEXT {
-        ctx.fail(
+        ctx.guard(
             ErrorKind::Memory,
             "regex text, replacement or output exceeds 1 MiB",
         )
@@ -394,7 +394,7 @@ fn replace(
         all,
         |ctx, piece| {
             if piece.len() > MAX_TEXT - size {
-                return ctx.fail(ErrorKind::Memory, "regex output exceeds 1 MiB");
+                return ctx.guard(ErrorKind::Memory, "regex output exceeds 1 MiB");
             }
             size += piece.len();
             ctx.work_bytes(piece.len())?;
@@ -451,7 +451,8 @@ mod tests {
         assert_eq!(error.kind, ErrorKind::Memory);
         assert!(ctx.stats().peak_memory_bytes < 65536);
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
-        assert_eq!(ctx.charge(0).unwrap_err().kind, ErrorKind::Memory);
+        assert_eq!(error.class(), Some(crate::ErrorClass::Limit));
+        ctx.charge(1).unwrap();
     }
 
     #[test]
@@ -478,7 +479,8 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.kind, ErrorKind::Memory);
         assert_eq!(ctx.stats().peak_memory_bytes, baseline.peak_memory_bytes);
-        assert_eq!(ctx.checkpoint().unwrap_err().kind, ErrorKind::Memory);
+        assert_eq!(error.class(), Some(crate::ErrorClass::Limit));
+        ctx.charge(1).unwrap();
     }
 
     #[test]

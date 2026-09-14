@@ -38,7 +38,13 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
         return Ok(Value::boolean(if op == "==" { same } else { !same }));
     }
     if matches!(op, "<" | "<=" | ">" | ">=") {
-        let cmp = compare(ctx, &a, &b)?;
+        let cmp = compare(ctx, &a, &b).map_err(|error| {
+            if error.kind == ErrorKind::Type {
+                error.with_class(crate::ErrorClass::Argument)
+            } else {
+                error
+            }
+        })?;
         return Ok(Value::boolean(match op {
             "<" => cmp == Some(Ordering::Less),
             "<=" => matches!(cmp, Some(Ordering::Less | Ordering::Equal)),
@@ -102,7 +108,8 @@ pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Res
                 "*" => a.checked_mul(*b),
                 "/" | "%" => {
                     if *b == 0 {
-                        return Err(Error::new(ErrorKind::Arithmetic, "division by zero"));
+                        return Err(Error::new(ErrorKind::Arithmetic, "division by zero")
+                            .with_class(crate::ErrorClass::ZeroDivision));
                     }
                     let Some(q) = a.checked_div(*b) else {
                         return crate::integer::binary(ctx, op, &Value::int(*a), &Value::int(*b));
@@ -256,7 +263,7 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
 pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> Result<bool> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
-        return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
     }
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
@@ -740,7 +747,7 @@ fn join_into(
     depth: usize,
 ) -> Result<()> {
     if depth > MAX_VALUE_DEPTH {
-        return ctx.fail(ErrorKind::Recursion, "join nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "join nesting too deep");
     }
     for (i, v) in array.iter().enumerate() {
         ctx.charge(1)?;

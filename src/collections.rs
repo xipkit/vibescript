@@ -153,7 +153,7 @@ pub(crate) fn method(
                 if depth == 0 {
                     let pair = ctx.array(&[key.clone(), value.clone()])?;
                     if pair.depth() + 1 > MAX_VALUE_DEPTH {
-                        return ctx.fail(ErrorKind::Recursion, "value nesting too deep");
+                        return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
                     }
                     out.push(ctx, pair)?;
                 } else {
@@ -227,7 +227,7 @@ fn values_at_range(
     }
     let count = (end - start + i128::from(range.end.is_none() || !range.exclusive)).max(0);
     if count > isize::MAX as i128 {
-        return ctx.fail(
+        return ctx.guard(
             ErrorKind::OutputLimit,
             "array.values_at window is too large",
         );
@@ -412,7 +412,7 @@ fn flatten(
     out: &mut Buffer<Value>,
 ) -> Result<()> {
     if depth > MAX_VALUE_DEPTH {
-        return ctx.fail(ErrorKind::Recursion, "flatten nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "flatten nesting too deep");
     }
     for v in values {
         ctx.charge(1)?;

@@ -23,7 +23,7 @@ pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
 pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     ctx.checkpoint()?;
     if input.len() > MAX_PAYLOAD {
-        return ctx.fail(ErrorKind::OutputLimit, "JSON input exceeds 1 MiB");
+        return ctx.guard(ErrorKind::OutputLimit, "JSON input exceeds 1 MiB");
     }
     parse(ctx, input)
 }
@@ -67,7 +67,9 @@ impl Parser<'_> {
     fn value(&mut self, depth: usize) -> Result<Value> {
         self.ctx.charge(1)?;
         if depth > MAX_VALUE_DEPTH {
-            return self.ctx.fail(ErrorKind::Recursion, "JSON nesting too deep");
+            return self
+                .ctx
+                .guard(ErrorKind::Recursion, "JSON nesting too deep");
         }
         self.space()?;
         match self.input.get(self.pos).copied() {
@@ -438,7 +440,7 @@ struct Output {
 impl Output {
     fn check(&self, ctx: &mut CallContext, length: usize) -> Result<()> {
         if self.limit.is_some_and(|limit| length > limit) {
-            return ctx.fail(ErrorKind::OutputLimit, "JSON output exceeds 1 MiB");
+            return ctx.guard(ErrorKind::OutputLimit, "JSON output exceeds 1 MiB");
         }
         Ok(())
     }
@@ -472,7 +474,7 @@ impl Output {
 fn write_value(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) -> Result<()> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
-        return ctx.fail(ErrorKind::Recursion, "JSON nesting too deep");
+        return ctx.guard(ErrorKind::Recursion, "JSON nesting too deep");
     }
     match &value.0 {
         Kind::Regex(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a regex")),
@@ -673,7 +675,7 @@ mod limit_tests {
     use crate::CallOptions;
 
     #[test]
-    fn builtin_size_failures_are_latched_and_release_partial_output() {
+    fn builtin_size_guards_release_partial_output_and_allow_recovery() {
         let mut parse_ctx = CallContext::new(CallOptions::default());
         assert_eq!(
             parse_builtin(&mut parse_ctx, &vec![b'?'; MAX_PAYLOAD + 1])
@@ -684,12 +686,12 @@ mod limit_tests {
         assert_eq!(parse_ctx.stats().steps, 0);
         assert_eq!(parse_ctx.stats().peak_memory_bytes, 0);
         assert_eq!(
-            parse_builtin(&mut parse_ctx, b"7").unwrap_err().kind,
-            ErrorKind::OutputLimit
+            parse_builtin(&mut parse_ctx, b"7").unwrap().as_int(),
+            Some(7)
         );
         assert_eq!(
-            parse_ctx.bytes(b"x").unwrap_err().kind,
-            ErrorKind::OutputLimit
+            parse_ctx.bytes(b"x").unwrap().as_bytes(),
+            Some(b"x".as_slice())
         );
 
         let mut output_ctx = CallContext::new(CallOptions::default());
@@ -701,9 +703,9 @@ mod limit_tests {
         assert_eq!(output_ctx.stats().retained_memory_bytes, 0);
         assert_eq!(
             stringify_builtin(&mut output_ctx, &Value::nil())
-                .unwrap_err()
-                .kind,
-            ErrorKind::OutputLimit
+                .unwrap()
+                .as_bytes(),
+            Some(b"null".as_slice())
         );
     }
 }

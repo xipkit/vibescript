@@ -70,7 +70,7 @@ fn arguments(
         if let Kind::Bytes(bytes) = &pattern.0
             && bytes.data.len() > super::MAX_PATTERN
         {
-            return ctx.fail(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
+            return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
         }
         super::text_limit(ctx, receiver.require_bytes()?)?;
         if !block {
@@ -349,7 +349,7 @@ pub(crate) fn member(
         first,
         |ctx, bytes| {
             if bytes.len() > super::MAX_TEXT - length {
-                return ctx.fail(ErrorKind::OutputLimit, "substitution output exceeds 1 MiB");
+                return ctx.guard(ErrorKind::OutputLimit, "substitution output exceeds 1 MiB");
             }
             let end = length + bytes.len();
             unchanged &= end <= text.len()
@@ -419,7 +419,7 @@ impl Driver {
 
     fn append(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
         if bytes.len() > super::MAX_TEXT - self.output.data.len() {
-            return ctx.fail(ErrorKind::OutputLimit, "substitution output exceeds 1 MiB");
+            return ctx.guard(ErrorKind::OutputLimit, "substitution output exceeds 1 MiB");
         }
         let required = self.output.data.len() + bytes.len();
         if required > self.output.data.capacity() {
@@ -517,7 +517,7 @@ mod tests {
             ctx.stats().retained_memory_bytes,
             baseline.retained_memory_bytes
         );
-        assert_eq!(ctx.checkpoint().unwrap_err().kind, ErrorKind::OutputLimit);
+        ctx.charge(1).unwrap();
     }
 
     #[test]

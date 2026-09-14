@@ -77,7 +77,7 @@ impl<'a> Output<'a> {
             return ctx.fail(ErrorKind::Memory, "formatted output size overflow");
         };
         if end > self.limit {
-            return ctx.fail(
+            return ctx.guard(
                 ErrorKind::OutputLimit,
                 "time formatting output limit exceeded",
             );

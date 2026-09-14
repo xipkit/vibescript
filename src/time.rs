@@ -635,7 +635,7 @@ pub(crate) fn member(
                 return Err(invalid());
             }
             if precision > 100 {
-                return ctx.fail(ErrorKind::OutputLimit, "time precision exceeds 100 digits");
+                return ctx.guard(ErrorKind::OutputLimit, "time precision exceeds 100 digits");
             }
             text(ctx, receiver, Some(precision as usize))?
         }
