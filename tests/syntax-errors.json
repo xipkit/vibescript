@@ -10513,5 +10513,10 @@
     "name": "substitute_splat_16",
     "source": "def run(input)\n\"aba\".gsub!(**{regex:true},*[\"a\",\"x\"])\nend",
     "go_error": "parse error at 2:28: positional arguments cannot follow keyword arguments"
+  },
+  {
+    "name": "string_completion_concat_control_1",
+    "source": "def run(input)\ns=\"a\";r=s.concat(s=\"b\");[s,r]\nend",
+    "go_error": "parse error at 2:19: expected \")\", got \"=\""
   }
 ]

@@ -544,7 +544,7 @@ pub(crate) fn method(
                 Ok(found.map(|n| Value::int(n as i64)).unwrap_or_default())
             }
         }
-        Split => split(ctx, &value, args),
+        Split => crate::text::split::call(ctx, &value, args),
         Join => join(ctx, &value, args),
         Push => value.push(ctx, args),
         Sum => {
@@ -708,65 +708,6 @@ pub(crate) fn find(
         }
     }
     Ok(found)
-}
-
-fn split(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
-    if args.len() > 1 {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "split accepts zero or one argument in this core",
-        ));
-    }
-    let bytes = value.require_bytes()?;
-    let mut out = Buffer::empty();
-    if args.is_empty() || args[0].as_bytes() == Some(b" ") {
-        let mut i = 0;
-        let mut start = None;
-        while i < bytes.len() {
-            ctx.charge(1)?;
-            let (ch, n, _) = scan::rune(&bytes[i..]);
-            if ch.is_ascii() && matches!(ch as u8, b' ' | 9..=13) {
-                if let Some(start) = start.take() {
-                    let part = ctx.bytes(&bytes[start..i])?;
-                    out.push(ctx, part)?;
-                }
-            } else if start.is_none() {
-                start = Some(i);
-            }
-            i += n;
-        }
-        if let Some(start) = start {
-            let part = ctx.bytes(&bytes[start..])?;
-            out.push(ctx, part)?;
-        }
-    } else {
-        let delim = args[0].require_bytes()?;
-        let mut i = 0;
-        if delim.is_empty() {
-            while i < bytes.len() {
-                ctx.charge(1)?;
-                let (_, n, _) = scan::rune(&bytes[i..]);
-                let part = ctx.bytes(&bytes[i..i + n])?;
-                out.push(ctx, part)?;
-                i += n;
-            }
-        } else {
-            while i < bytes.len() {
-                let Some(n) = find(ctx, &bytes[i..], delim, false)? else {
-                    let part = ctx.bytes(&bytes[i..])?;
-                    out.push(ctx, part)?;
-                    break;
-                };
-                let part = ctx.bytes(&bytes[i..i + n])?;
-                out.push(ctx, part)?;
-                i += n + delim.len();
-            }
-            while out.data.last().is_some_and(|v| v.as_bytes() == Some(b"")) {
-                out.data.pop();
-            }
-        }
-    }
-    Value::from_array(ctx, out)
 }
 
 fn join(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {

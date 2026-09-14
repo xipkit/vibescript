@@ -77,6 +77,16 @@ pub(crate) fn call_keywords(
         )?;
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::text::basic::call(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::text::inspect::call(
         ctx,
         name,
@@ -250,6 +260,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(result) = crate::text::basic::call(ctx, name, &receiver, args, false, false)? {
+        return Ok((receiver, result));
+    }
     if let Some(value) = crate::shapes::member(ctx, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }
@@ -310,7 +323,7 @@ pub(crate) fn call(
     if let Some(value) = crate::iteration::without_block(ctx, name, &receiver, args)? {
         return Ok((receiver, value));
     }
-    if matches!(receiver.0, Kind::Bytes(_)) && matches!(name, "unshift" | "append") {
+    if matches!(receiver.0, Kind::Bytes(_)) && matches!(name, "unshift" | "append" | "find_index") {
         return Err(Error::new(
             ErrorKind::Name,
             format!("unknown string method {name}"),

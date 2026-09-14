@@ -4682,5 +4682,77 @@
         "memory high"
       ]
     }
+  },
+  {
+    "path": "upstream/strings/operations.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "normalized": "vibescript example",
+      "bytesize": 3,
+      "ord": 104,
+      "chr": "h",
+      "upper": "VIBESCRIPT EXAMPLE",
+      "lower": "vibescript example",
+      "capitalize": "Héllo world",
+      "swapcase": "hELLO vibe",
+      "reverse": "olléh",
+      "sub": "baNAnas",
+      "gsub": "baNANAs",
+      "sub_regex": "X ID-34",
+      "gsub_regex": "X X",
+      "match": [
+        "ID-12",
+        "12"
+      ],
+      "scan": [
+        "ID-12",
+        "ID-34"
+      ],
+      "strip_bang": "hello",
+      "strip_bang_nochange": null,
+      "squish": "hello world",
+      "squish_bang": "hello world",
+      "template": "Player Alex scored 42",
+      "template_missing": "Hello {{missing}}",
+      "immutable_after": "  hello  ",
+      "clear": "",
+      "concat": "hello!",
+      "concat_noop": "hello",
+      "replace": "new",
+      "sub_bang": "baNAnas",
+      "gsub_bang": "baNANAs",
+      "lstrip": "hello\t",
+      "rstrip": "\thello",
+      "chomp_default": "line",
+      "chomp_custom": "path//",
+      "delete_prefix": "happy",
+      "delete_suffix": "report",
+      "split_default": [
+        "one",
+        "two",
+        "three"
+      ],
+      "split_custom": [
+        "a",
+        "b",
+        "c"
+      ],
+      "tags": [
+        "ruby",
+        "go",
+        "vibescript"
+      ],
+      "empty_true": true,
+      "empty_false": false,
+      "starts": true,
+      "ends": true,
+      "include": true,
+      "index": 2,
+      "rindex": 8,
+      "slice_char": "é",
+      "slice_range": "éllo",
+      "length": 5
+    }
   }
 ]

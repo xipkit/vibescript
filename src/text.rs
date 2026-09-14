@@ -4,11 +4,14 @@ use crate::{
 };
 use std::fmt::Write;
 
+pub(crate) mod basic;
 pub(crate) mod bounded;
 pub(crate) mod case;
 pub(crate) mod charset;
+mod index;
 pub(crate) mod inspect;
 pub(crate) mod iteration;
+pub(crate) mod split;
 pub(crate) mod template;
 pub(crate) mod transform;
 
