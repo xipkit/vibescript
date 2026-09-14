@@ -34,6 +34,7 @@ mod numeric;
 mod ops;
 mod ordering;
 mod printable;
+mod random;
 mod range;
 mod regex;
 mod scan;
@@ -63,11 +64,24 @@ type HostCallback =
 #[derive(Default)]
 pub struct Engine {
     hosts: BTreeMap<String, HostCallback>,
+    random_source: Option<random::Source>,
 }
 impl Engine {
     /// Creates an engine with core builtins and no external capabilities.
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Sets the entropy reader used by subsequently compiled scripts.
+    ///
+    /// The reader writes into the provided buffer and returns the number of bytes
+    /// written. Partial reads are retried; zero or oversized counts are errors.
+    /// It may run concurrently and must cooperate with cancellation and deadlines.
+    /// Without a custom reader, the engine uses operating-system entropy.
+    pub fn set_random_source(
+        &mut self,
+        reader: impl Fn(&mut CallContext, &mut [u8]) -> Result<usize> + Send + Sync + 'static,
+    ) {
+        self.random_source = Some(Arc::new(reader));
     }
     /// Registers a synchronous host function for subsequently compiled scripts.
     pub fn register(
@@ -109,7 +123,11 @@ impl Engine {
             .map(|n| self.hosts[n].clone())
             .collect();
         Ok(Script {
-            inner: Arc::new(ScriptInner { program, hosts }),
+            inner: Arc::new(ScriptInner {
+                program,
+                hosts,
+                random_source: self.random_source.clone(),
+            }),
         })
     }
 }
@@ -117,6 +135,7 @@ impl Engine {
 struct ScriptInner {
     program: bytecode::Program,
     hosts: Vec<HostCallback>,
+    random_source: Option<random::Source>,
 }
 
 /// Immutable compiled code, safely shared across independent calls and threads.
@@ -141,6 +160,7 @@ impl Script {
         options: CallOptions,
     ) -> Result<Outcome> {
         let mut ctx = CallContext::new(options);
+        ctx.random_source = self.inner.random_source.clone();
         ctx.checkpoint()?;
         let function = *self
             .inner
@@ -156,6 +176,7 @@ impl Script {
             args,
             keywords,
         )?;
+        ctx.random = None;
         Ok(Outcome {
             value,
             stats: ctx.stats(),

@@ -107898,5 +107898,2603 @@
     "name": "string_surface_unlisted_zip_4",
     "source": "def run(input)\nr=\"aba\".zip([]);[r.nil?,\"#{r}\"]\nend",
     "go_error": "unknown string method zip"
+  },
+  {
+    "name": "random_seeded_24",
+    "source": "def run(input)\nsrand(-9223372036854775808);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_25",
+    "source": "def run(input)\nsrand(-9223372036854775808);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_26",
+    "source": "def run(input)\nsrand(-9223372036854775808);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_51",
+    "source": "def run(input)\nsrand(-9223372036854775807);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_52",
+    "source": "def run(input)\nsrand(-9223372036854775807);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_53",
+    "source": "def run(input)\nsrand(-9223372036854775807);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_78",
+    "source": "def run(input)\nsrand(-4294967294);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_79",
+    "source": "def run(input)\nsrand(-4294967294);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_80",
+    "source": "def run(input)\nsrand(-4294967294);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_105",
+    "source": "def run(input)\nsrand(-2147483648);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_106",
+    "source": "def run(input)\nsrand(-2147483648);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_107",
+    "source": "def run(input)\nsrand(-2147483648);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_132",
+    "source": "def run(input)\nsrand(-2147483647);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_133",
+    "source": "def run(input)\nsrand(-2147483647);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_134",
+    "source": "def run(input)\nsrand(-2147483647);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_159",
+    "source": "def run(input)\nsrand(-1);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_160",
+    "source": "def run(input)\nsrand(-1);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_161",
+    "source": "def run(input)\nsrand(-1);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_186",
+    "source": "def run(input)\nsrand(0);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_187",
+    "source": "def run(input)\nsrand(0);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_188",
+    "source": "def run(input)\nsrand(0);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_213",
+    "source": "def run(input)\nsrand(1);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_214",
+    "source": "def run(input)\nsrand(1);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_215",
+    "source": "def run(input)\nsrand(1);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_240",
+    "source": "def run(input)\nsrand(7);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_241",
+    "source": "def run(input)\nsrand(7);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_242",
+    "source": "def run(input)\nsrand(7);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_267",
+    "source": "def run(input)\nsrand(42);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_268",
+    "source": "def run(input)\nsrand(42);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_269",
+    "source": "def run(input)\nsrand(42);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_294",
+    "source": "def run(input)\nsrand(99);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_295",
+    "source": "def run(input)\nsrand(99);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_296",
+    "source": "def run(input)\nsrand(99);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_321",
+    "source": "def run(input)\nsrand(1234);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_322",
+    "source": "def run(input)\nsrand(1234);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_323",
+    "source": "def run(input)\nsrand(1234);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_348",
+    "source": "def run(input)\nsrand(2147483646);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_349",
+    "source": "def run(input)\nsrand(2147483646);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_350",
+    "source": "def run(input)\nsrand(2147483646);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_375",
+    "source": "def run(input)\nsrand(2147483647);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_376",
+    "source": "def run(input)\nsrand(2147483647);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_377",
+    "source": "def run(input)\nsrand(2147483647);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_402",
+    "source": "def run(input)\nsrand(2147483648);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_403",
+    "source": "def run(input)\nsrand(2147483648);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_404",
+    "source": "def run(input)\nsrand(2147483648);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_429",
+    "source": "def run(input)\nsrand(4294967294);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_430",
+    "source": "def run(input)\nsrand(4294967294);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_431",
+    "source": "def run(input)\nsrand(4294967294);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_456",
+    "source": "def run(input)\nsrand(9223372036854775806);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_457",
+    "source": "def run(input)\nsrand(9223372036854775806);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_458",
+    "source": "def run(input)\nsrand(9223372036854775806);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_483",
+    "source": "def run(input)\nsrand(9223372036854775807);(0...20).map{rand((1...1))}\nend",
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_seeded_484",
+    "source": "def run(input)\nsrand(9223372036854775807);(0...20).map{rand((..3))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_seeded_485",
+    "source": "def run(input)\nsrand(9223372036854775807);(0...20).map{rand((1..))}\nend",
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_24",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 0,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_25",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 0,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_26",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 0,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_51",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 1,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_52",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 1,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_53",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 1,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_78",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 17,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_79",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 17,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_80",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 17,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_91",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 127,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_92",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 127,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_93",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 127,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_104",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 171,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_105",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 171,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_106",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 171,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_117",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 247,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_118",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 247,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_119",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 247,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_130",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 248,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_131",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 248,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_132",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 248,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_identifier_30",
+    "source": "def run(input)\nr=random_id();[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 248,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_31",
+    "source": "def run(input)\nr=random_id(1);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 248,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_32",
+    "source": "def run(input)\nr=random_id(16);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 248,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_33",
+    "source": "def run(input)\nr=random_id(63);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 248,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_34",
+    "source": "def run(input)\nr=random_id(1024);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 248,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_entropy_rand_143",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 254,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_144",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 254,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_145",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 254,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_identifier_35",
+    "source": "def run(input)\nr=random_id();[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 254,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_36",
+    "source": "def run(input)\nr=random_id(1);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 254,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_37",
+    "source": "def run(input)\nr=random_id(16);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 254,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_38",
+    "source": "def run(input)\nr=random_id(63);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 254,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_39",
+    "source": "def run(input)\nr=random_id(1024);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 254,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_entropy_rand_156",
+    "source": "def run(input)\n[rand((1...1)),rand((1...1))]\nend",
+    "entropy_byte": 255,
+    "go_error": "rand range is empty"
+  },
+  {
+    "name": "random_entropy_rand_157",
+    "source": "def run(input)\n[rand((..3)),rand((..3))]\nend",
+    "entropy_byte": 255,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_entropy_rand_158",
+    "source": "def run(input)\n[rand((1..)),rand((1..))]\nend",
+    "entropy_byte": 255,
+    "go_error": "rand range must be bounded"
+  },
+  {
+    "name": "random_identifier_40",
+    "source": "def run(input)\nr=random_id();[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 255,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_41",
+    "source": "def run(input)\nr=random_id(1);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 255,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_42",
+    "source": "def run(input)\nr=random_id(16);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 255,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_43",
+    "source": "def run(input)\nr=random_id(63);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 255,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_identifier_44",
+    "source": "def run(input)\nr=random_id(1024);[r.length,r[0],r[-1],r.match?(\"^[a-zA-Z0-9]+$\")]\nend",
+    "entropy_byte": 255,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_248",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 248,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_249",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 249,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_250",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 250,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_251",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 251,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_252",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 252,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_253",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 253,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_254",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 254,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_all_entropy_bytes_255",
+    "source": "def run(input)\n[random_id(1),rand(2),rand(0..9223372036854775807)]\nend",
+    "entropy_byte": 255,
+    "go_error": "random_id entropy source rejected too many bytes"
+  },
+  {
+    "name": "random_typed_1",
+    "source": "def sample() -> int\nrand\nend\ndef run(input)\nsample()\nend",
+    "entropy_byte": 0,
+    "go_error": "return value for sample expected int, got float"
+  },
+  {
+    "name": "random_typed_3",
+    "source": "def sample() -> float\nrand(10)\nend\ndef run(input)\nsample()\nend",
+    "entropy_byte": 0,
+    "go_error": "return value for sample expected float, got int"
+  },
+  {
+    "name": "random_typed_7",
+    "source": "def sample() -> int\nsrand(7)\nend\ndef run(input)\nsample()\nend",
+    "entropy_byte": 0,
+    "go_error": "return value for sample expected int, got nil"
+  },
+  {
+    "name": "random_signature_1",
+    "source": "def run(input)\nrand(){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_2",
+    "source": "def run(input)\nrand(extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_3",
+    "source": "def run(input)\nrand(extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_5",
+    "source": "def run(input)\nrand(nil){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_6",
+    "source": "def run(input)\nrand(nil,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_7",
+    "source": "def run(input)\nrand(nil,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_8",
+    "source": "def run(input)\nrand(true)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_9",
+    "source": "def run(input)\nrand(true){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_10",
+    "source": "def run(input)\nrand(true,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_11",
+    "source": "def run(input)\nrand(true,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_12",
+    "source": "def run(input)\nrand(false)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_13",
+    "source": "def run(input)\nrand(false){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_14",
+    "source": "def run(input)\nrand(false,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_15",
+    "source": "def run(input)\nrand(false,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_16",
+    "source": "def run(input)\nrand(\"1\")\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_17",
+    "source": "def run(input)\nrand(\"1\"){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_18",
+    "source": "def run(input)\nrand(\"1\",extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_19",
+    "source": "def run(input)\nrand(\"1\",extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_20",
+    "source": "def run(input)\nrand(:one)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_21",
+    "source": "def run(input)\nrand(:one){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_22",
+    "source": "def run(input)\nrand(:one,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_23",
+    "source": "def run(input)\nrand(:one,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_24",
+    "source": "def run(input)\nrand([])\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_25",
+    "source": "def run(input)\nrand([]){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_26",
+    "source": "def run(input)\nrand([],extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_27",
+    "source": "def run(input)\nrand([],extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_28",
+    "source": "def run(input)\nrand({})\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_29",
+    "source": "def run(input)\nrand({}){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_30",
+    "source": "def run(input)\nrand({},extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_31",
+    "source": "def run(input)\nrand({},extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_32",
+    "source": "def run(input)\nrand(/x/)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_33",
+    "source": "def run(input)\nrand(/x/){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_34",
+    "source": "def run(input)\nrand(/x/,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_35",
+    "source": "def run(input)\nrand(/x/,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_36",
+    "source": "def run(input)\nrand(1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_37",
+    "source": "def run(input)\nrand(1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_38",
+    "source": "def run(input)\nrand(1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_39",
+    "source": "def run(input)\nrand(1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_40",
+    "source": "def run(input)\nrand(-1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects an integer bound or integer range"
+  },
+  {
+    "name": "random_signature_41",
+    "source": "def run(input)\nrand(-1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_42",
+    "source": "def run(input)\nrand(-1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_43",
+    "source": "def run(input)\nrand(-1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_44",
+    "source": "def run(input)\nrand(0)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand integer bound must be positive"
+  },
+  {
+    "name": "random_signature_45",
+    "source": "def run(input)\nrand(0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_46",
+    "source": "def run(input)\nrand(0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_47",
+    "source": "def run(input)\nrand(0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_48",
+    "source": "def run(input)\nrand(-1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand integer bound must be positive"
+  },
+  {
+    "name": "random_signature_49",
+    "source": "def run(input)\nrand(-1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_50",
+    "source": "def run(input)\nrand(-1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_51",
+    "source": "def run(input)\nrand(-1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_53",
+    "source": "def run(input)\nrand(1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_54",
+    "source": "def run(input)\nrand(1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_55",
+    "source": "def run(input)\nrand(1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_57",
+    "source": "def run(input)\nrand(2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_58",
+    "source": "def run(input)\nrand(2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_59",
+    "source": "def run(input)\nrand(2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_61",
+    "source": "def run(input)\nrand(1024){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_62",
+    "source": "def run(input)\nrand(1024,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_63",
+    "source": "def run(input)\nrand(1024,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_65",
+    "source": "def run(input)\nrand(1025){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_66",
+    "source": "def run(input)\nrand(1025,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_67",
+    "source": "def run(input)\nrand(1025,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_69",
+    "source": "def run(input)\nrand(9223372036854775807){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_70",
+    "source": "def run(input)\nrand(9223372036854775807,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_71",
+    "source": "def run(input)\nrand(9223372036854775807,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_72",
+    "source": "def run(input)\nrand(9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand integer bound must fit in a 64-bit integer"
+  },
+  {
+    "name": "random_signature_73",
+    "source": "def run(input)\nrand(9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_74",
+    "source": "def run(input)\nrand(9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_75",
+    "source": "def run(input)\nrand(9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_76",
+    "source": "def run(input)\nrand(-9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand integer bound must be positive"
+  },
+  {
+    "name": "random_signature_77",
+    "source": "def run(input)\nrand(-9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_78",
+    "source": "def run(input)\nrand(-9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_79",
+    "source": "def run(input)\nrand(-9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_80",
+    "source": "def run(input)\nrand(-9223372036854775809)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand integer bound must fit in a 64-bit integer"
+  },
+  {
+    "name": "random_signature_81",
+    "source": "def run(input)\nrand(-9223372036854775809){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_82",
+    "source": "def run(input)\nrand(-9223372036854775809,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_83",
+    "source": "def run(input)\nrand(-9223372036854775809,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_84",
+    "source": "def run(input)\nrand(1,2)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand expects at most one argument"
+  },
+  {
+    "name": "random_signature_85",
+    "source": "def run(input)\nrand(1,2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not accept blocks"
+  },
+  {
+    "name": "random_signature_86",
+    "source": "def run(input)\nrand(1,2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_87",
+    "source": "def run(input)\nrand(1,2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "rand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_89",
+    "source": "def run(input)\nsrand(){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_90",
+    "source": "def run(input)\nsrand(extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_91",
+    "source": "def run(input)\nsrand(extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_93",
+    "source": "def run(input)\nsrand(nil){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_94",
+    "source": "def run(input)\nsrand(nil,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_95",
+    "source": "def run(input)\nsrand(nil,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_96",
+    "source": "def run(input)\nsrand(true)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_97",
+    "source": "def run(input)\nsrand(true){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_98",
+    "source": "def run(input)\nsrand(true,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_99",
+    "source": "def run(input)\nsrand(true,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_100",
+    "source": "def run(input)\nsrand(false)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_101",
+    "source": "def run(input)\nsrand(false){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_102",
+    "source": "def run(input)\nsrand(false,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_103",
+    "source": "def run(input)\nsrand(false,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_104",
+    "source": "def run(input)\nsrand(\"1\")\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_105",
+    "source": "def run(input)\nsrand(\"1\"){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_106",
+    "source": "def run(input)\nsrand(\"1\",extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_107",
+    "source": "def run(input)\nsrand(\"1\",extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_108",
+    "source": "def run(input)\nsrand(:one)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_109",
+    "source": "def run(input)\nsrand(:one){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_110",
+    "source": "def run(input)\nsrand(:one,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_111",
+    "source": "def run(input)\nsrand(:one,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_112",
+    "source": "def run(input)\nsrand([])\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_113",
+    "source": "def run(input)\nsrand([]){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_114",
+    "source": "def run(input)\nsrand([],extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_115",
+    "source": "def run(input)\nsrand([],extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_116",
+    "source": "def run(input)\nsrand({})\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_117",
+    "source": "def run(input)\nsrand({}){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_118",
+    "source": "def run(input)\nsrand({},extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_119",
+    "source": "def run(input)\nsrand({},extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_120",
+    "source": "def run(input)\nsrand(/x/)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_121",
+    "source": "def run(input)\nsrand(/x/){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_122",
+    "source": "def run(input)\nsrand(/x/,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_123",
+    "source": "def run(input)\nsrand(/x/,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_124",
+    "source": "def run(input)\nsrand(1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_125",
+    "source": "def run(input)\nsrand(1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_126",
+    "source": "def run(input)\nsrand(1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_127",
+    "source": "def run(input)\nsrand(1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_128",
+    "source": "def run(input)\nsrand(-1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must be integer or nil"
+  },
+  {
+    "name": "random_signature_129",
+    "source": "def run(input)\nsrand(-1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_130",
+    "source": "def run(input)\nsrand(-1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_131",
+    "source": "def run(input)\nsrand(-1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_133",
+    "source": "def run(input)\nsrand(0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_134",
+    "source": "def run(input)\nsrand(0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_135",
+    "source": "def run(input)\nsrand(0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_137",
+    "source": "def run(input)\nsrand(-1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_138",
+    "source": "def run(input)\nsrand(-1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_139",
+    "source": "def run(input)\nsrand(-1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_141",
+    "source": "def run(input)\nsrand(1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_142",
+    "source": "def run(input)\nsrand(1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_143",
+    "source": "def run(input)\nsrand(1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_145",
+    "source": "def run(input)\nsrand(2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_146",
+    "source": "def run(input)\nsrand(2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_147",
+    "source": "def run(input)\nsrand(2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_149",
+    "source": "def run(input)\nsrand(1024){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_150",
+    "source": "def run(input)\nsrand(1024,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_151",
+    "source": "def run(input)\nsrand(1024,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_153",
+    "source": "def run(input)\nsrand(1025){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_154",
+    "source": "def run(input)\nsrand(1025,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_155",
+    "source": "def run(input)\nsrand(1025,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_157",
+    "source": "def run(input)\nsrand(9223372036854775807){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_158",
+    "source": "def run(input)\nsrand(9223372036854775807,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_159",
+    "source": "def run(input)\nsrand(9223372036854775807,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_160",
+    "source": "def run(input)\nsrand(9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must fit in a 64-bit integer"
+  },
+  {
+    "name": "random_signature_161",
+    "source": "def run(input)\nsrand(9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_162",
+    "source": "def run(input)\nsrand(9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_163",
+    "source": "def run(input)\nsrand(9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_165",
+    "source": "def run(input)\nsrand(-9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_166",
+    "source": "def run(input)\nsrand(-9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_167",
+    "source": "def run(input)\nsrand(-9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_168",
+    "source": "def run(input)\nsrand(-9223372036854775809)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand seed must fit in a 64-bit integer"
+  },
+  {
+    "name": "random_signature_169",
+    "source": "def run(input)\nsrand(-9223372036854775809){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_170",
+    "source": "def run(input)\nsrand(-9223372036854775809,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_171",
+    "source": "def run(input)\nsrand(-9223372036854775809,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_172",
+    "source": "def run(input)\nsrand(1,2)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand expects at most one seed"
+  },
+  {
+    "name": "random_signature_173",
+    "source": "def run(input)\nsrand(1,2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not accept blocks"
+  },
+  {
+    "name": "random_signature_174",
+    "source": "def run(input)\nsrand(1,2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_175",
+    "source": "def run(input)\nsrand(1,2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "srand does not take keyword arguments"
+  },
+  {
+    "name": "random_signature_177",
+    "source": "def run(input)\nuuid(){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not accept blocks"
+  },
+  {
+    "name": "random_signature_178",
+    "source": "def run(input)\nuuid(extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_179",
+    "source": "def run(input)\nuuid(extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_180",
+    "source": "def run(input)\nuuid(nil)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_181",
+    "source": "def run(input)\nuuid(nil){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_182",
+    "source": "def run(input)\nuuid(nil,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_183",
+    "source": "def run(input)\nuuid(nil,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_184",
+    "source": "def run(input)\nuuid(true)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_185",
+    "source": "def run(input)\nuuid(true){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_186",
+    "source": "def run(input)\nuuid(true,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_187",
+    "source": "def run(input)\nuuid(true,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_188",
+    "source": "def run(input)\nuuid(false)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_189",
+    "source": "def run(input)\nuuid(false){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_190",
+    "source": "def run(input)\nuuid(false,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_191",
+    "source": "def run(input)\nuuid(false,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_192",
+    "source": "def run(input)\nuuid(\"1\")\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_193",
+    "source": "def run(input)\nuuid(\"1\"){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_194",
+    "source": "def run(input)\nuuid(\"1\",extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_195",
+    "source": "def run(input)\nuuid(\"1\",extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_196",
+    "source": "def run(input)\nuuid(:one)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_197",
+    "source": "def run(input)\nuuid(:one){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_198",
+    "source": "def run(input)\nuuid(:one,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_199",
+    "source": "def run(input)\nuuid(:one,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_200",
+    "source": "def run(input)\nuuid([])\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_201",
+    "source": "def run(input)\nuuid([]){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_202",
+    "source": "def run(input)\nuuid([],extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_203",
+    "source": "def run(input)\nuuid([],extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_204",
+    "source": "def run(input)\nuuid({})\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_205",
+    "source": "def run(input)\nuuid({}){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_206",
+    "source": "def run(input)\nuuid({},extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_207",
+    "source": "def run(input)\nuuid({},extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_208",
+    "source": "def run(input)\nuuid(/x/)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_209",
+    "source": "def run(input)\nuuid(/x/){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_210",
+    "source": "def run(input)\nuuid(/x/,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_211",
+    "source": "def run(input)\nuuid(/x/,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_212",
+    "source": "def run(input)\nuuid(1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_213",
+    "source": "def run(input)\nuuid(1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_214",
+    "source": "def run(input)\nuuid(1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_215",
+    "source": "def run(input)\nuuid(1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_216",
+    "source": "def run(input)\nuuid(-1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_217",
+    "source": "def run(input)\nuuid(-1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_218",
+    "source": "def run(input)\nuuid(-1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_219",
+    "source": "def run(input)\nuuid(-1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_220",
+    "source": "def run(input)\nuuid(0)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_221",
+    "source": "def run(input)\nuuid(0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_222",
+    "source": "def run(input)\nuuid(0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_223",
+    "source": "def run(input)\nuuid(0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_224",
+    "source": "def run(input)\nuuid(-1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_225",
+    "source": "def run(input)\nuuid(-1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_226",
+    "source": "def run(input)\nuuid(-1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_227",
+    "source": "def run(input)\nuuid(-1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_228",
+    "source": "def run(input)\nuuid(1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_229",
+    "source": "def run(input)\nuuid(1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_230",
+    "source": "def run(input)\nuuid(1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_231",
+    "source": "def run(input)\nuuid(1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_232",
+    "source": "def run(input)\nuuid(2)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_233",
+    "source": "def run(input)\nuuid(2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_234",
+    "source": "def run(input)\nuuid(2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_235",
+    "source": "def run(input)\nuuid(2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_236",
+    "source": "def run(input)\nuuid(1024)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_237",
+    "source": "def run(input)\nuuid(1024){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_238",
+    "source": "def run(input)\nuuid(1024,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_239",
+    "source": "def run(input)\nuuid(1024,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_240",
+    "source": "def run(input)\nuuid(1025)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_241",
+    "source": "def run(input)\nuuid(1025){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_242",
+    "source": "def run(input)\nuuid(1025,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_243",
+    "source": "def run(input)\nuuid(1025,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_244",
+    "source": "def run(input)\nuuid(9223372036854775807)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_245",
+    "source": "def run(input)\nuuid(9223372036854775807){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_246",
+    "source": "def run(input)\nuuid(9223372036854775807,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_247",
+    "source": "def run(input)\nuuid(9223372036854775807,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_248",
+    "source": "def run(input)\nuuid(9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_249",
+    "source": "def run(input)\nuuid(9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_250",
+    "source": "def run(input)\nuuid(9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_251",
+    "source": "def run(input)\nuuid(9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_252",
+    "source": "def run(input)\nuuid(-9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_253",
+    "source": "def run(input)\nuuid(-9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_254",
+    "source": "def run(input)\nuuid(-9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_255",
+    "source": "def run(input)\nuuid(-9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_256",
+    "source": "def run(input)\nuuid(-9223372036854775809)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_257",
+    "source": "def run(input)\nuuid(-9223372036854775809){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_258",
+    "source": "def run(input)\nuuid(-9223372036854775809,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_259",
+    "source": "def run(input)\nuuid(-9223372036854775809,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_260",
+    "source": "def run(input)\nuuid(1,2)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_261",
+    "source": "def run(input)\nuuid(1,2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_262",
+    "source": "def run(input)\nuuid(1,2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_263",
+    "source": "def run(input)\nuuid(1,2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "uuid does not take arguments"
+  },
+  {
+    "name": "random_signature_265",
+    "source": "def run(input)\nrandom_id(){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_266",
+    "source": "def run(input)\nrandom_id(extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_267",
+    "source": "def run(input)\nrandom_id(extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_268",
+    "source": "def run(input)\nrandom_id(nil)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_269",
+    "source": "def run(input)\nrandom_id(nil){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_270",
+    "source": "def run(input)\nrandom_id(nil,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_271",
+    "source": "def run(input)\nrandom_id(nil,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_272",
+    "source": "def run(input)\nrandom_id(true)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_273",
+    "source": "def run(input)\nrandom_id(true){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_274",
+    "source": "def run(input)\nrandom_id(true,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_275",
+    "source": "def run(input)\nrandom_id(true,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_276",
+    "source": "def run(input)\nrandom_id(false)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_277",
+    "source": "def run(input)\nrandom_id(false){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_278",
+    "source": "def run(input)\nrandom_id(false,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_279",
+    "source": "def run(input)\nrandom_id(false,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_280",
+    "source": "def run(input)\nrandom_id(\"1\")\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_281",
+    "source": "def run(input)\nrandom_id(\"1\"){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_282",
+    "source": "def run(input)\nrandom_id(\"1\",extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_283",
+    "source": "def run(input)\nrandom_id(\"1\",extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_284",
+    "source": "def run(input)\nrandom_id(:one)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_285",
+    "source": "def run(input)\nrandom_id(:one){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_286",
+    "source": "def run(input)\nrandom_id(:one,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_287",
+    "source": "def run(input)\nrandom_id(:one,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_288",
+    "source": "def run(input)\nrandom_id([])\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_289",
+    "source": "def run(input)\nrandom_id([]){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_290",
+    "source": "def run(input)\nrandom_id([],extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_291",
+    "source": "def run(input)\nrandom_id([],extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_292",
+    "source": "def run(input)\nrandom_id({})\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_293",
+    "source": "def run(input)\nrandom_id({}){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_294",
+    "source": "def run(input)\nrandom_id({},extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_295",
+    "source": "def run(input)\nrandom_id({},extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_296",
+    "source": "def run(input)\nrandom_id(/x/)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_297",
+    "source": "def run(input)\nrandom_id(/x/){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_298",
+    "source": "def run(input)\nrandom_id(/x/,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_299",
+    "source": "def run(input)\nrandom_id(/x/,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_300",
+    "source": "def run(input)\nrandom_id(1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_301",
+    "source": "def run(input)\nrandom_id(1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_302",
+    "source": "def run(input)\nrandom_id(1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_303",
+    "source": "def run(input)\nrandom_id(1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_304",
+    "source": "def run(input)\nrandom_id(-1.0)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be integer"
+  },
+  {
+    "name": "random_signature_305",
+    "source": "def run(input)\nrandom_id(-1.0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_306",
+    "source": "def run(input)\nrandom_id(-1.0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_307",
+    "source": "def run(input)\nrandom_id(-1.0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_308",
+    "source": "def run(input)\nrandom_id(0)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be positive"
+  },
+  {
+    "name": "random_signature_309",
+    "source": "def run(input)\nrandom_id(0){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_310",
+    "source": "def run(input)\nrandom_id(0,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_311",
+    "source": "def run(input)\nrandom_id(0,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_312",
+    "source": "def run(input)\nrandom_id(-1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be positive"
+  },
+  {
+    "name": "random_signature_313",
+    "source": "def run(input)\nrandom_id(-1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_314",
+    "source": "def run(input)\nrandom_id(-1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_315",
+    "source": "def run(input)\nrandom_id(-1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_317",
+    "source": "def run(input)\nrandom_id(1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_318",
+    "source": "def run(input)\nrandom_id(1,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_319",
+    "source": "def run(input)\nrandom_id(1,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_321",
+    "source": "def run(input)\nrandom_id(2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_322",
+    "source": "def run(input)\nrandom_id(2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_323",
+    "source": "def run(input)\nrandom_id(2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_325",
+    "source": "def run(input)\nrandom_id(1024){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_326",
+    "source": "def run(input)\nrandom_id(1024,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_327",
+    "source": "def run(input)\nrandom_id(1024,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_328",
+    "source": "def run(input)\nrandom_id(1025)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length exceeds maximum 1024"
+  },
+  {
+    "name": "random_signature_329",
+    "source": "def run(input)\nrandom_id(1025){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_330",
+    "source": "def run(input)\nrandom_id(1025,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_331",
+    "source": "def run(input)\nrandom_id(1025,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_332",
+    "source": "def run(input)\nrandom_id(9223372036854775807)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length exceeds maximum 1024"
+  },
+  {
+    "name": "random_signature_333",
+    "source": "def run(input)\nrandom_id(9223372036854775807){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_334",
+    "source": "def run(input)\nrandom_id(9223372036854775807,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_335",
+    "source": "def run(input)\nrandom_id(9223372036854775807,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_336",
+    "source": "def run(input)\nrandom_id(9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must fit in a 64-bit integer"
+  },
+  {
+    "name": "random_signature_337",
+    "source": "def run(input)\nrandom_id(9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_338",
+    "source": "def run(input)\nrandom_id(9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_339",
+    "source": "def run(input)\nrandom_id(9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_340",
+    "source": "def run(input)\nrandom_id(-9223372036854775808)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must be positive"
+  },
+  {
+    "name": "random_signature_341",
+    "source": "def run(input)\nrandom_id(-9223372036854775808){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_342",
+    "source": "def run(input)\nrandom_id(-9223372036854775808,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_343",
+    "source": "def run(input)\nrandom_id(-9223372036854775808,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_344",
+    "source": "def run(input)\nrandom_id(-9223372036854775809)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id length must fit in a 64-bit integer"
+  },
+  {
+    "name": "random_signature_345",
+    "source": "def run(input)\nrandom_id(-9223372036854775809){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_346",
+    "source": "def run(input)\nrandom_id(-9223372036854775809,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_347",
+    "source": "def run(input)\nrandom_id(-9223372036854775809,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_348",
+    "source": "def run(input)\nrandom_id(1,2)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id expects at most one length argument"
+  },
+  {
+    "name": "random_signature_349",
+    "source": "def run(input)\nrandom_id(1,2){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept blocks"
+  },
+  {
+    "name": "random_signature_350",
+    "source": "def run(input)\nrandom_id(1,2,extra:1)\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_signature_351",
+    "source": "def run(input)\nrandom_id(1,2,extra:1){7}\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id does not accept keyword arguments"
+  },
+  {
+    "name": "random_binding_3",
+    "source": "def run(input)\n[srand]\nend",
+    "entropy_byte": 0,
+    "go_error": "srand is a method and cannot be used as a value; call it with srand(...)"
+  },
+  {
+    "name": "random_binding_4",
+    "source": "def run(input)\n[random_id]\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
+  },
+  {
+    "name": "random_binding_5",
+    "source": "def run(input)\nsrand;rand\nend",
+    "entropy_byte": 0,
+    "go_error": "srand is a method and cannot be used as a value; call it with srand(...)"
+  },
+  {
+    "name": "random_binding_6",
+    "source": "def run(input)\nrandom_id\nend",
+    "entropy_byte": 0,
+    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
+  },
+  {
+    "name": "random_declared_rand_0",
+    "source": "def rand(x=5)\nx+1\nend\ndef run(input)\n[rand(),rand(10),rand]\nend",
+    "entropy_byte": 0,
+    "go_error": "rand is a function and cannot be used as a value; call it with rand(...)"
   }
 ]

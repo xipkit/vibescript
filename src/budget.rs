@@ -110,6 +110,8 @@ pub struct CallContext {
     memory: Arc<Memory>,
     steps: u64,
     exhausted: Option<Error>,
+    pub(crate) random_source: Option<crate::random::Source>,
+    pub(crate) random: Option<crate::random::Seeded>,
 }
 
 impl CallContext {
@@ -119,6 +121,8 @@ impl CallContext {
             memory: Arc::new(Memory::default()),
             steps: 0,
             exhausted: None,
+            random_source: None,
+            random: None,
         }
     }
 

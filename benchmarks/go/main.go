@@ -15,12 +15,23 @@ import (
 )
 
 type fixture struct {
-	Function   string            `json:"function"`
-	Name       string            `json:"name"`
-	Source     string            `json:"source"`
-	Args       []json.RawMessage `json:"args"`
-	Accounting bool              `json:"accounting"`
-	Iterations int               `json:"iterations"`
+	Function    string            `json:"function"`
+	Name        string            `json:"name"`
+	Source      string            `json:"source"`
+	Args        []json.RawMessage `json:"args"`
+	Accounting  bool              `json:"accounting"`
+	Iterations  int               `json:"iterations"`
+	EntropyByte *byte             `json:"entropy_byte,omitempty"`
+}
+
+type repeatingByte byte
+
+// Read fills p with the fixture's fixed entropy byte.
+func (b repeatingByte) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(b)
+	}
+	return len(p), nil
 }
 
 var sink value.Value
@@ -71,6 +82,9 @@ func run() error {
 		if !fixture.Accounting {
 			cfg.StepQuota = vibes.Unlimited
 			cfg.MemoryQuotaBytes = vibes.Unlimited
+		}
+		if fixture.EntropyByte != nil {
+			cfg.RandomReader = repeatingByte(*fixture.EntropyByte)
 		}
 		engine, err := vibes.NewEngine(cfg)
 		if err != nil {

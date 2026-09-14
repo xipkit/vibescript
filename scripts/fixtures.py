@@ -24,7 +24,7 @@ def site_cases():
     manifest=json.loads((SITE/"sources.json").read_text())
     for entry in manifest["files"]:
         assert hashlib.sha256((SITE/entry["path"]).read_bytes()).hexdigest()==entry["sha256"],entry["path"]
-    return [{"name":"site/"+case["path"],"source":(SITE/case["path"]).read_text(),"function":case["function"],"args":case["args"],"expected":case["expected"],"accounting":True} for case in json.loads((SITE/"cases.json").read_text())]
+    return [{**case,"name":"site/"+case["path"],"source":(SITE/case["path"]).read_text(),"accounting":True} for case in json.loads((SITE/"cases.json").read_text())]
 
 
 def function(body):
@@ -142,6 +142,8 @@ def conformance_cases():
         add(f"arithmetic_{i}",f"[{a}+({b}),{a}-({b}),{a}*({b}),{a}/({b}),{a}%({b})]",[a+b,a-b,a*b,a//b,a%b])
     for case in json.loads((UPSTREAM.parent/"language.json").read_text()):
         add("language/"+case["name"],case.get("body",""),case["expected"],source=case.get("source"))
+        if "entropy_byte" in case:
+            cases[-1]["entropy_byte"]=case["entropy_byte"]
     return cases+upstream_cases()+site_cases()
 
 

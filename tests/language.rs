@@ -2,6 +2,18 @@ use vibescript::{
     CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, stringify_json,
 };
 
+fn engine(case: &serde_json::Value) -> Engine {
+    let mut engine = Engine::new();
+    if let Some(byte) = case.get("entropy_byte") {
+        let byte = u8::try_from(byte.as_u64().unwrap()).unwrap();
+        engine.set_random_source(move |_, output| {
+            output.fill(byte);
+            Ok(output.len())
+        });
+    }
+    engine
+}
+
 #[test]
 fn language_conformance() {
     let cases: serde_json::Value = serde_json::from_str(include_str!("language.json")).unwrap();
@@ -11,7 +23,7 @@ fn language_conformance() {
             .as_str()
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
-        let script = Engine::new()
+        let script = engine(case)
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut options = CallOptions::default();
@@ -112,7 +124,7 @@ fn language_runtime_rejections() {
             .as_str()
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
-        let script = Engine::new()
+        let script = engine(case)
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(

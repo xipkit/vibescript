@@ -69,7 +69,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for case in cases {
         let name = case["name"].as_str().ok_or("missing name")?;
         let source = case["source"].as_str().ok_or("missing source")?;
-        let script = Engine::new().compile(source)?;
+        let mut engine = Engine::new();
+        if let Some(byte) = case.get("entropy_byte") {
+            let byte = u8::try_from(byte.as_u64().ok_or("invalid entropy byte")?)?;
+            engine.set_random_source(move |_, output| {
+                output.fill(byte);
+                Ok(output.len())
+            });
+        }
+        let script = engine.compile(source)?;
         let function = case["function"].as_str().unwrap_or("run");
         let mut input = Vec::new();
         for arg in case["args"].as_array().ok_or("missing args")? {

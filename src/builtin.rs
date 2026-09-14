@@ -9,6 +9,7 @@ pub(crate) enum Builtin {
     Regex(crate::regex::Utility),
     Time(crate::time::Constructor),
     Now,
+    Random(crate::random::Method),
     DurationBuild,
     DurationParse,
     Money,
@@ -45,6 +46,7 @@ pub(crate) enum Global {
     Regex,
     Time,
     Now,
+    Random(crate::random::Method),
     Duration,
     Money,
     MoneyCents,
@@ -61,6 +63,7 @@ impl Global {
             Self::Regex => "Regex",
             Self::Time => "Time",
             Self::Now => "now",
+            Self::Random(method) => method.name(),
             Self::Duration => "Duration",
             Self::Money => "money",
             Self::MoneyCents => "money_cents",
@@ -76,6 +79,10 @@ impl Global {
             "Regex" => Some(Self::Regex),
             "Time" => Some(Self::Time),
             "now" => Some(Self::Now),
+            "rand" => Some(Self::Random(crate::random::Method::Rand)),
+            "srand" => Some(Self::Random(crate::random::Method::Seed)),
+            "uuid" => Some(Self::Random(crate::random::Method::Uuid)),
+            "random_id" => Some(Self::Random(crate::random::Method::Id)),
             "Duration" => Some(Self::Duration),
             "money" => Some(Self::Money),
             "money_cents" => Some(Self::MoneyCents),
@@ -138,6 +145,7 @@ impl Global {
             })
             .collect(),
             Self::Now => return Value(Kind::Builtin(Now)),
+            Self::Random(method) => return Value(Kind::Builtin(Random(method))),
             Self::Duration => vec![
                 ("build", Value(Kind::Builtin(DurationBuild))),
                 ("parse", Value(Kind::Builtin(DurationParse))),
@@ -199,6 +207,10 @@ impl Global {
 impl Builtin {
     pub fn auto(self) -> bool {
         self == Self::Now
+            || matches!(
+                self,
+                Self::Random(crate::random::Method::Rand | crate::random::Method::Uuid)
+            )
             || self == Self::Regexp(crate::regex::value::Constructor::LastMatch)
             || matches!(self, Self::Time(constructor) if constructor.auto())
     }
@@ -218,6 +230,7 @@ impl Builtin {
             Self::Regex(utility) => utility.name(),
             Self::Time(constructor) => constructor.name(),
             Self::Now => "now",
+            Self::Random(method) => method.name(),
             Self::DurationBuild => "Duration.build",
             Self::DurationParse => "Duration.parse",
             Self::Money => "money",
@@ -264,6 +277,9 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        if let Self::Random(method) = self {
+            return method.call(ctx, args, keywords, block);
+        }
         if let Self::Regexp(constructor) = self {
             return constructor.call(ctx, args, keywords, block);
         }
@@ -381,6 +397,7 @@ impl Builtin {
             | Self::DurationParse
             | Self::Time(_)
             | Self::Now
+            | Self::Random(_)
             | Self::Regex(_)
             | Self::Regexp(_) => unreachable!(),
         }

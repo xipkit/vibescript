@@ -10,7 +10,15 @@ fn unchanged_site_examples_match_go_results() {
     for case in cases {
         let path = case["path"].as_str().unwrap();
         let source = fs::read_to_string(root.join(path)).unwrap();
-        let script = Engine::new()
+        let mut engine = Engine::new();
+        if let Some(byte) = case.get("entropy_byte") {
+            let byte = u8::try_from(byte.as_u64().unwrap()).unwrap();
+            engine.set_random_source(move |_, output| {
+                output.fill(byte);
+                Ok(output.len())
+            });
+        }
+        let script = engine
             .compile(&source)
             .unwrap_or_else(|e| panic!("{path}: {e}"));
         let options = CallOptions {

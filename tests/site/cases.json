@@ -4754,5 +4754,31 @@
       "slice_range": "éllo",
       "length": 5
     }
+  },
+  {
+    "path": "upstream/stdlib/core_utilities.vibe",
+    "function": "run",
+    "args": [],
+    "entropy_byte": 0,
+    "expected": {
+      "json_id": "p-1",
+      "json_score": 10,
+      "json_encoded": "{\"id\":\"p-1\",\"score\":10}",
+      "regex_match": "ID-12",
+      "regex_replace": "X ID-34",
+      "regex_replace_all": "X X",
+      "uuid_length": 36,
+      "uuid_has_dash": true,
+      "random_length": 8,
+      "to_int": 42,
+      "to_float": 1.25,
+      "math_sqrt": 12,
+      "math_hypot": 5,
+      "math_log_base": 3,
+      "math_pi_rounded": 3.142,
+      "parsed_time": "2024-05-01T10:30:00Z",
+      "inspect_string": "\"a\\tb\"",
+      "inspect_array": "[1, \"x\", nil]"
+    }
   }
 ]
