@@ -11,12 +11,13 @@ use lexer::{Lexeme, Part, Token, lex};
 use tokens::Tokens;
 
 const MAX_DEPTH: usize = 128;
-const MAX_SOURCE: usize = 8 << 20;
+pub(crate) const MAX_SOURCE: usize = 8 << 20;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Expr {
     pub node: Node,
-    depth: usize,
+    depth: u32,
+    pub offset: u32,
 }
 #[derive(Clone, Debug)]
 pub(crate) enum Node {
@@ -106,6 +107,15 @@ pub(crate) enum Target {
     Typed(Box<Target>, crate::types::Type),
 }
 impl Target {
+    pub fn offset(&self) -> Option<u32> {
+        match self {
+            Self::Value(expr) => Some(expr.offset),
+            Self::Typed(target, _) => target.offset(),
+            Self::Tuple(parts) => parts
+                .iter()
+                .find_map(|(target, _)| target.as_ref()?.offset()),
+        }
+    }
     fn is_binding(&self) -> bool {
         match self {
             Self::Typed(target, _) => target.is_binding(),
@@ -115,7 +125,7 @@ impl Target {
                 .all(|(target, _)| target.as_ref().is_none_or(Self::is_binding)),
         }
     }
-    fn depth(&self) -> usize {
+    fn depth(&self) -> u32 {
         match self {
             Self::Typed(target, _) => target.depth(),
             Self::Value(e) => e.depth,
@@ -131,7 +141,12 @@ impl Target {
     }
 }
 #[derive(Clone, Debug)]
-pub(crate) enum Stmt {
+pub(crate) struct Stmt {
+    pub node: Statement,
+    pub offset: u32,
+}
+#[derive(Clone, Debug)]
+pub(crate) enum Statement {
     Module(String),
     UnboundClass(String),
     Expr(Expr),
@@ -143,22 +158,30 @@ pub(crate) enum Stmt {
     Break(Option<Expr>),
     Next(Option<Expr>),
 }
+impl Statement {
+    fn at(self, offset: u32) -> Stmt {
+        Stmt { node: self, offset }
+    }
+}
 impl Stmt {
-    fn depth(&self) -> usize {
+    fn depth(&self) -> u32 {
         let body = |s: &[Stmt]| s.iter().map(Self::depth).max().unwrap_or(0);
-        1 + match self {
-            Self::Module(_) | Self::UnboundClass(_) => 0,
-            Self::Expr(e) => e.depth,
-            Self::Assign(t, _, e) => t.depth().max(e.depth),
-            Self::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
-            Self::While(e, b) => e.depth.max(body(b)),
-            Self::For(t, e, b) => t.depth().max(e.depth).max(body(b)),
-            Self::Return(e) | Self::Break(e) | Self::Next(e) => e.as_ref().map_or(0, |e| e.depth),
+        1 + match &self.node {
+            Statement::Module(_) | Statement::UnboundClass(_) => 0,
+            Statement::Expr(e) => e.depth,
+            Statement::Assign(t, _, e) => t.depth().max(e.depth),
+            Statement::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
+            Statement::While(e, b) => e.depth.max(body(b)),
+            Statement::For(t, e, b) => t.depth().max(e.depth).max(body(b)),
+            Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
+                e.as_ref().map_or(0, |e| e.depth)
+            }
         }
     }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Definition {
+    pub offset: u32,
     pub accessor: Option<(String, bool)>,
     pub name: String,
     pub params: Vec<Parameter>,
@@ -195,13 +218,14 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     let mut top = Vec::new();
     p.lines();
     while !matches!(p.token(), Token::Eof) {
+        let offset = p.tokens[p.pos].offset as u32;
         if p.word("class") {
             let class = p.class()?;
-            top.push(Stmt::Module(class.name.clone()));
+            top.push(Statement::Module(class.name.clone()).at(offset));
             modules.push(class);
         } else if p.module_ahead() {
             let module = p.module()?;
-            top.push(Stmt::Module(module.name.clone()));
+            top.push(Statement::Module(module.name.clone()).at(offset));
             modules.push(module);
         } else if p.word("def") {
             let name = p.name()?;
@@ -211,7 +235,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
-            defs.push(p.definition(name)?);
+            defs.push(p.definition(name, offset)?);
         } else if p.word("enum") {
             p.line_breaks();
             let name = p.enum_name()?;
@@ -245,6 +269,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     defs.insert(
         0,
         Definition {
+            offset: 0,
             accessor: None,
             name: "__main__".into(),
             params: Vec::new(),
@@ -495,19 +520,21 @@ impl Parser<'_> {
         }
     }
     fn name(&mut self) -> Result<String> {
+        let offset = self.tokens[self.pos].offset;
         if let Token::Word(w) = self.bump() {
             if reserved(&w) {
-                return self.err("reserved name");
+                return Err(Error::syntax(offset, "reserved name"));
             }
             Ok(w)
         } else {
-            self.err("expected name")
+            Err(Error::syntax(offset, "expected name"))
         }
     }
     fn enum_name(&mut self) -> Result<String> {
+        let offset = self.tokens[self.pos].offset;
         match self.bump() {
             Token::Word(name) if !keyword(&name) && !name.starts_with('@') => Ok(name),
-            _ => self.err("expected enum identifier"),
+            _ => Err(Error::syntax(offset, "expected enum identifier")),
         }
     }
     fn at_end(&self) -> bool {
@@ -559,6 +586,10 @@ impl Parser<'_> {
         Ok(body)
     }
     fn statement(&mut self) -> Result<Stmt> {
+        let offset = self.tokens[self.pos].offset as u32;
+        Ok(self.modified_statement(offset)?.at(offset))
+    }
+    fn modified_statement(&mut self, offset: u32) -> Result<Statement> {
         let stmt = self.plain_statement()?;
         let modifier = match self.token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => {
@@ -568,7 +599,11 @@ impl Parser<'_> {
         };
         if !matches!(
             stmt,
-            Stmt::Expr(_) | Stmt::Assign(..) | Stmt::Return(_) | Stmt::Break(_) | Stmt::Next(_)
+            Statement::Expr(_)
+                | Statement::Assign(..)
+                | Statement::Return(_)
+                | Statement::Break(_)
+                | Statement::Next(_)
         ) {
             return self
                 .err("modifier requires an expression, assignment, or leaf control statement");
@@ -579,15 +614,15 @@ impl Parser<'_> {
             condition = self.negate(condition)?;
         }
         Ok(if matches!(modifier.as_str(), "while" | "until") {
-            Stmt::While(condition, vec![stmt])
+            Statement::While(condition, vec![stmt.at(offset)])
         } else {
-            Stmt::If(condition, vec![stmt], Vec::new())
+            Statement::If(condition, vec![stmt.at(offset)], Vec::new())
         })
     }
-    fn plain_statement(&mut self) -> Result<Stmt> {
+    fn plain_statement(&mut self) -> Result<Statement> {
         if self.word("class") {
             let class = self.class()?;
-            return Ok(Stmt::UnboundClass(class.name));
+            return Ok(Statement::UnboundClass(class.name));
         }
         if self.module_ahead() {
             return self.err(
@@ -623,9 +658,9 @@ impl Parser<'_> {
                     None
                 };
                 return Ok(match flow {
-                    "return" => Stmt::Return(value),
-                    "break" => Stmt::Break(value),
-                    _ => Stmt::Next(value),
+                    "return" => Statement::Return(value),
+                    "break" => Statement::Break(value),
+                    _ => Statement::Next(value),
                 });
             }
         }
@@ -660,9 +695,9 @@ impl Parser<'_> {
                 first
             };
             self.declare_target(&target);
-            return Ok(Stmt::Assign(target, op, rhs));
+            return Ok(Statement::Assign(target, op, rhs));
         }
-        Ok(Stmt::Expr(self.line_expr(0)?))
+        Ok(Statement::Expr(self.line_expr(0)?))
     }
     fn return_values(&mut self, first: Expr) -> Result<Expr> {
         if self.token() != &Token::P(',') || self.tokens[self.pos].line != self.previous().line {
@@ -679,9 +714,10 @@ impl Parser<'_> {
     }
     fn negate(&self, expr: Expr) -> Result<Expr> {
         let depth = expr.depth + 1;
-        self.make(Node::Unary("!", Box::new(expr)), depth)
+        let offset = expr.offset;
+        self.make_at(Node::Unary("!", Box::new(expr)), depth, offset)
     }
-    fn while_stmt(&mut self, until: bool) -> Result<Stmt> {
+    fn while_stmt(&mut self, until: bool) -> Result<Statement> {
         let previous = self.loop_condition.replace(self.groups);
         let mut cond = self.line_expr(0)?;
         self.loop_condition = previous;
@@ -691,9 +727,9 @@ impl Parser<'_> {
         self.word("do");
         let body = self.block(&["end"])?;
         self.expect_word("end")?;
-        Ok(Stmt::While(cond, body))
+        Ok(Statement::While(cond, body))
     }
-    fn for_stmt(&mut self) -> Result<Stmt> {
+    fn for_stmt(&mut self) -> Result<Statement> {
         let target = self.target(false, false)?;
         if !target.is_binding() {
             return self.err("invalid for loop target");
@@ -706,7 +742,7 @@ impl Parser<'_> {
         self.declare_target(&target);
         let body = self.block(&["end"])?;
         self.expect_word("end")?;
-        Ok(Stmt::For(target, iterable, body))
+        Ok(Statement::For(target, iterable, body))
     }
     fn target(&mut self, first_expression: bool, typed: bool) -> Result<Target> {
         self.enter()?;
@@ -780,7 +816,7 @@ impl Parser<'_> {
         } else {
             parts.pop().unwrap().0.unwrap()
         };
-        if target.depth() > MAX_DEPTH {
+        if target.depth() > MAX_DEPTH as u32 {
             return self.err("assignment nesting too deep");
         }
         Ok(target)
@@ -839,7 +875,7 @@ impl Parser<'_> {
         }
         false
     }
-    fn if_stmt(&mut self, unless: bool) -> Result<Stmt> {
+    fn if_stmt(&mut self, unless: bool) -> Result<Statement> {
         self.enter()?;
         let mut cond = self.line_expr(0)?;
         if unless {
@@ -852,7 +888,8 @@ impl Parser<'_> {
             if unless {
                 return self.err("unless does not support elsif");
             }
-            vec![self.if_stmt(false)?]
+            let offset = self.previous().offset as u32;
+            vec![self.if_stmt(false)?.at(offset)]
         } else if self.word("else") {
             self.lines();
             let no = self.block(&["end"])?;
@@ -863,7 +900,7 @@ impl Parser<'_> {
             Vec::new()
         };
         self.depth -= 1;
-        Ok(Stmt::If(cond, yes, no))
+        Ok(Statement::If(cond, yes, no))
     }
     fn if_expr(&mut self, unless: bool) -> Result<Expr> {
         self.enter()?;
@@ -953,12 +990,21 @@ impl Parser<'_> {
             );
         self.make(Node::Case(target, clauses, alternate), depth)
     }
-    fn make(&self, node: Node, depth: usize) -> Result<Expr> {
-        if depth > MAX_DEPTH {
+    fn make(&self, node: Node, depth: u32) -> Result<Expr> {
+        if depth > MAX_DEPTH as u32 {
             self.err("expression nesting too deep")
         } else {
-            Ok(Expr { node, depth })
+            Ok(Expr {
+                node,
+                depth,
+                offset: self.tokens[self.pos.saturating_sub(1)].offset as u32,
+            })
         }
+    }
+    fn make_at(&self, node: Node, depth: u32, offset: u32) -> Result<Expr> {
+        let mut expr = self.make(node, depth)?;
+        expr.offset = offset;
+        Ok(expr)
     }
     fn expr(&mut self, min: u8) -> Result<Expr> {
         self.enter()?;
@@ -975,6 +1021,16 @@ impl Parser<'_> {
     }
     // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
     fn prefix(&mut self) -> Result<Expr> {
+        let offset = self.tokens[self.pos].offset as u32;
+        let grouped = self.token() == &Token::P('(');
+        let mut expr = self.prefix_node()?;
+        if !grouped {
+            expr.offset = offset;
+        }
+        Ok(expr)
+    }
+    fn prefix_node(&mut self) -> Result<Expr> {
+        let offset = self.tokens[self.pos].offset as u32;
         match self.bump() {
             Token::Int(n) => self.make(Node::Integer(n), 1),
             Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
@@ -997,10 +1053,11 @@ impl Parser<'_> {
                     } else {
                         self.while_stmt(w == "until")?
                     };
+                    let stmt = stmt.at(offset);
                     let depth = stmt.depth();
                     self.make(Node::Loop(Box::new(stmt)), depth)
                 }
-                _ if reserved(&w) => self.err("expected expression"),
+                _ if reserved(&w) => Err(Error::syntax(offset as usize, "expected expression")),
                 _ => self.make(Node::Var(w), 1),
             },
             Token::P(':') => self.symbol(),
@@ -1028,7 +1085,7 @@ impl Parser<'_> {
                 self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)
             }
             Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op),
-            _ => self.err("expected expression"),
+            _ => Err(Error::syntax(offset as usize, "expected expression")),
         }
     }
     fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
@@ -1062,6 +1119,7 @@ impl Parser<'_> {
         self.line_breaks();
         if !self.take_p('}') {
             loop {
+                let offset = self.tokens[self.pos].offset as u32;
                 let (key, label) = match self.bump() {
                     Token::Word(w) => (w.as_bytes().to_vec(), Some(w)),
                     Token::Bytes(b) => (b, None),
@@ -1074,7 +1132,7 @@ impl Parser<'_> {
                     let Some(name) = label else {
                         return self.err("missing value for hash key");
                     };
-                    self.make(Node::Var(name), 1)?
+                    self.make_at(Node::Var(name), 1, offset)?
                 } else {
                     self.expr(0)?
                 };
@@ -1234,28 +1292,10 @@ impl Parser<'_> {
             if let Some(next) = self.continuation_position(min) {
                 self.pos = next;
             }
+            let origin = lhs.offset;
+            let offset = self.tokens[self.pos].offset as u32;
             if self.command_start(&lhs, min) {
-                self.command_depth += 1;
-                if self.command_depth > 64 {
-                    return self.err("parenless call nesting too deep");
-                }
-                let group = std::mem::replace(&mut self.command_group, self.groups);
-                if self.token() == &Token::Op("/") {
-                    self.expand_regex()?;
-                }
-                let args = self.command_arguments()?;
-                self.command_group = group;
-                self.command_depth -= 1;
-                let depth = 1 + lhs
-                    .depth
-                    .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
-                let node = match lhs.node {
-                    Node::Var(name) => Node::Call(name, args),
-                    Node::Member(receiver, name) => Node::Method(receiver, name, args),
-                    Node::SafeMember(receiver, name) => Node::SafeMethod(receiver, name, args),
-                    _ => unreachable!(),
-                };
-                lhs = self.make(node, depth)?;
+                lhs = self.command_expression(lhs)?;
                 continue;
             }
             let brace = self.token() == &Token::P('{');
@@ -1264,14 +1304,7 @@ impl Parser<'_> {
             if (brace || do_block)
                 && (do_block || self.tokens[self.pos].line == self.previous().end_line)
             {
-                let block = self.attached_block(brace)?;
-                if let Node::BlockCall(call, _) = lhs.node {
-                    lhs = *call;
-                }
-                let depth = 1 + lhs
-                    .depth
-                    .max(block.body.iter().map(Stmt::depth).max().unwrap_or(0));
-                lhs = self.make(Node::BlockCall(Box::new(lhs), block), depth)?;
+                lhs = self.block_expression(lhs, brace)?;
                 continue;
             }
             if self.take_p('(') {
@@ -1280,50 +1313,16 @@ impl Parser<'_> {
                 };
                 let args = self.call_arguments()?;
                 let d = 1 + args.iter().map(|a| a.value.depth).max().unwrap_or(0);
-                lhs = self.make(Node::Call(name, args), d)?;
+                lhs = self.make_at(Node::Call(name, args), d, origin)?;
                 continue;
             }
             if self.token() == &Token::Op("::") {
-                self.bump();
-                self.line_breaks();
-                let Token::Word(name) = self.bump() else {
-                    return self.err("expected scoped member name");
-                };
-                if name.starts_with('@') || (keyword(&name) && name != "enum") {
-                    return self.err("expected scoped member name");
-                }
-                let args = if self.take_p('(') {
-                    Some(self.call_arguments()?)
-                } else {
-                    None
-                };
-                let depth = 1 + lhs.depth.max(args.as_ref().map_or(0, |args| {
-                    args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
-                }));
-                lhs = self.make(Node::Scope(Box::new(lhs), name, args), depth)?;
+                lhs = self.scoped_expression(lhs)?;
                 continue;
             }
             let safe = self.token() == &Token::Op("&.");
             if safe || self.token() == &Token::P('.') {
-                self.bump();
-                self.line_breaks();
-                let name = match self.bump() {
-                    Token::Word(name) if !name.starts_with('@') => name,
-                    Token::Op("<=>") => "<=>".to_owned(),
-                    _ => return self.err("expected member name"),
-                };
-                lhs = if self.take_p('(') {
-                    let args = self.call_arguments()?;
-                    let depth = 1 + lhs
-                        .depth
-                        .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
-                    let method = if safe { Node::SafeMethod } else { Node::Method };
-                    self.make(method(Box::new(lhs), name, args), depth)?
-                } else {
-                    let depth = lhs.depth + 1;
-                    let member = if safe { Node::SafeMember } else { Node::Member };
-                    self.make(member(Box::new(lhs), name), depth)?
-                };
+                lhs = self.member_expression(lhs, safe)?;
                 continue;
             }
             if self.take_p('[') {
@@ -1334,7 +1333,7 @@ impl Parser<'_> {
                 let d = 1 + lhs
                     .depth
                     .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
-                lhs = self.make(Node::Index(Box::new(lhs), indexes), d)?;
+                lhs = self.make_at(Node::Index(Box::new(lhs), indexes), d, offset)?;
                 continue;
             }
             if min <= 2 && self.take_p('?') {
@@ -1346,9 +1345,10 @@ impl Parser<'_> {
                 self.lines();
                 let no = self.expr(2)?;
                 let depth = 1 + lhs.depth.max(yes.depth).max(no.depth);
-                lhs = self.make(
+                lhs = self.make_at(
                     Node::Conditional(Box::new(lhs), Box::new(yes), Box::new(no)),
                     depth,
+                    offset,
                 )?;
                 continue;
             }
@@ -1376,15 +1376,102 @@ impl Parser<'_> {
                     None
                 };
                 let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
-                lhs = self.make(Node::Range(Some(Box::new(lhs)), end, op == "..."), depth)?;
+                lhs = self.make_at(
+                    Node::Range(Some(Box::new(lhs)), end, op == "..."),
+                    depth,
+                    offset,
+                )?;
                 continue;
             }
             self.line_breaks();
             let rhs = self.expr(right)?;
             let depth = 1 + lhs.depth.max(rhs.depth);
-            lhs = self.make(Node::Binary(op, Box::new(lhs), Box::new(rhs)), depth)?;
+            lhs = self.make_at(
+                Node::Binary(op, Box::new(lhs), Box::new(rhs)),
+                depth,
+                offset,
+            )?;
         }
         Ok(lhs)
+    }
+    // Keep call-specific temporaries off every recursive expression frame.
+    fn command_expression(&mut self, lhs: Expr) -> Result<Expr> {
+        self.command_depth += 1;
+        if self.command_depth > 64 {
+            return self.err("parenless call nesting too deep");
+        }
+        let group = std::mem::replace(&mut self.command_group, self.groups);
+        if self.token() == &Token::Op("/") {
+            self.expand_regex()?;
+        }
+        let args = self.command_arguments()?;
+        self.command_group = group;
+        self.command_depth -= 1;
+        let depth = 1 + lhs
+            .depth
+            .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
+        let node = match lhs.node {
+            Node::Var(name) => Node::Call(name, args),
+            Node::Member(receiver, name) => Node::Method(receiver, name, args),
+            Node::SafeMember(receiver, name) => Node::SafeMethod(receiver, name, args),
+            _ => unreachable!(),
+        };
+        self.make_at(node, depth, lhs.offset)
+    }
+    fn block_expression(&mut self, mut lhs: Expr, brace: bool) -> Result<Expr> {
+        let offset = lhs.offset;
+        let block = self.attached_block(brace)?;
+        if let Node::BlockCall(call, _) = lhs.node {
+            lhs = *call;
+        }
+        let depth = 1 + lhs
+            .depth
+            .max(block.body.iter().map(Stmt::depth).max().unwrap_or(0));
+        self.make_at(Node::BlockCall(Box::new(lhs), block), depth, offset)
+    }
+    fn scoped_expression(&mut self, lhs: Expr) -> Result<Expr> {
+        let offset = lhs.offset;
+        self.bump();
+        self.line_breaks();
+        let name_offset = self.tokens[self.pos].offset;
+        let Token::Word(name) = self.bump() else {
+            return Err(Error::syntax(name_offset, "expected scoped member name"));
+        };
+        if name.starts_with('@') || (keyword(&name) && name != "enum") {
+            return Err(Error::syntax(name_offset, "expected scoped member name"));
+        }
+        let args = if self.take_p('(') {
+            Some(self.call_arguments()?)
+        } else {
+            None
+        };
+        let depth = 1 + lhs.depth.max(args.as_ref().map_or(0, |args| {
+            args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
+        }));
+        self.make_at(Node::Scope(Box::new(lhs), name, args), depth, offset)
+    }
+    fn member_expression(&mut self, lhs: Expr, safe: bool) -> Result<Expr> {
+        let offset = lhs.offset;
+        self.bump();
+        self.line_breaks();
+        let name_offset = self.tokens[self.pos].offset;
+        let name = match self.bump() {
+            Token::Word(name) if !name.starts_with('@') => name,
+            Token::Op("<=>") => "<=>".to_owned(),
+            _ => return Err(Error::syntax(name_offset, "expected member name")),
+        };
+        if self.take_p('(') {
+            let args = self.call_arguments()?;
+            let depth = 1 + lhs
+                .depth
+                .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
+            let method = if safe { Node::SafeMethod } else { Node::Method };
+            self.make_at(method(Box::new(lhs), name, args), depth, offset)
+        } else {
+            let depth = lhs.depth + 1;
+            let member = if safe { Node::SafeMember } else { Node::Member };
+            self.make_at(member(Box::new(lhs), name), depth, offset)
+        }
     }
     fn previous(&self) -> &Lexeme {
         self.tokens

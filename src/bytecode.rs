@@ -1,7 +1,7 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
-    syntax::{self, Argument, ArgumentKind, Block, Expr, Node, ParamKind, Stmt, Target},
+    syntax::{self, Argument, ArgumentKind, Block, Expr, Node, ParamKind, Statement, Stmt, Target},
 };
 use std::collections::{HashMap, HashSet};
 
@@ -302,6 +302,9 @@ impl Method {
 
 #[derive(Debug, Default)]
 pub(crate) struct Function {
+    pub offset: u32,
+    pub locations: Vec<u32>,
+    pub trace_name: std::sync::Arc<str>,
     pub instance: bool,
     pub accessor: Option<(String, bool)>,
     pub namespace: Option<usize>,
@@ -325,6 +328,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub source: crate::source::Source,
     pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
     pub type_guards: Vec<Vec<String>>,
     pub types: Vec<crate::types::Type>,
@@ -359,6 +363,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         declarations.push(crate::enums::compile(name, members)?);
     }
     let mut program = Program {
+        source: crate::source::Source::new(source),
         namespaces: Vec::new(),
         type_guards: Vec::new(),
         types: Vec::new(),
@@ -382,6 +387,8 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             program: &mut program,
             locals: HashMap::new(),
             code: Vec::new(),
+            locations: Vec::new(),
+            offset: def.offset,
             parameters: HashSet::new(),
             loop_bindings: Vec::new(),
             outer: Vec::new(),
@@ -432,9 +439,13 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         }
         c.declare(&def.body);
         c.block(&def.body)?;
-        c.code.push(Op::Finish);
+        c.emit(Op::Finish);
         let return_type = def.return_type.as_ref().map(|ty| c.annotation(ty));
+        debug_assert_eq!(c.code.len(), c.locations.len());
         let function = Function {
+            offset: def.offset,
+            locations: c.locations,
+            trace_name: def.name.rsplit(['.', '#']).next().unwrap().into(),
             instance: contexts[index].2,
             accessor: def.accessor,
             namespace: contexts[index].0,
@@ -474,6 +485,8 @@ struct Compiler<'a> {
     program: &'a mut Program,
     locals: HashMap<String, usize>,
     code: Vec<Op>,
+    locations: Vec<u32>,
+    offset: u32,
     parameters: HashSet<String>,
     loop_bindings: Vec<Vec<usize>>,
     outer: Vec<HashMap<String, usize>>,
@@ -492,28 +505,28 @@ impl Compiler<'_> {
     }
     fn declare(&mut self, body: &[Stmt]) {
         for stmt in body {
-            match stmt {
-                Stmt::Module(_) | Stmt::UnboundClass(_) => (),
-                Stmt::Expr(e) => self.declare_expr(e),
-                Stmt::Assign(target, _, value) => {
+            match &stmt.node {
+                Statement::Module(_) | Statement::UnboundClass(_) => (),
+                Statement::Expr(e) => self.declare_expr(e),
+                Statement::Assign(target, _, value) => {
                     self.declare_target(target);
                     self.declare_expr(value);
                 }
-                Stmt::If(cond, yes, no) => {
+                Statement::If(cond, yes, no) => {
                     self.declare_expr(cond);
                     self.declare(yes);
                     self.declare(no);
                 }
-                Stmt::While(cond, body) => {
+                Statement::While(cond, body) => {
                     self.declare_expr(cond);
                     self.declare(body);
                 }
-                Stmt::For(target, iterable, body) => {
+                Statement::For(target, iterable, body) => {
                     self.declare_target(target);
                     self.declare_expr(iterable);
                     self.declare(body);
                 }
-                Stmt::Return(e) | Stmt::Break(e) | Stmt::Next(e) => {
+                Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
                     if let Some(e) = e {
                         self.declare_expr(e);
                     }
@@ -636,6 +649,7 @@ impl Compiler<'_> {
     fn emit(&mut self, op: Op) -> usize {
         let pos = self.code.len();
         self.code.push(op);
+        self.locations.push(self.offset);
         pos
     }
     fn patch(&mut self, pos: usize, target: usize) {
@@ -678,7 +692,13 @@ impl Compiler<'_> {
         Ok(())
     }
     fn stmt(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
-        if let Stmt::Assign(target, _, _) = stmt {
+        let previous = std::mem::replace(&mut self.offset, stmt.offset);
+        let result = self.statement_at(stmt, expression);
+        self.offset = previous;
+        result
+    }
+    fn statement_at(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
+        if let Statement::Assign(target, _, _) = &stmt.node {
             let mut names = Vec::new();
             target_names(target, &mut names);
             for name in names {
@@ -691,7 +711,12 @@ impl Compiler<'_> {
             }
         }
         self.statement(stmt, expression)?;
-        if !expression && matches!(stmt, Stmt::If(..) | Stmt::While(..) | Stmt::For(..)) {
+        if !expression
+            && matches!(
+                stmt.node,
+                Statement::If(..) | Statement::While(..) | Statement::For(..)
+            )
+        {
             for slot in self.statement_bindings(std::slice::from_ref(stmt)) {
                 self.emit(Op::Declare(slot));
             }
@@ -752,12 +777,12 @@ impl Compiler<'_> {
         Ok(())
     }
     fn statement(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
-        match stmt {
-            Stmt::UnboundClass(name) => {
+        match &stmt.node {
+            Statement::UnboundClass(name) => {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::UnboundClass(name));
             }
-            Stmt::Module(name) => {
+            Statement::Module(name) => {
                 let prefix = format!("{name}::");
                 let modules: Vec<_> = self
                     .program
@@ -773,8 +798,8 @@ impl Compiler<'_> {
                 }
                 self.emit(Op::Nil);
             }
-            Stmt::Expr(e) => self.expr(e)?,
-            Stmt::Assign(target, op, rhs) => {
+            Statement::Expr(e) => self.expr(e)?,
+            Statement::Assign(target, op, rhs) => {
                 let binding_target = target;
                 let binary = match *op {
                     "+=" => Some("+"),
@@ -839,7 +864,8 @@ impl Compiler<'_> {
                         if binary.is_none() {
                             if let Node::Binary("+", left, right) = &rhs.node {
                                 self.assignment_rhs(binding_target, &[left, right])?;
-                                self.emit(Op::AddStore(slot));
+                                let instruction = self.emit(Op::AddStore(slot));
+                                self.locations[instruction] = rhs.offset;
                                 return Ok(());
                             }
                         }
@@ -887,7 +913,7 @@ impl Compiler<'_> {
                     _ => return Err(syntax::unsupported("invalid assignment target")),
                 }
             }
-            Stmt::If(cond, yes, no) => {
+            Statement::If(cond, yes, no) => {
                 self.expr(cond)?;
                 let branch = self.emit(Op::JumpFalse(0));
                 self.block(yes)?;
@@ -896,7 +922,7 @@ impl Compiler<'_> {
                 self.block(no)?;
                 self.patch(done, self.code.len());
             }
-            Stmt::While(cond, body) => {
+            Statement::While(cond, body) => {
                 let mark = self.emit(Op::LoopStart {
                     iterable: false,
                     expression,
@@ -916,7 +942,7 @@ impl Compiler<'_> {
                     end,
                 };
             }
-            Stmt::For(target, iterable, body) => {
+            Statement::For(target, iterable, body) => {
                 self.expr(iterable)?;
                 let mut names = Vec::new();
                 target_names(target, &mut names);
@@ -944,7 +970,7 @@ impl Compiler<'_> {
                     end,
                 };
             }
-            Stmt::Return(value) => {
+            Statement::Return(value) => {
                 if let Some(e) = value {
                     self.expr(e)?;
                 } else {
@@ -952,19 +978,20 @@ impl Compiler<'_> {
                 }
                 self.emit(Op::Return);
             }
-            Stmt::Break(value) => {
+            Statement::Break(value) => {
                 if let Some(value) = value {
                     self.expr(value)?;
                 }
                 self.emit(Op::Break(value.is_some()));
             }
-            Stmt::Next(value) => {
+            Statement::Next(value) => {
                 if let Some(value) = value {
                     self.expr(value)?;
                 }
                 if let Some(bindings) = self.loop_bindings.last() {
                     for &slot in bindings {
                         self.code.push(Op::Declare(slot));
+                        self.locations.push(self.offset);
                     }
                 }
                 self.emit(Op::Next(value.is_some()));
@@ -973,6 +1000,13 @@ impl Compiler<'_> {
         Ok(())
     }
     fn assign_value(&mut self, target: &Target) -> Result<()> {
+        let offset = target.offset().unwrap_or(self.offset);
+        let previous = std::mem::replace(&mut self.offset, offset);
+        let result = self.assign_value_at(target);
+        self.offset = previous;
+        result
+    }
+    fn assign_value_at(&mut self, target: &Target) -> Result<()> {
         match target {
             Target::Typed(target, ty) => {
                 let ty = self.annotation(ty);
@@ -1029,6 +1063,12 @@ impl Compiler<'_> {
         Ok(())
     }
     fn expr(&mut self, e: &Expr) -> Result<()> {
+        let previous = std::mem::replace(&mut self.offset, e.offset);
+        let result = self.expression(e);
+        self.offset = previous;
+        result
+    }
+    fn expression(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
             Node::Regex(pattern, flags) => {
                 let index = self.program.constants.len();
@@ -1122,7 +1162,8 @@ impl Compiler<'_> {
                 self.emit(Op::TextStart);
                 for part in parts {
                     self.expr(part)?;
-                    self.emit(Op::TextPart);
+                    let instruction = self.emit(Op::TextPart);
+                    self.locations[instruction] = part.offset;
                 }
                 self.emit(Op::TextEnd(*symbol));
             }
@@ -1504,6 +1545,8 @@ impl Compiler<'_> {
             program: self.program,
             locals: HashMap::new(),
             code: Vec::new(),
+            locations: Vec::new(),
+            offset: self.offset,
             parameters: HashSet::new(),
             loop_bindings: Vec::new(),
             outer,
@@ -1544,6 +1587,7 @@ impl Compiler<'_> {
         }
         child.block(&block.body)?;
         child.emit(Op::Finish);
+        debug_assert_eq!(child.code.len(), child.locations.len());
         let mut captures = vec![None; child.locals.len()];
         for (name, &slot) in &child.locals {
             captures[slot] =
@@ -1552,6 +1596,9 @@ impl Compiler<'_> {
                 });
         }
         let function = Function {
+            offset: self.offset,
+            locations: child.locations,
+            trace_name: "<block>".into(),
             instance: self.instance,
             namespace: self.namespace,
             name: "<block>".into(),
@@ -1586,6 +1633,12 @@ impl Compiler<'_> {
         Ok(())
     }
     fn address_target(&mut self, target: &Expr, read: bool) -> Result<()> {
+        let previous = std::mem::replace(&mut self.offset, target.offset);
+        let result = self.address_target_at(target, read);
+        self.offset = previous;
+        result
+    }
+    fn address_target_at(&mut self, target: &Expr, read: bool) -> Result<()> {
         match &target.node {
             Node::Index(receiver, indices) => {
                 self.assignment_address(receiver)?;
@@ -1621,6 +1674,12 @@ impl Compiler<'_> {
         }
     }
     fn address(&mut self, receiver: &Expr) -> Result<()> {
+        let previous = std::mem::replace(&mut self.offset, receiver.offset);
+        let result = self.address_at(receiver);
+        self.offset = previous;
+        result
+    }
+    fn address_at(&mut self, receiver: &Expr) -> Result<()> {
         match &receiver.node {
             Node::Var(name) if name.starts_with('@') => {
                 let name = self.call_site(name, false).name;
@@ -1786,28 +1845,28 @@ fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
 
 fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
     for stmt in body {
-        match stmt {
-            Stmt::Module(_) | Stmt::UnboundClass(_) => (),
-            Stmt::Expr(expr) => call_names(expr, names),
-            Stmt::Assign(target, _, value) => {
+        match &stmt.node {
+            Statement::Module(_) | Statement::UnboundClass(_) => (),
+            Statement::Expr(expr) => call_names(expr, names),
+            Statement::Assign(target, _, value) => {
                 target_call_names(target, names);
                 call_names(value, names);
             }
-            Stmt::If(condition, yes, no) => {
+            Statement::If(condition, yes, no) => {
                 call_names(condition, names);
                 block_call_names(yes, names);
                 block_call_names(no, names);
             }
-            Stmt::While(condition, body) => {
+            Statement::While(condition, body) => {
                 call_names(condition, names);
                 block_call_names(body, names);
             }
-            Stmt::For(target, source, body) => {
+            Statement::For(target, source, body) => {
                 target_call_names(target, names);
                 call_names(source, names);
                 block_call_names(body, names);
             }
-            Stmt::Return(value) | Stmt::Break(value) | Stmt::Next(value) => {
+            Statement::Return(value) | Statement::Break(value) | Statement::Next(value) => {
                 if let Some(value) = value {
                     call_names(value, names);
                 }
@@ -1836,14 +1895,14 @@ fn target_names<'a>(target: &'a Target, names: &mut Vec<&'a str>) {
 
 fn statement_names<'a>(body: &'a [Stmt], names: &mut Vec<&'a str>) {
     for stmt in body {
-        match stmt {
-            Stmt::Assign(target, _, _) => target_names(target, names),
-            Stmt::If(_, yes, no) => {
+        match &stmt.node {
+            Statement::Assign(target, _, _) => target_names(target, names),
+            Statement::If(_, yes, no) => {
                 statement_names(yes, names);
                 statement_names(no, names);
             }
-            Stmt::While(_, body) => statement_names(body, names),
-            Stmt::For(target, _, body) => {
+            Statement::While(_, body) => statement_names(body, names),
+            Statement::For(target, _, body) => {
                 target_names(target, names);
                 statement_names(body, names);
             }

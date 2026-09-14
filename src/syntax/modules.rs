@@ -12,6 +12,7 @@ pub(crate) enum Visibility {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Module {
+    pub offset: u32,
     pub is_class: bool,
     pub instance_methods: Vec<(Definition, Visibility)>,
     pub name: String,
@@ -28,14 +29,15 @@ impl Parser<'_> {
             && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
     }
 
-    pub(super) fn definition(&mut self, name: String) -> Result<Definition> {
-        self.definition_with_constants(name, false)
+    pub(super) fn definition(&mut self, name: String, offset: u32) -> Result<Definition> {
+        self.definition_with_constants(name, false, offset)
     }
 
     pub(super) fn definition_with_constants(
         &mut self,
         name: String,
         module: bool,
+        offset: u32,
     ) -> Result<Definition> {
         let outer_locals = std::mem::take(&mut self.locals);
         if module {
@@ -62,6 +64,7 @@ impl Parser<'_> {
         self.locals = outer_locals;
         self.declared_it = outer_it;
         Ok(Definition {
+            offset,
             accessor: None,
             name,
             params,
@@ -72,6 +75,7 @@ impl Parser<'_> {
 
     pub(super) fn module(&mut self) -> Result<Module> {
         self.enter()?;
+        let offset = self.tokens[self.pos].offset as u32;
         self.expect_word("module")?;
         let name = self.name()?;
         if !name.as_bytes().first().is_some_and(u8::is_ascii_uppercase) {
@@ -80,6 +84,7 @@ impl Parser<'_> {
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut module = Module {
+            offset,
             is_class: false,
             instance_methods: Vec::new(),
             name,
@@ -136,6 +141,7 @@ impl Parser<'_> {
             if self.module_ahead() {
                 module.modules.push(self.module()?);
             } else if self.word("def") {
+                let offset = self.previous().offset as u32;
                 self.expect_word("self")?;
                 self.expect_p('.')?;
                 let mut name = self.name()?;
@@ -146,7 +152,7 @@ impl Parser<'_> {
                     self.bump();
                     name.push('=');
                 }
-                let definition = self.definition_with_constants(name, true)?;
+                let definition = self.definition_with_constants(name, true, offset)?;
                 module.methods.push((definition, method_visibility));
             } else if matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "class" | "enum" | "property" | "getter" | "setter" | "alias" | "include" | "extend"))
             {

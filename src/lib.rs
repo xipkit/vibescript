@@ -44,6 +44,7 @@ mod sequence;
 mod sets;
 mod shapes;
 mod sort;
+mod source;
 mod syntax;
 mod text;
 mod time;
@@ -52,7 +53,7 @@ mod value;
 mod vm;
 
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
-pub use error::{Error, ErrorKind, Result};
+pub use error::{Diagnostic, Error, ErrorKind, Position, Result, StackFrame};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
 
@@ -118,7 +119,8 @@ impl Engine {
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
         let names = self.hosts.keys().cloned().collect();
-        let program = bytecode::compile(source, names)?;
+        let program =
+            bytecode::compile(source, names).map_err(|error| source::parse_error(source, error))?;
         let hosts = program
             .hosts
             .iter()

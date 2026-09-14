@@ -10,6 +10,7 @@ impl Parser<'_> {
             return Ok(None);
         }
         let start = self.pos;
+        let offset = self.tokens[start].offset as u32;
         let structural = self.type_structural_error;
         let candidate = self.type_expr(1, false);
         let end = self.pos;
@@ -30,7 +31,11 @@ impl Parser<'_> {
         let fallback = if end == start + 1 {
             if let Token::Word(name) = &self.tokens[start].token {
                 names.push(name.clone());
-                Some(Box::new(self.make(Node::Var(name.clone()), 1)?))
+                Some(Box::new(self.make_at(
+                    Node::Var(name.clone()),
+                    1,
+                    offset,
+                )?))
             } else {
                 None
             }
@@ -38,9 +43,11 @@ impl Parser<'_> {
             None
         };
         self.pos = end;
-        Ok(Some(
-            self.make(Node::Shape(Box::new(ty), fallback, names), 1)?,
-        ))
+        Ok(Some(self.make_at(
+            Node::Shape(Box::new(ty), fallback, names),
+            1,
+            offset,
+        )?))
     }
 
     pub(super) fn hash_expr(&mut self) -> Result<Expr> {

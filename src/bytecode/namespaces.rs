@@ -75,6 +75,7 @@ impl Program {
         } else {
             let function = functions.len();
             functions.push(syntax::Definition {
+                offset: module.offset,
                 accessor: None,
                 name: format!("{name}::<body>"),
                 params: Vec::new(),
@@ -90,6 +91,7 @@ impl Program {
             } else {
                 let function = functions.len();
                 functions.push(syntax::Definition {
+                    offset: module.offset,
                     accessor: None,
                     name: format!("{name}#<initialize>"),
                     params: Vec::new(),

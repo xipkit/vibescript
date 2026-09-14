@@ -1,5 +1,5 @@
 use super::{
-    Definition, Expr, Node, ParamKind, Parameter, Parser, Stmt, Token, keyword,
+    Definition, Expr, Node, ParamKind, Parameter, Parser, Statement, Token, keyword,
     modules::{Module, Visibility},
 };
 use crate::Result;
@@ -8,6 +8,7 @@ use std::collections::HashSet;
 impl Parser<'_> {
     pub(super) fn class(&mut self) -> Result<Module> {
         self.enter()?;
+        let offset = self.previous().offset as u32;
         let name = self.name()?;
         if keyword(&name) || name.starts_with('@') {
             return self.err("expected class name");
@@ -18,6 +19,7 @@ impl Parser<'_> {
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut class = Module {
+            offset,
             is_class: true,
             instance_methods: Vec::new(),
             name,
@@ -73,12 +75,13 @@ impl Parser<'_> {
                 method_visibility = level;
             }
             if self.word("def") {
+                let offset = self.previous().offset as u32;
                 let class_method = self.word("self");
                 if class_method {
                     self.expect_p('.')?;
                 }
                 let name = self.class_method_name(class_method)?;
-                let definition = self.definition_with_constants(name.clone(), true)?;
+                let definition = self.definition_with_constants(name.clone(), true, offset)?;
                 if name == "initialize" {
                     method_visibility = Visibility::Private;
                 }
@@ -238,6 +241,7 @@ impl Parser<'_> {
         visibility: Visibility,
     ) -> Result<()> {
         loop {
+            let offset = self.tokens[self.pos].offset as u32;
             let name = self.name()?;
             if keyword(&name) || name.starts_with('@') {
                 return self.err("expected property name");
@@ -250,13 +254,18 @@ impl Parser<'_> {
             if kind != "setter" {
                 class.instance_methods.push((
                     Definition {
+                        offset,
                         accessor: Some((name.clone(), false)),
                         name: name.clone(),
                         params: Vec::new(),
-                        body: vec![Stmt::Return(Some(Expr {
-                            node: Node::Var(format!("@{name}")),
-                            depth: 1,
-                        }))],
+                        body: vec![
+                            Statement::Return(Some(Expr {
+                                offset,
+                                node: Node::Var(format!("@{name}")),
+                                depth: 1,
+                            }))
+                            .at(offset),
+                        ],
                         return_type: ty.clone(),
                     },
                     visibility,
@@ -265,6 +274,7 @@ impl Parser<'_> {
             if kind != "getter" {
                 class.instance_methods.push((
                     Definition {
+                        offset,
                         accessor: Some((name.clone(), true)),
                         name: format!("{name}="),
                         params: vec![Parameter {
@@ -274,10 +284,14 @@ impl Parser<'_> {
                             default: None,
                             ty,
                         }],
-                        body: vec![Stmt::Return(Some(Expr {
-                            node: Node::Var(format!("@{name}")),
-                            depth: 1,
-                        }))],
+                        body: vec![
+                            Statement::Return(Some(Expr {
+                                offset,
+                                node: Node::Var(format!("@{name}")),
+                                depth: 1,
+                            }))
+                            .at(offset),
+                        ],
                         return_type: None,
                     },
                     visibility,
