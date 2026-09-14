@@ -7,7 +7,7 @@ impl Program {
         module: Module,
         qualifier: &str,
         functions: &mut Vec<syntax::Definition>,
-        contexts: &mut Vec<(Option<usize>, bool)>,
+        contexts: &mut Vec<(Option<usize>, bool, bool)>,
     ) -> Result<usize> {
         let name = if qualifier.is_empty() {
             module.name
@@ -40,7 +40,7 @@ impl Program {
             method.name = format!("{name}.{}", method.name);
             let function = functions.len();
             functions.push(method);
-            contexts.push((Some(index), false));
+            contexts.push((Some(index), false, false));
             if let Some(previous) = methods.iter_mut().find(|m| m.name == short) {
                 previous.function = function;
                 previous.visibility = visibility;
@@ -52,20 +52,65 @@ impl Program {
                 });
             }
         }
+        let mut instance_methods = Vec::<namespace::Method>::new();
+        for (mut method, visibility) in module.instance_methods {
+            let short = method.name.clone();
+            method.name = format!("{name}#{}", method.name);
+            let function = functions.len();
+            functions.push(method);
+            contexts.push((Some(index), false, true));
+            if let Some(previous) = instance_methods.iter_mut().find(|m| m.name == short) {
+                previous.function = function;
+                previous.visibility = visibility;
+            } else {
+                instance_methods.push(namespace::Method {
+                    name: short,
+                    function,
+                    visibility,
+                });
+            }
+        }
         let body = if module.body.is_empty() {
             None
         } else {
             let function = functions.len();
             functions.push(syntax::Definition {
+                accessor: None,
                 name: format!("{name}::<body>"),
                 params: Vec::new(),
                 body: module.body,
                 return_type: None,
             });
-            contexts.push((Some(index), true));
+            contexts.push((Some(index), true, false));
             Some(function)
         };
-        let definition = namespace::Definition::new(index, name.clone(), methods, nested, body);
+        let constructor = if module.is_class {
+            if let Some(method) = instance_methods.iter().find(|m| m.name == "initialize") {
+                Some((method.function, true))
+            } else {
+                let function = functions.len();
+                functions.push(syntax::Definition {
+                    accessor: None,
+                    name: format!("{name}#<initialize>"),
+                    params: Vec::new(),
+                    body: Vec::new(),
+                    return_type: None,
+                });
+                contexts.push((Some(index), false, true));
+                Some((function, false))
+            }
+        } else {
+            None
+        };
+        let definition = namespace::Definition::new(
+            index,
+            name.clone(),
+            methods,
+            instance_methods,
+            constructor,
+            nested,
+            body,
+        );
         self.namespaces.push(definition.clone());
         self.declaration_names.insert(name, self.declarations.len());
         self.declarations
@@ -79,7 +124,11 @@ impl Program {
 impl Compiler<'_> {
     pub(super) fn assignment_address(&mut self, receiver: &syntax::Expr) -> Result<()> {
         match &receiver.node {
-            syntax::Node::Var(name) if self.namespace.is_some() && self.namespace_binding(name) => {
+            syntax::Node::Var(name)
+                if self.namespace.is_some()
+                    && (!self.instance || name.starts_with('@'))
+                    && self.namespace_binding(name) =>
+            {
                 let optional = name.starts_with('@');
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceAddress(name, optional));
@@ -115,7 +164,10 @@ impl Compiler<'_> {
         {
             return false;
         }
-        if self.namespace.is_some() && name.chars().next().is_some_and(syntax::unicode::upper) {
+        if self.namespace.is_some()
+            && !self.instance
+            && name.chars().next().is_some_and(syntax::unicode::upper)
+        {
             return true;
         }
         self.program
@@ -125,7 +177,7 @@ impl Compiler<'_> {
     }
 
     pub(super) fn store_namespace_name(&mut self, name: &str) {
-        if name.starts_with('@') || self.namespace.is_some() {
+        if name.starts_with('@') || (self.namespace.is_some() && !self.instance) {
             let name = self.call_site(name, false).name;
             self.emit(Op::NamespaceStore(name));
         } else {
@@ -142,7 +194,7 @@ impl Compiler<'_> {
         rhs: &syntax::Expr,
     ) -> Result<()> {
         if matches!(op, "||=" | "&&=") {
-            if self.namespace.is_some() || name.starts_with('@') {
+            if name.starts_with('@') || (self.namespace.is_some() && !self.instance) {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceVariable(name, true));
             } else {

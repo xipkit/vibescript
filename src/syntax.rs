@@ -1,6 +1,7 @@
 use crate::{Error, Result, Value};
 use std::collections::HashSet;
 
+mod classes;
 mod lexer;
 pub(crate) mod modules;
 mod tokens;
@@ -12,12 +13,12 @@ use tokens::Tokens;
 const MAX_DEPTH: usize = 128;
 const MAX_SOURCE: usize = 8 << 20;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Expr {
     pub node: Node,
     depth: usize,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Node {
     Regex(Vec<u8>, u8),
     Shape(Box<crate::types::Type>, Option<Box<Expr>>, Vec<String>),
@@ -42,7 +43,7 @@ pub(crate) enum Node {
     Method(Box<Expr>, String, Vec<Argument>),
     Index(Box<Expr>, Vec<Expr>),
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Block {
     pub params: Vec<Target>,
     pub body: Vec<Stmt>,
@@ -56,31 +57,32 @@ pub(crate) enum ParamKind {
     Rest,
     KeywordRest,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Parameter {
+    pub ivar: Option<String>,
     pub name: String,
     pub kind: ParamKind,
     pub default: Option<Expr>,
     pub ty: Option<crate::types::Type>,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum ArgumentKind {
     Positional,
     Splat,
     Keyword(String),
     KeywordSplat,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Argument {
     pub kind: ArgumentKind,
     pub value: Expr,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct When {
     pub values: Vec<(Expr, bool)>,
     pub result: Expr,
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Target {
     Value(Expr),
     Tuple(Vec<(Option<Target>, bool)>),
@@ -111,9 +113,10 @@ impl Target {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Stmt {
     Module(String),
+    UnboundClass(String),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
     If(Expr, Vec<Stmt>, Vec<Stmt>),
@@ -127,7 +130,7 @@ impl Stmt {
     fn depth(&self) -> usize {
         let body = |s: &[Stmt]| s.iter().map(Self::depth).max().unwrap_or(0);
         1 + match self {
-            Self::Module(_) => 0,
+            Self::Module(_) | Self::UnboundClass(_) => 0,
             Self::Expr(e) => e.depth,
             Self::Assign(t, _, e) => t.depth().max(e.depth),
             Self::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
@@ -137,8 +140,9 @@ impl Stmt {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Definition {
+    pub accessor: Option<(String, bool)>,
     pub name: String,
     pub params: Vec<Parameter>,
     pub body: Vec<Stmt>,
@@ -174,7 +178,11 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     let mut top = Vec::new();
     p.lines();
     while !matches!(p.token(), Token::Eof) {
-        if p.module_ahead() {
+        if p.word("class") {
+            let class = p.class()?;
+            top.push(Stmt::Module(class.name.clone()));
+            modules.push(class);
+        } else if p.module_ahead() {
             let module = p.module()?;
             top.push(Stmt::Module(module.name.clone()));
             modules.push(module);
@@ -220,6 +228,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     defs.insert(
         0,
         Definition {
+            accessor: None,
             name: "__main__".into(),
             params: Vec::new(),
             body: top,
@@ -391,6 +400,7 @@ impl Parser<'_> {
             self.locals.insert(name.clone());
             self.declared_it |= name == "it";
             params.push(Parameter {
+                ivar: instance.then(|| name.clone()),
                 name,
                 kind,
                 default,
@@ -558,6 +568,10 @@ impl Parser<'_> {
         })
     }
     fn plain_statement(&mut self) -> Result<Stmt> {
+        if self.word("class") {
+            let class = self.class()?;
+            return Ok(Stmt::UnboundClass(class.name));
+        }
         if self.module_ahead() {
             return self.err(
                 "module declarations are only supported at the top level and in module bodies",

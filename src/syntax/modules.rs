@@ -10,8 +10,10 @@ pub(crate) enum Visibility {
     Protected,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct Module {
+    pub is_class: bool,
+    pub instance_methods: Vec<(Definition, Visibility)>,
     pub name: String,
     pub methods: Vec<(Definition, Visibility)>,
     pub body: Vec<Stmt>,
@@ -30,7 +32,11 @@ impl Parser<'_> {
         self.definition_with_constants(name, false)
     }
 
-    fn definition_with_constants(&mut self, name: String, module: bool) -> Result<Definition> {
+    pub(super) fn definition_with_constants(
+        &mut self,
+        name: String,
+        module: bool,
+    ) -> Result<Definition> {
         let outer_locals = std::mem::take(&mut self.locals);
         if module {
             self.locals.extend(
@@ -56,6 +62,7 @@ impl Parser<'_> {
         self.locals = outer_locals;
         self.declared_it = outer_it;
         Ok(Definition {
+            accessor: None,
             name,
             params,
             body,
@@ -73,6 +80,8 @@ impl Parser<'_> {
         let outer_locals = std::mem::take(&mut self.locals);
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let mut module = Module {
+            is_class: false,
+            instance_methods: Vec::new(),
             name,
             methods: Vec::new(),
             body: Vec::new(),
@@ -115,7 +124,9 @@ impl Parser<'_> {
                     self.lines();
                     continue;
                 }
-                if self.token() == &Token::EndLine {
+                if self.token() == &Token::EndLine
+                    || matches!(self.token(), Token::Word(w) if w == "end")
+                {
                     visibility = level;
                     self.lines();
                     continue;
@@ -152,7 +163,7 @@ impl Parser<'_> {
         Ok(module)
     }
 
-    fn visibility(&self) -> Option<(String, Visibility)> {
+    pub(super) fn visibility(&self) -> Option<(String, Visibility)> {
         let Token::Word(word) = self.token() else {
             return None;
         };
@@ -165,9 +176,13 @@ impl Parser<'_> {
             "protected" => Visibility::Protected,
             _ => return None,
         };
-        let next = &self.tokens[self.pos + 1].token;
-        (matches!(next, Token::EndLine | Token::P(':'))
-            || matches!(next, Token::Word(w) if w == "def"))
-        .then(|| (word.clone(), level))
+        let next = &self.tokens[self.pos + 1];
+        let section = (word == "private" || !self.locals.contains(word))
+            && (matches!(next.token, Token::EndLine | Token::Eof)
+                || matches!(&next.token, Token::Word(w) if w == "end"));
+        let inline = next.line == self.tokens[self.pos].line
+            && (next.token == Token::P(':')
+                || matches!(&next.token, Token::Word(w) if matches!(w.as_str(), "def" | "property" | "getter" | "setter")));
+        (section || inline).then(|| (word.clone(), level))
     }
 }

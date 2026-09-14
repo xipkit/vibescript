@@ -97,6 +97,7 @@ impl Bytes {
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
+    Instance(Arc<crate::objects::Instance>),
     Namespace(Arc<crate::namespace::Namespace>),
     Offset(Arc<crate::regex::matches::Offset>),
     Regex(Arc<crate::regex::value::Regex>),
@@ -353,6 +354,7 @@ impl Value {
         match self.0 {
             Kind::Regex(_) => "regex",
             Kind::Namespace(_) => "class",
+            Kind::Instance(_) => "instance",
             Kind::Shape(_) => "shape",
             Kind::Nil => "nil",
             Kind::Builtin(_) | Kind::Offset(_) => "builtin",
@@ -547,6 +549,8 @@ impl CallContext {
             return self.fail(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Instance(instance) => crate::objects::import(self, instance)
+                .map(|instance| Value(Kind::Instance(instance))),
             Kind::Namespace(namespace) => Ok(Value(Kind::Namespace(
                 crate::namespace::Namespace::import(self, namespace)?,
             ))),
@@ -638,6 +642,9 @@ impl fmt::Display for Value {
                 let mut ctx = crate::integer::unlimited_context();
                 let text = crate::time::text(&mut ctx, self, None).map_err(|_| fmt::Error)?;
                 f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
+            }
+            Kind::Instance(instance) => {
+                write!(f, "<{} instance>", instance.class().definition.name)
             }
             Kind::Namespace(namespace) => write!(f, "<Class {}>", namespace.definition.name),
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),

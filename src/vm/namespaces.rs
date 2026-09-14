@@ -8,12 +8,13 @@ use std::sync::Arc;
 pub(super) struct Access {
     pub caller: Option<usize>,
     pub implicit: bool,
+    pub instance: bool,
 }
 
 pub(super) enum Member {
     Value(Value),
-    Function(usize),
-    Helper(usize, crate::namespace::Helper),
+    Function(crate::namespace::Call),
+    Helper(Value, crate::namespace::Helper),
     Missing,
 }
 
@@ -41,14 +42,16 @@ pub(super) fn implicit(
     ctx: &mut CallContext,
     storage: &mut Storage,
     module: Option<usize>,
+    receiver: Option<&Value>,
     name: &str,
 ) -> Result<Member> {
     let Some(module) = module else {
         return Ok(Member::Missing);
     };
-    let value = value(program, ctx, storage, module)?;
-    let Kind::Namespace(namespace) = value.0 else {
-        unreachable!()
+    let value = if let Some(receiver) = receiver {
+        receiver.clone()
+    } else {
+        value(program, ctx, storage, module)?
     };
     let site = crate::bytecode::CallSite {
         name: 0,
@@ -60,12 +63,13 @@ pub(super) fn implicit(
         program,
         ctx,
         storage,
-        &namespace,
+        &value,
         site,
         name,
         Access {
             caller: Some(module),
             implicit: true,
+            instance: matches!(value.0, Kind::Instance(_)),
         },
     )
 }
@@ -226,12 +230,16 @@ pub(super) fn member(
     program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
-    namespace: &Arc<Namespace>,
+    receiver: &Value,
     site: crate::bytecode::CallSite,
     name: &str,
     access: Access,
 ) -> Result<Member> {
-    let Access { caller, implicit } = access;
+    let (namespace, instance) = match &receiver.0 {
+        Kind::Namespace(namespace) => (namespace, None),
+        Kind::Instance(instance) => (instance.class(), Some(instance)),
+        _ => unreachable!(),
+    };
     let definition = &namespace.definition;
     if !program
         .namespaces
@@ -240,22 +248,48 @@ pub(super) fn member(
     {
         return Err(Error::new(
             ErrorKind::Type,
-            "module belongs to a different compiled script",
+            "class belongs to a different compiled script",
         ));
     }
     if site.scope {
+        if instance.is_some() {
+            return Err(Error::new(
+                ErrorKind::Type,
+                "scoped member access requires a namespace",
+            ));
+        }
         return field(program, ctx, storage, definition.index, name)?
             .map(Member::Value)
             .ok_or_else(|| Error::new(ErrorKind::Name, "unknown class constant"));
     }
-    for method in &definition.methods {
+    if instance.is_some() && name == "class" {
+        return Ok(Member::Value(Value(Kind::Namespace(namespace.clone()))));
+    }
+    if instance.is_none() && name == "new" {
+        if let Some((function, accepts_arguments)) = definition.constructor {
+            return Ok(Member::Function(crate::namespace::Call {
+                function,
+                receiver: Some(receiver.clone()),
+                constructor: true,
+                ignore_arguments: !accepts_arguments,
+            }));
+        }
+    }
+    let methods = if instance.is_some() {
+        &definition.instance_methods
+    } else {
+        &definition.methods
+    };
+    for method in methods {
         ctx.charge(1)?;
         ctx.work_bytes(name.len().max(method.name.len()))?;
         if method.name == name {
             let allowed = match method.visibility {
                 Visibility::Public => true,
-                Visibility::Private => implicit,
-                Visibility::Protected => caller == Some(definition.index),
+                Visibility::Private => access.implicit,
+                Visibility::Protected => {
+                    access.caller == Some(definition.index) && access.instance == instance.is_some()
+                }
             };
             if !allowed {
                 return Err(Error::new(
@@ -263,24 +297,32 @@ pub(super) fn member(
                     "method is not accessible with this receiver",
                 ));
             }
-            return Ok(Member::Function(method.function));
+            return Ok(Member::Function(crate::namespace::Call {
+                receiver: Some(receiver.clone()),
+                ..method.function.into()
+            }));
         }
     }
     let helper = match name {
         "eql?" | "equal?" => Some(crate::namespace::Helper::Equality),
         "is_a?" | "kind_of?" | "instance_of?" => Some(crate::namespace::Helper::Class),
-        "respond_to?" => Some(crate::namespace::Helper::Respond(implicit)),
+        "respond_to?" => Some(crate::namespace::Helper::Respond(access.implicit)),
         _ => None,
     };
     if let Some(helper) = helper {
-        return Ok(Member::Helper(definition.index, helper));
+        return Ok(Member::Helper(receiver.clone(), helper));
     }
     if !matches!(name, "nil?" | "itself" | "dup") {
-        if let Some(value) = field(program, ctx, storage, definition.index, name)? {
+        let value = if let Some(instance) = instance {
+            crate::objects::field(ctx, instance, name)?
+        } else {
+            field(program, ctx, storage, definition.index, name)?
+        };
+        if let Some(value) = value {
             return Ok(Member::Value(value));
         }
     }
-    if name == "new" {
+    if name == "new" && instance.is_none() {
         return Err(Error::new(
             ErrorKind::Argument,
             "modules cannot be instantiated",
@@ -337,35 +379,55 @@ pub(super) fn ambient_slot(
 pub(super) fn setter(
     program: &Program,
     ctx: &mut CallContext,
-    receiver: &Namespace,
+    receiver: &Value,
     name: &str,
     caller: Option<usize>,
-) -> Result<Option<usize>> {
+    caller_instance: bool,
+) -> Result<Option<crate::namespace::Call>> {
+    let (namespace, instance) = match &receiver.0 {
+        Kind::Namespace(namespace) => (namespace, false),
+        Kind::Instance(instance) => (instance.class(), true),
+        _ => unreachable!(),
+    };
     if !program
         .namespaces
-        .get(receiver.definition.index)
-        .is_some_and(|current| Arc::ptr_eq(current, &receiver.definition))
+        .get(namespace.definition.index)
+        .is_some_and(|current| Arc::ptr_eq(current, &namespace.definition))
     {
         return Err(Error::new(
             ErrorKind::Type,
-            "module belongs to a different compiled script",
+            "class belongs to a different compiled script",
         ));
     }
-    for method in &receiver.definition.methods {
+    let methods = if instance {
+        &namespace.definition.instance_methods
+    } else {
+        &namespace.definition.methods
+    };
+    for method in methods {
         ctx.charge(1)?;
         ctx.work_bytes(name.len().max(method.name.len()))?;
         if method.name.strip_suffix('=') == Some(name) {
             if method.visibility == Visibility::Private
                 || (method.visibility == Visibility::Protected
-                    && caller != Some(receiver.definition.index))
+                    && (caller != Some(namespace.definition.index) || caller_instance != instance))
             {
                 return Err(Error::new(
                     ErrorKind::Name,
                     "setter is not accessible with this receiver",
                 ));
             }
-            return Ok(Some(method.function));
+            return Ok(Some(crate::namespace::Call {
+                receiver: Some(receiver.clone()),
+                ..method.function.into()
+            }));
         }
+    }
+    if instance && methods.iter().any(|method| method.name == name) {
+        return Err(Error::new(
+            ErrorKind::Argument,
+            "cannot assign to read-only property",
+        ));
     }
     Ok(None)
 }
@@ -374,7 +436,7 @@ pub(super) fn call_helper(
     program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
-    module: usize,
+    receiver: Value,
     helper: crate::namespace::Helper,
     args: &Arguments,
 ) -> Result<Value> {
@@ -392,11 +454,18 @@ pub(super) fn call_helper(
             "invalid module predicate argument count",
         ));
     }
+    let (namespace, instance) = match &receiver.0 {
+        Kind::Namespace(namespace) => (namespace, None),
+        Kind::Instance(instance) => (instance.class(), Some(instance)),
+        _ => unreachable!(),
+    };
     let value = &args.positional.data[0];
     let result = match helper {
-        Helper::Equality => {
-            matches!(&value.0, Kind::Namespace(other) if Arc::ptr_eq(&other.definition, &program.namespaces[module]))
-        }
+        Helper::Equality => match (&receiver.0, &value.0) {
+            (Kind::Instance(a), Kind::Instance(b)) => a.same(b),
+            (Kind::Namespace(a), Kind::Namespace(b)) => Arc::ptr_eq(&a.definition, &b.definition),
+            _ => false,
+        },
         Helper::Class => {
             if !matches!(value.0, Kind::Namespace(_)) {
                 return Err(Error::new(
@@ -404,7 +473,7 @@ pub(super) fn call_helper(
                     "class predicate expects a class argument",
                 ));
             }
-            false
+            matches!(&value.0, Kind::Namespace(other) if instance.is_some() && Arc::ptr_eq(&namespace.definition, &other.definition))
         }
         Helper::Respond(caller) => {
             let include_private = match args.positional.data.get(1) {
@@ -422,7 +491,7 @@ pub(super) fn call_helper(
                 program,
                 ctx,
                 storage,
-                module,
+                &receiver,
                 name,
                 caller || include_private,
             )?
@@ -435,11 +504,27 @@ fn responds(
     program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
-    module: usize,
+    receiver: &Value,
     name: &[u8],
     private: bool,
 ) -> Result<bool> {
-    for method in &program.namespaces[module].methods {
+    let (namespace, instance) = match &receiver.0 {
+        Kind::Namespace(namespace) => (namespace, None),
+        Kind::Instance(instance) => (instance.class(), Some(instance)),
+        _ => unreachable!(),
+    };
+    let module = namespace.definition.index;
+    if (instance.is_some() && name == b"class")
+        || (instance.is_none() && namespace.definition.constructor.is_some() && name == b"new")
+    {
+        return Ok(true);
+    }
+    let methods = if instance.is_some() {
+        &namespace.definition.instance_methods
+    } else {
+        &namespace.definition.methods
+    };
+    for method in methods {
         ctx.charge(1)?;
         ctx.work_bytes(name.len().max(method.name.len()))?;
         if method.name.as_bytes() == name {
@@ -461,6 +546,11 @@ fn responds(
         return Ok(true);
     }
     if matches!(name, b"tap" | b"yield_self") {
+        if let Some(instance) = instance {
+            return Ok(
+                crate::objects::field(ctx, instance, std::str::from_utf8(name).unwrap())?.is_none(),
+            );
+        }
         return Ok(field(
             program,
             ctx,

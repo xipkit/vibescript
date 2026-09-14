@@ -9,6 +9,8 @@ use crate::{
 use std::{cmp::Ordering, mem};
 
 pub(crate) enum Target {
+    Method(crate::namespace::Call),
+    Helper(Value, crate::namespace::Helper),
     Plain(Invocation),
     Offset(std::sync::Arc<crate::regex::matches::Offset>),
 }

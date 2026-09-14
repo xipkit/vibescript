@@ -10801,5 +10801,905 @@
     "name": "module_ivar_parameter_7",
     "source": "module M\n def self.f(*@xs);xs;end\nend\ndef run(input)\nM.f(1,2)\nend",
     "go_error": "parse error at 2:14: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_surface_20",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\na=C.new;[a==a,a!=a,a==C.new,a!=C.new]\nend",
+    "go_error": "parse error at 11:17: expected \"]\", got \"=\""
+  },
+  {
+    "name": "class_accessors_2",
+    "source": "class C\nproperty x\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_6",
+    "source": "class C\nproperty x\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_10",
+    "source": "class C\nproperty x\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_14",
+    "source": "class C\nproperty x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_18",
+    "source": "class C\nproperty x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_22",
+    "source": "class C\nproperty x\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_26",
+    "source": "class C\ngetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_30",
+    "source": "class C\ngetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_34",
+    "source": "class C\ngetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_38",
+    "source": "class C\ngetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_42",
+    "source": "class C\ngetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_46",
+    "source": "class C\ngetter x\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_50",
+    "source": "class C\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_54",
+    "source": "class C\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_58",
+    "source": "class C\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_62",
+    "source": "class C\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_66",
+    "source": "class C\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_70",
+    "source": "class C\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_74",
+    "source": "class C\nproperty x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_78",
+    "source": "class C\nproperty x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_82",
+    "source": "class C\nproperty x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_86",
+    "source": "class C\nproperty x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_90",
+    "source": "class C\nproperty x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_94",
+    "source": "class C\nproperty x: int\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_98",
+    "source": "class C\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_102",
+    "source": "class C\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_106",
+    "source": "class C\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_110",
+    "source": "class C\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_114",
+    "source": "class C\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_118",
+    "source": "class C\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_122",
+    "source": "class C\nsetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_126",
+    "source": "class C\nsetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_130",
+    "source": "class C\nsetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_134",
+    "source": "class C\nsetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_138",
+    "source": "class C\nsetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_142",
+    "source": "class C\nsetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_146",
+    "source": "class C\nproperty x: int?\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_150",
+    "source": "class C\nproperty x: int?\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_154",
+    "source": "class C\nproperty x: int?\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_158",
+    "source": "class C\nproperty x: int?\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_162",
+    "source": "class C\nproperty x: int?\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_166",
+    "source": "class C\nproperty x: int?\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_170",
+    "source": "class C\nproperty x: array<int>\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_174",
+    "source": "class C\nproperty x: array<int>\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_178",
+    "source": "class C\nproperty x: array<int>\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_182",
+    "source": "class C\nproperty x: array<int>\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_186",
+    "source": "class C\nproperty x: array<int>\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_190",
+    "source": "class C\nproperty x: array<int>\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_194",
+    "source": "class C\nproperty x: hash<string,int>\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_198",
+    "source": "class C\nproperty x: hash<string,int>\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_202",
+    "source": "class C\nproperty x: hash<string,int>\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_206",
+    "source": "class C\nproperty x: hash<string,int>\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_210",
+    "source": "class C\nproperty x: hash<string,int>\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_214",
+    "source": "class C\nproperty x: hash<string,int>\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_218",
+    "source": "class C\nproperty x: int, y: string\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_222",
+    "source": "class C\nproperty x: int, y: string\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_226",
+    "source": "class C\nproperty x: int, y: string\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_230",
+    "source": "class C\nproperty x: int, y: string\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_234",
+    "source": "class C\nproperty x: int, y: string\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_238",
+    "source": "class C\nproperty x: int, y: string\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 6:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_242",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_246",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_250",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_254",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_258",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_262",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_266",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_270",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_274",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_278",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_282",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_286",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_290",
+    "source": "class C\nproperty x: int\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_294",
+    "source": "class C\nproperty x: int\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_298",
+    "source": "class C\nproperty x: int\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_302",
+    "source": "class C\nproperty x: int\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_306",
+    "source": "class C\nproperty x: int\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_310",
+    "source": "class C\nproperty x: int\nsetter x\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_314",
+    "source": "class C\nproperty x\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_318",
+    "source": "class C\nproperty x\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_322",
+    "source": "class C\nproperty x\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_326",
+    "source": "class C\nproperty x\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_330",
+    "source": "class C\nproperty x\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_334",
+    "source": "class C\nproperty x\ngetter x: int\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_338",
+    "source": "class C\nproperty x: int\nproperty x: string\n\nend\ndef run(input)\na=C.new; result=(a.x=nil);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_342",
+    "source": "class C\nproperty x: int\nproperty x: string\n\nend\ndef run(input)\na=C.new; result=(a.x=7);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_346",
+    "source": "class C\nproperty x: int\nproperty x: string\n\nend\ndef run(input)\na=C.new; result=(a.x=\"bad\");[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_350",
+    "source": "class C\nproperty x: int\nproperty x: string\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,2]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_354",
+    "source": "class C\nproperty x: int\nproperty x: string\n\nend\ndef run(input)\na=C.new; result=(a.x=[1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_accessors_358",
+    "source": "class C\nproperty x: int\nproperty x: string\n\nend\ndef run(input)\na=C.new; result=(a.x={a:1});[result,a.x]\nend",
+    "go_error": "parse error at 7:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_parameters_56",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_57",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_58",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3);c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_59",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3);c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_60",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_61",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_62",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(x:5);c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_63",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(x:5);c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_64",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_65",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_66",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_67",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_68",
+    "source": "class C\ndef initialize(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:20: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_69",
+    "source": "class C\ndef set(@x: 7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:13: expected type name, got integer"
+  },
+  {
+    "name": "class_parameters_70",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_71",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_72",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3);c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_73",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3);c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_74",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_75",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_76",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(x:5);c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_77",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(x:5);c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_78",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_79",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_80",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_81",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_82",
+    "source": "class C\ndef initialize(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:17: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_83",
+    "source": "class C\ndef set(*@xs);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:10: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_84",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_85",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_86",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3);c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_87",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3);c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_88",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_89",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_90",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(x:5);c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_91",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(x:5);c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_92",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_93",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_94",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_95",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_96",
+    "source": "class C\ndef initialize(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:18: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_97",
+    "source": "class C\ndef set(**@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:11: expected keyword rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_112",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_113",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_114",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3);c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_115",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3);c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_116",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_117",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_118",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(x:5);c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_119",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(x:5);c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_120",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_121",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_122",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_123",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_124",
+    "source": "class C\ndef initialize(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:23: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_parameters_125",
+    "source": "class C\ndef set(@x=1, *@xs, z: 3, **@opts);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "parse error at 2:16: expected rest parameter name, got instance variable"
+  },
+  {
+    "name": "class_responds_136",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(:f=)\nend",
+    "go_error": "parse error at 11:17: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_responds_138",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(:f=,true)\nend",
+    "go_error": "parse error at 11:17: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_responds_139",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(:f=,false)\nend",
+    "go_error": "parse error at 11:17: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_responds_140",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(:f=)\nend",
+    "go_error": "parse error at 11:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_responds_142",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(:f=,true)\nend",
+    "go_error": "parse error at 11:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_responds_143",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(:f=,false)\nend",
+    "go_error": "parse error at 11:21: expected \")\", got \"=\""
+  },
+  {
+    "name": "class_syntax_body_0",
+    "source": "module M\nend\nclass C\ninclude M\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: include is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_body_1",
+    "source": "module M\nend\nclass C\nextend M\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: extend is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_body_2",
+    "source": "module M\nend\nclass C\ninclude(M)\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: include is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_body_3",
+    "source": "module M\nend\nclass C\nextend(self)\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: extend is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_body_4",
+    "source": "module M\nend\nclass C\ninclude\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: include is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_body_5",
+    "source": "module M\nend\nclass C\nextend\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: extend is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_body_10",
+    "source": "module M\nend\nclass C\npublic;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 5:1: unexpected token 'end'"
+  },
+  {
+    "name": "class_syntax_body_11",
+    "source": "module M\nend\nclass C\nprivate :missing\nend\ndef run(input)\n1\nend",
+    "go_error": "private target method missing is not defined on class C"
+  },
+  {
+    "name": "class_syntax_body_12",
+    "source": "module M\nend\nclass C\nprotected :missing\nend\ndef run(input)\n1\nend",
+    "go_error": "protected target method missing is not defined on class C"
+  },
+  {
+    "name": "class_syntax_body_13",
+    "source": "module M\nend\nclass C\nprivate()\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:8: private expects a method definition, symbol method names, or no argument"
+  },
+  {
+    "name": "class_syntax_body_16",
+    "source": "module M\nend\nclass C\nmodule Inner\nend\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:1: module declarations are only supported at the top level and nested in module bodies"
+  },
+  {
+    "name": "class_syntax_body_18",
+    "source": "module M\nend\nclass C\nalias g f\nend\ndef run(input)\n1\nend",
+    "go_error": "alias target method f is not defined on class C"
+  },
+  {
+    "name": "class_syntax_body_19",
+    "source": "module M\nend\nclass C\nalias_method :g,:f\nend\ndef run(input)\n1\nend",
+    "go_error": "alias target method f is not defined on class C"
+  },
+  {
+    "name": "class_syntax_body_20",
+    "source": "module M\nend\nclass C\nproperty\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 5:1: expected property name, got 'end'"
+  },
+  {
+    "name": "class_syntax_body_21",
+    "source": "module M\nend\nclass C\nproperty @x\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:10: expected property name, got instance variable"
+  },
+  {
+    "name": "class_syntax_body_22",
+    "source": "module M\nend\nclass C\nproperty x = 2\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:12: unexpected token \"=\""
+  },
+  {
+    "name": "class_syntax_body_23",
+    "source": "module M\nend\nclass C\ndef self.+(x);x;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:10: expected identifier, got \"+\""
+  },
+  {
+    "name": "class_syntax_body_24",
+    "source": "module M\nend\nclass C\ndef self.[](x);x;end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 4:10: expected identifier, got \"[\""
+  },
+  {
+    "name": "class_syntax_header_0",
+    "source": "class C < D\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:9: class inheritance is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_syntax_header_1",
+    "source": "class << self\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: class << self definitions are not supported; use def self.name"
+  },
+  {
+    "name": "class_syntax_header_2",
+    "source": "class @C\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:7: expected identifier, got instance variable"
+  },
+  {
+    "name": "class_syntax_header_3",
+    "source": "class C::D\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:9: unexpected token \"::\""
+  },
+  {
+    "name": "class_syntax_header_4",
+    "source": "class C\nend\nclass C\nend\ndef run(input)\n1\nend",
+    "go_error": "duplicate class C"
+  },
+  {
+    "name": "class_syntax_header_8",
+    "source": "class C; include end\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:10: include is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "class_initial_3",
+    "source": "class @Thing\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:7: expected identifier, got instance variable"
+  },
+  {
+    "name": "class_initial_11",
+    "source": "class C\n def class; 8; end\nend\ndef run(input)\nC.new.class == C\nend",
+    "go_error": "parse error at 2:6: expected function name, got 'class'"
+  },
+  {
+    "name": "class_initial_28",
+    "source": "class C\n property next\nend\ndef run(input)\na=C.new; a.next=a; [a==a.next,a.equal?(a.next)]\nend",
+    "go_error": "parse error at 2:11: expected property name, got \"next\""
   }
 ]

@@ -264,6 +264,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
         (Kind::Shape(a), Kind::Shape(b)) => {
             json::bytes_equal(ctx, &a.definition.text, &b.definition.text)
         }
+        (Kind::Instance(a), Kind::Instance(b)) => Ok(a.same(b)),
         (Kind::Namespace(a), Kind::Namespace(b)) => {
             Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition))
         }

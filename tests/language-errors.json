@@ -111194,5 +111194,2490 @@
     "name": "module_ivar_parameter_4",
     "source": "module M\n def self.f(@x);@x;end\nend\ndef run(input)\nM.f(3)\nend",
     "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "class_surface_12",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\na=C.new;a.z||=9;a.z\nend",
+    "go_error": "unknown member z (did you mean \"f\" or \"x\"?)"
+  },
+  {
+    "name": "class_surface_13",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\na=C.new;a.z&&=9;a.z\nend",
+    "go_error": "unknown member z (did you mean \"f\" or \"x\"?)"
+  },
+  {
+    "name": "class_surface_15",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.K\nend",
+    "go_error": "unknown member K (did you mean \"f\" or \"x\"?)"
+  },
+  {
+    "name": "class_surface_16",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.n\nend",
+    "go_error": "unknown member n (did you mean \"f\" or \"x\"?)"
+  },
+  {
+    "name": "class_surface_17",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.missing\nend",
+    "go_error": "unknown member missing"
+  },
+  {
+    "name": "class_surface_18",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new[:x]\nend",
+    "go_error": "cannot index instance: C does not define []"
+  },
+  {
+    "name": "class_surface_23",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\ninspect(C.new)\nend",
+    "go_error": "undefined variable inspect"
+  },
+  {
+    "name": "class_surface_24",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.to_s\nend",
+    "go_error": "unknown member to_s"
+  },
+  {
+    "name": "class_surface_25",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nJSON.stringify(C.new)\nend",
+    "go_error": "JSON.stringify unsupported value type instance"
+  },
+  {
+    "name": "class_surface_32",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.class(8)==C\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "class_visibility_44",
+    "source": "class C\nprivate\ndef f(n=7);n;end\npublic\ndef g(other);self.f;end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_45",
+    "source": "class C\nprivate\ndef f(n=7);n;end\npublic\ndef g(other);self.f();end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_46",
+    "source": "class C\nprivate\ndef f(n=7);n;end\npublic\ndef g(other);other.f;end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_47",
+    "source": "class C\nprivate\ndef f(n=7);n;end\npublic\ndef g(other);other.f();end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_15",
+    "source": "class C\nprivate\ndef f(n=7);n;end\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_16",
+    "source": "class C\nprivate\ndef f(n=7);n;end\nend\ndef run(input)\nC.new.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_58",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g(other);self.f;end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_59",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g(other);self.f();end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_60",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g(other);other.f;end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_61",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g(other);other.f();end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_20",
+    "source": "class C\nprivate def f(n=7);n;end\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_21",
+    "source": "class C\nprivate def f(n=7);n;end\nend\ndef run(input)\nC.new.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_72",
+    "source": "class C\ndef f(n=7);n;end\nprivate :f\npublic\ndef g(other);self.f;end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_73",
+    "source": "class C\ndef f(n=7);n;end\nprivate :f\npublic\ndef g(other);self.f();end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_74",
+    "source": "class C\ndef f(n=7);n;end\nprivate :f\npublic\ndef g(other);other.f;end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_75",
+    "source": "class C\ndef f(n=7);n;end\nprivate :f\npublic\ndef g(other);other.f();end\nend\ndef run(input)\nC.new.g(C.new)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_25",
+    "source": "class C\ndef f(n=7);n;end\nprivate :f\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_26",
+    "source": "class C\ndef f(n=7);n;end\nprivate :f\nend\ndef run(input)\nC.new.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_8",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nC.new.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_10",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nC.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_12",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nD.new.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_14",
+    "source": "class C\nprivate def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nD.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_30",
+    "source": "class C\nprotected\ndef f(n=7);n;end\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_31",
+    "source": "class C\nprotected\ndef f(n=7);n;end\nend\ndef run(input)\nC.new.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_35",
+    "source": "class C\nprotected def f(n=7);n;end\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_36",
+    "source": "class C\nprotected def f(n=7);n;end\nend\ndef run(input)\nC.new.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_40",
+    "source": "class C\ndef f(n=7);n;end\nprotected :f\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_41",
+    "source": "class C\ndef f(n=7);n;end\nprotected :f\nend\ndef run(input)\nC.new.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_family_18",
+    "source": "class C\nprotected def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nC.g\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_family_20",
+    "source": "class C\nprotected def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nD.new.g\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_family_22",
+    "source": "class C\nprotected def f(n=7);n;end\npublic\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\nclass D\ndef g;C.new.f;end\ndef self.g;C.new.f;end\nend\ndef run(input)\nD.g\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_170",
+    "source": "class C\nprivate\ndef self.f(n=7);n;end\npublic\ndef self.g(other);self.f;end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_171",
+    "source": "class C\nprivate\ndef self.f(n=7);n;end\npublic\ndef self.g(other);self.f();end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_172",
+    "source": "class C\nprivate\ndef self.f(n=7);n;end\npublic\ndef self.g(other);other.f;end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_173",
+    "source": "class C\nprivate\ndef self.f(n=7);n;end\npublic\ndef self.g(other);other.f();end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_60",
+    "source": "class C\nprivate\ndef self.f(n=7);n;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_61",
+    "source": "class C\nprivate\ndef self.f(n=7);n;end\nend\ndef run(input)\nC.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_184",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef self.g(other);self.f;end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_185",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef self.g(other);self.f();end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_186",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef self.g(other);other.f;end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_187",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef self.g(other);other.f();end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_65",
+    "source": "class C\nprivate def self.f(n=7);n;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_66",
+    "source": "class C\nprivate def self.f(n=7);n;end\nend\ndef run(input)\nC.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_198",
+    "source": "class C\ndef self.f(n=7);n;end\nprivate :f\npublic\ndef self.g(other);self.f;end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_199",
+    "source": "class C\ndef self.f(n=7);n;end\nprivate :f\npublic\ndef self.g(other);self.f();end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_200",
+    "source": "class C\ndef self.f(n=7);n;end\nprivate :f\npublic\ndef self.g(other);other.f;end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_201",
+    "source": "class C\ndef self.f(n=7);n;end\nprivate :f\npublic\ndef self.g(other);other.f();end\nend\ndef run(input)\nC.g(C)\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_70",
+    "source": "class C\ndef self.f(n=7);n;end\nprivate :f\nend\ndef run(input)\nC.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_71",
+    "source": "class C\ndef self.f(n=7);n;end\nprivate :f\nend\ndef run(input)\nC.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_32",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nC.new.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_34",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nC.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_36",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nD.new.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_family_38",
+    "source": "class C\nprivate def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nD.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "class_visibility_external_75",
+    "source": "class C\nprotected\ndef self.f(n=7);n;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_76",
+    "source": "class C\nprotected\ndef self.f(n=7);n;end\nend\ndef run(input)\nC.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_80",
+    "source": "class C\nprotected def self.f(n=7);n;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_81",
+    "source": "class C\nprotected def self.f(n=7);n;end\nend\ndef run(input)\nC.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_85",
+    "source": "class C\ndef self.f(n=7);n;end\nprotected :f\nend\ndef run(input)\nC.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_external_86",
+    "source": "class C\ndef self.f(n=7);n;end\nprotected :f\nend\ndef run(input)\nC.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_family_40",
+    "source": "class C\nprotected def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nC.new.g\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_family_44",
+    "source": "class C\nprotected def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nD.new.g\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_visibility_family_46",
+    "source": "class C\nprotected def self.f(n=7);n;end\npublic\ndef g;C.f;end\ndef self.g;C.f;end\nend\nclass D\ndef g;C.f;end\ndef self.g;C.f;end\nend\ndef run(input)\nD.g\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "class_accessors_72",
+    "source": "class C\nproperty x: int\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_73",
+    "source": "class C\nproperty x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_75",
+    "source": "class C\nproperty x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_80",
+    "source": "class C\nproperty x: int\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_81",
+    "source": "class C\nproperty x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_83",
+    "source": "class C\nproperty x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_84",
+    "source": "class C\nproperty x: int\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_85",
+    "source": "class C\nproperty x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_87",
+    "source": "class C\nproperty x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_88",
+    "source": "class C\nproperty x: int\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_89",
+    "source": "class C\nproperty x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_91",
+    "source": "class C\nproperty x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_92",
+    "source": "class C\nproperty x: int\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_93",
+    "source": "class C\nproperty x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_95",
+    "source": "class C\nproperty x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_96",
+    "source": "class C\ngetter x: int\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_97",
+    "source": "class C\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_99",
+    "source": "class C\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_104",
+    "source": "class C\ngetter x: int\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_105",
+    "source": "class C\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_107",
+    "source": "class C\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_108",
+    "source": "class C\ngetter x: int\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_109",
+    "source": "class C\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_111",
+    "source": "class C\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_112",
+    "source": "class C\ngetter x: int\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_113",
+    "source": "class C\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_115",
+    "source": "class C\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_116",
+    "source": "class C\ngetter x: int\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_117",
+    "source": "class C\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_119",
+    "source": "class C\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_120",
+    "source": "class C\nsetter x: int\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_121",
+    "source": "class C\nsetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_123",
+    "source": "class C\nsetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_128",
+    "source": "class C\nsetter x: int\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_129",
+    "source": "class C\nsetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_131",
+    "source": "class C\nsetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_132",
+    "source": "class C\nsetter x: int\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_133",
+    "source": "class C\nsetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_135",
+    "source": "class C\nsetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_136",
+    "source": "class C\nsetter x: int\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_137",
+    "source": "class C\nsetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_139",
+    "source": "class C\nsetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_140",
+    "source": "class C\nsetter x: int\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_141",
+    "source": "class C\nsetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_143",
+    "source": "class C\nsetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_152",
+    "source": "class C\nproperty x: int?\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int?, got string"
+  },
+  {
+    "name": "class_accessors_153",
+    "source": "class C\nproperty x: int?\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected int?, got string"
+  },
+  {
+    "name": "class_accessors_155",
+    "source": "class C\nproperty x: int?\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected int?, got string"
+  },
+  {
+    "name": "class_accessors_156",
+    "source": "class C\nproperty x: int?\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int?, got array<int>"
+  },
+  {
+    "name": "class_accessors_157",
+    "source": "class C\nproperty x: int?\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected int?, got array<int>"
+  },
+  {
+    "name": "class_accessors_159",
+    "source": "class C\nproperty x: int?\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int?, got array<int>"
+  },
+  {
+    "name": "class_accessors_160",
+    "source": "class C\nproperty x: int?\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int?, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_161",
+    "source": "class C\nproperty x: int?\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected int?, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_163",
+    "source": "class C\nproperty x: int?\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int?, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_164",
+    "source": "class C\nproperty x: int?\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int?, got { a: int }"
+  },
+  {
+    "name": "class_accessors_165",
+    "source": "class C\nproperty x: int?\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected int?, got { a: int }"
+  },
+  {
+    "name": "class_accessors_167",
+    "source": "class C\nproperty x: int?\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected int?, got { a: int }"
+  },
+  {
+    "name": "class_accessors_168",
+    "source": "class C\nproperty x: array<int>\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got nil"
+  },
+  {
+    "name": "class_accessors_169",
+    "source": "class C\nproperty x: array<int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got nil"
+  },
+  {
+    "name": "class_accessors_171",
+    "source": "class C\nproperty x: array<int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected array<int>, got nil"
+  },
+  {
+    "name": "class_accessors_172",
+    "source": "class C\nproperty x: array<int>\ndef initialize;@x=7;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got int"
+  },
+  {
+    "name": "class_accessors_173",
+    "source": "class C\nproperty x: array<int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(7);a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got int"
+  },
+  {
+    "name": "class_accessors_175",
+    "source": "class C\nproperty x: array<int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(7);[result,a.x]\nend",
+    "go_error": "instance variable @x expected array<int>, got int"
+  },
+  {
+    "name": "class_accessors_176",
+    "source": "class C\nproperty x: array<int>\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got string"
+  },
+  {
+    "name": "class_accessors_177",
+    "source": "class C\nproperty x: array<int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got string"
+  },
+  {
+    "name": "class_accessors_179",
+    "source": "class C\nproperty x: array<int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected array<int>, got string"
+  },
+  {
+    "name": "class_accessors_184",
+    "source": "class C\nproperty x: array<int>\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_185",
+    "source": "class C\nproperty x: array<int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_187",
+    "source": "class C\nproperty x: array<int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_188",
+    "source": "class C\nproperty x: array<int>\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got { a: int }"
+  },
+  {
+    "name": "class_accessors_189",
+    "source": "class C\nproperty x: array<int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected array<int>, got { a: int }"
+  },
+  {
+    "name": "class_accessors_191",
+    "source": "class C\nproperty x: array<int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected array<int>, got { a: int }"
+  },
+  {
+    "name": "class_accessors_192",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got nil"
+  },
+  {
+    "name": "class_accessors_193",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got nil"
+  },
+  {
+    "name": "class_accessors_195",
+    "source": "class C\nproperty x: hash<string,int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got nil"
+  },
+  {
+    "name": "class_accessors_196",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize;@x=7;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got int"
+  },
+  {
+    "name": "class_accessors_197",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(7);a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got int"
+  },
+  {
+    "name": "class_accessors_199",
+    "source": "class C\nproperty x: hash<string,int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(7);[result,a.x]\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got int"
+  },
+  {
+    "name": "class_accessors_200",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got string"
+  },
+  {
+    "name": "class_accessors_201",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got string"
+  },
+  {
+    "name": "class_accessors_203",
+    "source": "class C\nproperty x: hash<string,int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got string"
+  },
+  {
+    "name": "class_accessors_204",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got array<int>"
+  },
+  {
+    "name": "class_accessors_205",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got array<int>"
+  },
+  {
+    "name": "class_accessors_207",
+    "source": "class C\nproperty x: hash<string,int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got array<int>"
+  },
+  {
+    "name": "class_accessors_208",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_209",
+    "source": "class C\nproperty x: hash<string,int>\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_211",
+    "source": "class C\nproperty x: hash<string,int>\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected hash<string, int>, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_216",
+    "source": "class C\nproperty x: int, y: string\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_217",
+    "source": "class C\nproperty x: int, y: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_219",
+    "source": "class C\nproperty x: int, y: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_224",
+    "source": "class C\nproperty x: int, y: string\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_225",
+    "source": "class C\nproperty x: int, y: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_227",
+    "source": "class C\nproperty x: int, y: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got string"
+  },
+  {
+    "name": "class_accessors_228",
+    "source": "class C\nproperty x: int, y: string\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_229",
+    "source": "class C\nproperty x: int, y: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_231",
+    "source": "class C\nproperty x: int, y: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_232",
+    "source": "class C\nproperty x: int, y: string\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_233",
+    "source": "class C\nproperty x: int, y: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_235",
+    "source": "class C\nproperty x: int, y: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_236",
+    "source": "class C\nproperty x: int, y: string\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_237",
+    "source": "class C\nproperty x: int, y: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_239",
+    "source": "class C\nproperty x: int, y: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_240",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_241",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_243",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_248",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_249",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_251",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_252",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_253",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_255",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_256",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_257",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_259",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_260",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_261",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_263",
+    "source": "class C\nproperty x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_264",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_265",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_267",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_272",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_273",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_275",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_276",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_277",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_279",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_280",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_281",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_283",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_284",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_285",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_287",
+    "source": "class C\ngetter x: int\ndef x=(v);@x=v;end\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_288",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_289",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_291",
+    "source": "class C\nproperty x: int\nsetter x\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_296",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_297",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_299",
+    "source": "class C\nproperty x: int\nsetter x\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_300",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_301",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_303",
+    "source": "class C\nproperty x: int\nsetter x\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_304",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_305",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_307",
+    "source": "class C\nproperty x: int\nsetter x\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_308",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_309",
+    "source": "class C\nproperty x: int\nsetter x\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_311",
+    "source": "class C\nproperty x: int\nsetter x\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_312",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_313",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_315",
+    "source": "class C\nproperty x\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got nil"
+  },
+  {
+    "name": "class_accessors_320",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize;@x=\"bad\";end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_321",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(\"bad\");a.x\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_323",
+    "source": "class C\nproperty x\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(\"bad\");[result,a.x]\nend",
+    "go_error": "return value for x expected int, got string"
+  },
+  {
+    "name": "class_accessors_324",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_325",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_327",
+    "source": "class C\nproperty x\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int>"
+  },
+  {
+    "name": "class_accessors_328",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_329",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_331",
+    "source": "class C\nproperty x\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "return value for x expected int, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_332",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_333",
+    "source": "class C\nproperty x\ngetter x: int\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_335",
+    "source": "class C\nproperty x\ngetter x: int\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "return value for x expected int, got { a: int }"
+  },
+  {
+    "name": "class_accessors_336",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize;@x=nil;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected string, got nil"
+  },
+  {
+    "name": "class_accessors_337",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(nil);a.x\nend",
+    "go_error": "instance variable @x expected string, got nil"
+  },
+  {
+    "name": "class_accessors_339",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(nil);[result,a.x]\nend",
+    "go_error": "instance variable @x expected string, got nil"
+  },
+  {
+    "name": "class_accessors_340",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize;@x=7;end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected string, got int"
+  },
+  {
+    "name": "class_accessors_341",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new(7);a.x\nend",
+    "go_error": "instance variable @x expected string, got int"
+  },
+  {
+    "name": "class_accessors_343",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set(7);[result,a.x]\nend",
+    "go_error": "instance variable @x expected string, got int"
+  },
+  {
+    "name": "class_accessors_348",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize;@x=[1,2];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected string, got array<int>"
+  },
+  {
+    "name": "class_accessors_349",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,2]);a.x\nend",
+    "go_error": "instance variable @x expected string, got array<int>"
+  },
+  {
+    "name": "class_accessors_351",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,2]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected string, got array<int>"
+  },
+  {
+    "name": "class_accessors_352",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize;@x=[1,\"bad\"];end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected string, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_353",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new([1,\"bad\"]);a.x\nend",
+    "go_error": "instance variable @x expected string, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_355",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set([1,\"bad\"]);[result,a.x]\nend",
+    "go_error": "instance variable @x expected string, got array<int | string>"
+  },
+  {
+    "name": "class_accessors_356",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize;@x={a:1};end\nend\ndef run(input)\na=C.new; a.x\nend",
+    "go_error": "instance variable @x expected string, got { a: int }"
+  },
+  {
+    "name": "class_accessors_357",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef initialize(@x);end\nend\ndef run(input)\na=C.new({a:1});a.x\nend",
+    "go_error": "instance variable @x expected string, got { a: int }"
+  },
+  {
+    "name": "class_accessors_359",
+    "source": "class C\nproperty x: int\nproperty x: string\ndef set(v);@x=v;end\nend\ndef run(input)\na=C.new;result=a.set({a:1});[result,a.x]\nend",
+    "go_error": "instance variable @x expected string, got { a: int }"
+  },
+  {
+    "name": "class_typed_mutation_1",
+    "source": "class C\nproperty xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.push(\"bad\");end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_typed_mutation_3",
+    "source": "class C\nproperty xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs[0]=\"bad\";end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<string>"
+  },
+  {
+    "name": "class_typed_mutation_5",
+    "source": "class C\nproperty xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs += [\"bad\"];end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "instance variable @xs expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_typed_mutation_6",
+    "source": "class C\nproperty xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|v+1};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_7",
+    "source": "class C\nproperty xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|\"bad\"};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_9",
+    "source": "class C\nproperty xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.fill(\"bad\");end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<string>"
+  },
+  {
+    "name": "class_typed_mutation_14",
+    "source": "class C\ngetter xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.push(\"bad\");end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_typed_mutation_16",
+    "source": "class C\ngetter xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs[0]=\"bad\";end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<string>"
+  },
+  {
+    "name": "class_typed_mutation_18",
+    "source": "class C\ngetter xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs += [\"bad\"];end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "instance variable @xs expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_typed_mutation_19",
+    "source": "class C\ngetter xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|v+1};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_20",
+    "source": "class C\ngetter xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|\"bad\"};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_22",
+    "source": "class C\ngetter xs: array<int>\ndef initialize;@xs=[1];end\ndef change;@xs.fill(\"bad\");end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<string>"
+  },
+  {
+    "name": "class_typed_mutation_32",
+    "source": "class C\nproperty xs\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|v+1};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_33",
+    "source": "class C\nproperty xs\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|\"bad\"};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_40",
+    "source": "class C\nproperty xs: array<int>\ndef xs=(v);@xs=v;end\ndef initialize;@xs=[1];end\ndef change;@xs.push(\"bad\");end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_typed_mutation_42",
+    "source": "class C\nproperty xs: array<int>\ndef xs=(v);@xs=v;end\ndef initialize;@xs=[1];end\ndef change;@xs[0]=\"bad\";end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<string>"
+  },
+  {
+    "name": "class_typed_mutation_44",
+    "source": "class C\nproperty xs: array<int>\ndef xs=(v);@xs=v;end\ndef initialize;@xs=[1];end\ndef change;@xs += [\"bad\"];end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<int | string>"
+  },
+  {
+    "name": "class_typed_mutation_45",
+    "source": "class C\nproperty xs: array<int>\ndef xs=(v);@xs=v;end\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|v+1};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_46",
+    "source": "class C\nproperty xs: array<int>\ndef xs=(v);@xs=v;end\ndef initialize;@xs=[1];end\ndef change;@xs.map!{|v|\"bad\"};end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "unknown array method map! (did you mean \"map\"?)"
+  },
+  {
+    "name": "class_typed_mutation_48",
+    "source": "class C\nproperty xs: array<int>\ndef xs=(v);@xs=v;end\ndef initialize;@xs=[1];end\ndef change;@xs.fill(\"bad\");end\nend\ndef run(input)\na=C.new;[a.change,a.xs]\nend",
+    "go_error": "return value for xs expected array<int>, got array<string>"
+  },
+  {
+    "name": "class_parameters_2",
+    "source": "class C\ndef initialize();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_3",
+    "source": "class C\ndef set();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_4",
+    "source": "class C\ndef initialize();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_5",
+    "source": "class C\ndef set();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_6",
+    "source": "class C\ndef initialize();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(x:5);c.read\nend",
+    "go_error": "unexpected keyword argument x"
+  },
+  {
+    "name": "class_parameters_7",
+    "source": "class C\ndef set();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(x:5);c.read\nend",
+    "go_error": "unexpected keyword argument x"
+  },
+  {
+    "name": "class_parameters_8",
+    "source": "class C\ndef initialize();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_9",
+    "source": "class C\ndef set();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_10",
+    "source": "class C\ndef initialize();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_11",
+    "source": "class C\ndef set();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_12",
+    "source": "class C\ndef initialize();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_13",
+    "source": "class C\ndef set();end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_14",
+    "source": "class C\ndef initialize(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "missing argument x"
+  },
+  {
+    "name": "class_parameters_15",
+    "source": "class C\ndef set(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "missing argument x"
+  },
+  {
+    "name": "class_parameters_18",
+    "source": "class C\ndef initialize(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_19",
+    "source": "class C\ndef set(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_22",
+    "source": "class C\ndef initialize(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "unexpected keyword argument z"
+  },
+  {
+    "name": "class_parameters_23",
+    "source": "class C\ndef set(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "unexpected keyword argument z"
+  },
+  {
+    "name": "class_parameters_24",
+    "source": "class C\ndef initialize(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_25",
+    "source": "class C\ndef set(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_26",
+    "source": "class C\ndef initialize(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_27",
+    "source": "class C\ndef set(@x);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_32",
+    "source": "class C\ndef initialize(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_33",
+    "source": "class C\ndef set(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_36",
+    "source": "class C\ndef initialize(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "unexpected keyword argument z"
+  },
+  {
+    "name": "class_parameters_37",
+    "source": "class C\ndef set(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "unexpected keyword argument z"
+  },
+  {
+    "name": "class_parameters_38",
+    "source": "class C\ndef initialize(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_39",
+    "source": "class C\ndef set(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_40",
+    "source": "class C\ndef initialize(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_41",
+    "source": "class C\ndef set(@x=7);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_42",
+    "source": "class C\ndef initialize(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "missing argument x"
+  },
+  {
+    "name": "class_parameters_43",
+    "source": "class C\ndef set(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "missing argument x"
+  },
+  {
+    "name": "class_parameters_46",
+    "source": "class C\ndef initialize(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_47",
+    "source": "class C\ndef set(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_50",
+    "source": "class C\ndef initialize(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,z:4);c.read\nend",
+    "go_error": "unexpected keyword argument z"
+  },
+  {
+    "name": "class_parameters_51",
+    "source": "class C\ndef set(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,z:4);c.read\nend",
+    "go_error": "unexpected keyword argument z"
+  },
+  {
+    "name": "class_parameters_52",
+    "source": "class C\ndef initialize(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_53",
+    "source": "class C\ndef set(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_54",
+    "source": "class C\ndef initialize(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_55",
+    "source": "class C\ndef set(@x: int);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(*[1,2],**{z:3});c.read\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_parameters_98",
+    "source": "class C\ndef initialize(@x, y=2, z: 3);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new();c.read\nend",
+    "go_error": "missing argument x"
+  },
+  {
+    "name": "class_parameters_99",
+    "source": "class C\ndef set(@x, y=2, z: 3);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set();c.read\nend",
+    "go_error": "missing argument x"
+  },
+  {
+    "name": "class_parameters_108",
+    "source": "class C\ndef initialize(@x, y=2, z: 3);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected keyword argument k"
+  },
+  {
+    "name": "class_parameters_109",
+    "source": "class C\ndef set(@x, y=2, z: 3);end\ndef read;[@x,@xs,@opts];end\nend\ndef run(input)\nc=C.new;c.set(3,4,z:5,k:6);c.read\nend",
+    "go_error": "unexpected keyword argument k"
+  },
+  {
+    "name": "class_constructor_7",
+    "source": "class C\ndef initialize;@x=1;99;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_8",
+    "source": "class C\ndef initialize;@x=1;99;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_9",
+    "source": "class C\ndef initialize;@x=1;99;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "class_constructor_10",
+    "source": "class C\ndef initialize;@x=1;99;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_13",
+    "source": "class C\ndef initialize -> int;\"bad\";end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_14",
+    "source": "class C\ndef initialize -> int;\"bad\";end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_15",
+    "source": "class C\ndef initialize -> int;\"bad\";end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "class_constructor_16",
+    "source": "class C\ndef initialize -> int;\"bad\";end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_18",
+    "source": "class C\ndef initialize(a);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new;[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "missing argument a"
+  },
+  {
+    "name": "class_constructor_20",
+    "source": "class C\ndef initialize(a);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_22",
+    "source": "class C\ndef initialize(a);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "class_constructor_23",
+    "source": "class C\ndef initialize(a);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new{|v|99};[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "missing argument a"
+  },
+  {
+    "name": "class_constructor_24",
+    "source": "class C\ndef initialize(a: int);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new;[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "missing argument a"
+  },
+  {
+    "name": "class_constructor_26",
+    "source": "class C\ndef initialize(a: int);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_28",
+    "source": "class C\ndef initialize(a: int);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "class_constructor_29",
+    "source": "class C\ndef initialize(a: int);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new{|v|99};[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "missing argument a"
+  },
+  {
+    "name": "class_constructor_31",
+    "source": "class C\ndef initialize(a: 3);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_32",
+    "source": "class C\ndef initialize(a: 3);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_34",
+    "source": "class C\ndef initialize(a: 3);@x=a;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_37",
+    "source": "class C\nprivate def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_38",
+    "source": "class C\nprivate def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_39",
+    "source": "class C\nprivate def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "class_constructor_40",
+    "source": "class C\nprivate def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_43",
+    "source": "class C\nprotected def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_44",
+    "source": "class C\nprotected def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,8);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_constructor_45",
+    "source": "class C\nprotected def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected keyword argument a"
+  },
+  {
+    "name": "class_constructor_46",
+    "source": "class C\nprotected def initialize;@x=8;end\ndef read;@x;end\nend\ndef run(input)\nc=C.new(7,a:9);[c.class==C,c.respond_to?(:initialize),c.read]\nend",
+    "go_error": "unexpected positional arguments"
+  },
+  {
+    "name": "class_aliases_3",
+    "source": "class C\ndef f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_4",
+    "source": "class C\ndef f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_5",
+    "source": "class C\ndef f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_6",
+    "source": "class C\ndef f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_10",
+    "source": "class C\ndef f;1;end\nalias :g :f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_11",
+    "source": "class C\ndef f;1;end\nalias :g :f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_12",
+    "source": "class C\ndef f;1;end\nalias :g :f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_13",
+    "source": "class C\ndef f;1;end\nalias :g :f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_17",
+    "source": "class C\ndef f;1;end\nalias_method :g,:f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_18",
+    "source": "class C\ndef f;1;end\nalias_method :g,:f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_19",
+    "source": "class C\ndef f;1;end\nalias_method :g,:f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_20",
+    "source": "class C\ndef f;1;end\nalias_method :g,:f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_24",
+    "source": "class C\ndef f;1;end\nalias_method(:g,:f)\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_25",
+    "source": "class C\ndef f;1;end\nalias_method(:g,:f)\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_26",
+    "source": "class C\ndef f;1;end\nalias_method(:g,:f)\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_27",
+    "source": "class C\ndef f;1;end\nalias_method(:g,:f)\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_31",
+    "source": "class C\ndef f;1;end\nalias g f\ndef f;2;end\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_32",
+    "source": "class C\ndef f;1;end\nalias g f\ndef f;2;end\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_33",
+    "source": "class C\ndef f;1;end\nalias g f\ndef f;2;end\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_34",
+    "source": "class C\ndef f;1;end\nalias g f\ndef f;2;end\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_38",
+    "source": "class C\ndef f;1;end\nalias g f\nprivate :f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_39",
+    "source": "class C\ndef f;1;end\nalias g f\nprivate :f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_40",
+    "source": "class C\ndef f;1;end\nalias g f\nprivate :f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"g\"?)"
+  },
+  {
+    "name": "class_aliases_41",
+    "source": "class C\ndef f;1;end\nalias g f\nprivate :f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_43",
+    "source": "class C\nprivate def f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "private method g"
+  },
+  {
+    "name": "class_aliases_44",
+    "source": "class C\nprivate def f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.g()\nend",
+    "go_error": "private method g"
+  },
+  {
+    "name": "class_aliases_45",
+    "source": "class C\nprivate def f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_46",
+    "source": "class C\nprivate def f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_47",
+    "source": "class C\nprivate def f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x"
+  },
+  {
+    "name": "class_aliases_48",
+    "source": "class C\nprivate def f;1;end\nalias g f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_52",
+    "source": "class C\ndef f;1;end\nprivate\nalias g f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_53",
+    "source": "class C\ndef f;1;end\nprivate\nalias g f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_54",
+    "source": "class C\ndef f;1;end\nprivate\nalias g f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_55",
+    "source": "class C\ndef f;1;end\nprivate\nalias g f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_57",
+    "source": "class C\nproperty f: int\nalias g f\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "return value for g expected int, got nil"
+  },
+  {
+    "name": "class_aliases_58",
+    "source": "class C\nproperty f: int\nalias g f\nend\ndef run(input)\nc=C.new;c.g()\nend",
+    "go_error": "return value for g expected int, got nil"
+  },
+  {
+    "name": "class_aliases_59",
+    "source": "class C\nproperty f: int\nalias g f\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_61",
+    "source": "class C\nproperty f: int\nalias g f\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\" or \"g\"?)"
+  },
+  {
+    "name": "class_aliases_62",
+    "source": "class C\nproperty f: int\nalias g f\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_64",
+    "source": "class C\nproperty f: int\nalias_method :\"g=\", :\"f=\"\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "unknown member g (did you mean \"f\" or \"g=\"?)"
+  },
+  {
+    "name": "class_aliases_65",
+    "source": "class C\nproperty f: int\nalias_method :\"g=\", :\"f=\"\nend\ndef run(input)\nc=C.new;c.g()\nend",
+    "go_error": "unknown member g (did you mean \"f\" or \"g=\"?)"
+  },
+  {
+    "name": "class_aliases_67",
+    "source": "class C\nproperty f: int\nalias_method :\"g=\", :\"f=\"\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "unknown member g (did you mean \"f\" or \"g=\"?)"
+  },
+  {
+    "name": "class_aliases_68",
+    "source": "class C\nproperty f: int\nalias_method :\"g=\", :\"f=\"\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "unknown member x (did you mean \"f\"?)"
+  },
+  {
+    "name": "class_aliases_69",
+    "source": "class C\nproperty f: int\nalias_method :\"g=\", :\"f=\"\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "unknown member initialize"
+  },
+  {
+    "name": "class_aliases_71",
+    "source": "class C\ndef f;@x=7;end\nalias initialize f\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "unknown member g (did you mean \"f\" or \"x\"?)"
+  },
+  {
+    "name": "class_aliases_72",
+    "source": "class C\ndef f;@x=7;end\nalias initialize f\nend\ndef run(input)\nc=C.new;c.g()\nend",
+    "go_error": "unknown member g (did you mean \"f\" or \"x\"?)"
+  },
+  {
+    "name": "class_aliases_74",
+    "source": "class C\ndef f;@x=7;end\nalias initialize f\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "cannot assign to read-only property f"
+  },
+  {
+    "name": "class_aliases_78",
+    "source": "class C\ndef initialize;@x=7;end\nalias g initialize\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "private method g"
+  },
+  {
+    "name": "class_aliases_79",
+    "source": "class C\ndef initialize;@x=7;end\nalias g initialize\nend\ndef run(input)\nc=C.new;c.g()\nend",
+    "go_error": "private method g"
+  },
+  {
+    "name": "class_aliases_80",
+    "source": "class C\ndef initialize;@x=7;end\nalias g initialize\nend\ndef run(input)\nc=C.new;c.g=4;c.f\nend",
+    "go_error": "cannot assign to read-only property g"
+  },
+  {
+    "name": "class_aliases_81",
+    "source": "class C\ndef initialize;@x=7;end\nalias g initialize\nend\ndef run(input)\nc=C.new;c.f=4;c.g\nend",
+    "go_error": "private method g"
+  },
+  {
+    "name": "class_aliases_83",
+    "source": "class C\ndef initialize;@x=7;end\nalias g initialize\nend\ndef run(input)\nc=C.new;c.initialize\nend",
+    "go_error": "private method initialize"
+  },
+  {
+    "name": "class_predicates_0",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?()\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "class_predicates_1",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?()\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "class_predicates_2",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(nil)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_3",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(nil)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_4",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(1)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_5",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(1)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_6",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(true)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_7",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(true)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_12",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(C)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_13",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(C)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_14",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(C.new)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_15",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(C.new)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_16",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(C,true)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_17",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(C,true)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "class_predicates_18",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.respond_to?(C,a:1)\nend",
+    "go_error": "respond_to? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_19",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.respond_to?(C,a:1)\nend",
+    "go_error": "respond_to? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_20",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?()\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_21",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?()\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_22",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(nil)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_23",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(nil)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_24",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(1)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_25",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(1)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_26",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(true)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_27",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(true)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_28",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(\"C\")\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_29",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(\"C\")\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_30",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(:C)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_31",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(:C)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_34",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(C.new)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_35",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(C.new)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "class_predicates_36",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(C,true)\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_37",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(C,true)\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_38",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.is_a?(C,a:1)\nend",
+    "go_error": "is_a? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_39",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.is_a?(C,a:1)\nend",
+    "go_error": "is_a? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_40",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?()\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_41",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?()\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_42",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(nil)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_43",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(nil)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_44",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(1)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_45",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(1)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_46",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(true)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_47",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(true)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_48",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(\"C\")\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_49",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(\"C\")\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_50",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(:C)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_51",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(:C)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_54",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(C.new)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_55",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(C.new)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_56",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(C,true)\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_57",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(C,true)\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_58",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.kind_of?(C,a:1)\nend",
+    "go_error": "kind_of? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_59",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.kind_of?(C,a:1)\nend",
+    "go_error": "kind_of? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_60",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?()\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_61",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?()\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_62",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(nil)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_63",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(nil)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_64",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(1)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_65",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(1)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_66",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(true)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_67",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(true)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_68",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(\"C\")\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_69",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(\"C\")\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_70",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(:C)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_71",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(:C)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_74",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(C.new)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_75",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(C.new)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "class_predicates_76",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(C,true)\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_77",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(C,true)\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "class_predicates_78",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.instance_of?(C,a:1)\nend",
+    "go_error": "instance_of? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_79",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.instance_of?(C,a:1)\nend",
+    "go_error": "instance_of? does not take keyword arguments"
+  },
+  {
+    "name": "class_predicates_80",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.eql?()\nend",
+    "go_error": "class.eql? expects 1 argument, got 0"
+  },
+  {
+    "name": "class_predicates_81",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.eql?()\nend",
+    "go_error": "instance.eql? expects 1 argument, got 0"
+  },
+  {
+    "name": "class_predicates_96",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.eql?(C,true)\nend",
+    "go_error": "class.eql? expects 1 argument, got 2"
+  },
+  {
+    "name": "class_predicates_97",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.eql?(C,true)\nend",
+    "go_error": "instance.eql? expects 1 argument, got 2"
+  },
+  {
+    "name": "class_predicates_98",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.eql?(C,a:1)\nend",
+    "go_error": "class.eql? does not accept keyword arguments"
+  },
+  {
+    "name": "class_predicates_99",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.eql?(C,a:1)\nend",
+    "go_error": "instance.eql? does not accept keyword arguments"
+  },
+  {
+    "name": "class_predicates_100",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.equal?()\nend",
+    "go_error": "class.equal? expects 1 argument, got 0"
+  },
+  {
+    "name": "class_predicates_101",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.equal?()\nend",
+    "go_error": "instance.equal? expects 1 argument, got 0"
+  },
+  {
+    "name": "class_predicates_116",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.equal?(C,true)\nend",
+    "go_error": "class.equal? expects 1 argument, got 2"
+  },
+  {
+    "name": "class_predicates_117",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.equal?(C,true)\nend",
+    "go_error": "instance.equal? expects 1 argument, got 2"
+  },
+  {
+    "name": "class_predicates_118",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.equal?(C,a:1)\nend",
+    "go_error": "class.equal? does not accept keyword arguments"
+  },
+  {
+    "name": "class_predicates_119",
+    "source": "class C\n A=[0]\n K=2\n @@n=3\n property x\n def initialize(@x=4);end\n def f(n=5);n+@x;end\n def self.f(n=6);n+@@n;end\nend\ndef run(input)\nC.new.equal?(C,a:1)\nend",
+    "go_error": "instance.equal? does not accept keyword arguments"
+  },
+  {
+    "name": "class_property_visibility_5",
+    "source": "class C\nprivate property x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "private method x"
+  },
+  {
+    "name": "class_property_visibility_6",
+    "source": "class C\nprivate property x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.x=5\nend",
+    "go_error": "private method x="
+  },
+  {
+    "name": "class_property_visibility_7",
+    "source": "class C\nprivate property x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "private method x="
+  },
+  {
+    "name": "class_property_visibility_10",
+    "source": "class C\nprotected property x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "protected method x"
+  },
+  {
+    "name": "class_property_visibility_11",
+    "source": "class C\nprotected property x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.x=5\nend",
+    "go_error": "protected method x="
+  },
+  {
+    "name": "class_property_visibility_15",
+    "source": "class C\nproperty x\nprivate :x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.x\nend",
+    "go_error": "private method x"
+  },
+  {
+    "name": "class_property_visibility_17",
+    "source": "class C\nproperty x\nprivate :x\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.g\nend",
+    "go_error": "private method x"
+  },
+  {
+    "name": "class_property_visibility_21",
+    "source": "class C\nproperty x\nprotected :\"x=\"\npublic\ndef g;self.x=3;self.x;end\nend\ndef run(input)\nc=C.new;c.x=5\nend",
+    "go_error": "protected method x="
+  },
+  {
+    "name": "class_syntax_body_14",
+    "source": "module M\nend\nclass C\npublic()\nend\ndef run(input)\n1\nend",
+    "go_error": "unknown class member public"
+  },
+  {
+    "name": "class_syntax_body_15",
+    "source": "module M\nend\nclass C\nprotected()\nend\ndef run(input)\n1\nend",
+    "go_error": "unknown class member protected"
+  },
+  {
+    "name": "class_syntax_body_17",
+    "source": "module M\nend\nclass C\nclass Inner\nend\nend\ndef run(input)\n1\nend",
+    "go_error": "class Inner is not bound"
+  },
+  {
+    "name": "class_variables_4",
+    "source": "class C\nK=2\n@@n=3\ndef initialize;@x=4;end\ndef f;K+=1;K;end\nend\ndef run(input)\nC.new.f\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "class_variables_17",
+    "source": "class C\nK=2\n@@n=3\ndef initialize;@x=4;end\ndef self.f;@x;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "class_variables_19",
+    "source": "class C\nK=2\n@@n=3\ndef initialize;@x=4;end\ndef self.f;@x=9;@x;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "class_variables_21",
+    "source": "class C\nK=2\n@@n=3\ndef initialize;@x=4;end\ndef self.f;@x+=1;@x;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "class_variables_23",
+    "source": "class C\nK=2\n@@n=3\ndef initialize;@x=4;end\ndef self.f;@x||=8;@x;end\nend\ndef run(input)\nC.f\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "class_local_constants_5",
+    "source": "module M;end\nclass C\nK=2\ndef f;C=9;C;end\nend\ndef run(input)\nresult=C.new.f;[result,C.K]\nend",
+    "go_error": "unknown int method K"
+  },
+  {
+    "name": "class_initial_0",
+    "source": "class Outer\n class Inner\n  def value; 7; end\n end\nend\ndef run(input)\nOuter::Inner.new.value\nend",
+    "go_error": "class Inner is not bound"
+  },
+  {
+    "name": "class_initial_1",
+    "source": "def maker\n class Inner\n def value; 8; end\n end\nend\ndef run(input)\nmaker; Inner.new.value\nend",
+    "go_error": "class Inner is not bound"
+  },
+  {
+    "name": "class_initial_8",
+    "source": "class C\n def initialize; 7; end\nend\ndef run(input)\nC.new.initialize\nend",
+    "go_error": "private method initialize"
+  },
+  {
+    "name": "class_initial_10",
+    "source": "class C\nend\ndef run(input)\nC.class\nend",
+    "go_error": "unknown class member class"
+  },
+  {
+    "name": "class_initial_20",
+    "source": "class C\n def self.x; 6; end\n def y; x; end\nend\ndef run(input)\nC.new.y\nend",
+    "go_error": "unknown member x (did you mean \"y\"?)"
+  },
+  {
+    "name": "class_initial_26",
+    "source": "class C\n property n: int\n def initialize(@n); end\nend\ndef run(input)\nC.new(\"x\").n\nend",
+    "go_error": "instance variable @n expected int, got string"
   }
 ]

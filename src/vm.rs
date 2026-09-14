@@ -15,6 +15,8 @@ use crate::{
 mod namespaces;
 
 struct Frame {
+    receiver: Option<Value>,
+    constructor: bool,
     assignment_result: Option<Value>,
     result_address: bool,
     function: Option<usize>,
@@ -193,9 +195,12 @@ pub(crate) fn execute(
                     if frames.data[current].mutating {
                         let address = storage.addresses.data.pop().unwrap();
                         if let Some(mutation) = mutation {
+                            let guard =
+                                address_guard(program, ctx, &frames, &mut storage, &address)?;
                             value = address.apply(
                                 ctx,
                                 address::Bindings {
+                                    guard,
                                     locals: &mut storage.locals.data,
                                     namespaces: &mut storage.namespaces.data,
                                 },
@@ -237,7 +242,37 @@ pub(crate) fn execute(
         let namespace = frame
             .function
             .and_then(|index| program.functions[index].namespace);
+        let self_value = frame.receiver.clone();
+        let caller_instance = matches!(&self_value, Some(Value(Kind::Instance(_))));
         match op {
+            Op::UnboundClass(name) => {
+                return Err(Error::new(
+                    ErrorKind::Name,
+                    format!("class {} is not bound", program.members[name]),
+                ));
+            }
+            Op::BindIvar(name, local) => {
+                let Some(Value(Kind::Instance(instance))) = frame.receiver.as_ref() else {
+                    return Err(Error::new(
+                        ErrorKind::Name,
+                        "no instance context for ivar parameter",
+                    ));
+                };
+                let instance = instance.clone();
+                let slot = frame.local_base + local;
+                let value = storage.locals.data[slot].as_ref().unwrap().clone();
+                let value = normalize_ivar(
+                    program,
+                    ctx,
+                    &frames,
+                    &mut storage,
+                    &instance,
+                    &program.members[name],
+                    value,
+                )?;
+                set_ivar(ctx, &mut storage, &instance, &program.members[name], &value)?;
+                storage.locals.data[slot] = Some(value);
+            }
             Op::InitNamespace(module) => {
                 let state = namespaces::state(program, ctx, &mut storage, module)?;
                 if !storage.namespaces.data[state].initialized {
@@ -279,7 +314,11 @@ pub(crate) fn execute(
                 }
             }
             Op::NamespaceSelf(module) => {
-                let value = namespaces::value(program, ctx, &mut storage, module)?;
+                let value = if let Some(value) = &self_value {
+                    value.clone()
+                } else {
+                    namespaces::value(program, ctx, &mut storage, module)?
+                };
                 stack.push(ctx, value)?;
             }
             Op::NamespaceConstant(name, next) => {
@@ -295,6 +334,16 @@ pub(crate) fn execute(
                 }
             }
             Op::NamespaceVariable(name, optional) => {
+                let raw = &program.members[name];
+                if raw.starts_with('@') && !raw.starts_with("@@") {
+                    let Some(Value(Kind::Instance(instance))) = &self_value else {
+                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                    };
+                    let value =
+                        crate::objects::field(ctx, instance, &raw[1..])?.unwrap_or_default();
+                    stack.push(ctx, value)?;
+                    continue;
+                }
                 let (module, name) = namespaces::variable_name(namespace, &program.members[name])?;
                 let value = namespaces::field(program, ctx, &mut storage, module, name)?;
                 let value = if optional {
@@ -305,6 +354,15 @@ pub(crate) fn execute(
                 stack.push(ctx, value)?;
             }
             Op::NamespaceAddress(name, optional) => {
+                let raw = &program.members[name];
+                if raw.starts_with('@') && !raw.starts_with("@@") {
+                    let Some(Value(Kind::Instance(instance))) = &self_value else {
+                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                    };
+                    let address = crate::objects::address(ctx, instance, &raw[1..])?;
+                    storage.addresses.push(ctx, address)?;
+                    continue;
+                }
                 let (module, name) = namespaces::variable_name(namespace, &program.members[name])?;
                 let address = if !optional
                     && namespaces::field(program, ctx, &mut storage, module, name)?.is_none()
@@ -327,6 +385,24 @@ pub(crate) fn execute(
                 storage.addresses.push(ctx, address)?;
             }
             Op::NamespaceStore(name) => {
+                let raw = &program.members[name];
+                if raw.starts_with('@') && !raw.starts_with("@@") {
+                    let Some(Value(Kind::Instance(instance))) = &self_value else {
+                        return Err(Error::new(ErrorKind::Name, "no instance context for ivar"));
+                    };
+                    let value = normalize_ivar(
+                        program,
+                        ctx,
+                        &frames,
+                        &mut storage,
+                        instance,
+                        &raw[1..],
+                        stack.data.last().unwrap().clone(),
+                    )?;
+                    set_ivar(ctx, &mut storage, instance, &raw[1..], &value)?;
+                    *stack.data.last_mut().unwrap() = value;
+                    continue;
+                }
                 let (module, name) = namespaces::variable_name(namespace, &program.members[name])?;
                 namespaces::set(
                     program,
@@ -476,6 +552,7 @@ pub(crate) fn execute(
                     ctx,
                     &mut storage,
                     namespace,
+                    self_value.as_ref(),
                     &program.members[name],
                 )? {
                     namespaces::Member::Function(function) => {
@@ -505,7 +582,11 @@ pub(crate) fn execute(
                         namespaces::fallback(&program.members[name])?;
                         let module = namespace
                             .ok_or_else(|| Error::new(ErrorKind::Name, "undefined variable"))?;
-                        let receiver = namespaces::value(program, ctx, &mut storage, module)?;
+                        let receiver = if let Some(value) = &self_value {
+                            value.clone()
+                        } else {
+                            namespaces::value(program, ctx, &mut storage, module)?
+                        };
                         let site = crate::bytecode::CallSite {
                             name,
                             method: crate::bytecode::Method::parse(&program.members[name]),
@@ -767,12 +848,13 @@ pub(crate) fn execute(
                         program,
                         ctx,
                         &mut storage,
-                        receiver,
+                        &address.value,
                         site,
                         name,
                         namespaces::Access {
                             caller: namespace,
                             implicit: false,
+                            instance: caller_instance,
                         },
                     )?;
                     let address = namespaces::address(
@@ -791,8 +873,11 @@ pub(crate) fn execute(
             }
             Op::AddressMember(site) => {
                 let name = &program.members[site.name];
-                if let Kind::Namespace(receiver) = &storage.addresses.data.last().unwrap().value.0 {
-                    let receiver = receiver.clone();
+                if matches!(
+                    storage.addresses.data.last().unwrap().value.0,
+                    Kind::Namespace(_) | Kind::Instance(_)
+                ) {
+                    let receiver = storage.addresses.data.last().unwrap().value.clone();
                     match namespaces::member(
                         program,
                         ctx,
@@ -803,6 +888,7 @@ pub(crate) fn execute(
                         namespaces::Access {
                             caller: namespace,
                             implicit: false,
+                            instance: caller_instance,
                         },
                     )? {
                         namespaces::Member::Function(function) => {
@@ -855,9 +941,11 @@ pub(crate) fn execute(
                         storage.addresses.push(ctx, Address::new(None, value))?;
                         continue;
                     }
+                    let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
                     let value = address.apply(
                         ctx,
                         address::Bindings {
+                            guard,
                             locals: &mut storage.locals.data,
                             namespaces: &mut storage.namespaces.data,
                         },
@@ -874,8 +962,8 @@ pub(crate) fn execute(
                 address.member_target = true;
                 address.selectors.push(ctx, key)?;
                 if read {
-                    if let Kind::Namespace(receiver) = &address.value.0 {
-                        let receiver = receiver.clone();
+                    if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
+                        let receiver = address.value.clone();
                         match namespaces::member(
                             program,
                             ctx,
@@ -886,6 +974,7 @@ pub(crate) fn execute(
                             namespaces::Access {
                                 caller: namespace,
                                 implicit: false,
+                                instance: caller_instance,
                             },
                         )? {
                             namespaces::Member::Function(function) => {
@@ -940,41 +1029,55 @@ pub(crate) fn execute(
             Op::AddressStore => {
                 let address = storage.addresses.data.pop().unwrap();
                 let value = stack.data.pop().unwrap();
-                if address.member_target {
-                    if let Kind::Namespace(receiver) = &address.value.0 {
-                        let key = address.selectors.data[0].require_bytes()?;
-                        let name = std::str::from_utf8(key).unwrap();
-                        if let Some(function) =
-                            namespaces::setter(program, ctx, receiver, name, namespace)?
-                        {
-                            let args = Arguments::from_values(ctx, std::slice::from_ref(&value))?;
-                            enter_arguments(
-                                program,
-                                ctx,
-                                &mut frames,
-                                &mut storage,
-                                function,
-                                args,
-                                stack.data.len(),
-                            )?;
-                            frames.data.last_mut().unwrap().assignment_result = Some(value);
-                            continue;
+                if address.member_target
+                    && matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_))
+                {
+                    let receiver = &address.value;
+                    let key = address.selectors.data[0].require_bytes()?;
+                    let name = std::str::from_utf8(key).unwrap();
+                    if let Some(function) = namespaces::setter(
+                        program,
+                        ctx,
+                        receiver,
+                        name,
+                        namespace,
+                        caller_instance,
+                    )? {
+                        let args = Arguments::from_values(ctx, std::slice::from_ref(&value))?;
+                        enter_arguments(
+                            program,
+                            ctx,
+                            &mut frames,
+                            &mut storage,
+                            function,
+                            args,
+                            stack.data.len(),
+                        )?;
+                        frames.data.last_mut().unwrap().assignment_result = Some(value);
+                        continue;
+                    }
+                    match &receiver.0 {
+                        Kind::Instance(instance) => {
+                            set_ivar(ctx, &mut storage, instance, name, &value)?
                         }
-                        namespaces::set(
+                        Kind::Namespace(namespace) => namespaces::set(
                             program,
                             ctx,
                             &mut storage,
-                            receiver.definition.index,
+                            namespace.definition.index,
                             name,
                             value.clone(),
-                        )?;
-                        stack.push(ctx, value)?;
-                        continue;
+                        )?,
+                        _ => unreachable!(),
                     }
+                    stack.push(ctx, value)?;
+                    continue;
                 }
+                let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
                 let value = address.assign(
                     ctx,
                     address::Bindings {
+                        guard,
                         locals: &mut storage.locals.data,
                         namespaces: &mut storage.namespaces.data,
                     },
@@ -989,7 +1092,8 @@ pub(crate) fn execute(
             Op::Mutate(site, n) => {
                 let base = stack.data.len() - n;
                 let address = storage.addresses.data.pop().unwrap();
-                if let Kind::Namespace(receiver) = &address.value.0 {
+                if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
+                    let receiver = &address.value;
                     let name = &program.members[site.name];
                     match namespaces::member(
                         program,
@@ -1001,6 +1105,7 @@ pub(crate) fn execute(
                         namespaces::Access {
                             caller: namespace,
                             implicit: false,
+                            instance: caller_instance,
                         },
                     )? {
                         namespaces::Member::Function(function) => {
@@ -1047,9 +1152,11 @@ pub(crate) fn execute(
                         namespaces::Member::Missing => namespaces::fallback(name)?,
                     }
                 }
+                let guard = address_guard(program, ctx, &frames, &mut storage, &address)?;
                 let value = address.apply(
                     ctx,
                     address::Bindings {
+                        guard,
                         locals: &mut storage.locals.data,
                         namespaces: &mut storage.namespaces.data,
                     },
@@ -1303,13 +1410,20 @@ pub(crate) fn execute(
                 } else if let Some(global) = global_index(program, name) {
                     value_invocation(&global_value(program, ctx, &mut storage, global)?)
                 } else {
-                    match namespaces::implicit(program, ctx, &mut storage, namespace, name)? {
+                    match namespaces::implicit(
+                        program,
+                        ctx,
+                        &mut storage,
+                        namespace,
+                        self_value.as_ref(),
+                        name,
+                    )? {
                         namespaces::Member::Function(function) => {
-                            crate::arguments::Target::Plain(Invocation::Function(function))
+                            crate::arguments::Target::Method(function)
                         }
                         namespaces::Member::Value(value) => value_invocation(&value),
-                        namespaces::Member::Helper(module, helper) => {
-                            crate::arguments::Target::Plain(Invocation::Namespace(module, helper))
+                        namespaces::Member::Helper(receiver, helper) => {
+                            crate::arguments::Target::Helper(receiver, helper)
                         }
                         namespaces::Member::Missing => {
                             namespaces::fallback(name)?;
@@ -1348,6 +1462,30 @@ pub(crate) fn execute(
                 };
                 let target = match target {
                     crate::arguments::Target::Plain(target) => target,
+                    crate::arguments::Target::Method(call) => {
+                        enter_arguments(
+                            program,
+                            ctx,
+                            &mut frames,
+                            &mut storage,
+                            call,
+                            args,
+                            stack.data.len(),
+                        )?;
+                        continue;
+                    }
+                    crate::arguments::Target::Helper(receiver, helper) => {
+                        let value = namespaces::call_helper(
+                            program,
+                            ctx,
+                            &mut storage,
+                            receiver,
+                            helper,
+                            &args,
+                        )?;
+                        stack.push(ctx, value)?;
+                        continue;
+                    }
                     crate::arguments::Target::Offset(offset) => {
                         let value = offset.call(
                             ctx,
@@ -1360,7 +1498,11 @@ pub(crate) fn execute(
                     }
                 };
                 let target = if let Invocation::ImplicitMember(module, name) = target {
-                    let receiver = namespaces::value(program, ctx, &mut storage, module)?;
+                    let receiver = if let Some(value) = &self_value {
+                        value.clone()
+                    } else {
+                        namespaces::value(program, ctx, &mut storage, module)?
+                    };
                     stack.push(ctx, receiver)?;
                     Invocation::Member(
                         crate::bytecode::CallSite {
@@ -1375,17 +1517,6 @@ pub(crate) fn execute(
                     target
                 };
                 match target {
-                    Invocation::Namespace(module, helper) => {
-                        let value = namespaces::call_helper(
-                            program,
-                            ctx,
-                            &mut storage,
-                            module,
-                            helper,
-                            &args,
-                        )?;
-                        stack.push(ctx, value)?;
-                    }
                     Invocation::Builtin(builtin) => {
                         let value = builtin.call(
                             ctx,
@@ -1421,7 +1552,7 @@ pub(crate) fn execute(
                         } else {
                             stack.data.last().unwrap()
                         };
-                        if let Kind::Namespace(receiver) = &receiver.0 {
+                        if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
                             let receiver = receiver.clone();
                             match namespaces::member(
                                 program,
@@ -1433,6 +1564,7 @@ pub(crate) fn execute(
                                 namespaces::Access {
                                     caller: namespace,
                                     implicit: false,
+                                    instance: caller_instance,
                                 },
                             )? {
                                 namespaces::Member::Function(function) => {
@@ -1535,9 +1667,12 @@ pub(crate) fn execute(
                         }
                         let value = if mutating {
                             let address = storage.addresses.data.pop().unwrap();
+                            let guard =
+                                address_guard(program, ctx, &frames, &mut storage, &address)?;
                             address.apply(
                                 ctx,
                                 address::Bindings {
+                                    guard,
                                     locals: &mut storage.locals.data,
                                     namespaces: &mut storage.namespaces.data,
                                 },
@@ -1574,7 +1709,8 @@ pub(crate) fn execute(
             Op::Method(site, n) => {
                 let base = stack.data.len() - n - 1;
                 let root = std::mem::take(&mut stack.data[base]);
-                if let Kind::Namespace(receiver) = &root.0 {
+                if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
+                    let receiver = &root;
                     let name = &program.members[site.name];
                     match namespaces::member(
                         program,
@@ -1586,6 +1722,7 @@ pub(crate) fn execute(
                         namespaces::Access {
                             caller: namespace,
                             implicit: false,
+                            instance: caller_instance,
                         },
                     )? {
                         namespaces::Member::Function(function) => {
@@ -1709,6 +1846,9 @@ fn normalize_return(
     frame: usize,
     value: Value,
 ) -> Result<Value> {
+    if frames.data[frame].constructor {
+        return Ok(frames.data[frame].receiver.as_ref().unwrap().clone());
+    }
     let Some(function) = frames.data[frame].function else {
         return Ok(value);
     };
@@ -1759,6 +1899,106 @@ fn runtime_bound(
         }
     }
     Ok(false)
+}
+
+fn set_ivar(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    instance: &std::sync::Arc<crate::objects::Instance>,
+    name: &str,
+    value: &Value,
+) -> Result<()> {
+    if let Some(field) = crate::objects::field_slot(ctx, instance, name)? {
+        address::refresh(
+            ctx,
+            address::Root::Object(instance.clone(), field),
+            value,
+            &mut storage.addresses.data,
+            &[],
+        )?;
+    }
+    crate::objects::set(ctx, instance, name, value)
+}
+
+fn property_type(
+    program: &Program,
+    ctx: &mut CallContext,
+    instance: &crate::objects::Instance,
+    name: &str,
+) -> Result<Option<usize>> {
+    let methods = &instance.class().definition.instance_methods;
+    let mut getter = None;
+    let mut setter = None;
+    for method in methods {
+        ctx.charge(1)?;
+        ctx.work_bytes(name.len().max(method.name.len()))?;
+        if method.name.strip_suffix('=') == Some(name) {
+            setter = Some(method.function);
+        }
+        if method.name == name {
+            getter = Some(method.function);
+        }
+    }
+    let ty = if let Some(setter) = setter {
+        let function = &program.functions[setter];
+        if function
+            .accessor
+            .as_ref()
+            .is_some_and(|(field, setter)| field == name && *setter)
+        {
+            function.params.first().and_then(|param| param.ty)
+        } else {
+            None
+        }
+    } else {
+        getter.and_then(|getter| {
+            let function = &program.functions[getter];
+            function
+                .accessor
+                .as_ref()
+                .filter(|(field, setter)| field == name && !setter)
+                .and(function.return_type)
+        })
+    };
+    Ok(ty)
+}
+
+fn normalize_ivar(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    instance: &crate::objects::Instance,
+    name: &str,
+    value: Value,
+) -> Result<Value> {
+    let Some(ty) = property_type(program, ctx, instance, name)? else {
+        return Ok(value);
+    };
+    crate::types::normalize(ctx, &program.types[ty], value, |ctx, name| {
+        resolve_type(program, ctx, frames, storage, None, name)
+    })
+}
+
+fn address_guard<'a>(
+    program: &'a Program,
+    ctx: &mut CallContext,
+    frames: &Buffer<Frame>,
+    storage: &mut Storage,
+    address: &Address,
+) -> Result<Option<crate::types::Prepared<'a>>> {
+    let Some((instance, field)) = address.object_binding() else {
+        return Ok(None);
+    };
+    let name = crate::objects::field_name(instance, field)?;
+    let name = std::str::from_utf8(name.as_bytes().unwrap()).unwrap();
+    let Some(ty) = property_type(program, ctx, instance, name)? else {
+        return Ok(None);
+    };
+    crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
+        resolve_type(program, ctx, frames, storage, None, name)
+    })
+    .map(Some)
 }
 
 fn normalize_type(
@@ -1824,17 +2064,18 @@ fn resolve_type(
         }
         for (index, value) in program.declarations.iter().enumerate() {
             ctx.charge(1)?;
-            let Kind::Enum(enumeration) = &value.0 else {
-                unreachable!()
+            let name = match &value.0 {
+                Kind::Enum(enumeration) => &enumeration.definition.name,
+                Kind::Namespace(namespace) => &namespace.definition.name,
+                _ => continue,
             };
-            if let Some(value) = type_candidate(
-                ctx,
-                &enumeration.definition.name,
-                value,
-                binding,
-                member,
-                fold,
-            )? {
+            let value = storage
+                .declarations
+                .data
+                .iter()
+                .find(|(slot, _)| *slot == index)
+                .map_or(value, |(_, value)| value);
+            if let Some(value) = type_candidate(ctx, name, value, binding, member, fold)? {
                 if found.is_none() {
                     declaration = Some(index);
                 }
@@ -1870,7 +2111,7 @@ fn type_candidate(
         return Ok(None);
     }
     let Some(member) = member else {
-        return Ok(matches!(value.0, Kind::Enum(_)).then(|| value.clone()));
+        return Ok(matches!(value.0, Kind::Enum(_) | Kind::Namespace(_)).then(|| value.clone()));
     };
     let Kind::Hash(namespace) = &value.0 else {
         return Ok(None);
@@ -1880,14 +2121,14 @@ fn type_candidate(
     }
     if let Some(index) = namespace.find(ctx, member.as_bytes())? {
         let value = &namespace.buffer.data[index].1;
-        if matches!(value.0, Kind::Enum(_)) {
+        if matches!(value.0, Kind::Enum(_) | Kind::Namespace(_)) {
             return Ok(Some(value.clone()));
         }
     }
     let mut found = None;
     for (key, value) in &namespace.buffer.data {
         ctx.charge(1)?;
-        if matches!(value.0, Kind::Enum(_))
+        if matches!(value.0, Kind::Enum(_) | Kind::Namespace(_))
             && crate::text::case::equal(ctx, key.require_bytes()?, member.as_bytes())?
         {
             merge_type(&mut found, value.clone())?;
@@ -1897,11 +2138,15 @@ fn type_candidate(
 }
 
 fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
-    if let Some(Value(Kind::Enum(previous))) = found {
-        let Kind::Enum(next) = &value.0 else {
-            unreachable!()
+    if let Some(previous) = found {
+        let same = match (&previous.0, &value.0) {
+            (Kind::Enum(a), Kind::Enum(b)) => std::sync::Arc::ptr_eq(&a.definition, &b.definition),
+            (Kind::Namespace(a), Kind::Namespace(b)) => {
+                std::sync::Arc::ptr_eq(&a.definition, &b.definition)
+            }
+            _ => false,
         };
-        if !std::sync::Arc::ptr_eq(&previous.definition, &next.definition) {
+        if !same {
             return Err(Error::new(ErrorKind::Type, "ambiguous named type"));
         }
     } else {
@@ -2027,11 +2272,30 @@ fn enter_arguments(
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
-    function: usize,
-    arguments: Arguments,
+    call: impl Into<crate::namespace::Call>,
+    mut arguments: Arguments,
     base: usize,
 ) -> Result<()> {
+    let mut call = call.into();
+    let function = call.function;
+    if call.constructor {
+        let Some(Value(Kind::Namespace(class))) = &call.receiver else {
+            unreachable!()
+        };
+        call.receiver = Some(Value(Kind::Instance(crate::objects::new(ctx, class)?)));
+        if call.ignore_arguments {
+            arguments = Arguments::empty();
+        }
+    }
     let fun = &program.functions[function];
+    if fun.instance
+        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if Some(instance.class().definition.index) == fun.namespace)
+    {
+        return Err(Error::new(
+            ErrorKind::Type,
+            "instance method requires its instance receiver",
+        ));
+    }
     if fun.plain && arguments.keywords.buffer.data.is_empty() {
         enter(
             program,
@@ -2042,7 +2306,10 @@ fn enter_arguments(
             &arguments.positional.data,
             base,
         )?;
-        frames.data.last_mut().unwrap().block = arguments.block;
+        let frame = frames.data.last_mut().unwrap();
+        frame.block = arguments.block;
+        frame.receiver = call.receiver;
+        frame.constructor = call.constructor;
         return Ok(());
     }
     ctx.charge(1)?;
@@ -2054,6 +2321,8 @@ fn enter_arguments(
     let mut frame = new_frame(ctx, program, storage, Some(function), base)?;
     frame.home = (function != 0 && !fun.initializer).then_some(frames.data.len());
     frame.block = block;
+    frame.receiver = call.receiver;
+    frame.constructor = call.constructor;
     if fun.binds_parameters {
         frame.binding = Buffer::with_capacity(ctx, 1)?;
         frame.binding.data.push(binding);
@@ -2083,6 +2352,8 @@ fn new_frame(
         storage.locals.data.push(None);
     }
     Ok(Frame {
+        receiver: None,
+        constructor: false,
         assignment_result: None,
         result_address: false,
         function,
@@ -2168,6 +2439,7 @@ fn enter_block(
         return ctx.fail(ErrorKind::Recursion, "recursion limit exceeded");
     }
     let mut frame = new_frame(ctx, program, storage, Some(block.function), base)?;
+    frame.receiver = frames.data[block.parent].receiver.clone();
     frame.parent = Some(block.parent);
     frame.home = frames.data[block.parent].home;
     frame.block = frames.data[block.parent].block;

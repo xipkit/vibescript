@@ -32,6 +32,7 @@ mod money;
 mod mutate;
 mod namespace;
 mod numeric;
+mod objects;
 mod ops;
 mod ordering;
 mod printable;
@@ -169,15 +170,27 @@ impl Script {
             .names
             .get(name)
             .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
-        let value = vm::execute(
+        let result = vm::execute(
             &self.inner.program,
             &self.inner.hosts,
             &mut ctx,
             function,
             args,
             keywords,
-        )?;
+        );
         ctx.random = None;
+        let value = match result {
+            Ok(value) => value,
+            Err(error) => {
+                objects::cleanup(&mut ctx);
+                return Err(error);
+            }
+        };
+        if let Err(error) = objects::finish(&mut ctx) {
+            drop(value);
+            objects::cleanup(&mut ctx);
+            return Err(error);
+        }
         Ok(Outcome {
             value,
             stats: ctx.stats(),

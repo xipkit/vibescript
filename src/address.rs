@@ -5,10 +5,11 @@ struct Hop {
     key: Value,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Root {
     Local(usize),
     Field(usize, usize),
+    Object(std::sync::Arc<crate::objects::Instance>, usize),
 }
 
 impl From<usize> for Root {
@@ -18,18 +19,23 @@ impl From<usize> for Root {
 }
 
 pub(crate) struct Bindings<'a> {
+    pub guard: Option<crate::types::Prepared<'a>>,
     pub locals: &'a mut [Option<Value>],
     pub namespaces: &'a mut [crate::namespace::State],
 }
 
 impl Bindings<'_> {
-    fn set(&mut self, root: Root, value: Option<Value>) {
+    fn set(&mut self, ctx: &mut CallContext, root: &Root, value: Option<Value>) -> Result<()> {
         match root {
-            Root::Local(slot) => self.locals[slot] = value,
+            Root::Local(slot) => self.locals[*slot] = value,
             Root::Field(module, field) => {
-                self.namespaces[module].fields.buffer.data[field].1 = value.unwrap_or_default()
+                self.namespaces[*module].fields.buffer.data[*field].1 = value.unwrap_or_default()
+            }
+            Root::Object(instance, field) => {
+                crate::objects::set_slot(ctx, instance, *field, value.unwrap_or_default())?
             }
         }
+        Ok(())
     }
 }
 
@@ -43,6 +49,12 @@ pub(crate) struct Address {
 }
 
 impl Address {
+    pub fn object_binding(&self) -> Option<(&std::sync::Arc<crate::objects::Instance>, usize)> {
+        match self.root.as_ref() {
+            Some(Root::Object(instance, field)) => Some((instance, *field)),
+            _ => None,
+        }
+    }
     pub fn new(root: Option<usize>, value: Value) -> Self {
         Self {
             protected: false,
@@ -57,6 +69,16 @@ impl Address {
     pub fn field(module: usize, field: usize, value: Value) -> Self {
         let mut address = Self::new(None, value);
         address.root = Some(Root::Field(module, field));
+        address
+    }
+
+    pub fn object(
+        instance: std::sync::Arc<crate::objects::Instance>,
+        field: usize,
+        value: Value,
+    ) -> Self {
+        let mut address = Self::new(None, value);
+        address.root = Some(Root::Object(instance, field));
         address
     }
 
@@ -135,8 +157,10 @@ impl Address {
         };
         // The captured path now owns the receiver. Other pending writes and script aliases
         // retain their own views until the mutation has been checked and published.
-        bindings.set(root, None);
-        let forward = pending.iter().any(|a| a.root == Some(root));
+        if bindings.guard.is_none() {
+            bindings.set(ctx, &root, None)?;
+        }
+        let forward = pending.iter().any(|a| a.root.as_ref() == Some(&root));
         let mut changes = Buffer::empty();
         if forward {
             changes.ensure(ctx, path.data.len() + 1)?;
@@ -154,8 +178,11 @@ impl Address {
                 changes.data.push((old, updated.clone()));
             }
         }
-        refresh(ctx, root, &updated, pending, &changes.data)?;
-        bindings.set(root, Some(updated));
+        if let Some(guard) = &bindings.guard {
+            updated = guard.normalize(ctx, updated)?;
+        }
+        refresh(ctx, root.clone(), &updated, pending, &changes.data)?;
+        bindings.set(ctx, &root, Some(updated))?;
         Ok(result)
     }
 
@@ -215,7 +242,7 @@ pub(crate) fn refresh(
     let root = root.into();
     for address in pending {
         ctx.charge(1)?;
-        if address.root != Some(root) {
+        if address.root.as_ref() != Some(&root) {
             continue;
         }
         let unchanged = |ctx: &mut CallContext, old: &Value, new: &Value| -> Result<bool> {

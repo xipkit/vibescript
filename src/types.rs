@@ -84,13 +84,32 @@ pub(crate) fn normalize(
     ctx: &mut CallContext,
     ty: &Type,
     value: Value,
-    mut resolve: impl FnMut(&mut CallContext, &str) -> Result<Value>,
+    resolve: impl FnMut(&mut CallContext, &str) -> Result<Value>,
 ) -> Result<Value> {
+    prepare(ctx, ty, resolve)?.normalize(ctx, value)
+}
+
+pub(crate) struct Prepared<'a> {
+    ty: &'a Type,
+    names: Buffer<(usize, Value)>,
+}
+
+impl Prepared<'_> {
+    pub fn normalize(&self, ctx: &mut CallContext, value: Value) -> Result<Value> {
+        visit(ctx, self.ty, value, &self.names, 0)?
+            .map(|(value, _)| value)
+            .ok_or_else(|| Error::new(ErrorKind::Type, "value does not match its type annotation"))
+    }
+}
+
+pub(crate) fn prepare<'a>(
+    ctx: &mut CallContext,
+    ty: &'a Type,
+    mut resolve: impl FnMut(&mut CallContext, &str) -> Result<Value>,
+) -> Result<Prepared<'a>> {
     let mut names = Buffer::empty();
     resolve_names(ctx, ty, &mut names, &mut resolve, 0)?;
-    visit(ctx, ty, value, &names, 0)?
-        .map(|(value, _)| value)
-        .ok_or_else(|| Error::new(ErrorKind::Type, "value does not match its type annotation"))
+    Ok(Prepared { ty, names })
 }
 
 fn resolve_names(
@@ -178,8 +197,16 @@ fn visit(
                     break;
                 }
             }
-            let Kind::Enum(enumeration) = &found.unwrap().0 else {
-                unreachable!()
+            let found = found.unwrap();
+            if let Kind::Namespace(class) = &found.0 {
+                let matches = matches!(&value.0, Kind::Instance(instance) if std::sync::Arc::ptr_eq(&instance.class().definition, &class.definition));
+                return Ok(matches.then_some((value, false)));
+            }
+            let Kind::Enum(enumeration) = &found.0 else {
+                return Err(Error::new(
+                    ErrorKind::Type,
+                    "named annotation does not refer to a type",
+                ));
             };
             match &value.0 {
                 Kind::EnumMember(member)

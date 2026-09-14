@@ -133,6 +133,11 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) 
             out.append(ctx, &shape.definition.text)?;
             return out.append(ctx, b">");
         }
+        Kind::Instance(instance) => {
+            out.append(ctx, b"<")?;
+            out.append(ctx, instance.class().definition.name.as_bytes())?;
+            return out.append(ctx, b" instance>");
+        }
         Kind::Namespace(namespace) => {
             out.append(ctx, b"<Class ")?;
             out.append(ctx, namespace.definition.name.as_bytes())?;

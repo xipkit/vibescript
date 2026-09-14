@@ -31,6 +31,11 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, depth: usi
         return ctx.fail(ErrorKind::Recursion, "string conversion nesting too deep");
     }
     match &value.0 {
+        Kind::Instance(instance) => {
+            out.extend(ctx, b"<")?;
+            out.extend(ctx, instance.class().definition.name.as_bytes())?;
+            out.extend(ctx, b" instance>")?;
+        }
         Kind::Namespace(namespace) => {
             out.extend(ctx, b"<Class ")?;
             out.extend(ctx, namespace.definition.name.as_bytes())?;

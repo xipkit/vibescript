@@ -479,6 +479,7 @@ fn write_value(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: us
         Kind::Builtin(_) | Kind::Offset(_) => {
             return Err(Error::new(ErrorKind::Json, "cannot encode a builtin"));
         }
+        Kind::Instance(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an instance")),
         Kind::Namespace(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a module")),
         Kind::Shape(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a type literal")),
         Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),

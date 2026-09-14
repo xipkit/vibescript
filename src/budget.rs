@@ -110,6 +110,10 @@ pub struct CallContext {
     memory: Arc<Memory>,
     steps: u64,
     exhausted: Option<Error>,
+    pub(crate) objects: Option<Arc<crate::objects::Heap>>,
+    pub(crate) pending_objects:
+        Buffer<(Arc<crate::objects::Instance>, Arc<crate::objects::Instance>)>,
+    pub(crate) importing_objects: bool,
     pub(crate) random_source: Option<crate::random::Source>,
     pub(crate) random: Option<crate::random::Seeded>,
 }
@@ -121,6 +125,9 @@ impl CallContext {
             memory: Arc::new(Memory::default()),
             steps: 0,
             exhausted: None,
+            objects: None,
+            pending_objects: Buffer::empty(),
+            importing_objects: false,
             random_source: None,
             random: None,
         }
@@ -248,6 +255,10 @@ impl CallContext {
             .as_ref()
             .is_some_and(|c| Arc::ptr_eq(&c.memory, &self.memory))
     }
+
+    pub(crate) fn identity(&self) -> Arc<Memory> {
+        self.memory.clone()
+    }
 }
 
 #[derive(Debug)]
@@ -320,6 +331,64 @@ impl<T> Buffer<T> {
         }
         self.data.push(value);
         Ok(())
+    }
+
+    pub fn shrink(&mut self, ctx: &mut CallContext) -> Result<()> {
+        if self.data.len() == self.data.capacity() {
+            return Ok(());
+        }
+        if self.data.is_empty() {
+            *self = Self::empty();
+            return Ok(());
+        }
+        ctx.work_bytes(std::mem::size_of_val(self.data.as_slice()))?;
+        let mut charge = ctx.reserve(std::mem::size_of_val(self.data.as_slice()))?;
+        self.data.shrink_to_fit();
+        if self.data.capacity() != self.data.len() {
+            charge = ctx.reserve(self.data.capacity() * size_of::<T>())?;
+        }
+        self.charge = charge;
+        ctx.checkpoint()
+    }
+
+    pub fn shrink_after_failure(&mut self, limit: Option<usize>) {
+        if self.data.is_empty() {
+            *self = Self::empty();
+            return;
+        }
+        if self.data.len() > self.data.capacity() / 4 {
+            return;
+        }
+        // Cleanup keeps allocation accounting active after work/cancellation has latched.
+        // It cannot call user code or resume execution.
+        let bytes = std::mem::size_of_val(self.data.as_slice());
+        let temporary = if let Some(charge) = &self.charge {
+            let used = charge.memory.used.load(Ordering::Relaxed);
+            let Some(next) = used.checked_add(bytes) else {
+                return;
+            };
+            if limit.is_some_and(|limit| next > limit) {
+                return;
+            }
+            let actual = charge.memory.used.fetch_add(bytes, Ordering::Relaxed) + bytes;
+            charge.memory.peak.fetch_max(actual, Ordering::Relaxed);
+            Some(Charge {
+                memory: charge.memory.clone(),
+                bytes,
+            })
+        } else {
+            None
+        };
+        self.data.shrink_to_fit();
+        if let Some(charge) = &mut self.charge {
+            let bytes = self.data.capacity() * size_of::<T>();
+            charge
+                .memory
+                .used
+                .fetch_sub(charge.bytes - bytes, Ordering::Relaxed);
+            charge.bytes = bytes;
+        }
+        drop(temporary);
     }
 }
 

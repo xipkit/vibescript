@@ -10,6 +10,8 @@ mod namespaces;
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
     InitNamespace(usize),
+    UnboundClass(usize),
+    BindIvar(usize, usize),
     NamespaceSelf(usize),
     NamespaceConstant(usize, usize),
     NamespaceVariable(usize, bool),
@@ -111,7 +113,6 @@ pub(crate) enum ArgumentOp {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Invocation {
     ImplicitMember(usize, usize),
-    Namespace(usize, crate::namespace::Helper),
     Builtin(Builtin),
     Function(usize),
     Host(usize),
@@ -298,6 +299,8 @@ impl Method {
 
 #[derive(Debug, Default)]
 pub(crate) struct Function {
+    pub instance: bool,
+    pub accessor: Option<(String, bool)>,
     pub namespace: Option<usize>,
     pub initializer: bool,
     pub name: String,
@@ -335,7 +338,7 @@ pub(crate) struct Program {
 pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
     let parsed = syntax::parse(source)?;
     let mut defs = parsed.functions;
-    let mut contexts = vec![(None, false); defs.len()];
+    let mut contexts = vec![(None, false, false); defs.len()];
     let names: HashMap<_, _> = defs
         .iter()
         .enumerate()
@@ -372,6 +375,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
     for (index, def) in defs.into_iter().enumerate() {
         let mut c = Compiler {
             namespace: contexts[index].0,
+            instance: contexts[index].2,
             program: &mut program,
             locals: HashMap::new(),
             code: Vec::new(),
@@ -405,6 +409,12 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
             if let Some(bind) = bind {
                 c.patch(bind, c.code.len());
             }
+            if c.instance {
+                if let Some(name) = &param.ivar {
+                    let name = c.call_site(name, false).name;
+                    c.emit(Op::BindIvar(name, slot));
+                }
+            }
             c.parameters.insert(param.name.clone());
             params.push(Parameter {
                 name: param.name.clone(),
@@ -422,6 +432,8 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         c.code.push(Op::Finish);
         let return_type = def.return_type.as_ref().map(|ty| c.annotation(ty));
         let function = Function {
+            instance: contexts[index].2,
+            accessor: def.accessor,
             namespace: contexts[index].0,
             initializer: contexts[index].1,
             name: def.name,
@@ -454,6 +466,7 @@ fn expanded(args: &[Argument]) -> bool {
 }
 
 struct Compiler<'a> {
+    instance: bool,
     namespace: Option<usize>,
     program: &'a mut Program,
     locals: HashMap<String, usize>,
@@ -477,7 +490,7 @@ impl Compiler<'_> {
     fn declare(&mut self, body: &[Stmt]) {
         for stmt in body {
             match stmt {
-                Stmt::Module(_) => (),
+                Stmt::Module(_) | Stmt::UnboundClass(_) => (),
                 Stmt::Expr(e) => self.declare_expr(e),
                 Stmt::Assign(target, _, value) => {
                     self.declare_target(target);
@@ -733,6 +746,10 @@ impl Compiler<'_> {
     }
     fn statement(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
         match stmt {
+            Stmt::UnboundClass(name) => {
+                let name = self.call_site(name, false).name;
+                self.emit(Op::UnboundClass(name));
+            }
             Stmt::Module(name) => {
                 let prefix = format!("{name}::");
                 let modules: Vec<_> = self
@@ -1432,6 +1449,7 @@ impl Compiler<'_> {
         let mut outer = vec![self.locals.clone()];
         outer.extend(self.outer.iter().cloned());
         let mut child = Compiler {
+            instance: self.instance,
             namespace: self.namespace,
             program: self.program,
             locals: HashMap::new(),
@@ -1484,6 +1502,7 @@ impl Compiler<'_> {
                 });
         }
         let function = Function {
+            instance: self.instance,
             namespace: self.namespace,
             name: "<block>".into(),
             locals: child.locals.len(),
@@ -1711,7 +1730,7 @@ fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
 fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
     for stmt in body {
         match stmt {
-            Stmt::Module(_) => (),
+            Stmt::Module(_) | Stmt::UnboundClass(_) => (),
             Stmt::Expr(expr) => call_names(expr, names),
             Stmt::Assign(target, _, value) => {
                 target_call_names(target, names);

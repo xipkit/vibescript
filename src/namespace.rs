@@ -1,4 +1,4 @@
-use crate::{CallContext, Result, budget::Charge, hash::Hash, syntax::modules::Visibility};
+use crate::{CallContext, Result, Value, budget::Charge, hash::Hash, syntax::modules::Visibility};
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -13,6 +13,8 @@ pub(crate) struct Definition {
     pub index: usize,
     pub name: String,
     pub methods: Vec<Method>,
+    pub instance_methods: Vec<Method>,
+    pub constructor: Option<(usize, bool)>,
     pub nested: Vec<(String, usize)>,
     pub body: Option<usize>,
     bytes: usize,
@@ -23,6 +25,8 @@ impl Definition {
         index: usize,
         name: String,
         methods: Vec<Method>,
+        instance_methods: Vec<Method>,
+        constructor: Option<(usize, bool)>,
         nested: Vec<(String, usize)>,
         body: Option<usize>,
     ) -> Arc<Self> {
@@ -31,6 +35,11 @@ impl Definition {
             + name.capacity()
             + methods.capacity() * size_of::<Method>()
             + methods.iter().map(|m| m.name.capacity()).sum::<usize>()
+            + instance_methods.capacity() * size_of::<Method>()
+            + instance_methods
+                .iter()
+                .map(|m| m.name.capacity())
+                .sum::<usize>()
             + nested.capacity() * size_of::<(String, usize)>()
             + nested
                 .iter()
@@ -40,6 +49,8 @@ impl Definition {
             index,
             name,
             methods,
+            instance_methods,
+            constructor,
             nested,
             body,
             bytes,
@@ -87,4 +98,23 @@ pub(crate) enum Helper {
     Equality,
     Class,
     Respond(bool),
+}
+
+#[derive(Debug)]
+pub(crate) struct Call {
+    pub function: usize,
+    pub receiver: Option<Value>,
+    pub constructor: bool,
+    pub ignore_arguments: bool,
+}
+
+impl From<usize> for Call {
+    fn from(function: usize) -> Self {
+        Self {
+            function,
+            receiver: None,
+            constructor: false,
+            ignore_arguments: false,
+        }
+    }
 }
