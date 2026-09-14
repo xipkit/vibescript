@@ -945,7 +945,7 @@ pub(crate) fn execute(
                                 name,
                                 receiver,
                                 &args.positional.data,
-                                !args.keywords.buffer.data.is_empty(),
+                                &args.keywords.buffer.data,
                                 arity,
                             )?
                         };

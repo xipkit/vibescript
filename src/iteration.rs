@@ -126,6 +126,7 @@ pub(crate) fn method(name: &str) -> bool {
         || hash_blocks::method(name)
         || crate::text::iteration::method(name)
         || matches!(name, "match" | "scan")
+        || crate::regex::substitute::method(name)
 }
 
 pub(crate) enum Progress {
@@ -164,6 +165,7 @@ pub(crate) enum Iteration {
     Hash(hash_blocks::Driver),
     Text(crate::text::iteration::Driver),
     Regex(crate::regex::operations::Driver),
+    Substitute(crate::regex::substitute::Driver),
 }
 
 impl Iteration {
@@ -174,13 +176,18 @@ impl Iteration {
             Self::Hash(state) => state.waiting(),
             Self::Text(state) => state.waiting,
             Self::Regex(state) => state.waiting,
+            Self::Substitute(state) => state.waiting,
         }
     }
 
     pub fn take_mutation(&mut self) -> Option<Mutation> {
         match self {
             Self::Loop(state) => state.mutation.take(),
-            Self::Order(_) | Self::Hash(_) | Self::Text(_) | Self::Regex(_) => None,
+            Self::Order(_)
+            | Self::Hash(_)
+            | Self::Text(_)
+            | Self::Regex(_)
+            | Self::Substitute(_) => None,
         }
     }
 
@@ -191,6 +198,7 @@ impl Iteration {
             Self::Hash(state) => state.advance(ctx, returned),
             Self::Text(state) => state.advance(ctx, returned),
             Self::Regex(state) => state.advance(ctx, returned),
+            Self::Substitute(state) => state.advance(ctx, returned),
         }
     }
 }
@@ -230,10 +238,22 @@ pub(crate) fn start(
     name: &str,
     receiver: &Value,
     args: &[Value],
-    keywords: bool,
+    keywords: &[(Value, Value)],
     block_arity: Option<usize>,
 ) -> Result<Option<Iteration>> {
     use MethodKind::*;
+    if crate::regex::substitute::method(name) {
+        return crate::regex::substitute::Driver::new(
+            ctx,
+            name,
+            receiver,
+            args,
+            keywords,
+            block_arity.is_some(),
+        )
+        .map(|state| state.map(Iteration::Substitute));
+    }
+    let keywords = !keywords.is_empty();
     if matches!(name, "match" | "scan") {
         return crate::regex::operations::Driver::new(
             ctx,
@@ -993,7 +1013,7 @@ pub(crate) fn without_block(
     receiver: &Value,
     args: &[Value],
 ) -> Result<Option<Value>> {
-    let Some(mut state) = start(ctx, name, receiver, args, false, None)? else {
+    let Some(mut state) = start(ctx, name, receiver, args, &[], None)? else {
         return Ok(None);
     };
     match state.advance(ctx, None)? {

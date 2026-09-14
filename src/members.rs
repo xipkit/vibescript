@@ -96,6 +96,15 @@ pub(crate) fn call_keywords(
     )? {
         return Ok((receiver, result));
     }
+    if let Some(result) = crate::regex::substitute::member(
+        ctx,
+        name,
+        &receiver,
+        &args.positional.data,
+        &args.keywords.buffer.data,
+    )? {
+        return Ok((receiver, result));
+    }
     if let Some(result) = crate::regex::value::member(
         ctx,
         name,
@@ -264,6 +273,9 @@ pub(crate) fn call(
         return Ok((receiver, result));
     }
     if let Some(result) = crate::text::template::call(ctx, name, &receiver, args, &[])? {
+        return Ok((receiver, result));
+    }
+    if let Some(result) = crate::regex::substitute::member(ctx, name, &receiver, args, &[])? {
         return Ok((receiver, result));
     }
     if let Some(result) = crate::regex::value::member(ctx, name, &receiver, args, false, false)? {

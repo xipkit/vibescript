@@ -4,6 +4,7 @@ use crate::{
 };
 use std::fmt::Write;
 
+pub(crate) mod bounded;
 pub(crate) mod case;
 pub(crate) mod charset;
 pub(crate) mod inspect;

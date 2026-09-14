@@ -10493,5 +10493,25 @@
     "name": "regex_match_scoped_20",
     "source": "def run(input)\nRegexp::retry\nend",
     "go_error": "parse error at 2:9: expected identifier, got \"retry\""
+  },
+  {
+    "name": "substitute_splat_1",
+    "source": "def run(input)\n\"aba\".sub(**{regex:true},*[\"a\",\"x\"])\nend",
+    "go_error": "parse error at 2:26: positional arguments cannot follow keyword arguments"
+  },
+  {
+    "name": "substitute_splat_6",
+    "source": "def run(input)\n\"aba\".sub!(**{regex:true},*[\"a\",\"x\"])\nend",
+    "go_error": "parse error at 2:27: positional arguments cannot follow keyword arguments"
+  },
+  {
+    "name": "substitute_splat_11",
+    "source": "def run(input)\n\"aba\".gsub(**{regex:true},*[\"a\",\"x\"])\nend",
+    "go_error": "parse error at 2:27: positional arguments cannot follow keyword arguments"
+  },
+  {
+    "name": "substitute_splat_16",
+    "source": "def run(input)\n\"aba\".gsub!(**{regex:true},*[\"a\",\"x\"])\nend",
+    "go_error": "parse error at 2:28: positional arguments cannot follow keyword arguments"
   }
 ]

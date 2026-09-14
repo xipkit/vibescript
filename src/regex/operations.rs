@@ -13,7 +13,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-fn pattern(ctx: &mut CallContext, value: &Value) -> Result<Arc<Regex>> {
+pub(super) fn pattern(ctx: &mut CallContext, value: &Value) -> Result<Arc<Regex>> {
     let value = match &value.0 {
         Kind::Regex(_) => ctx.import(value)?,
         Kind::Bytes(_) => Regex::compile(ctx, value.clone(), 0)?,
@@ -126,14 +126,14 @@ pub(crate) fn member(
 }
 
 #[derive(Default)]
-struct Cursor {
+pub(super) struct Cursor {
     position: usize,
     previous_end: Option<usize>,
     done: bool,
 }
 
 impl Cursor {
-    fn next(
+    pub(super) fn next(
         &mut self,
         ctx: &mut CallContext,
         search: &mut Search,

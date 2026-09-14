@@ -78,4 +78,57 @@ values
 
 The result is `["12", "34"]`. Scanning preserves anchors, word-boundary context and zero-width advancement. Materialized scans measure output in a first pass and allocate exact result capacity in a second pass, without retaining a table of all match indices. Block scans retain only their current matching state and release discarded block results before the next match.
 
-String substitution methods remain part of the unfinished language port. Rust honors regex anchors even where Go's namespace shortcut skips them; that intentional difference is tracked separately from matching conformance cases.
+## String substitution
+
+Strings support first-match substitution with `sub` and global substitution with `gsub`. String patterns are literal by default; pass `regex: true` to interpret them as regular expressions. A regex value selects regular-expression matching directly and rejects the `regex` keyword.
+
+```vibescript
+text = "bananas"
+[text.sub("na", "NA"), text.gsub!("na", "NA"), text]
+```
+
+The result is `["baNAnas", "baNANAs", "bananas"]`. Strings remain immutable. The bang forms, `sub!` and `gsub!`, return nil when no match exists and return the replacement result whenever a match exists, even if its bytes are unchanged.
+
+Literal replacements copy the replacement string verbatim. Regex replacements use backslash references:
+
+| Reference | Expansion |
+| --- | --- |
+| `\0`, `\&` | Whole match |
+| `\1` through `\9` | Numbered capture; empty if any named capture is defined |
+| `\k<name>` | Named capture; duplicate names select the last participating group |
+| `\+` | Last participating capture, considering only named groups when names exist |
+| Backslash followed by a backtick | Original text before the match |
+| `\'` | Original text after the match |
+| `\\` | Literal backslash |
+
+Missing captures expand to an empty string. An unknown or unterminated named reference fails when a match requires its expansion. Unknown escapes and a trailing backslash remain literal. Dollar references remain literal in these string methods. Escape the backslash itself inside a Vibescript string literal.
+
+```vibescript
+"a1 b2".gsub(/([a-z])([0-9])/, "\\2\\1")
+```
+
+The result is `"1a 2b"`.
+
+```vibescript
+"ID-12 ID-34".gsub(/ID-(?<number>[0-9]+)/, "X-\\k<number>")
+```
+
+The result is `"X-12 X-34"`.
+
+A substitution block takes the place of the replacement argument. It receives the whole matched substring, including when the pattern has captures. Its return value is converted to text; nil becomes empty text, collections use their value rendering, and match data renders its whole match. `next` supplies the current replacement; `break` and nonlocal `return` leave the call through the ordinary block rules.
+
+```vibescript
+seen = []
+result = "ID-12 ID-34".gsub(/ID-[0-9]+/) {|whole| seen.push(whole); whole.downcase}
+[result, seen]
+```
+
+The result is `["id-12 id-34", ["ID-12", "ID-34"]]`.
+
+Empty literal patterns visit Unicode character boundaries, including each invalid UTF-8 byte. Regex substitution preserves assertion context and skips an empty match immediately after a preceding match at that same position. Original subject bytes remain intact outside replacements.
+
+Regex substitutions enforce the 16 KiB pattern and 1 MiB subject, replacement and output guards. Literal substitutions can shrink inputs larger than 1 MiB. Unmatched literal template calls and identical literal pattern/replacement calls reuse the receiver without applying the output guard; block calls still bound their accumulated output, including an unmatched tail.
+
+Templates measure complete expansion before allocating output, then replay matching into exact capacity. Block output grows incrementally within the cap. Conversion measures nested replacement values before copying, rejects provably oversized integers before decimal conversion, and accounts conversion scratch. Search state, output and discarded block values are reclaimed on normal and nonlocal exits. All scans, conversions and copies observe work limits, cancellation and deadlines.
+
+Rust honors regex assertions even where Go's helper shortcuts skip them. It also preserves match-data rendering in replacement blocks. These selected differences are tracked separately from matching conformance cases.

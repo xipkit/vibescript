@@ -12,6 +12,7 @@ pub(crate) mod operations;
 mod parse;
 mod program;
 mod search;
+pub(crate) mod substitute;
 mod unicode;
 pub(crate) mod value;
 

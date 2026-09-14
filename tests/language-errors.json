@@ -97463,5 +97463,1095 @@
     "name": "regex_match_scoped_23",
     "source": "def run(input)\nRegexp::not\nend",
     "go_error": "unknown member not"
+  },
+  {
+    "name": "substitute_template_8",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x78\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: x"
+  },
+  {
+    "name": "substitute_template_9",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_10",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_11",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_27",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x78\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: x"
+  },
+  {
+    "name": "substitute_template_28",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_29",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_30",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_47",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_48",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_49",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_66",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_67",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_68",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x28\\x62\\x29\\x3f\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_85",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x7c\\x28\\x3f\\x3c\\x78\\x3e\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_86",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x7c\\x28\\x3f\\x3c\\x78\\x3e\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_87",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x7c\\x28\\x3f\\x3c\\x78\\x3e\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_104",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x7c\\x28\\x3f\\x3c\\x78\\x3e\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_105",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x7c\\x28\\x3f\\x3c\\x78\\x3e\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_106",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x7c\\x28\\x3f\\x3c\\x78\\x3e\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_123",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x3f\\x62\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_124",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x3f\\x62\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_125",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x3f\\x62\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_142",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x3f\\x62\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_143",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x3f\\x62\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_144",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x3f\\x3c\\x78\\x3e\\x61\\x29\\x3f\\x62\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_160",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x78\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: x"
+  },
+  {
+    "name": "substitute_template_161",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_162",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_163",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_179",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x78\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: x"
+  },
+  {
+    "name": "substitute_template_180",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_181",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_182",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\\x28\\x61\\x62\\x29\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_236",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x78\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: x"
+  },
+  {
+    "name": "substitute_template_237",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_238",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_239",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.sub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid group name reference format"
+  },
+  {
+    "name": "substitute_template_255",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x78\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: x"
+  },
+  {
+    "name": "substitute_template_256",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x6d\\x69\\x73\\x73\\x69\\x6e\\x67\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: missing"
+  },
+  {
+    "name": "substitute_template_257",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x3e\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub undefined group name reference: "
+  },
+  {
+    "name": "substitute_template_258",
+    "source": "def run(input)\ns=\"\\x61\\x62\\x61\";a=s;r=s.gsub(Regexp.new(\"\"),\"\\x5c\\x6b\\x3c\\x78\");[s.bytes,a.bytes,r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid group name reference format"
+  },
+  {
+    "name": "substitute_coercion_13",
+    "source": "def run(input)\nr=\"aa\".sub(\"a\") {Money.from_cents(42)};r.bytes\nend",
+    "go_error": "undefined variable Money (did you mean \"money\"?)"
+  },
+  {
+    "name": "substitute_coercion_18",
+    "source": "def run(input)\nr=\"aa\".sub(\"a\") {Shape.new({a:\"String\"})};r.bytes\nend",
+    "go_error": "undefined variable Shape"
+  },
+  {
+    "name": "substitute_coercion_19",
+    "source": "def run(input)\nr=\"aa\".sub(\"a\") {Enum.new(:State,[:Open,:Closed])};r.bytes\nend",
+    "go_error": "undefined variable Enum"
+  },
+  {
+    "name": "substitute_control_8",
+    "source": "def run(input)\nh={gsub:7,sub:8};h.sub(\"a\",\"b\")\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "substitute_contract_0",
+    "source": "def run(input)\nr=\"aba\".sub();[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects a pattern"
+  },
+  {
+    "name": "substitute_contract_1",
+    "source": "def run(input)\nr=\"aba\".sub(){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects a pattern"
+  },
+  {
+    "name": "substitute_contract_2",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_5",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_6",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",\"c\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_7",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",\"c\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_8",
+    "source": "def run(input)\nr=\"aba\".sub(nil,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_9",
+    "source": "def run(input)\nr=\"aba\".sub(nil,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_10",
+    "source": "def run(input)\nr=\"aba\".sub(:a,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_11",
+    "source": "def run(input)\nr=\"aba\".sub(:a,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_13",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_14",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",nil);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub replacement must be string"
+  },
+  {
+    "name": "substitute_contract_15",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",nil){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_16",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",:b);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub replacement must be string"
+  },
+  {
+    "name": "substitute_contract_17",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",:b){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_18",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",7);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub replacement must be string"
+  },
+  {
+    "name": "substitute_contract_19",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",7){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_21",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_23",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_24",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",regex:1);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_25",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",regex:1){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_26",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_27",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_28",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",regex:true,extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_29",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",\"b\",regex:true,extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_30",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_31",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_32",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,\"b\",regex:false);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_33",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_34",
+    "source": "def run(input)\nr=\"aba\".sub(\"[\" ,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_contract_35",
+    "source": "def run(input)\nr=\"aba\".sub(\"[\" ,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_36",
+    "source": "def run(input)\nr=\"aba\".sub(\"a\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_38",
+    "source": "def run(input)\nr=\"aba\".sub(/a/);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_40",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_41",
+    "source": "def run(input)\nr=\"aba\".sub(/a/,regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_42",
+    "source": "def run(input)\nr=\"aba\".sub(\"[\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_43",
+    "source": "def run(input)\nr=\"aba\".sub(\"[\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_bare_0",
+    "source": "def run(input)\n\"aba\".sub\nend",
+    "go_error": "string.sub expects a pattern"
+  },
+  {
+    "name": "substitute_bare_1",
+    "source": "def run(input)\n\"aba\".sub{\"x\"}\nend",
+    "go_error": "string.sub expects a pattern"
+  },
+  {
+    "name": "substitute_bare_2",
+    "source": "def run(input)\nr=\"aba\".sub;r(\"a\",\"x\")\nend",
+    "go_error": "string.sub expects a pattern"
+  },
+  {
+    "name": "substitute_coercion_35",
+    "source": "def run(input)\nr=\"aa\".sub!(\"a\") {Money.from_cents(42)};r.bytes\nend",
+    "go_error": "undefined variable Money (did you mean \"money\"?)"
+  },
+  {
+    "name": "substitute_coercion_40",
+    "source": "def run(input)\nr=\"aa\".sub!(\"a\") {Shape.new({a:\"String\"})};r.bytes\nend",
+    "go_error": "undefined variable Shape"
+  },
+  {
+    "name": "substitute_coercion_41",
+    "source": "def run(input)\nr=\"aa\".sub!(\"a\") {Enum.new(:State,[:Open,:Closed])};r.bytes\nend",
+    "go_error": "undefined variable Enum"
+  },
+  {
+    "name": "substitute_control_17",
+    "source": "def run(input)\nh={gsub:7,sub:8};h.sub!(\"a\",\"b\")\nend",
+    "go_error": "unknown hash method sub! (did you mean \"sub\"?)"
+  },
+  {
+    "name": "substitute_contract_44",
+    "source": "def run(input)\nr=\"aba\".sub!();[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects a pattern"
+  },
+  {
+    "name": "substitute_contract_45",
+    "source": "def run(input)\nr=\"aba\".sub!(){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects a pattern"
+  },
+  {
+    "name": "substitute_contract_46",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_49",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_50",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",\"c\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_51",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",\"c\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_52",
+    "source": "def run(input)\nr=\"aba\".sub!(nil,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_53",
+    "source": "def run(input)\nr=\"aba\".sub!(nil,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_54",
+    "source": "def run(input)\nr=\"aba\".sub!(:a,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_55",
+    "source": "def run(input)\nr=\"aba\".sub!(:a,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_57",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_58",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",nil);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! replacement must be string"
+  },
+  {
+    "name": "substitute_contract_59",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",nil){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_60",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",:b);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! replacement must be string"
+  },
+  {
+    "name": "substitute_contract_61",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",:b){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_62",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",7);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! replacement must be string"
+  },
+  {
+    "name": "substitute_contract_63",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",7){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_65",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_67",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_68",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",regex:1);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_69",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",regex:1){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_70",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_71",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_72",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",regex:true,extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_73",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",\"b\",regex:true,extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_74",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_75",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_76",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,\"b\",regex:false);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_77",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_78",
+    "source": "def run(input)\nr=\"aba\".sub!(\"[\" ,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_contract_79",
+    "source": "def run(input)\nr=\"aba\".sub!(\"[\" ,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_80",
+    "source": "def run(input)\nr=\"aba\".sub!(\"a\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_82",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_84",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_85",
+    "source": "def run(input)\nr=\"aba\".sub!(/a/,regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_86",
+    "source": "def run(input)\nr=\"aba\".sub!(\"[\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_87",
+    "source": "def run(input)\nr=\"aba\".sub!(\"[\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.sub! invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_bare_3",
+    "source": "def run(input)\n\"aba\".sub!\nend",
+    "go_error": "string.sub! expects a pattern"
+  },
+  {
+    "name": "substitute_bare_4",
+    "source": "def run(input)\n\"aba\".sub!{\"x\"}\nend",
+    "go_error": "string.sub! expects a pattern"
+  },
+  {
+    "name": "substitute_bare_5",
+    "source": "def run(input)\nr=\"aba\".sub!;r(\"a\",\"x\")\nend",
+    "go_error": "string.sub! expects a pattern"
+  },
+  {
+    "name": "substitute_coercion_57",
+    "source": "def run(input)\nr=\"aa\".gsub(\"a\") {Money.from_cents(42)};r.bytes\nend",
+    "go_error": "undefined variable Money (did you mean \"money\"?)"
+  },
+  {
+    "name": "substitute_coercion_62",
+    "source": "def run(input)\nr=\"aa\".gsub(\"a\") {Shape.new({a:\"String\"})};r.bytes\nend",
+    "go_error": "undefined variable Shape"
+  },
+  {
+    "name": "substitute_coercion_63",
+    "source": "def run(input)\nr=\"aa\".gsub(\"a\") {Enum.new(:State,[:Open,:Closed])};r.bytes\nend",
+    "go_error": "undefined variable Enum"
+  },
+  {
+    "name": "substitute_control_26",
+    "source": "def run(input)\nh={gsub:7,sub:8};h.gsub(\"a\",\"b\")\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "substitute_contract_88",
+    "source": "def run(input)\nr=\"aba\".gsub();[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects a pattern"
+  },
+  {
+    "name": "substitute_contract_89",
+    "source": "def run(input)\nr=\"aba\".gsub(){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects a pattern"
+  },
+  {
+    "name": "substitute_contract_90",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_93",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_94",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",\"c\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_95",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",\"c\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_96",
+    "source": "def run(input)\nr=\"aba\".gsub(nil,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_97",
+    "source": "def run(input)\nr=\"aba\".gsub(nil,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_98",
+    "source": "def run(input)\nr=\"aba\".gsub(:a,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_99",
+    "source": "def run(input)\nr=\"aba\".gsub(:a,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_101",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_102",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",nil);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub replacement must be string"
+  },
+  {
+    "name": "substitute_contract_103",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",nil){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_104",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",:b);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub replacement must be string"
+  },
+  {
+    "name": "substitute_contract_105",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",:b){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_106",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",7);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub replacement must be string"
+  },
+  {
+    "name": "substitute_contract_107",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",7){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_109",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_111",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_112",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",regex:1);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_113",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",regex:1){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_114",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_115",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_116",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",regex:true,extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_117",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",\"b\",regex:true,extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_118",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_119",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_120",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,\"b\",regex:false);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_121",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_122",
+    "source": "def run(input)\nr=\"aba\".gsub(\"[\" ,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_contract_123",
+    "source": "def run(input)\nr=\"aba\".gsub(\"[\" ,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_124",
+    "source": "def run(input)\nr=\"aba\".gsub(\"a\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_126",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_128",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_129",
+    "source": "def run(input)\nr=\"aba\".gsub(/a/,regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_130",
+    "source": "def run(input)\nr=\"aba\".gsub(\"[\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_131",
+    "source": "def run(input)\nr=\"aba\".gsub(\"[\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_bare_6",
+    "source": "def run(input)\n\"aba\".gsub\nend",
+    "go_error": "string.gsub expects a pattern"
+  },
+  {
+    "name": "substitute_bare_7",
+    "source": "def run(input)\n\"aba\".gsub{\"x\"}\nend",
+    "go_error": "string.gsub expects a pattern"
+  },
+  {
+    "name": "substitute_bare_8",
+    "source": "def run(input)\nr=\"aba\".gsub;r(\"a\",\"x\")\nend",
+    "go_error": "string.gsub expects a pattern"
+  },
+  {
+    "name": "substitute_coercion_79",
+    "source": "def run(input)\nr=\"aa\".gsub!(\"a\") {Money.from_cents(42)};r.bytes\nend",
+    "go_error": "undefined variable Money (did you mean \"money\"?)"
+  },
+  {
+    "name": "substitute_coercion_84",
+    "source": "def run(input)\nr=\"aa\".gsub!(\"a\") {Shape.new({a:\"String\"})};r.bytes\nend",
+    "go_error": "undefined variable Shape"
+  },
+  {
+    "name": "substitute_coercion_85",
+    "source": "def run(input)\nr=\"aa\".gsub!(\"a\") {Enum.new(:State,[:Open,:Closed])};r.bytes\nend",
+    "go_error": "undefined variable Enum"
+  },
+  {
+    "name": "substitute_control_35",
+    "source": "def run(input)\nh={gsub:7,sub:8};h.gsub!(\"a\",\"b\")\nend",
+    "go_error": "unknown hash method gsub! (did you mean \"gsub\" or \"sub\"?)"
+  },
+  {
+    "name": "substitute_contract_132",
+    "source": "def run(input)\nr=\"aba\".gsub!();[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects a pattern"
+  },
+  {
+    "name": "substitute_contract_133",
+    "source": "def run(input)\nr=\"aba\".gsub!(){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects a pattern"
+  },
+  {
+    "name": "substitute_contract_134",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_137",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_138",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",\"c\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_139",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",\"c\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_140",
+    "source": "def run(input)\nr=\"aba\".gsub!(nil,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_141",
+    "source": "def run(input)\nr=\"aba\".gsub!(nil,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_142",
+    "source": "def run(input)\nr=\"aba\".gsub!(:a,\"b\");[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_143",
+    "source": "def run(input)\nr=\"aba\".gsub!(:a,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! pattern must be string or regex"
+  },
+  {
+    "name": "substitute_contract_145",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,\"b\"){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_146",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",nil);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! replacement must be string"
+  },
+  {
+    "name": "substitute_contract_147",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",nil){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_148",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",:b);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! replacement must be string"
+  },
+  {
+    "name": "substitute_contract_149",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",:b){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_150",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",7);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! replacement must be string"
+  },
+  {
+    "name": "substitute_contract_151",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",7){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_153",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_155",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_156",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",regex:1);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_157",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",regex:1){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! regex keyword must be bool"
+  },
+  {
+    "name": "substitute_contract_158",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_159",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_160",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",regex:true,extra:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_161",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",\"b\",regex:true,extra:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! supports only regex keyword"
+  },
+  {
+    "name": "substitute_contract_162",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_163",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_164",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,\"b\",regex:false);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_165",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,\"b\",regex:false){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_166",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"[\" ,\"b\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_contract_167",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"[\" ,\"b\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! cannot take both a replacement argument and a block"
+  },
+  {
+    "name": "substitute_contract_168",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"a\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_170",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_172",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_173",
+    "source": "def run(input)\nr=\"aba\".gsub!(/a/,regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! does not take the regex keyword with a regex pattern"
+  },
+  {
+    "name": "substitute_contract_174",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"[\",regex:true);[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! expects pattern and replacement"
+  },
+  {
+    "name": "substitute_contract_175",
+    "source": "def run(input)\nr=\"aba\".gsub!(\"[\",regex:true){|m|m+\"x\"};[r.nil?,\"#{r}\".bytes]\nend",
+    "go_error": "string.gsub! invalid regex: error parsing regexp: missing closing ]: `[`"
+  },
+  {
+    "name": "substitute_bare_9",
+    "source": "def run(input)\n\"aba\".gsub!\nend",
+    "go_error": "string.gsub! expects a pattern"
+  },
+  {
+    "name": "substitute_bare_10",
+    "source": "def run(input)\n\"aba\".gsub!{\"x\"}\nend",
+    "go_error": "string.gsub! expects a pattern"
+  },
+  {
+    "name": "substitute_bare_11",
+    "source": "def run(input)\nr=\"aba\".gsub!;r(\"a\",\"x\")\nend",
+    "go_error": "string.gsub! expects a pattern"
   }
 ]

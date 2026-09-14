@@ -1102,5 +1102,23 @@
     "expected": "a",
     "policy": "protected_match_data",
     "reason": "Duplicating match data preserves its published string rendering. Go deep cloning drops that rendering together with the protected tag."
+  },
+  {
+    "name": "substitution_word_boundaries",
+    "body": "[\"a b aa\".gsub(/\\b/,\"X\"),\"ababa\".gsub(/\\B/,\"X\"),\"a b aa\".gsub(/\\b/) {\"X\"}]",
+    "go": ["Xa Xb XaaX", "aXbaXba", "Xa Xb XaaX"],
+    "rust": ["XaX XbX XaaX", "aXbXaXbXa", "XaX XbX XaaX"],
+    "expected": ["XaX XbX XaaX", "aXbXaXbXa", "XaX XbX XaaX"],
+    "policy": "honor_regex_anchors",
+    "reason": "Global substitution retains the original assertion context. Go's suffix-window repair can skip valid word-boundary and non-boundary matches; Rust evaluates every eligible character boundary."
+  },
+  {
+    "name": "substitution_match_data_rendering",
+    "body": "m=\"a\".match(/a/);[\"aa\".sub(/a/) {m},\"aa\".gsub(/a/) {m}]",
+    "go": ["<object>a", "<object><object>"],
+    "rust": ["aa", "aa"],
+    "expected": ["aa", "aa"],
+    "policy": "protected_match_data",
+    "reason": "Match data retains its published whole-match rendering when a replacement block returns it. Go's bounded conversion loses the specialized rendering and emits an object placeholder."
   }
 ]

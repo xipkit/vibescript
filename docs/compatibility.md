@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: twenty-three intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: twenty-five intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
 
 ## Documented value semantics take precedence
 
@@ -83,7 +83,7 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes twenty-three intentional cases from five open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes twenty-five intentional cases from five open cases.
 
 
 ## Builtin descriptors
@@ -96,8 +96,12 @@ Go's `Regex.match`, `Regex.replace` and `Regex.replace_all` helpers can take a l
 
 One aggregate audit case records all three helpers alongside the predicate. Fifty-one focused probes reproduce this discrepancy across grouping, flags and subjects; they are excluded from matching conformance counts. The selected regex policy honors anchors. This aggregate case is an intentional difference, with explicit expected results and native regression coverage.
 
+String global substitutions expose another assertion-context issue. Go repairs suffix searches with a one-byte preceding window, which can skip valid word boundaries and non-boundaries. For example, `"a b aa".gsub(/\b/, "X")` returns `"Xa Xb XaaX"` in Go and `"XaX XbX XaaX"` in Rust. Rust retains the original subject context for both templates and blocks. One aggregate audit case and sixty focused comparisons record this difference; the Rust expectations are also checked by an independent character-boundary oracle.
+
 ## Match-data protection
 
 The selected policy preserves match data's protected fields through nested writes and duplication. Copying its captures into a separate variable produces an ordinary array that can be changed independently. Direct writes such as `m.captures.push("x")` and clearing `m.dup` are rejected. A duplicate retains the original match's string rendering.
 
 Go's behavior varies by operation: `m.captures.push("x")` succeeds, while `m.captures.clear` fails when its write reaches the protected parent. Go's deep clone also drops the protection and published rendering, making `m.dup.clear` succeed and interpolation render `<object>`. Three audit records preserve these observations and verify Rust's chosen rejection or value. Ten focused comparisons cover nested captures, named captures, duplicate containers and rendering. These intentional differences are excluded from matching conformance totals.
+
+Go's bounded replacement-block conversion also emits `<object>` when the block returns match data. Rust keeps its whole-match rendering in this context. A fourth match-data audit record and four focused substitution comparisons preserve that selected behavior.
