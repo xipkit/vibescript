@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: nineteen intentional differences follow the documented collection value semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: nineteen intentional differences follow the documented collection value semantics, and six remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
 
 ## Documented value semantics take precedence
 
@@ -89,3 +89,9 @@ The tool copies the pinned Go module into its output directory, injects a test t
 ## Builtin descriptors
 
 The reference permits a stateless builtin descriptor to be obtained through indexed or scoped namespace access, for example `f = Math::sqrt; f(9)` or `f = Math["sqrt"]; f(9)`. The Rust port currently preserves that observed behavior. Ordinary reads of non-auto-invoking builtin bindings are rejected, and JSON cannot encode a builtin descriptor. These descriptors contain no captured script frame; general script-function values and escaping blocks remain outside the implemented surface. The final ADR-006 boundary audit must account for this reference behavior alongside its stated restrictions on executable values. The collection value-semantics decision does not settle this separate boundary.
+
+## Regex namespace anchors
+
+Go's `Regex.match`, `Regex.replace` and `Regex.replace_all` helpers can take a literal-prefix shortcut for anchored patterns. The shortcut omits the anchors: `Regex.match("(?:^a$)", "ab")` returns `"a"`, while `"ab".match?("(?:^a$)")` correctly returns false. Replacement helpers can likewise replace text that the complete expression does not match. Rust's state machine retains the anchor assertions, returning nil and preserving the input in those cases.
+
+One aggregate audit case records all three helpers alongside the predicate. Fifty-one focused probes reproduce this discrepancy across grouping, flags and subjects; they are excluded from matching conformance counts. The collection value-semantics decision does not settle this regex behavior, so the case remains unresolved while the semantic choice is pending.

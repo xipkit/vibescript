@@ -35,6 +35,7 @@ mod ops;
 mod ordering;
 mod printable;
 mod range;
+mod regex;
 mod scan;
 mod sequence;
 mod sets;
