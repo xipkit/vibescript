@@ -18,7 +18,7 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = json.loads((ROOT / "docs/compatibility-cases.json").read_text())
-    fixtures = [{"name": c["name"], "source": "def run(input)\n" + c["body"] + "\nend", "args": [None], "accounting": True} for c in cases]
+    fixtures = [{"name": c["name"], "source": c.get("source") or "def run(input)\n" + c["body"] + "\nend", "args": [None], "accounting": True} for c in cases]
     path = out / "inputs.json"
     errors = {c["name"] for c in cases if "expected_error" in c}
     path.write_text(json.dumps([f for f in fixtures if f["name"] not in errors]) + "\n")

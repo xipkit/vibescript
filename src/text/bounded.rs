@@ -86,6 +86,11 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
             output.append(ctx, b"}")
         }
         Kind::Regex(regex) => regex.render(ctx, |ctx, bytes| output.append(ctx, bytes)),
+        Kind::Namespace(namespace) => {
+            output.append(ctx, b"<Class ")?;
+            output.append(ctx, namespace.definition.name.as_bytes())?;
+            output.append(ctx, b">")
+        }
         Kind::Shape(shape) => {
             output.append(ctx, b"<Shape ")?;
             output.append(ctx, &shape.definition.text)?;

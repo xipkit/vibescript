@@ -28,6 +28,7 @@ func TestPortViewOracle(t *testing.T) {
     var cases []struct {
         Name string
         Body string
+        Source string
     }
     if err := json.Unmarshal(data, &cases); err != nil {
         t.Fatalf("decode view cases %q: %v", path, err)
@@ -35,8 +36,13 @@ func TestPortViewOracle(t *testing.T) {
     for _, test := range cases {
         t.Run(test.Name, func(t *testing.T) {
             source := "def measured(input)\n" + test.Body + "\nend\ndef run()\nJSON.stringify(measured(nil))\nend"
+            entry := "run"
+            if test.Source != "" {
+                source = test.Source + "\ndef __port_oracle()\nJSON.stringify(run(nil))\nend"
+                entry = "__port_oracle"
+            }
             script := compileScriptDefault(t, source)
-            result := callFunc(t, script, "run", nil)
+            result := callFunc(t, script, entry, nil)
             t.Logf("VIEW_ORACLE %s %s", test.Name, result.String())
         })
     }
@@ -87,7 +93,7 @@ def main():
         assert len(values) == len(cases), (mode, len(values), len(cases))
         oracle[mode] = values
     inputs = out / "rust-inputs.json"
-    fixtures = [{"name": c["name"], "source": "def run(input)\n" + c["body"] + "\nend",
+    fixtures = [{"name": c["name"], "source": c.get("source") or "def run(input)\n" + c["body"] + "\nend",
                  "args": [None], "accounting": True} for c in cases]
     inputs.write_text(json.dumps(fixtures) + "\n")
     rust = {v: {r["name"]: json.loads(r["result_json"]) for r in invoke(

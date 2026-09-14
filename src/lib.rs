@@ -30,6 +30,7 @@ mod math;
 mod members;
 mod money;
 mod mutate;
+mod namespace;
 mod numeric;
 mod ops;
 mod ordering;

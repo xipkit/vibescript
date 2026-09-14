@@ -1122,6 +1122,72 @@
     "reason": "Match data retains its published whole-match rendering when a replacement block returns it. Go's bounded conversion loses the specialized rendering and emits an object placeholder."
   },
   {
+    "name": "module_returned_array_snapshot",
+    "source": "module M\n @@a=[]\n def self.f;@@a.push(1);@@a;end\nend\ndef run(input)\n[M.f,M.f]\nend",
+    "source_with_alias": "module M\n @@a=[]\n def self.f;@@a.push(1);@@a;end\nend\ndef run(input)\nx=M.f;unused_snapshot=x;[x,M.f]\nend",
+    "go": [
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "rust": [
+      [
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "expected": [
+      [
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "reason": "An array returned by an earlier method call keeps its evaluated value when the module variable is subsequently mutated."
+  },
+  {
+    "name": "module_array_assignment_snapshot",
+    "source": "module M\n A=[]\nend\ndef run(input)\n x=[1];M.A=x;M::A[0]=3;[x,M.A]\nend",
+    "source_with_alias": "module M\n A=[]\nend\ndef run(input)\n x=[1];unused_snapshot=x;M.A=x;M::A[0]=3;[x,M.A]\nend",
+    "go": [
+      [
+        3
+      ],
+      [
+        3
+      ]
+    ],
+    "rust": [
+      [
+        1
+      ],
+      [
+        3
+      ]
+    ],
+    "expected": [
+      [
+        1
+      ],
+      [
+        3
+      ]
+    ],
+    "policy": "documented_value_semantics",
+    "reason": "Assigning an array to a module field preserves the original local value; writes update only the selected module path."
+  },
+  {
     "name": "match_data_duplicate_nested_write",
     "body": "m=\"a\".match(/(a)/);m.dup.captures.push(\"x\")",
     "go": [

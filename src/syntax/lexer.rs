@@ -154,6 +154,26 @@ impl Lexer<'_> {
             }
             let scanned = (|| -> Result<Token> {
                 let initial = source[i..self.limit].chars().next().unwrap();
+                if initial == '@' {
+                    i += 1;
+                    if s.get(i) == Some(&b'@') {
+                        i += 1;
+                    }
+                    let Some(first) = source[i..self.limit].chars().next() else {
+                        return Err(Error::syntax(start, "expected variable name after @"));
+                    };
+                    if first != '_' && !super::unicode::letter(first) {
+                        return Err(Error::syntax(start, "expected variable name after @"));
+                    }
+                    i += first.len_utf8();
+                    while let Some(c) = source[i..self.limit].chars().next() {
+                        if c != '_' && !super::unicode::letter_or_digit(c) {
+                            break;
+                        }
+                        i += c.len_utf8();
+                    }
+                    return Ok(Token::Word(source[start..i].to_owned()));
+                }
                 if initial == '_' || super::unicode::letter(initial) {
                     i += initial.len_utf8();
                     while let Some(c) = source[i..self.limit].chars().next() {

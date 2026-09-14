@@ -4780,5 +4780,14 @@
       "inspect_string": "\"a\\tb\"",
       "inspect_array": "[1, \"x\", nil]"
     }
+  },
+  {
+    "path": "upstream/basics/namespaces.vibe",
+    "function": "run",
+    "args": [],
+    "expected": {
+      "base": 80,
+      "with_bonus": 90
+    }
   }
 ]

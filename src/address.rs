@@ -5,23 +5,59 @@ struct Hop {
     key: Value,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Root {
+    Local(usize),
+    Field(usize, usize),
+}
+
+impl From<usize> for Root {
+    fn from(slot: usize) -> Self {
+        Self::Local(slot)
+    }
+}
+
+pub(crate) struct Bindings<'a> {
+    pub locals: &'a mut [Option<Value>],
+    pub namespaces: &'a mut [crate::namespace::State],
+}
+
+impl Bindings<'_> {
+    fn set(&mut self, root: Root, value: Option<Value>) {
+        match root {
+            Root::Local(slot) => self.locals[slot] = value,
+            Root::Field(module, field) => {
+                self.namespaces[module].fields.buffer.data[field].1 = value.unwrap_or_default()
+            }
+        }
+    }
+}
+
 pub(crate) struct Address {
     protected: bool,
-    root: Option<usize>,
+    root: Option<Root>,
     path: Buffer<Hop>,
     pub value: Value,
     pub selectors: Buffer<Value>,
+    pub member_target: bool,
 }
 
 impl Address {
     pub fn new(root: Option<usize>, value: Value) -> Self {
         Self {
             protected: false,
-            root,
+            root: root.map(Root::Local),
             path: Buffer::empty(),
             value,
             selectors: Buffer::empty(),
+            member_target: false,
         }
+    }
+
+    pub fn field(module: usize, field: usize, value: Value) -> Self {
+        let mut address = Self::new(None, value);
+        address.root = Some(Root::Field(module, field));
+        address
     }
 
     pub fn index(&mut self, ctx: &mut CallContext, args: &[Value]) -> Result<()> {
@@ -61,12 +97,12 @@ impl Address {
     pub fn assign(
         mut self,
         ctx: &mut CallContext,
-        locals: &mut [Option<Value>],
+        bindings: Bindings<'_>,
         pending: &mut [Self],
         value: Value,
     ) -> Result<Value> {
         let selectors = std::mem::replace(&mut self.selectors, Buffer::empty());
-        self.apply(ctx, locals, pending, |ctx, receiver| {
+        self.apply(ctx, bindings, pending, |ctx, receiver| {
             let [key] = selectors.data.as_slice() else {
                 return Err(Error::new(
                     ErrorKind::Argument,
@@ -81,7 +117,7 @@ impl Address {
     pub fn apply(
         self,
         ctx: &mut CallContext,
-        locals: &mut [Option<Value>],
+        mut bindings: Bindings<'_>,
         pending: &mut [Self],
         action: impl FnOnce(&mut CallContext, Value) -> Result<(Value, Value)>,
     ) -> Result<Value> {
@@ -92,13 +128,14 @@ impl Address {
             mut path,
             value,
             selectors: _,
+            member_target: _,
         } = self;
         let Some(root) = root else {
             return action(ctx, value).map(|(_, result)| result);
         };
         // The captured path now owns the receiver. Other pending writes and script aliases
         // retain their own views until the mutation has been checked and published.
-        locals[root] = None;
+        bindings.set(root, None);
         let forward = pending.iter().any(|a| a.root == Some(root));
         let mut changes = Buffer::empty();
         if forward {
@@ -118,7 +155,7 @@ impl Address {
             }
         }
         refresh(ctx, root, &updated, pending, &changes.data)?;
-        locals[root] = Some(updated);
+        bindings.set(root, Some(updated));
         Ok(result)
     }
 
@@ -170,11 +207,12 @@ fn same_storage(a: &Value, b: &Value) -> bool {
 
 pub(crate) fn refresh(
     ctx: &mut CallContext,
-    root: usize,
+    root: impl Into<Root>,
     updated: &Value,
     pending: &mut [Address],
     changes: &[(Value, Value)],
 ) -> Result<()> {
+    let root = root.into();
     for address in pending {
         ctx.charge(1)?;
         if address.root != Some(root) {

@@ -90,9 +90,14 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		script, err := engine.Compile(fixture.Source)
+		var script *vibes.Script
+		if function == "__main__" {
+			script, err = engine.CompileSnippet(fixture.Source, function)
+		} else {
+			script, err = engine.Compile(fixture.Source)
+		}
 		if err != nil {
-			return fmt.Errorf("%s: %w", fixture.Name, err)
+			return fmt.Errorf("%s: compile error: %w", fixture.Name, err)
 		}
 		args := make([]value.Value, len(fixture.Args))
 		for i, raw := range fixture.Args {

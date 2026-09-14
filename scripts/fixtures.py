@@ -142,8 +142,11 @@ def conformance_cases():
         add(f"arithmetic_{i}",f"[{a}+({b}),{a}-({b}),{a}*({b}),{a}/({b}),{a}%({b})]",[a+b,a-b,a*b,a//b,a%b])
     for case in json.loads((UPSTREAM.parent/"language.json").read_text()):
         add("language/"+case["name"],case.get("body",""),case["expected"],source=case.get("source"))
-        if "entropy_byte" in case:
-            cases[-1]["entropy_byte"]=case["entropy_byte"]
+        for field in ["entropy_byte","function"]:
+            if field in case:
+                cases[-1][field]=case[field]
+        if case.get("function")=="__main__":
+            cases[-1]["args"]=[]
     return cases+upstream_cases()+site_cases()
 
 

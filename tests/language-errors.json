@@ -110496,5 +110496,703 @@
     "source": "def rand(x=5)\nx+1\nend\ndef run(input)\n[rand(),rand(10),rand]\nend",
     "entropy_byte": 0,
     "go_error": "rand is a function and cannot be used as a value; call it with rand(...)"
+  },
+  {
+    "name": "module_surface_4",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM::f\nend",
+    "go_error": "unknown constant M::f (did you mean \"A\", \"C\", or \"x\"?)"
+  },
+  {
+    "name": "module_surface_5",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM::f()\nend",
+    "go_error": "unknown constant M::f (did you mean \"A\", \"C\", or \"x\"?)"
+  },
+  {
+    "name": "module_surface_7",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.C()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "module_surface_8",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.C(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "module_surface_9",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM::C()\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "module_surface_10",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM::C(1)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "module_surface_11",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.new\nend",
+    "go_error": "module M cannot be instantiated"
+  },
+  {
+    "name": "module_surface_12",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.to_s\nend",
+    "go_error": "unknown class member to_s"
+  },
+  {
+    "name": "module_surface_13",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.inspect\nend",
+    "go_error": "unknown class member inspect"
+  },
+  {
+    "name": "module_surface_14",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\ninspect(M)\nend",
+    "go_error": "undefined variable inspect"
+  },
+  {
+    "name": "module_surface_17",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.name\nend",
+    "go_error": "unknown class member name"
+  },
+  {
+    "name": "module_surface_18",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.class\nend",
+    "go_error": "unknown class member class"
+  },
+  {
+    "name": "module_surface_37",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM[:C]\nend",
+    "go_error": "cannot index class"
+  },
+  {
+    "name": "module_surface_38",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM[:C]=4\nend",
+    "go_error": "cannot index class"
+  },
+  {
+    "name": "module_surface_41",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM.D ||= 4;M.D\nend",
+    "go_error": "unknown class member D (did you mean \"A\", \"C\", or \"f\"?)"
+  },
+  {
+    "name": "module_visibility_29",
+    "source": "module M\n private\n def self.f(x=3)\n x\n end\n public\n def self.g\n self.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_30",
+    "source": "module M\n private\n def self.f(x=3)\n x\n end\n public\n def self.g\n self.f()\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_31",
+    "source": "module M\n private\n def self.f(x=3)\n x\n end\n public\n def self.g\n M.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_32",
+    "source": "module M\n private\n def self.f(x=3)\n x\n end\n public\n def self.g\n M.f()\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_15",
+    "source": "module M\n private\n def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_16",
+    "source": "module M\n private\n def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_38",
+    "source": "module M\n private def self.f(x=3)\n x\n end\n public\n def self.g\n self.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_39",
+    "source": "module M\n private def self.f(x=3)\n x\n end\n public\n def self.g\n self.f()\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_40",
+    "source": "module M\n private def self.f(x=3)\n x\n end\n public\n def self.g\n M.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_41",
+    "source": "module M\n private def self.f(x=3)\n x\n end\n public\n def self.g\n M.f()\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_20",
+    "source": "module M\n private def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_21",
+    "source": "module M\n private def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_47",
+    "source": "module M\n def self.f(x=3)\n x\n end\n private :f\n public\n def self.g\n self.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_48",
+    "source": "module M\n def self.f(x=3)\n x\n end\n private :f\n public\n def self.g\n self.f()\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_49",
+    "source": "module M\n def self.f(x=3)\n x\n end\n private :f\n public\n def self.g\n M.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_50",
+    "source": "module M\n def self.f(x=3)\n x\n end\n private :f\n public\n def self.g\n M.f()\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_25",
+    "source": "module M\n def self.f(x=3)\n x\n end\n private :f\nend\ndef run(input)\nM.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_26",
+    "source": "module M\n def self.f(x=3)\n x\n end\n private :f\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_visibility_external_30",
+    "source": "module M\n protected\n def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_visibility_external_31",
+    "source": "module M\n protected\n def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_visibility_external_35",
+    "source": "module M\n protected def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_visibility_external_36",
+    "source": "module M\n protected def self.f(x=3)\n x\n end\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_visibility_external_40",
+    "source": "module M\n def self.f(x=3)\n x\n end\n protected :f\nend\ndef run(input)\nM.f\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_visibility_external_41",
+    "source": "module M\n def self.f(x=3)\n x\n end\n protected :f\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_binding_1",
+    "source": "module M\n C=1\n A=[0]\n @@a=[0]\n def self.f\n C()\n end\nend\ndef run(input)\n[M.f,M.C,M.A]\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "module_binding_9",
+    "source": "module M\n C=1\n A=[0]\n @@a=[0]\n def self.f\n @missing\n end\nend\ndef run(input)\n[M.f,M.C,M.A]\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "module_binding_14",
+    "source": "module M\n C=1\n A=[0]\n @@a=[0]\n def self.f\n D&&=3;D\n end\nend\ndef run(input)\n[M.f,M.C,M.A]\nend",
+    "go_error": "unknown class member D (did you mean \"A\", \"C\", or \"a\"?)"
+  },
+  {
+    "name": "module_directive_7",
+    "source": "module M\n def self.f\n 1\n end\n public(:f)\nend\ndef run(input)\nM.f\nend",
+    "go_error": "unknown class member public"
+  },
+  {
+    "name": "module_body_1",
+    "source": "module M\nC\nend\ndef run(input)\n1\nend",
+    "go_error": "unknown class member C"
+  },
+  {
+    "name": "module_body_2",
+    "source": "module M\nself.C\nend\ndef run(input)\n1\nend",
+    "go_error": "unknown class member C"
+  },
+  {
+    "name": "module_body_flow_1",
+    "source": "module M\nbreak 7\nend\ndef run(input)\n9\nend",
+    "go_error": "break used outside of loop"
+  },
+  {
+    "name": "module_body_flow_2",
+    "source": "module M\nnext 7\nend\ndef run(input)\n9\nend",
+    "go_error": "next used outside of loop"
+  },
+  {
+    "name": "module_body_flow_3",
+    "source": "module M\n[1].each{return 7}\nend\ndef run(input)\n9\nend",
+    "go_error": "unexpected return"
+  },
+  {
+    "name": "module_saved_4",
+    "source": "x=1\nmodule M\n [2].each{x+=1}\n C=x\nend\n[x,M.C]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_saved_5",
+    "source": "x=1\nmodule M\n def self.f\n x\n end\nend\nM.f",
+    "function": "__main__",
+    "go_error": "unknown class member x (did you mean \"f\"?)"
+  },
+  {
+    "name": "module_saved_8",
+    "source": "x=3\nmodule M\n x=4\n def self.f\n x\n end\nend\nM.f",
+    "function": "__main__",
+    "go_error": "unknown class member x (did you mean \"f\"?)"
+  },
+  {
+    "name": "module_saved_11",
+    "source": "module M\n private def self.c=(v); @@x=v;end\nend\ndef run(input)\nM.c=4\nend",
+    "go_error": "private method c="
+  },
+  {
+    "name": "module_saved_15",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.is_type?(:class)\nend",
+    "go_error": "unknown type atom \"class\" in is_type?"
+  },
+  {
+    "name": "module_saved_16",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.is_type?(M)\nend",
+    "go_error": "is_type? expects a symbol or string type atom"
+  },
+  {
+    "name": "module_saved_17",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.eql?(M){1}\nend",
+    "go_error": "class.eql? does not accept a block"
+  },
+  {
+    "name": "module_saved_18",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.equal?(M){1}\nend",
+    "go_error": "class.equal? does not accept a block"
+  },
+  {
+    "name": "module_saved_19",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.respond_to?(:f,1)\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "module_saved_20",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.nil?(1)\nend",
+    "go_error": "class.nil? does not take arguments"
+  },
+  {
+    "name": "module_saved_21",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.dup(1)\nend",
+    "go_error": "dup does not take arguments"
+  },
+  {
+    "name": "module_saved_22",
+    "source": "module M\n C=1\n def self.f;2;end\nend\ndef run(input)\nM.dup{1}\nend",
+    "go_error": "dup does not accept blocks"
+  },
+  {
+    "name": "module_saved_31",
+    "source": "x=1\nmodule M\nx=2;[3].each{x+=3};C=x\nend\n[x,M.C]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_saved_34",
+    "source": "x=1\nmodule M\n[2].each{x+=2};C=x\nend\n[x,M.C]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_setters_2",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n public def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value+=4;@@x;end\nend\ndef run(input)\nM.value+=4;M.value\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_setters_10",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n public def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value+=4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_setters_16",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value=4;@@x;end\nend\ndef run(input)\nM.value=4;M.value\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_17",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value=4;@@x;end\nend\ndef run(input)\nM.value=4;M.value\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_18",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value+=4;@@x;end\nend\ndef run(input)\nM.value+=4;M.value\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_setters_19",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value+=4;@@x;end\nend\ndef run(input)\nM.value+=4;M.value\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_20",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value ||= 4;@@x;end\nend\ndef run(input)\nM.value ||= 4;M.value\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_23",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value &&= 4;@@x;end\nend\ndef run(input)\nM.value &&= 4;M.value\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_24",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value=4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_25",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value=4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_26",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value+=4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_setters_27",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value+=4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_28",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value ||= 4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_31",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n private def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value &&= 4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "private method value="
+  },
+  {
+    "name": "module_setters_32",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value=4;@@x;end\nend\ndef run(input)\nM.value=4;M.value\nend",
+    "go_error": "protected method value="
+  },
+  {
+    "name": "module_setters_33",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value=4;@@x;end\nend\ndef run(input)\nM.value=4;M.value\nend",
+    "go_error": "protected method value="
+  },
+  {
+    "name": "module_setters_34",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value+=4;@@x;end\nend\ndef run(input)\nM.value+=4;M.value\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_setters_35",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value+=4;@@x;end\nend\ndef run(input)\nM.value+=4;M.value\nend",
+    "go_error": "protected method value="
+  },
+  {
+    "name": "module_setters_36",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value ||= 4;@@x;end\nend\ndef run(input)\nM.value ||= 4;M.value\nend",
+    "go_error": "protected method value="
+  },
+  {
+    "name": "module_setters_39",
+    "source": "module M\n @@x=0\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;M.value &&= 4;@@x;end\nend\ndef run(input)\nM.value &&= 4;M.value\nend",
+    "go_error": "protected method value="
+  },
+  {
+    "name": "module_setters_42",
+    "source": "module M\n @@x=nil\n def self.value;@@x;end\n protected def self.value=(v);@@x=v+1;99;end\n public\n def self.inside;self.value+=4;@@x;end\nend\ndef run(input)\nM.inside\nend",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_arguments_18",
+    "source": "module M\n def self.f(x:,y:2);[x,y];end\nend\ndef run(input)\nM.f({x:1,y:4})\nend",
+    "go_error": "missing keyword argument x"
+  },
+  {
+    "name": "module_arguments_19",
+    "source": "module M\n def self.f(x:,y:2);[x,y];end\nend\ndef run(input)\n[M].map{|m|m.f({x:1,y:4})}\nend",
+    "go_error": "missing keyword argument x"
+  },
+  {
+    "name": "module_arguments_20",
+    "source": "module M\n def self.f(x:,y:2);[x,y];end\nend\ndef run(input)\nM.yield_self{|m|m.f({x:1,y:4})}\nend",
+    "go_error": "missing keyword argument x"
+  },
+  {
+    "name": "module_arguments_27",
+    "source": "module M\n def self.f(x: int);x;end\nend\ndef run(input)\nM.f(\"4\")\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "module_arguments_28",
+    "source": "module M\n def self.f(x: int);x;end\nend\ndef run(input)\n[M].map{|m|m.f(\"4\")}\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "module_arguments_29",
+    "source": "module M\n def self.f(x: int);x;end\nend\ndef run(input)\nM.yield_self{|m|m.f(\"4\")}\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "module_arguments_30",
+    "source": "module M\n def self.f(x: int);x;end\nend\ndef run(input)\nM.f(false)\nend",
+    "go_error": "argument x expected int, got bool"
+  },
+  {
+    "name": "module_arguments_31",
+    "source": "module M\n def self.f(x: int);x;end\nend\ndef run(input)\n[M].map{|m|m.f(false)}\nend",
+    "go_error": "argument x expected int, got bool"
+  },
+  {
+    "name": "module_arguments_32",
+    "source": "module M\n def self.f(x: int);x;end\nend\ndef run(input)\nM.yield_self{|m|m.f(false)}\nend",
+    "go_error": "argument x expected int, got bool"
+  },
+  {
+    "name": "module_blocks_0",
+    "source": "module M\n def self.f;yield(3);end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "module_blocks_10",
+    "source": "module M\n def self.f;[1,2].map{|x|yield(x)};end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "module_blocks_15",
+    "source": "module M\n def self.f;return yield(3);end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "module_blocks_20",
+    "source": "module M\n def self.f;yield(3);9;end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "module_ambient_6",
+    "source": "x=1\nmodule M\n[2].each{x+=2};D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_8",
+    "source": "x=1\nmodule M\nx.push(2);D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unknown int method push"
+  },
+  {
+    "name": "module_ambient_9",
+    "source": "x=1\nmodule M\nx[0]=2;D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "cannot index int"
+  },
+  {
+    "name": "module_ambient_11",
+    "source": "x=[1]\nmodule M\nx+=2;D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_16",
+    "source": "x=[1]\nmodule M\n[2].each{x+=2};D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_21",
+    "source": "x=nil\nmodule M\nx+=2;D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_26",
+    "source": "x=nil\nmodule M\n[2].each{x+=2};D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_28",
+    "source": "x=nil\nmodule M\nx.push(2);D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "module_ambient_29",
+    "source": "x=nil\nmodule M\nx[0]=2;D=x\nend\n[x,M.D]",
+    "function": "__main__",
+    "go_error": "cannot index nil"
+  },
+  {
+    "name": "module_ambient_38",
+    "source": "C=1\nmodule M\nC.push(2);D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "unknown int method push"
+  },
+  {
+    "name": "module_ambient_39",
+    "source": "C=1\nmodule M\nC[0]=2;D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "cannot index int"
+  },
+  {
+    "name": "module_ambient_41",
+    "source": "C=[1]\nmodule M\nC+=2;D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_46",
+    "source": "C=[1]\nmodule M\n[2].each{C+=2};D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_51",
+    "source": "C=nil\nmodule M\nC+=2;D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_56",
+    "source": "C=nil\nmodule M\n[2].each{C+=2};D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "unsupported addition operands"
+  },
+  {
+    "name": "module_ambient_58",
+    "source": "C=nil\nmodule M\nC.push(2);D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "unknown nil method push"
+  },
+  {
+    "name": "module_ambient_59",
+    "source": "C=nil\nmodule M\nC[0]=2;D=C\nend\n[C,M.D]",
+    "function": "__main__",
+    "go_error": "cannot index nil"
+  },
+  {
+    "name": "module_shadow_30",
+    "source": "module M\nend\ndef run(input)\nM.eql?=3;M.eql?\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "module_shadow_33",
+    "source": "module M\nend\ndef run(input)\nM.eql?=Regexp.new(\"a\");M.eql?\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "module_shadow_36",
+    "source": "module M\nend\ndef run(input)\nM.equal?=3;M.equal?\nend",
+    "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)"
+  },
+  {
+    "name": "module_shadow_39",
+    "source": "module M\nend\ndef run(input)\nM.equal?=Regexp.new(\"a\");M.equal?\nend",
+    "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)"
+  },
+  {
+    "name": "module_shadow_42",
+    "source": "module M\nend\ndef run(input)\nM.respond_to?=3;M.respond_to?\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "module_shadow_45",
+    "source": "module M\nend\ndef run(input)\nM.respond_to?=Regexp.new(\"a\");M.respond_to?\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "module_initializers_3",
+    "source": "module M\n C=1\n module N\n C=M.C\n end\nend\nM.N.C",
+    "function": "__main__",
+    "go_error": "unknown class member C (did you mean \"N\"?)"
+  },
+  {
+    "name": "module_first_2",
+    "source": "module M\n x=4\n def self.f\n x\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "unknown class member x (did you mean \"f\"?)"
+  },
+  {
+    "name": "module_first_6",
+    "source": "module M\n C=3\n module N\n def self.f\n C\n end\n end\nend\ndef run(input)\nM::N.f\nend",
+    "go_error": "unknown class member C (did you mean \"f\"?)"
+  },
+  {
+    "name": "module_first_11",
+    "source": "module M\n @c=3\n def self.f\n @c\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "module_first_14",
+    "source": "module M\nend\ndef run(input)\n[M.to_s,M.inspect]\nend",
+    "go_error": "unknown class member to_s"
+  },
+  {
+    "name": "module_first_21",
+    "source": "module M\n private\n def self.f\n 3\n end\n public\n def self.g\n self.f\n end\nend\ndef run(input)\nM.g\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_first_25",
+    "source": "module M\n def self.f\n 3\n end\n private :f\nend\ndef run(input)\nM.f\nend",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_first_27",
+    "source": "module M\n module N\n def self.f\n N\n end\n end\nend\ndef run(input)\nM::N.f==M::N\nend",
+    "go_error": "unknown class member N (did you mean \"f\"?)"
+  },
+  {
+    "name": "module_first_30",
+    "source": "module M\n public(:f)\n def self.f\n 1\n end\nend\ndef run(input)\nM.f\nend",
+    "go_error": "unknown class member public"
+  },
+  {
+    "name": "module_first_31",
+    "source": "def run(input)\n@@x=2;@@x\nend",
+    "go_error": "no class context for class var"
+  },
+  {
+    "name": "module_first_32",
+    "source": "def run(input)\n@x\nend",
+    "go_error": "no instance context for ivar"
+  },
+  {
+    "name": "module_first_33",
+    "source": "module M\n break 7\n C=3\nend\ndef run(input)\n9\nend",
+    "go_error": "break used outside of loop"
+  },
+  {
+    "name": "module_edge_2",
+    "source": "module M\n def self.f;1;end\n def self.f;2;end\n private :f\nend\ndef run(input);M.f;end",
+    "go_error": "private method f"
+  },
+  {
+    "name": "module_edge_4",
+    "source": "module M\n def self.f;1;end\n def self.f;2;end\n protected :f\nend\ndef run(input);M.f;end",
+    "go_error": "protected method f"
+  },
+  {
+    "name": "module_ivar_parameter_3",
+    "source": "module M\n def self.f(@x: int);x;end\nend\ndef run(input)\nM.f(False)\nend",
+    "go_error": "undefined variable False"
+  },
+  {
+    "name": "module_ivar_parameter_4",
+    "source": "module M\n def self.f(@x);@x;end\nend\ndef run(input)\nM.f(3)\nend",
+    "go_error": "no instance context for ivar"
   }
 ]

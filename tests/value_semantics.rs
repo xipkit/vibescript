@@ -18,6 +18,20 @@ fn documented_values_remain_stable_with_and_without_an_unused_alias() {
         if case["policy"] != "documented_value_semantics" {
             continue;
         }
+        if let Some(source) = case["source"].as_str() {
+            for source in [source, case["source_with_alias"].as_str().unwrap()] {
+                let result = Engine::new()
+                    .compile(source)
+                    .unwrap()
+                    .call("run", &[vibescript::Value::nil()], CallOptions::default())
+                    .unwrap();
+                let encoded = stringify_json(&result.value, CallOptions::default()).unwrap();
+                let actual: serde_json::Value =
+                    serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap();
+                assert_eq!(actual, case["expected"], "{}", case["name"]);
+            }
+            continue;
+        }
         let body = case["body"].as_str().unwrap();
         let name = case["name"].as_str().unwrap();
         assert_eq!(evaluate(body), case["expected"], "{name}");

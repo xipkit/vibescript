@@ -420,7 +420,7 @@ fn field(
     Ok(None)
 }
 
-fn field_call(
+pub(crate) fn field_call(
     ctx: &mut CallContext,
     site: CallSite,
     value: Value,

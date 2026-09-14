@@ -10518,5 +10518,288 @@
     "name": "string_completion_concat_control_1",
     "source": "def run(input)\ns=\"a\";r=s.concat(s=\"b\");[s,r]\nend",
     "go_error": "parse error at 2:19: expected \")\", got \"=\""
+  },
+  {
+    "name": "module_surface_36",
+    "source": "module M\n A=[0]\n C=2\n @@x=1\n def self.f(x=3)\n x+C\n end\nend\ndef run(input)\nM::C=3\nend",
+    "go_error": "parse error at 10:5: unexpected token \"=\""
+  },
+  {
+    "name": "module_lexing_1",
+    "source": "module M\ndef self.f\n [C /2,C / 2]\n end\nC=8\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 3:12: expected \"]\", got integer"
+  },
+  {
+    "name": "module_lexing_3",
+    "source": "module M\ndef self.f\n C /2\n end\nC=8\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 3:4: unterminated regex literal"
+  },
+  {
+    "name": "module_name_2",
+    "source": "module École\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: module name must start with an uppercase letter"
+  },
+  {
+    "name": "module_name_3",
+    "source": "module Δelta\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: module name must start with an uppercase letter"
+  },
+  {
+    "name": "module_name_4",
+    "source": "module _M\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: module name must start with an uppercase letter"
+  },
+  {
+    "name": "module_name_5",
+    "source": "module m\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: module name must start with an uppercase letter"
+  },
+  {
+    "name": "module_name_10",
+    "source": "module self\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:1: unexpected token 'end'"
+  },
+  {
+    "name": "module_name_11",
+    "source": "module end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: unexpected token 'end'"
+  },
+  {
+    "name": "module_name_12",
+    "source": "module int\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 1:8: module name must start with an uppercase letter"
+  },
+  {
+    "name": "module_method_name_7",
+    "source": "module M\n def self.private(x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got 'private'"
+  },
+  {
+    "name": "module_method_name_8",
+    "source": "module M\n def self.self(x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got 'self'"
+  },
+  {
+    "name": "module_method_name_9",
+    "source": "module M\n def self.@@x(x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got class variable"
+  },
+  {
+    "name": "module_method_name_10",
+    "source": "module M\n def self.@x(x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got instance variable"
+  },
+  {
+    "name": "module_method_name_11",
+    "source": "module M\n def self.+(x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"+\""
+  },
+  {
+    "name": "module_method_name_12",
+    "source": "module M\n def self.[](x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"[\""
+  },
+  {
+    "name": "module_method_name_13",
+    "source": "module M\n def self.[]=(x)\n x\n end\nend\ndef run(input)\n1\nend",
+    "go_error": "parse error at 2:11: expected identifier, got \"[\""
+  },
+  {
+    "name": "module_collision_1",
+    "source": "module M\nend\nmodule M\nend\ndef run(input)\n1\nend",
+    "go_error": "duplicate module M"
+  },
+  {
+    "name": "module_collision_2",
+    "source": "enum M\nA\nend\nmodule M\nend\ndef run(input)\n1\nend",
+    "go_error": "duplicate top-level name M"
+  },
+  {
+    "name": "module_collision_3",
+    "source": "def M\n1\nend\nmodule M\nend\ndef run(input)\n1\nend",
+    "go_error": "duplicate top-level name M"
+  },
+  {
+    "name": "module_directive_0",
+    "source": "module M\n def self.f\n 1\n end\n private :missing\nend\ndef run(input)\nM.f\nend",
+    "go_error": "private target method missing is not defined on class M"
+  },
+  {
+    "name": "module_directive_1",
+    "source": "module M\n def self.f\n 1\n end\n public :missing\nend\ndef run(input)\nM.f\nend",
+    "go_error": "public target method missing is not defined on class M"
+  },
+  {
+    "name": "module_directive_2",
+    "source": "module M\n def self.f\n 1\n end\n protected :missing\nend\ndef run(input)\nM.f\nend",
+    "go_error": "protected target method missing is not defined on class M"
+  },
+  {
+    "name": "module_directive_3",
+    "source": "module M\n def self.f\n 1\n end\n private :f, :missing\nend\ndef run(input)\nM.f\nend",
+    "go_error": "private target method missing is not defined on class M"
+  },
+  {
+    "name": "module_directive_8",
+    "source": "module M\n def self.f\n 1\n end\n private(:f)\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:9: private expects a method definition, symbol method names, or no argument"
+  },
+  {
+    "name": "module_directive_9",
+    "source": "module M\n def self.f\n 1\n end\n include X\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:2: include is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "module_directive_10",
+    "source": "module M\n def self.f\n 1\n end\n extend X\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:2: extend is not supported; modules are namespaces: define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "module_directive_11",
+    "source": "module M\n def self.f\n 1\n end\n property x\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:2: property in module M is not supported; a module has no instances, so define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "module_directive_12",
+    "source": "module M\n def self.f\n 1\n end\n getter x\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:2: getter in module M is not supported; a module has no instances, so define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "module_directive_13",
+    "source": "module M\n def self.f\n 1\n end\n setter x\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:2: setter in module M is not supported; a module has no instances, so define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "module_directive_14",
+    "source": "module M\n def self.f\n 1\n end\n alias y f\nend\ndef run(input)\nM.f\nend",
+    "go_error": "parse error at 5:2: alias in module M is not supported; a module has no instance methods to rename, so define module functions with def self.name and call them on the module (Naming.display_name(person))"
+  },
+  {
+    "name": "module_saved_9",
+    "source": "module M\n def self.c=(v); @@x=v+1;99;end\nend\ndef run(input)\n x=(M.c=4);[x,M.x]\nend",
+    "go_error": "parse error at 5:8: expected \")\", got \"=\""
+  },
+  {
+    "name": "module_saved_10",
+    "source": "module M\n @@x=0\n def self.c;@@x;end\n def self.c=(v);@@x=v+1;99;end\nend\ndef run(input)\n x=(M.c+=4);[x,M.c]\nend",
+    "go_error": "parse error at 7:9: expected \")\", got \"+=\""
+  },
+  {
+    "name": "module_saved_25",
+    "source": "x=1\nmodule M\n C=x=2;[3].each{x=3};C=x\nend\n[x,M.C]",
+    "function": "__main__",
+    "go_error": "parse error at 3:5: unexpected token \"=\""
+  },
+  {
+    "name": "module_saved_26",
+    "source": "x=1\nmodule M\n C=x=2;[3].each{x+=3};C=x\nend\n[x,M.C]",
+    "function": "__main__",
+    "go_error": "parse error at 3:5: unexpected token \"=\""
+  },
+  {
+    "name": "module_initializers_4",
+    "source": "module M\n module N\n end\n module N\n end\nend\n1",
+    "function": "__main__",
+    "go_error": "duplicate module M::N"
+  },
+  {
+    "name": "module_first_5",
+    "source": "module M\n C=1\nend\ndef run(input)\nM::C=2;M::C\nend",
+    "go_error": "parse error at 5:5: unexpected token \"=\""
+  },
+  {
+    "name": "module_first_22",
+    "source": "module M\n enum E\n A\n end\nend\ndef run(input)\nM::E::A.to_s\nend",
+    "go_error": "parse error at 2:2: enum is only supported at the top level"
+  },
+  {
+    "name": "module_first_29",
+    "source": "def public(x)\n x\nend\nmodule M\n public\nend\ndef run(input)\n1\nend",
+    "go_error": "public in module M is a visibility directive, but this script also defines a function named public; rename the function, or call it with parentheses (public(:name)), which stays a call"
+  },
+  {
+    "name": "module_edge_1",
+    "source": "module M\n def self.f=(x);@@x=x;end\n public :f=\nend\ndef run(input);M.f=3;M.x;end",
+    "go_error": "parse error at 3:11: unexpected token \"=\""
+  },
+  {
+    "name": "module_edge_3",
+    "source": "module M\n def self.f=(x);@@x=x;end\n private :f=\nend\ndef run(input);M.f=3;M.x;end",
+    "go_error": "parse error at 3:12: unexpected token \"=\""
+  },
+  {
+    "name": "module_edge_5",
+    "source": "module M\n def self.f=(x);@@x=x;end\n protected :f=\nend\ndef run(input);M.f=3;M.x;end",
+    "go_error": "parse error at 3:14: unexpected token \"=\""
+  },
+  {
+    "name": "module_edge_7",
+    "source": "def @x;1;end\ndef run(input);1;end",
+    "go_error": "parse error at 1:5: expected function name, got instance variable"
+  },
+  {
+    "name": "module_edge_8",
+    "source": "enum E\n@x\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:1: expected enum member name, got instance variable"
+  },
+  {
+    "name": "module_edge_9",
+    "source": "module M\n [1].each{|@x|1}\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:12: expected block parameter, got instance variable"
+  },
+  {
+    "name": "module_edge_10",
+    "source": "module M\n@x: int=1\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:3: unexpected token \":\""
+  },
+  {
+    "name": "module_edge_11",
+    "source": "module M\nfor @x in [1];1;end\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:5: invalid for loop target"
+  },
+  {
+    "name": "module_edge_12",
+    "source": "module M\n def self.f(@@x);1;end\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:13: expected parameter name, got class variable"
+  },
+  {
+    "name": "module_edge_13",
+    "source": "def @@x;1;end\ndef run(input);1;end",
+    "go_error": "parse error at 1:5: expected function name, got class variable"
+  },
+  {
+    "name": "module_edge_14",
+    "source": "enum E\n@@x\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:1: expected enum member name, got class variable"
+  },
+  {
+    "name": "module_edge_15",
+    "source": "module M\n [1].each{|@@x|1}\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:12: expected block parameter, got class variable"
+  },
+  {
+    "name": "module_edge_16",
+    "source": "module M\n@@x: int=1\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:4: unexpected token \":\""
+  },
+  {
+    "name": "module_edge_17",
+    "source": "module M\nfor @@x in [1];1;end\nend\ndef run(input);1;end",
+    "go_error": "parse error at 2:5: invalid for loop target"
+  },
+  {
+    "name": "module_ivar_parameter_5",
+    "source": "module M\n def self.f(@x: 3);x;end\nend\ndef run(input)\nM.f()\nend",
+    "go_error": "parse error at 2:17: expected type name, got integer"
+  },
+  {
+    "name": "module_ivar_parameter_6",
+    "source": "module M\n def self.f(@x: 3);x;end\nend\ndef run(input)\nM.f(x:4)\nend",
+    "go_error": "parse error at 2:17: expected type name, got integer"
+  },
+  {
+    "name": "module_ivar_parameter_7",
+    "source": "module M\n def self.f(*@xs);xs;end\nend\ndef run(input)\nM.f(1,2)\nend",
+    "go_error": "parse error at 2:14: expected rest parameter name, got instance variable"
   }
 ]

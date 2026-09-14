@@ -10,9 +10,9 @@
     "GoModSum": "h1:TlR22Ynh9Dx4unhDuL6t7tAfta5Bn9fB/T2ClyiwQNc="
   },
   "counts": {
-    "cases": 24,
+    "cases": 30,
     "rust_matches_normal": 0,
-    "rust_matches_copy": 20
+    "rust_matches_copy": 21
   },
   "cases": [
     {
@@ -1081,12 +1081,142 @@
       ],
       "rust_matches_normal": false,
       "rust_matches_copy": true
+    },
+    {
+      "name": "regex_namespace_anchors",
+      "go_normal": [
+        "a",
+        "Xb",
+        "XbX",
+        false
+      ],
+      "go_always_copy": [
+        "a",
+        "Xb",
+        "XbX",
+        false
+      ],
+      "rust": [
+        null,
+        "ab",
+        "aba",
+        false
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "match_data_duplicate_rendering",
+      "go_normal": "<object>",
+      "go_always_copy": "<object>",
+      "rust": "a",
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "substitution_word_boundaries",
+      "go_normal": [
+        "Xa Xb XaaX",
+        "aXbaXba",
+        "Xa Xb XaaX"
+      ],
+      "go_always_copy": [
+        "Xa Xb XaaX",
+        "aXbaXba",
+        "Xa Xb XaaX"
+      ],
+      "rust": [
+        "XaX XbX XaaX",
+        "aXbXaXbXa",
+        "XaX XbX XaaX"
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "substitution_match_data_rendering",
+      "go_normal": [
+        "<object>a",
+        "<object><object>"
+      ],
+      "go_always_copy": [
+        "<object>a",
+        "<object><object>"
+      ],
+      "rust": [
+        "aa",
+        "aa"
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
+    },
+    {
+      "name": "module_returned_array_snapshot",
+      "go_normal": [
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "go_always_copy": [
+        [
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "rust": [
+        [
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": true
+    },
+    {
+      "name": "module_array_assignment_snapshot",
+      "go_normal": [
+        [
+          3
+        ],
+        [
+          3
+        ]
+      ],
+      "go_always_copy": [
+        [
+          3
+        ],
+        [
+          3
+        ]
+      ],
+      "rust": [
+        [
+          1
+        ],
+        [
+          3
+        ]
+      ],
+      "rust_matches_normal": false,
+      "rust_matches_copy": false
     }
   ],
-  "probe_sha256": "ea603804b5cbf71f21ec35dad654758486aea526e3b322a27d2e91d376e3a218",
+  "probe_sha256": "e96086e9d86c91119f5c95c810a8aa428a700350de1f943604a6201aeacf0c8f",
   "binary_sha256": {
-    "go-test": "2bb106068a33e886b41fd7255b125cae1ed691e58a9925ca8caef91ff16300b5",
-    "rust-portable": "bc8badaa8da32efb54da1803314a2cc04b51c8c222d498e26515f71b549c250b",
-    "rust-simd": "ab11ffd69f44426217532e90d8ac847f6e43ea29dba11874060fe2d3506955a4"
+    "go-test": "d6a67e8185eccddc1aa30a02dc460e29a2fa6abcc62de044f628c80ca5628052",
+    "rust-portable": "91d1ad39225fe3538f56e0b760d6b60259da44345f183b48bba117218fdd7d5a",
+    "rust-simd": "2db26136067937bbbd67577aa634a268684ecba2f51834bae46fb878534fe86c"
   }
 }

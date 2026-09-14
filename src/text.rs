@@ -31,6 +31,11 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Buffer<u8>, depth: usi
         return ctx.fail(ErrorKind::Recursion, "string conversion nesting too deep");
     }
     match &value.0 {
+        Kind::Namespace(namespace) => {
+            out.extend(ctx, b"<Class ")?;
+            out.extend(ctx, namespace.definition.name.as_bytes())?;
+            out.extend(ctx, b">")?;
+        }
         Kind::Shape(shape) => crate::shapes::append(ctx, shape, out)?,
         Kind::Enum(_) | Kind::EnumMember(_) => crate::enums::append(ctx, value, out)?,
         Kind::Array(h) => {

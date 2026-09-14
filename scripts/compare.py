@@ -88,14 +88,18 @@ def validate_rejections(out):
     for variant in VARIANTS:
         for case in cases:
             fixture={"name":case["name"],"source":case.get("source") or "def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
-            if "entropy_byte" in case:
-                fixture["entropy_byte"]=case["entropy_byte"]
+            for field in ["entropy_byte","function"]:
+                if field in case:
+                    fixture[field]=case[field]
+            if case.get("function")=="__main__":
+                fixture["args"]=[]
             path=out/"rejection-input.json"
             path.write_text(json.dumps([fixture])+"\n")
             proc=subprocess.run([str(BINS/variant),str(path),"1","validate"],cwd=ROOT,env=ENV,capture_output=True,text=True,errors="replace",timeout=10)
             assert proc.returncode==1,(variant,case["name"],proc.returncode,proc.stdout,proc.stderr)
             if variant.startswith("go-"):
                 assert case["go_error"] in proc.stderr,(variant,case["name"],proc.stderr)
+                assert proc.stderr.startswith(case["name"]+": compile error:")==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)
             else:
                 assert "Error { kind:" in proc.stderr,(variant,case["name"],proc.stderr)
                 assert ("kind: Syntax" in proc.stderr)==(case["phase"]=="syntax"),(variant,case["name"],proc.stderr)

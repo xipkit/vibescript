@@ -2,6 +2,7 @@ use crate::{Error, Result, Value};
 use std::collections::HashSet;
 
 mod lexer;
+pub(crate) mod modules;
 mod tokens;
 mod types;
 pub(crate) mod unicode;
@@ -89,7 +90,7 @@ impl Target {
     fn is_binding(&self) -> bool {
         match self {
             Self::Typed(target, _) => target.is_binding(),
-            Self::Value(e) => matches!(e.node, Node::Var(_)),
+            Self::Value(e) => matches!(&e.node, Node::Var(name) if !name.starts_with('@')),
             Self::Tuple(parts) => parts
                 .iter()
                 .all(|(target, _)| target.as_ref().is_none_or(Self::is_binding)),
@@ -112,6 +113,7 @@ impl Target {
 }
 #[derive(Debug)]
 pub(crate) enum Stmt {
+    Module(String),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
     If(Expr, Vec<Stmt>, Vec<Stmt>),
@@ -125,6 +127,7 @@ impl Stmt {
     fn depth(&self) -> usize {
         let body = |s: &[Stmt]| s.iter().map(Self::depth).max().unwrap_or(0);
         1 + match self {
+            Self::Module(_) => 0,
             Self::Expr(e) => e.depth,
             Self::Assign(t, _, e) => t.depth().max(e.depth),
             Self::If(e, yes, no) => e.depth.max(body(yes)).max(body(no)),
@@ -134,6 +137,7 @@ impl Stmt {
         }
     }
 }
+#[derive(Debug)]
 pub(crate) struct Definition {
     pub name: String,
     pub params: Vec<Parameter>,
@@ -144,6 +148,7 @@ pub(crate) struct Definition {
 pub(crate) struct Declarations {
     pub functions: Vec<Definition>,
     pub enums: Vec<(String, Vec<String>)>,
+    pub modules: Vec<modules::Module>,
 }
 
 pub(crate) fn parse(source: &str) -> Result<Declarations> {
@@ -165,36 +170,23 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     };
     let mut defs = Vec::new();
     let mut enums = Vec::new();
+    let mut modules = Vec::new();
     let mut top = Vec::new();
     p.lines();
     while !matches!(p.token(), Token::Eof) {
-        if p.word("def") {
+        if p.module_ahead() {
+            let module = p.module()?;
+            top.push(Stmt::Module(module.name.clone()));
+            modules.push(module);
+        } else if p.word("def") {
             let name = p.name()?;
-            let outer_locals = std::mem::take(&mut p.locals);
-            let outer_it = std::mem::replace(&mut p.declared_it, false);
-            let parenthesized = p.take_p('(');
-            let params = p.parameters(parenthesized)?;
-            p.line_breaks();
-            let return_type = if p.token() == &Token::Op("->") {
-                p.bump();
-                Some(p.type_expr(1, false)?)
-            } else {
-                None
-            };
-            p.lines();
-            let body = p.block(&["end"])?;
-            p.expect_word("end")?;
-            p.locals = outer_locals;
-            p.declared_it = outer_it;
+            if name.starts_with('@') {
+                return p.err("expected function name");
+            }
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
-            defs.push(Definition {
-                name,
-                params,
-                body,
-                return_type,
-            });
+            defs.push(p.definition(name)?);
         } else if p.word("enum") {
             p.line_breaks();
             let name = p.enum_name()?;
@@ -237,6 +229,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     Ok(Declarations {
         functions: defs,
         enums,
+        modules,
     })
 }
 
@@ -287,12 +280,21 @@ impl Parser<'_> {
                 _ => ParamKind::Positional,
             };
             let name = self.name()?;
+            if name.starts_with("@@") {
+                return self.err("expected parameter name");
+            }
+            let instance = name.starts_with('@');
+            if instance && kind != ParamKind::Positional {
+                return self.err("capture parameters must use local names");
+            }
+            let name = name.strip_prefix('@').unwrap_or(&name).to_owned();
             let mut ty = None;
             let default = if self.take_p(':') {
                 if parenthesized {
                     self.line_breaks();
                 }
-                if kind == ParamKind::Positional
+                if !instance
+                    && kind == ParamKind::Positional
                     && matches!(
                         self.token(),
                         Token::P(',' | ')') | Token::EndLine | Token::Op("->")
@@ -300,7 +302,10 @@ impl Parser<'_> {
                 {
                     kind = ParamKind::Keyword;
                     None
-                } else if kind == ParamKind::Positional && self.keyword_default(parenthesized) {
+                } else if !instance
+                    && kind == ParamKind::Positional
+                    && self.keyword_default(parenthesized)
+                {
                     kind = ParamKind::Keyword;
                     Some(if parenthesized {
                         self.expr(0)?
@@ -474,7 +479,7 @@ impl Parser<'_> {
     }
     fn enum_name(&mut self) -> Result<String> {
         match self.bump() {
-            Token::Word(name) if !keyword(&name) => Ok(name),
+            Token::Word(name) if !keyword(&name) && !name.starts_with('@') => Ok(name),
             _ => self.err("expected enum identifier"),
         }
     }
@@ -553,11 +558,10 @@ impl Parser<'_> {
         })
     }
     fn plain_statement(&mut self) -> Result<Stmt> {
-        if matches!(self.token(), Token::Word(w) if w == "module")
-            && matches!(&self.tokens[self.pos + 1].token, Token::Word(w) if !keyword(w))
-            && self.tokens[self.pos].line == self.tokens[self.pos + 1].line
-        {
-            return self.err("source module declarations are not implemented");
+        if self.module_ahead() {
+            return self.err(
+                "module declarations are only supported at the top level and in module bodies",
+            );
         }
         if self.word("if") {
             return self.if_stmt(false);

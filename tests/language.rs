@@ -14,6 +14,19 @@ fn engine(case: &serde_json::Value) -> Engine {
     engine
 }
 
+fn call(
+    script: &vibescript::Script,
+    case: &serde_json::Value,
+    options: CallOptions,
+) -> vibescript::Result<vibescript::Outcome> {
+    let function = case["function"].as_str().unwrap_or("run");
+    if function == "__main__" {
+        script.run(options)
+    } else {
+        script.call(function, &[Value::nil()], options)
+    }
+}
+
 #[test]
 fn language_conformance() {
     let cases: serde_json::Value = serde_json::from_str(include_str!("language.json")).unwrap();
@@ -30,9 +43,7 @@ fn language_conformance() {
         if let Some(steps) = case["steps"].as_u64() {
             options.limits.steps = Some(steps);
         }
-        let result = script
-            .call("run", &[Value::nil()], options)
-            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let result = call(&script, case, options).unwrap_or_else(|e| panic!("{name}: {e}"));
         let encoded = stringify_json(&result.value, CallOptions::default()).unwrap();
         let actual: serde_json::Value =
             serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap();
@@ -128,9 +139,7 @@ fn language_runtime_rejections() {
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(
-            script
-                .call("run", &[Value::nil()], CallOptions::default())
-                .is_err(),
+            call(&script, case, CallOptions::default()).is_err(),
             "{name}"
         );
     }

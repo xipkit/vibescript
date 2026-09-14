@@ -5,8 +5,19 @@ use crate::{
 };
 use std::collections::{HashMap, HashSet};
 
+mod namespaces;
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Op {
+    InitNamespace(usize),
+    NamespaceSelf(usize),
+    NamespaceConstant(usize, usize),
+    NamespaceVariable(usize, bool),
+    NamespaceStore(usize),
+    NamespaceAddress(usize, bool),
+    AmbientValue(usize, usize),
+    AmbientAddress(usize, usize),
+    StoreDeclaration(usize),
     Regex(usize, u8),
     TypeShadowed(usize, usize),
     Normalize(usize),
@@ -52,6 +63,7 @@ pub(crate) enum Op {
     AddressIndex(usize),
     AddressTarget(usize, bool),
     AddressMember(CallSite),
+    AddressNamespaceField(CallSite),
     AddressMemberTarget(CallSite, bool),
     AddressStore,
     AddressDrop,
@@ -98,6 +110,8 @@ pub(crate) enum ArgumentOp {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Invocation {
+    ImplicitMember(usize, usize),
+    Namespace(usize, crate::namespace::Helper),
     Builtin(Builtin),
     Function(usize),
     Host(usize),
@@ -284,6 +298,8 @@ impl Method {
 
 #[derive(Debug, Default)]
 pub(crate) struct Function {
+    pub namespace: Option<usize>,
+    pub initializer: bool,
     pub name: String,
     pub params: Vec<Parameter>,
     pub binds_parameters: bool,
@@ -303,6 +319,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
     pub type_guards: Vec<Vec<String>>,
     pub types: Vec<crate::types::Type>,
     pub declarations: Vec<Value>,
@@ -317,7 +334,8 @@ pub(crate) struct Program {
 
 pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
     let parsed = syntax::parse(source)?;
-    let defs = parsed.functions;
+    let mut defs = parsed.functions;
+    let mut contexts = vec![(None, false); defs.len()];
     let names: HashMap<_, _> = defs
         .iter()
         .enumerate()
@@ -335,19 +353,25 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         declarations.push(crate::enums::compile(name, members)?);
     }
     let mut program = Program {
+        namespaces: Vec::new(),
         type_guards: Vec::new(),
         types: Vec::new(),
         declarations,
         declaration_names,
         globals: Vec::new(),
-        functions: (0..defs.len()).map(|_| Function::default()).collect(),
+        functions: Vec::new(),
         constants: Vec::new(),
         names,
         hosts,
         members: Vec::new(),
     };
+    for module in parsed.modules {
+        program.register_module(module, "", &mut defs, &mut contexts)?;
+    }
+    program.functions = (0..defs.len()).map(|_| Function::default()).collect();
     for (index, def) in defs.into_iter().enumerate() {
         let mut c = Compiler {
+            namespace: contexts[index].0,
             program: &mut program,
             locals: HashMap::new(),
             code: Vec::new(),
@@ -398,6 +422,8 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         c.code.push(Op::Finish);
         let return_type = def.return_type.as_ref().map(|ty| c.annotation(ty));
         let function = Function {
+            namespace: contexts[index].0,
+            initializer: contexts[index].1,
             name: def.name,
             params,
             binds_parameters,
@@ -428,6 +454,7 @@ fn expanded(args: &[Argument]) -> bool {
 }
 
 struct Compiler<'a> {
+    namespace: Option<usize>,
     program: &'a mut Program,
     locals: HashMap<String, usize>,
     code: Vec<Op>,
@@ -450,6 +477,7 @@ impl Compiler<'_> {
     fn declare(&mut self, body: &[Stmt]) {
         for stmt in body {
             match stmt {
+                Stmt::Module(_) => (),
                 Stmt::Expr(e) => self.declare_expr(e),
                 Stmt::Assign(target, _, value) => {
                     self.declare_target(target);
@@ -484,7 +512,9 @@ impl Compiler<'_> {
                 node: Node::Var(name),
                 ..
             }) => {
-                if !self.outer.is_empty() || self.global_binding(name).is_none() {
+                if !self.namespace_binding(name)
+                    && (!self.outer.is_empty() || self.global_binding(name).is_none())
+                {
                     self.slot(name);
                 }
                 self.assigned.insert(name.clone());
@@ -596,6 +626,9 @@ impl Compiler<'_> {
             | Op::JumpFalse(n)
             | Op::JumpTrue(n)
             | Op::Bind(_, n)
+            | Op::NamespaceConstant(_, n)
+            | Op::AmbientValue(_, n)
+            | Op::AmbientAddress(_, n)
             | Op::TypeShadowed(_, n)
             | Op::AddressBound(_, n)
             | Op::ReceiverBound(_, n) => *n = target,
@@ -671,7 +704,8 @@ impl Compiler<'_> {
         Ok(())
     }
     fn declaration_slot(&self, name: &str) -> Option<usize> {
-        if self.program.declaration_names.contains_key(name)
+        if self.namespace_binding(name)
+            || self.program.declaration_names.contains_key(name)
             || (Global::parse(name).is_some()
                 && !self.program.names.contains_key(name)
                 && !self.program.hosts.iter().any(|host| host == name))
@@ -699,6 +733,22 @@ impl Compiler<'_> {
     }
     fn statement(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
         match stmt {
+            Stmt::Module(name) => {
+                let prefix = format!("{name}::");
+                let modules: Vec<_> = self
+                    .program
+                    .namespaces
+                    .iter()
+                    .filter(|m| {
+                        m.body.is_some() && (m.name == *name || m.name.starts_with(&prefix))
+                    })
+                    .map(|m| m.index)
+                    .collect();
+                for module in modules {
+                    self.emit(Op::InitNamespace(module));
+                }
+                self.emit(Op::Nil);
+            }
             Stmt::Expr(e) => self.expr(e)?,
             Stmt::Assign(target, op, rhs) => {
                 let binding_target = target;
@@ -718,6 +768,10 @@ impl Compiler<'_> {
                 };
                 match &target.node {
                     Node::Var(name) => {
+                        if self.namespace_binding(name) {
+                            self.namespace_assignment(name, binding_target, target, op, rhs)?;
+                            return Ok(());
+                        }
                         if let Some(global) = self.global_binding(name) {
                             if matches!(*op, "||=" | "&&=") {
                                 self.emit(Op::Global(global));
@@ -905,7 +959,9 @@ impl Compiler<'_> {
                 node: Node::Var(name),
                 ..
             }) => {
-                if let Some(global) = self.global_binding(name) {
+                if self.namespace_binding(name) {
+                    self.store_namespace_name(name);
+                } else if let Some(global) = self.global_binding(name) {
                     self.emit(Op::StoreGlobal(global));
                 } else {
                     let slot = self.slot(name);
@@ -982,11 +1038,30 @@ impl Compiler<'_> {
                 self.constant(Value::int(i64::MIN));
             }
             Node::Literal(v) => self.constant(v.clone()),
+            Node::Var(name) if name.starts_with('@') => {
+                let name = self.call_site(name, false).name;
+                self.emit(Op::NamespaceVariable(name, true));
+            }
+            Node::Var(name) if name == "self" && self.namespace.is_some() => {
+                self.emit(Op::NamespaceSelf(self.namespace.unwrap()));
+            }
             Node::Var(name) if name == "block_given?" => {
                 self.emit(Op::BlockGiven(false, false));
             }
             Node::Var(name) => {
                 let global = self.global(name);
+                let constant = (self.namespace.is_some()
+                    && name.chars().next().is_some_and(syntax::unicode::upper)
+                    && !self.locals.contains_key(name))
+                .then(|| {
+                    let name = self.call_site(name, false).name;
+                    self.emit(Op::NamespaceConstant(name, 0))
+                });
+                let ambient =
+                    (self.namespace.is_some() && !self.locals.contains_key(name)).then(|| {
+                        let name = self.call_site(name, false).name;
+                        self.emit(Op::AmbientValue(name, 0))
+                    });
                 if let Some(&slot) = self.locals.get(name) {
                     if !self.parameters.contains(name) {
                         let name = self.call_site(name, false).name;
@@ -1005,6 +1080,12 @@ impl Compiler<'_> {
                 } else {
                     let site = self.call_site(name, false);
                     self.emit(Op::Unbound(site.name));
+                }
+                if let Some(constant) = constant {
+                    self.patch(constant, self.code.len());
+                }
+                if let Some(ambient) = ambient {
+                    self.patch(ambient, self.code.len());
                 }
             }
             Node::Array(values) => {
@@ -1145,7 +1226,13 @@ impl Compiler<'_> {
                     return Ok(());
                 } else {
                     let site = self.call_site(name, false);
-                    self.emit(Op::Unbound(site.name));
+                    if self.namespace.is_some() {
+                        self.emit(Op::ResolveCall(usize::MAX, site.name));
+                        self.argument_values(args)?;
+                        self.emit(Op::Invoke(Invocation::Resolved));
+                    } else {
+                        self.emit(Op::Unbound(site.name));
+                    }
                     return Ok(());
                 };
                 if expanded(args) {
@@ -1322,7 +1409,14 @@ impl Compiler<'_> {
                 Invocation::Host(host)
             } else {
                 let site = self.call_site(name, false);
-                self.emit(Op::Unbound(site.name));
+                if self.namespace.is_some() {
+                    self.emit(Op::ResolveCall(usize::MAX, site.name));
+                    self.argument_values(args)?;
+                    self.emit(Op::Attach(function));
+                    self.emit(Op::Invoke(Invocation::Resolved));
+                } else {
+                    self.emit(Op::Unbound(site.name));
+                }
                 return Ok(());
             };
             self.emit(Op::Arguments);
@@ -1338,6 +1432,7 @@ impl Compiler<'_> {
         let mut outer = vec![self.locals.clone()];
         outer.extend(self.outer.iter().cloned());
         let mut child = Compiler {
+            namespace: self.namespace,
             program: self.program,
             locals: HashMap::new(),
             code: Vec::new(),
@@ -1389,6 +1484,7 @@ impl Compiler<'_> {
                 });
         }
         let function = Function {
+            namespace: self.namespace,
             name: "<block>".into(),
             locals: child.locals.len(),
             local_names: local_names(&child.locals),
@@ -1423,14 +1519,14 @@ impl Compiler<'_> {
     fn address_target(&mut self, target: &Expr, read: bool) -> Result<()> {
         match &target.node {
             Node::Index(receiver, indices) => {
-                self.address(receiver)?;
+                self.assignment_address(receiver)?;
                 for index in indices {
                     self.expr(index)?;
                 }
                 self.emit(Op::AddressTarget(indices.len(), read));
             }
             Node::Member(receiver, name) => {
-                self.address(receiver)?;
+                self.assignment_address(receiver)?;
                 let site = self.call_site(name, true);
                 self.emit(Op::AddressMemberTarget(site, read));
             }
@@ -1457,12 +1553,20 @@ impl Compiler<'_> {
     }
     fn address(&mut self, receiver: &Expr) -> Result<()> {
         match &receiver.node {
+            Node::Var(name) if name.starts_with('@') => {
+                let name = self.call_site(name, false).name;
+                self.emit(Op::NamespaceAddress(name, true));
+            }
             Node::Var(name) if self.locals.contains_key(name) => {
                 let slot = self.locals[name];
                 if self.parameters.contains(name) {
                     self.emit(Op::AddressLocal(slot));
                 } else {
                     let bound = self.emit(Op::AddressBound(slot, 0));
+                    let ambient = self.namespace.map(|_| {
+                        let name = self.call_site(name, false).name;
+                        self.emit(Op::AmbientAddress(name, 0))
+                    });
                     if let Some(global) = self.global_fallback(name) {
                         self.emit(Op::AddressGlobal(global));
                     } else {
@@ -1470,7 +1574,17 @@ impl Compiler<'_> {
                         self.emit(Op::AddressValue);
                     }
                     self.patch(bound, self.code.len());
+                    if let Some(ambient) = ambient {
+                        self.patch(ambient, self.code.len());
+                    }
                 }
+            }
+            Node::Var(name) if self.namespace.is_some() => {
+                let name = self.call_site(name, false).name;
+                let ambient = self.emit(Op::AmbientAddress(name, 0));
+                self.expr(receiver)?;
+                self.emit(Op::AddressValue);
+                self.patch(ambient, self.code.len());
             }
             Node::Var(name) if self.global_fallback(name).is_some() => {
                 let global = self.global_fallback(name).unwrap();
@@ -1597,6 +1711,7 @@ fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
 fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
     for stmt in body {
         match stmt {
+            Stmt::Module(_) => (),
             Stmt::Expr(expr) => call_names(expr, names),
             Stmt::Assign(target, _, value) => {
                 target_call_names(target, names);
