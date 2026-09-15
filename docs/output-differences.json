@@ -109,42 +109,6 @@
   ],
   "diagnostic_wording": [
     {
-      "name": "output_print_class_typed_error",
-      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nprint(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "go": [
-        "RuntimeError",
-        "return value for to_s expected string, got int"
-      ],
-      "rust": [
-        "RuntimeError",
-        "value does not match its type annotation"
-      ]
-    },
-    {
-      "name": "output_puts_class_typed_error",
-      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nputs(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "go": [
-        "RuntimeError",
-        "return value for to_s expected string, got int"
-      ],
-      "rust": [
-        "RuntimeError",
-        "value does not match its type annotation"
-      ]
-    },
-    {
-      "name": "output_warn_class_typed_error",
-      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nwarn(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "go": [
-        "RuntimeError",
-        "return value for to_s expected string, got int"
-      ],
-      "rust": [
-        "RuntimeError",
-        "value does not match its type annotation"
-      ]
-    },
-    {
       "name": "output_matrix_p_args_bad_kw_splat",
       "source": "\ndef run(input)\nbegin\np(**nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
       "go": [
@@ -193,18 +157,6 @@
       ]
     },
     {
-      "name": "output_matrix_print_tos_coerced_return",
-      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nprint(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "go": [
-        "RuntimeError",
-        "return value for to_s expected int, got float"
-      ],
-      "rust": [
-        "RuntimeError",
-        "value does not match its type annotation"
-      ]
-    },
-    {
       "name": "output_matrix_puts_args_bad_kw_splat",
       "source": "\ndef run(input)\nbegin\nputs(**nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
       "go": [
@@ -226,18 +178,6 @@
       "rust": [
         "RuntimeError",
         "splat argument must be an array"
-      ]
-    },
-    {
-      "name": "output_matrix_puts_tos_coerced_return",
-      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nputs(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "go": [
-        "RuntimeError",
-        "return value for to_s expected int, got float"
-      ],
-      "rust": [
-        "RuntimeError",
-        "value does not match its type annotation"
       ]
     },
     {
@@ -263,6 +203,98 @@
         "RuntimeError",
         "splat argument must be an array"
       ]
+    }
+  ],
+  "counts": {
+    "protected_output": 7,
+    "diagnostic_wording": 8,
+    "resolved_type_diagnostics": 6
+  },
+  "resolved_type_diagnostics": [
+    {
+      "name": "output_print_class_typed_error",
+      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nprint(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "rust": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "previous_rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ],
+      "shared_fixture": "type_diagnostics_resolved_output_print_class_typed_error"
+    },
+    {
+      "name": "output_puts_class_typed_error",
+      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nputs(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "rust": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "previous_rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ],
+      "shared_fixture": "type_diagnostics_resolved_output_puts_class_typed_error"
+    },
+    {
+      "name": "output_warn_class_typed_error",
+      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nwarn(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "rust": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "previous_rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ],
+      "shared_fixture": "type_diagnostics_resolved_output_warn_class_typed_error"
+    },
+    {
+      "name": "output_matrix_print_tos_coerced_return",
+      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nprint(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "rust": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "previous_rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ],
+      "shared_fixture": "type_diagnostics_resolved_output_matrix_print_tos_coerced_return"
+    },
+    {
+      "name": "output_matrix_puts_tos_coerced_return",
+      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nputs(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "rust": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "previous_rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ],
+      "shared_fixture": "type_diagnostics_resolved_output_matrix_puts_tos_coerced_return"
     },
     {
       "name": "output_matrix_warn_tos_coerced_return",
@@ -273,12 +305,13 @@
       ],
       "rust": [
         "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "previous_rust": [
+        "RuntimeError",
         "value does not match its type annotation"
-      ]
+      ],
+      "shared_fixture": "type_diagnostics_resolved_output_matrix_warn_tos_coerced_return"
     }
-  ],
-  "counts": {
-    "protected_output": 7,
-    "diagnostic_wording": 14
-  }
+  ]
 }

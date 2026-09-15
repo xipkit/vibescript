@@ -2,6 +2,9 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value, budget::Buffer, hash::Hash, value::Kind,
 };
 
+mod diagnostics;
+pub(crate) use diagnostics::Context;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Scalar {
     Any,
@@ -80,7 +83,8 @@ impl Type {
     }
 }
 
-pub(crate) fn normalize(
+#[cfg(test)]
+fn normalize(
     ctx: &mut CallContext,
     ty: &Type,
     value: Value,
@@ -95,10 +99,21 @@ pub(crate) struct Prepared<'a> {
 }
 
 impl Prepared<'_> {
+    #[cfg(test)]
     pub fn normalize(&self, ctx: &mut CallContext, value: Value) -> Result<Value> {
-        visit(ctx, self.ty, value, &self.names, 0)?
-            .map(|(value, _)| value)
-            .ok_or_else(|| Error::new(ErrorKind::Type, "value does not match its type annotation"))
+        self.normalize_with(ctx, value, Context::Value)
+    }
+
+    pub fn normalize_with(
+        &self,
+        ctx: &mut CallContext,
+        value: Value,
+        context: Context<'_>,
+    ) -> Result<Value> {
+        if let Some((value, _)) = visit(ctx, self.ty, value.clone(), &self.names, 0)? {
+            return Ok(value);
+        }
+        Err(diagnostics::mismatch(ctx, self.ty, &value, context)?)
     }
 }
 

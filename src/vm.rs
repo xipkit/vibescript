@@ -886,7 +886,10 @@ pub(crate) fn execute(
                                         &frames,
                                         &mut storage,
                                         current,
-                                        ty,
+                                        (
+                                            ty,
+                                            crate::types::Context::Argument(param.name.as_bytes()),
+                                        ),
                                         value,
                                     )?
                                 } else {
@@ -896,7 +899,7 @@ pub(crate) fn execute(
                                 frames.data[current].ip = next;
                             }
                         }
-                        Op::Normalize(ty) => {
+                        Op::Normalize(ty, label) => {
                             let value = stack.data.pop().unwrap();
                             let value = normalize_type(
                                 program,
@@ -904,7 +907,12 @@ pub(crate) fn execute(
                                 &frames,
                                 &mut storage,
                                 current,
-                                ty,
+                                (
+                                    ty,
+                                    crate::types::Context::Argument(
+                                        program.constants[label].as_bytes().unwrap(),
+                                    ),
+                                ),
                                 value,
                             )?;
                             stack.push(ctx, value)?;
@@ -2297,7 +2305,10 @@ fn diagnostic_site<'a>(
             .code
             .get(frame.ip.saturating_sub(1));
         if frame.binding.data.is_empty()
-            || !matches!(op, Some(Op::Bind(..) | Op::Normalize(_) | Op::BindIvar(..)))
+            || !matches!(
+                op,
+                Some(Op::Bind(..) | Op::Normalize(..) | Op::BindIvar(..))
+            )
         {
             break;
         }
@@ -2382,8 +2393,19 @@ fn normalize_return(
     let Some(ty) = program.functions[function].return_type else {
         return Ok(value);
     };
-    normalize_type(program, ctx, frames, storage, frame, ty, value)
-        .map_err(|error| diagnose(program, &frames.data[..frame], function, error))
+    normalize_type(
+        program,
+        ctx,
+        frames,
+        storage,
+        frame,
+        (
+            ty,
+            crate::types::Context::Return(&program.functions[function].trace_name),
+        ),
+        value,
+    )
+    .map_err(|error| diagnose(program, &frames.data[..frame], function, error))
 }
 
 fn runtime_bound(
@@ -2503,9 +2525,10 @@ fn normalize_ivar(
     let Some(ty) = property_type(program, ctx, instance, name)? else {
         return Ok(value);
     };
-    crate::types::normalize(ctx, &program.types[ty], value, |ctx, name| {
+    crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
         resolve_type(program, ctx, frames, storage, None, name, false)
-    })
+    })?
+    .normalize_with(ctx, value, crate::types::Context::Ivar(name.as_bytes()))
 }
 
 fn address_guard<'a>(
@@ -2535,13 +2558,14 @@ fn normalize_type(
     frames: &Buffer<Frame>,
     storage: &mut Storage,
     frame: usize,
-    ty: usize,
+    annotation: (usize, crate::types::Context<'_>),
     value: Value,
 ) -> Result<Value> {
     let lexical = frames.data[frame].parent;
-    crate::types::normalize(ctx, &program.types[ty], value, |ctx, name| {
+    crate::types::prepare(ctx, &program.types[annotation.0], |ctx, name| {
         resolve_type(program, ctx, frames, storage, lexical, name, false)
-    })
+    })?
+    .normalize_with(ctx, value, annotation.1)
 }
 
 fn resolve_type(

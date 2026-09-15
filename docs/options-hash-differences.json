@@ -1,6 +1,6 @@
 {
   "reference": "Go v0.70.0",
-  "note": "These 32 cases preserve the reference error class with existing diagnostic wording differences. The shared corpus checks the error class; no semantic options-binding differences remain in the 619 focused probes.",
+  "note": "These 26 cases preserve the reference error class with existing diagnostic wording differences. The shared corpus checks the error class; no semantic options-binding differences remain in the 619 focused probes. The 6 resolved type diagnostics have exact message checks in separate shared fixtures.",
   "cases": [
     {
       "name": "options_probe_C.new_take_scope",
@@ -101,48 +101,6 @@
       "rust": "plain expects 1 arguments, got 0"
     },
     {
-      "name": "options_matrix_typed_bad_type_bare",
-      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "error_class": "RuntimeError",
-      "go": "argument options expected { retries: int }, got { retries: string }",
-      "rust": "value does not match its type annotation"
-    },
-    {
-      "name": "options_matrix_typed_bad_type_forwarded",
-      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "error_class": "RuntimeError",
-      "go": "argument options expected { retries: int }, got { retries: string }",
-      "rust": "value does not match its type annotation"
-    },
-    {
-      "name": "options_matrix_typed_bad_type_function",
-      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "error_class": "RuntimeError",
-      "go": "argument options expected { retries: int }, got { retries: string }",
-      "rust": "value does not match its type annotation"
-    },
-    {
-      "name": "options_matrix_typed_default_bad_type_bare",
-      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "error_class": "RuntimeError",
-      "go": "argument options expected { retries: int }, got { retries: string }",
-      "rust": "value does not match its type annotation"
-    },
-    {
-      "name": "options_matrix_typed_default_bad_type_forwarded",
-      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "error_class": "RuntimeError",
-      "go": "argument options expected { retries: int }, got { retries: string }",
-      "rust": "value does not match its type annotation"
-    },
-    {
-      "name": "options_matrix_typed_default_bad_type_function",
-      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "error_class": "RuntimeError",
-      "go": "argument options expected { retries: int }, got { retries: string }",
-      "rust": "value does not match its type annotation"
-    },
-    {
       "name": "options_matrix_prefix_explicit_method",
       "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake({retries:3})\nend\nend\ndef run(input)\nbegin\nC.new.take({retries:3})\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
       "error_class": "ArgumentError",
@@ -225,6 +183,62 @@
       "error_class": "ArgumentError",
       "go": "missing argument prefix",
       "rust": "plain expects 2 arguments, got 0"
+    }
+  ],
+  "resolved_type_diagnostics": [
+    {
+      "name": "options_matrix_typed_bad_type_bare",
+      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "error_class": "RuntimeError",
+      "go": "argument options expected { retries: int }, got { retries: string }",
+      "rust": "argument options expected { retries: int }, got { retries: string }",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_bare"
+    },
+    {
+      "name": "options_matrix_typed_bad_type_forwarded",
+      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "error_class": "RuntimeError",
+      "go": "argument options expected { retries: int }, got { retries: string }",
+      "rust": "argument options expected { retries: int }, got { retries: string }",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_forwarded"
+    },
+    {
+      "name": "options_matrix_typed_bad_type_function",
+      "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "error_class": "RuntimeError",
+      "go": "argument options expected { retries: int }, got { retries: string }",
+      "rust": "argument options expected { retries: int }, got { retries: string }",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_bad_type_function"
+    },
+    {
+      "name": "options_matrix_typed_default_bad_type_bare",
+      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.take retries:\"bad\"\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "error_class": "RuntimeError",
+      "go": "argument options expected { retries: int }, got { retries: string }",
+      "rust": "argument options expected { retries: int }, got { retries: string }",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_bare"
+    },
+    {
+      "name": "options_matrix_typed_default_bad_type_forwarded",
+      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nC.new.send(:take,retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "error_class": "RuntimeError",
+      "go": "argument options expected { retries: int }, got { retries: string }",
+      "rust": "argument options expected { retries: int }, got { retries: string }",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_forwarded"
+    },
+    {
+      "name": "options_matrix_typed_default_bad_type_function",
+      "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nbegin\nplain(retries:\"bad\")\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "error_class": "RuntimeError",
+      "go": "argument options expected { retries: int }, got { retries: string }",
+      "rust": "argument options expected { retries: int }, got { retries: string }",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_function"
     }
   ]
 }

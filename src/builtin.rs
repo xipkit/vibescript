@@ -434,9 +434,10 @@ impl Builtin {
                     ));
                 };
                 let parsed = json::parse_builtin(ctx, &bytes.data)?;
-                crate::types::normalize(ctx, &shape.definition.ty, parsed, |_, _| {
+                crate::types::prepare(ctx, &shape.definition.ty, |_, _| {
                     Err(Error::new(ErrorKind::Type, "unknown named type"))
-                })
+                })?
+                .normalize_with(ctx, parsed, crate::types::Context::Json)
             }
             Self::Math(_)
             | Self::Output(_)

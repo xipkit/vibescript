@@ -121188,5 +121188,1374 @@
     "stdout": true,
     "stderr": true,
     "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
+  },
+  {
+    "name": "type_diagnostics_actual_0_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string)\npayload\nend\n\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected string, got nil",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_1_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string)\npayload\nend\n\ndef run(input)\ntyped(true)\nend",
+    "go_error": "argument payload expected string, got bool",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_2_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string)\npayload\nend\n\ndef run(input)\ntyped(7)\nend",
+    "go_error": "argument payload expected string, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_3_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string)\npayload\nend\n\ndef run(input)\ntyped(1.5)\nend",
+    "go_error": "argument payload expected string, got float",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_4_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string)\npayload\nend\n\ndef run(input)\ntyped(10**30)\nend",
+    "go_error": "argument payload expected string, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_5_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(\"text\")\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_6_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(:draft)\nend",
+    "go_error": "argument payload expected int, got symbol",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_7_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped([])\nend",
+    "go_error": "argument payload expected int, got array<empty>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_8_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped([1])\nend",
+    "go_error": "argument payload expected int, got array<int>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_9_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped([1,\"x\",nil,true])\nend",
+    "go_error": "argument payload expected int, got array<bool | int | nil | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_10_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped([[1],[]])\nend",
+    "go_error": "argument payload expected int, got array<array<empty> | array<int>>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_11_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({})\nend",
+    "go_error": "argument payload expected int, got {}",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_12_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({b:\"x\",a:1})\nend",
+    "go_error": "argument payload expected int, got { a: int, b: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_13_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(Status)\nend",
+    "go_error": "argument payload expected int, got enum Status",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_14_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(Status::Draft)\nend",
+    "go_error": "argument payload expected int, got Status",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_15_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(Review::Draft)\nend",
+    "go_error": "argument payload expected int, got Review",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_16_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(C)\nend",
+    "go_error": "argument payload expected int, got class",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_17_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(C.new)\nend",
+    "go_error": "argument payload expected int, got instance",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_18_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(/a/)\nend",
+    "go_error": "argument payload expected int, got regex",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_19_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(1..2)\nend",
+    "go_error": "argument payload expected int, got range",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_20_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(money(\"1.00 USD\"))\nend",
+    "go_error": "argument payload expected int, got money",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_21_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(1.seconds)\nend",
+    "go_error": "argument payload expected int, got duration",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_22_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(Time.at(0))\nend",
+    "go_error": "argument payload expected int, got time",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_23_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(JSON)\nend",
+    "go_error": "argument payload expected int, got { parse: builtin, parse_as: builtin, stringify: builtin }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_24_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(JSON::parse)\nend",
+    "go_error": "argument payload expected int, got builtin",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_25_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(hash<string,int>)\nend",
+    "go_error": "argument payload expected int, got shape",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_26_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])\nend",
+    "go_error": "argument payload expected int, got array<int>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_27_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])\nend",
+    "go_error": "argument payload expected int, got array<int | ...>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_28_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({a:[1],b:[1,\"x\"],c:{z:true}})\nend",
+    "go_error": "argument payload expected int, got { a: array<int>, b: array<int | string>, c: { z: bool } }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_29_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({\"\\xff\":1})\nend",
+    "go_error": "argument payload expected int, got { �: int }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_30_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({k5: 1,k4: \"x\",k3: 1,k2: \"x\",k1: 1,k0: \"x\"})\nend",
+    "go_error": "argument payload expected int, got { k0: string, k1: int, k2: string, k3: int, k4: string, k5: int }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_31_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({k6: \"x\",k5: 1,k4: \"x\",k3: 1,k2: \"x\",k1: 1,k0: \"x\"})\nend",
+    "go_error": "argument payload expected int, got hash<string, int | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_32_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({k15: 1,k14: \"x\",k13: 1,k12: \"x\",k11: 1,k10: \"x\",k9: 1,k8: \"x\",k7: 1,k6: \"x\",k5: 1,k4: \"x\",k3: 1,k2: \"x\",k1: 1,k0: \"x\"})\nend",
+    "go_error": "argument payload expected int, got hash<string, int | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_actual_33_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped({k16: \"x\",k15: 1,k14: \"x\",k13: 1,k12: \"x\",k11: 1,k10: \"x\",k9: 1,k8: \"x\",k7: 1,k6: \"x\",k5: 1,k4: \"x\",k3: 1,k2: \"x\",k1: 1,k0: \"x\"})\nend",
+    "go_error": "argument payload expected int, got hash<string, int | string | ...>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_1_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Int)\npayload\nend\n\ndef run(input)\ntyped([])\nend",
+    "go_error": "argument payload expected int, got array<empty>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_2_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:FLOAT)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected float, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_3_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Number)\npayload\nend\n\ndef run(input)\ntyped([])\nend",
+    "go_error": "argument payload expected number, got array<empty>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_4_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:STRING)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected string, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_5_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:BOOL)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected bool, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_6_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Nil)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected nil, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_7_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Duration)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected duration, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_8_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Time)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected time, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_9_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Money)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected money, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_10_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Range)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected range, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_11_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Symbol)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected symbol, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_12_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected array, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_13_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<Int>)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected array<int>, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_14_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<array<int | STRING?>>)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected array<array<int | string?>>, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_15_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:hash)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected hash, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_16_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Object)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected object, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_17_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:hash<string,int>)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected hash<string, int>, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_18_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:object<symbol, array<number>>)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected object<symbol, array<number>>, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_20_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{...})\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected { ... }, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_21_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{z:int,a?:string,\"valid?\":bool})\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected { a?: string, \"valid?\": bool, z: int }, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_22_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Status)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected Status, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_23_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:C)\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected C, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_24_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int?)\npayload\nend\n\ndef run(input)\ntyped([])\nend",
+    "go_error": "argument payload expected int?, got array<empty>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_25_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int | string)\npayload\nend\n\ndef run(input)\ntyped([])\nend",
+    "go_error": "argument payload expected int | string, got array<empty>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_26_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int? | string?)\npayload\nend\n\ndef run(input)\ntyped([])\nend",
+    "go_error": "argument payload expected int? | string?, got array<empty>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_expected_27_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{\"x\\xff?\":int})\npayload\nend\n\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected { \"x\\xff?\": int }, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_positional_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int)\npayload\nend\n\ndef run(input)\ntyped(\"x\")\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int=\"x\")\npayload\nend\n\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int:)\npayload\nend\n\ndef run(input)\ntyped(payload:\"x\")\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_keyword_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int=\"x\")\npayload\nend\n\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_rest_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(*payload:array<int>)\npayload\nend\n\ndef run(input)\ntyped(1,\"x\")\nend",
+    "go_error": "argument payload expected array<int>, got array<int | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_keyword_rest_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(**payload:hash<string,int>)\npayload\nend\n\ndef run(input)\ntyped(a:1,b:\"x\")\nend",
+    "go_error": "argument payload expected hash<string, int>, got { a: int, b: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->int\n\"x\"\nend\n\ndef run(input)\ntyped()\nend",
+    "go_error": "return value for typed expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_explicit_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->int\nreturn \"x\"\nend\n\ndef run(input)\ntyped()\nend",
+    "go_error": "return value for typed expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_block_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->int\n[1].each{return \"x\"}\nend\n\ndef run(input)\ntyped()\nend",
+    "go_error": "return value for typed expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_class_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\ndef typed->int\n\"x\"\nend\nend\n\ndef run(input)\nT.new.typed()\nend",
+    "go_error": "return value for typed expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_module_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nmodule T\ndef self.typed->int\n\"x\"\nend\nend\n\ndef run(input)\nT.typed()\nend",
+    "go_error": "return value for typed expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_class_setter_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:int\nend\n\ndef run(input)\nT.new.payload=\"x\"\nend",
+    "go_error": "argument value expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:int\ndef typed\n@payload=\"x\"\nend\nend\n\ndef run(input)\nT.new.typed()\nend",
+    "go_error": "instance variable @payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_ivar_parameter_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:int\ndef typed(@payload)\nend\nend\n\ndef run(input)\nT.new.typed(\"x\")\nend",
+    "go_error": "instance variable @payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\n\ndef run(input)\n[\"x\"].map{|payload:int|payload}\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_block_destructure_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\n\ndef run(input)\n[[1,\"x\"]].map{|(a:int,payload:int)|payload}\nend",
+    "go_error": "argument payload expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_block_rest_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\n\ndef run(input)\n[[1,\"x\"]].map{|(*payload:array<int>)|payload}\nend",
+    "go_error": "argument payload expected array<int>, got array<int | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_json_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\n\ndef run(input)\nJSON.parse_as(\"[1,\\\"x\\\"]\",array<int>)\nend",
+    "go_error": "JSON.parse_as value expected array<int>, got array<int | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_group_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\n\ndef run(input)\n[[[1,\"x\"]]].map{|((a,b): array<int>)|a}\nend",
+    "go_error": "argument (a, b) expected array<int>, got array<int | string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_empty_return_shape_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->{}\n7\nend\n\ndef run(input)\ntyped()\nend",
+    "go_error": "return value for typed expected {}, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_context_json_scalar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\n\ndef run(input)\nJSON.parse_as(\"\\\"x\\\"\",int)\nend",
+    "go_error": "JSON.parse_as value expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_matrix_1_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Int)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected int, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_1_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: Int = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected int, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_1_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Int:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected int, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_1_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->Int\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected int, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_1_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:Int\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected int, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_1_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:Int|true};true\nend",
+    "go_error": "argument payload expected int, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_2_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:float)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected float, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_2_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: float = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected float, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_2_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:float:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected float, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_2_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->float\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected float, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_2_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:float\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected float, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_2_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:float|true};true\nend",
+    "go_error": "argument payload expected float, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_3_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:number)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected number, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_3_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: number = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected number, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_3_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:number:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected number, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_3_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->number\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected number, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_3_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:number\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected number, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_3_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:number|true};true\nend",
+    "go_error": "argument payload expected number, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_4_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_4_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: string = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_4_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:string:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_4_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->string\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_4_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:string\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_4_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:string|true};true\nend",
+    "go_error": "argument payload expected string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_5_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:bool)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected bool, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_5_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: bool = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected bool, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_5_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:bool:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected bool, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_5_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->bool\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected bool, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_5_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:bool\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected bool, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_5_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:bool|true};true\nend",
+    "go_error": "argument payload expected bool, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_6_1_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Nil)\ntrue\nend\ndef run(input)\ntyped(1)\nend",
+    "go_error": "argument payload expected nil, got int"
+  },
+  {
+    "name": "type_diagnostics_matrix_6_1_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: Nil = 1)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected nil, got int"
+  },
+  {
+    "name": "type_diagnostics_matrix_6_1_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Nil:)\ntrue\nend\ndef run(input)\ntyped(payload: 1)\nend",
+    "go_error": "argument payload expected nil, got int"
+  },
+  {
+    "name": "type_diagnostics_matrix_6_1_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->Nil\n1\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected nil, got int"
+  },
+  {
+    "name": "type_diagnostics_matrix_6_1_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:Nil\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(1)\nend",
+    "go_error": "instance variable @payload expected nil, got int"
+  },
+  {
+    "name": "type_diagnostics_matrix_6_1_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[1].map{|payload:Nil|true};true\nend",
+    "go_error": "argument payload expected nil, got int"
+  },
+  {
+    "name": "type_diagnostics_matrix_7_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:symbol)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected symbol, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_7_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: symbol = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected symbol, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_7_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:symbol:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected symbol, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_7_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->symbol\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected symbol, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_7_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:symbol\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected symbol, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_7_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:symbol|true};true\nend",
+    "go_error": "argument payload expected symbol, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_8_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:duration)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected duration, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_8_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: duration = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected duration, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_8_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:duration:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected duration, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_8_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->duration\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected duration, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_8_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:duration\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected duration, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_8_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:duration|true};true\nend",
+    "go_error": "argument payload expected duration, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_9_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:time)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected time, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_9_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: time = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected time, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_9_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:time:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected time, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_9_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->time\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected time, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_9_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:time\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected time, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_9_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:time|true};true\nend",
+    "go_error": "argument payload expected time, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_10_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:money)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected money, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_10_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: money = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected money, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_10_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:money:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected money, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_10_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->money\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected money, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_10_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:money\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected money, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_10_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:money|true};true\nend",
+    "go_error": "argument payload expected money, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_11_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:range)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected range, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_11_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: range = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected range, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_11_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:range:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected range, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_11_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->range\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected range, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_11_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:range\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected range, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_11_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:range|true};true\nend",
+    "go_error": "argument payload expected range, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_12_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected array, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_12_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: array = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected array, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_12_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected array, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_12_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->array\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected array, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_12_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:array\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected array, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_12_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:array|true};true\nend",
+    "go_error": "argument payload expected array, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_13_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<int>)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected array<int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_13_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: array<int> = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected array<int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_13_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<int>:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected array<int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_13_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->array<int>\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected array<int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_13_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:array<int>\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected array<int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_13_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:array<int>|true};true\nend",
+    "go_error": "argument payload expected array<int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_14_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<Status>)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected array<Status>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_14_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: array<Status> = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected array<Status>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_14_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<Status>:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected array<Status>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_14_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->array<Status>\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected array<Status>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_14_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:array<Status>\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected array<Status>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_14_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:array<Status>|true};true\nend",
+    "go_error": "argument payload expected array<Status>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_15_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:hash)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected hash, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_15_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: hash = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected hash, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_15_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:hash:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected hash, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_15_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->hash\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected hash, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_15_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:hash\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected hash, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_15_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:hash|true};true\nend",
+    "go_error": "argument payload expected hash, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_16_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:object<string,int>)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected object<string, int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_16_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: object<string,int> = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected object<string, int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_16_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:object<string,int>:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected object<string, int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_16_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->object<string,int>\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected object<string, int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_16_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:object<string,int>\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected object<string, int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_16_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:object<string,int>|true};true\nend",
+    "go_error": "argument payload expected object<string, int>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_17_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{a:int,b?:string})\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected { a: int, b?: string }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_17_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: {a:int,b?:string} = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected { a: int, b?: string }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_17_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{a:int,b?:string}:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected { a: int, b?: string }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_17_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->{a:int,b?:string}\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected { a: int, b?: string }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_17_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:{a:int,b?:string}\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected { a: int, b?: string }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_17_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:{a:int,b?:string}|true};true\nend",
+    "go_error": "argument payload expected { a: int, b?: string }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_18_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{a:array<int>,...})\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected { a: array<int>, ... }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_18_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: {a:array<int>,...} = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected { a: array<int>, ... }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_18_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:{a:array<int>,...}:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected { a: array<int>, ... }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_18_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->{a:array<int>,...}\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected { a: array<int>, ... }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_18_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:{a:array<int>,...}\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected { a: array<int>, ... }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_18_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:{a:array<int>,...}|true};true\nend",
+    "go_error": "argument payload expected { a: array<int>, ... }, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_19_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Status)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected Status, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_19_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: Status = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected Status, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_19_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:Status:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected Status, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_19_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->Status\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected Status, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_19_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:Status\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected Status, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_19_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:Status|true};true\nend",
+    "go_error": "argument payload expected Status, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_20_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:C)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected C, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_20_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: C = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected C, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_20_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:C:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected C, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_20_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->C\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected C, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_20_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:C\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected C, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_20_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:C|true};true\nend",
+    "go_error": "argument payload expected C, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_21_2_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int?)\ntrue\nend\ndef run(input)\ntyped(1.5)\nend",
+    "go_error": "argument payload expected int?, got float"
+  },
+  {
+    "name": "type_diagnostics_matrix_21_2_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: int? = 1.5)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected int?, got float"
+  },
+  {
+    "name": "type_diagnostics_matrix_21_2_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int?:)\ntrue\nend\ndef run(input)\ntyped(payload: 1.5)\nend",
+    "go_error": "argument payload expected int?, got float"
+  },
+  {
+    "name": "type_diagnostics_matrix_21_2_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->int?\n1.5\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected int?, got float"
+  },
+  {
+    "name": "type_diagnostics_matrix_21_2_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:int?\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(1.5)\nend",
+    "go_error": "instance variable @payload expected int?, got float"
+  },
+  {
+    "name": "type_diagnostics_matrix_21_2_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[1.5].map{|payload:int?|true};true\nend",
+    "go_error": "argument payload expected int?, got float"
+  },
+  {
+    "name": "type_diagnostics_matrix_22_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int | string)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected int | string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_22_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: int | string = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected int | string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_22_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:int | string:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected int | string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_22_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->int | string\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected int | string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_22_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:int | string\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected int | string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_22_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:int | string|true};true\nend",
+    "go_error": "argument payload expected int | string, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_23_0_argument_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<int | string?>)\ntrue\nend\ndef run(input)\ntyped(nil)\nend",
+    "go_error": "argument payload expected array<int | string?>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_23_0_default_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload: array<int | string?> = nil)\ntrue\nend\ndef run(input)\ntyped()\nend",
+    "go_error": "argument payload expected array<int | string?>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_23_0_keyword_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed(payload:array<int | string?>:)\ntrue\nend\ndef run(input)\ntyped(payload: nil)\nend",
+    "go_error": "argument payload expected array<int | string?>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_23_0_return_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\ndef typed->array<int | string?>\nnil\nend\ndef run(input)\ntyped();true\nend",
+    "go_error": "return value for typed expected array<int | string?>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_23_0_ivar_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\nclass T\nproperty payload:array<int | string?>\ndef typed(value)\n@payload=value\ntrue\nend\nend\ndef run(input)\nT.new.typed(nil)\nend",
+    "go_error": "instance variable @payload expected array<int | string?>, got nil"
+  },
+  {
+    "name": "type_diagnostics_matrix_23_0_block_uncaught",
+    "source": "enum Status\nDraft\nDone\nend\nenum Review\nDraft\nend\nclass C\nend\nclass D\nend\n\ndef run(input)\n[nil].map{|payload:array<int | string?>|true};true\nend",
+    "go_error": "argument payload expected array<int | string?>, got nil"
+  },
+  {
+    "name": "type_diagnostics_resolved_output_print_class_typed_error_uncaught",
+    "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nprint(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "return value for to_s expected string, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_output_puts_class_typed_error_uncaught",
+    "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nputs(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "return value for to_s expected string, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_output_warn_class_typed_error_uncaught",
+    "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nwarn(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "return value for to_s expected string, got int",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_output_matrix_print_tos_coerced_return_uncaught",
+    "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nprint(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "return value for to_s expected int, got float",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_output_matrix_puts_tos_coerced_return_uncaught",
+    "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nputs(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "return value for to_s expected int, got float",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_output_matrix_warn_tos_coerced_return_uncaught",
+    "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nwarn(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "return value for to_s expected int, got float",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_forwarding_probe_typed_reject_send_uncaught",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.send(:typed,\"bad\")\nend",
+    "go_error": "argument x expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_forwarding_probe_typed_reject_public_send_uncaught",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.public_send(:typed,\"bad\")\nend",
+    "go_error": "argument x expected int, got string",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_forwarding_edge_address_send_typed_setter_uncaught",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef receiver(c)\nc.add(1);[1]\nend\nclass D\n@@items=[1]\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items;@items.send(:push,2);[@items,before]\nend\ndef self.check\nbefore=@@items;@@items.send(:push,2);[@@items,before]\nend\nend\nmodule N\n@@items=[1]\ndef self.check\nbefore=@@items;@@items.send(:push,2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items\nbegin\n@items.send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index)\nindex+3\nend\ndef []=(index,value)\n[index,value]\nend\nend\nclass U\ndef push(value)\nvalue+1\nend\nend\nclass V\ndef send(value)\n[value,8]\nend\nend\nclass W\ndef send(x:)\nx\nend\nend\n\ndef run(input)\nT.new.send(\"items=\",[\"bad\"])\nend",
+    "go_error": "argument value expected array<int>, got array<string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_forwarding_edge_address_public_send_typed_setter_uncaught",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef receiver(c)\nc.add(1);[1]\nend\nclass D\n@@items=[1]\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items;@items.public_send(:push,2);[@items,before]\nend\ndef self.check\nbefore=@@items;@@items.public_send(:push,2);[@@items,before]\nend\nend\nmodule N\n@@items=[1]\ndef self.check\nbefore=@@items;@@items.public_send(:push,2);[@@items,before]\nend\nend\nclass T\nproperty items: array<int>\ndef initialize\n@items=[1]\nend\ndef check\nbefore=@items\nbegin\n@items.public_send(:push,\"bad\")\nrescue RuntimeError\nnil\nend\n[@items,before]\nend\nend\nclass I\ndef [](index)\nindex+3\nend\ndef []=(index,value)\n[index,value]\nend\nend\nclass U\ndef push(value)\nvalue+1\nend\nend\nclass V\ndef send(value)\n[value,8]\nend\nend\nclass W\ndef send(x:)\nx\nend\nend\n\ndef run(input)\nT.new.public_send(\"items=\",[\"bad\"])\nend",
+    "go_error": "argument value expected array<int>, got array<string>",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_options_matrix_typed_bad_type_bare_uncaught",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take retries:\"bad\"\nend",
+    "go_error": "argument options expected { retries: int }, got { retries: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_options_matrix_typed_bad_type_forwarded_uncaught",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.send(:take,retries:\"bad\")\nend",
+    "go_error": "argument options expected { retries: int }, got { retries: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_options_matrix_typed_bad_type_function_uncaught",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nplain(retries:\"bad\")\nend",
+    "go_error": "argument options expected { retries: int }, got { retries: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_bare_uncaught",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take retries:\"bad\"\nend",
+    "go_error": "argument options expected { retries: int }, got { retries: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_forwarded_uncaught",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.send(:take,retries:\"bad\")\nend",
+    "go_error": "argument options expected { retries: int }, got { retries: string }",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "type_diagnostics_resolved_options_matrix_typed_default_bad_type_function_uncaught",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nplain(retries:\"bad\")\nend",
+    "go_error": "argument options expected { retries: int }, got { retries: string }",
+    "stdout": true,
+    "stderr": true
   }
 ]

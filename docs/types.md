@@ -1,6 +1,6 @@
 # Runtime type annotations
 
-Function arguments, defaults, returns and block bindings support runtime type annotations. Static checking, class types and typed accessors remain pending in the [language port](language-port.md).
+Function arguments, defaults, returns, block bindings and instance-variable writes support runtime type annotations. Nominal class types and typed accessors are also supported. Extended name resolution and static checking remain pending in the [language port](language-port.md).
 
 ```vibe
 enum Status
@@ -17,7 +17,7 @@ accept({status: :draft}).name
 
 This returns `"Draft"`. A matching symbol becomes a nominal enum member. A string such as `"draft"` or a member of another enum fails the boundary. Enum definitions retain their identity across calls to the same compiled script; a separate compilation creates distinct definitions.
 
-Annotations support `any`, `int`, `float`, `number`, `string`, `symbol`, `bool`, `nil`, `duration`, `time`, `money` and `range`; bare or parameterized arrays and hashes; shapes; and named enums. `object` is a hash-type alias. Scalars are strict: `int` rejects `1.0`, while `number` accepts integers and floats.
+Annotations support `any`, `int`, `float`, `number`, `string`, `symbol`, `bool`, `nil`, `duration`, `time`, `money` and `range`; bare or parameterized arrays and hashes; shapes; and nominal enums and classes. `object` is a hash-type alias. Scalars are strict: `int` rejects `1.0`, while `number` accepts integers and floats.
 
 Use `T?` for nullable values and `A | B` for unions. Union arms are tried in source order, with `any` last, so `any | Status` still converts `:draft` to an enum member. Every named type must resolve, including names in unused union arms, optional fields and empty collections.
 
@@ -35,6 +35,23 @@ Blocks support simple and destructured bindings:
 Type names resolve in a function's declaration environment or a block's captured environment. Earlier argument bindings and the function body's locals do not define types for that function's signature. Return annotations apply to implicit and explicit returns, nonlocal block returns and values returned when a passed block breaks out of a function.
 
 Unchanged arrays and hashes retain their storage. Enum coercions copy changed containers while preserving other values, field order and open-shape extras. Memory charges cover new containers, enum metadata and temporary name-resolution state. Traversal checks work limits, cancellation and deadlines; union fallback cannot absorb exhausted limits. Normalization also enforces the reference's 64-level traversal guard, including union arms.
+
+## Type mismatch diagnostics
+
+Type mismatches identify the boundary, expected annotation and actual value type. They remain rescuable runtime errors, exposed to Rust hosts as `ErrorKind::Type`.
+
+```text
+argument payload expected int, got string
+return value for typed expected int, got string
+instance variable @payload expected array<int>, got array<string>
+JSON.parse_as value expected array<int>, got array<int | string>
+```
+
+Defaults, keywords, rest captures and typed block bindings use the argument form. Destructured groups retain their pattern label. Generated property setters check their `value` parameter; direct instance-variable assignments and guarded nested mutations name the backing field. Returning through a block or an output helper's `to_s` method preserves the function name. Diagnostics do not call user-defined string methods.
+
+Expected types use the same canonical spelling as type literals. Actual collection types are bounded summaries: arrays sample the first sixteen entries; hashes sample the first sixteen keys in byte order. A hash with at most six fields shows a shape. Larger collections show a sorted, deduplicated union, with `...` when sampling truncates it. Empty collections render as `array<empty>` and `{}`. Nested summaries stop after sixteen levels. Repeated references are summarized independently by path. Raw field-name bytes remain available through `Error::message_bytes()`.
+
+Every scan, comparison and emitted byte consumes work; temporary storage is reserved against the call's memory limit before allocation. Exhaustion, cancellation and deadlines take precedence over constructing a type error. Rescued diagnostics release their scratch storage. Successful normalization creates no diagnostic buffers. Unknown and ambiguous named-type errors still have separate wording; broader diagnostic parity remains pending.
 
 ## Type literals and JSON
 

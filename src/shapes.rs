@@ -22,7 +22,7 @@ pub(crate) struct Shape {
 
 pub(crate) fn compile(ty: Type) -> Value {
     let mut text = Vec::new();
-    format(&ty, &mut text);
+    format(&ty, &mut text).unwrap();
     let bytes = size_of::<Definition>() + 2 * size_of::<usize>() + text.capacity() + retained(&ty);
     Value(Kind::Shape(Arc::new(Shape {
         definition: Arc::new(Definition { ty, text, bytes }),
@@ -114,9 +114,29 @@ fn retained(ty: &Type) -> usize {
         }
 }
 
-fn format(ty: &Type, out: &mut Vec<u8>) {
+pub(crate) trait TypeWriter {
+    fn write(&mut self, bytes: &[u8]) -> Result<()>;
+
+    fn node(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn byte(&mut self, byte: u8) -> Result<()> {
+        self.write(&[byte])
+    }
+}
+
+impl TypeWriter for Vec<u8> {
+    fn write(&mut self, bytes: &[u8]) -> Result<()> {
+        self.extend_from_slice(bytes);
+        Ok(())
+    }
+}
+
+pub(crate) fn format(ty: &Type, out: &mut impl TypeWriter) -> Result<()> {
+    out.node()?;
     match &ty.kind {
-        TypeKind::Scalar(scalar) => out.extend_from_slice(match scalar {
+        TypeKind::Scalar(scalar) => out.write(match scalar {
             Scalar::Any => b"any",
             Scalar::Int => b"int",
             Scalar::Float => b"float",
@@ -129,81 +149,83 @@ fn format(ty: &Type, out: &mut Vec<u8>) {
             Scalar::Money => b"money",
             Scalar::Time => b"time",
             Scalar::Range => b"range",
-        }),
-        TypeKind::Named => out.extend_from_slice(ty.name.as_bytes()),
+        })?,
+        TypeKind::Named => out.write(ty.name.as_bytes())?,
         TypeKind::Array(element) => {
-            out.extend_from_slice(b"array");
+            out.write(b"array")?;
             if let Some(element) = element {
-                out.push(b'<');
-                format(element, out);
-                out.push(b'>');
+                out.byte(b'<')?;
+                format(element, out)?;
+                out.byte(b'>')?;
             }
         }
         TypeKind::Hash(pair) => {
-            let lower: String = ty
+            let object = ty
                 .name
                 .chars()
                 .map(|c| crate::casing::map(c, false))
-                .collect();
-            out.extend_from_slice(if lower == "object" {
-                b"object"
-            } else {
-                b"hash"
-            });
+                .eq("object".chars());
+            out.write(if object { b"object" } else { b"hash" })?;
             if let Some(pair) = pair {
-                out.push(b'<');
-                format(&pair.0, out);
-                out.extend_from_slice(b", ");
-                format(&pair.1, out);
-                out.push(b'>');
+                out.byte(b'<')?;
+                format(&pair.0, out)?;
+                out.write(b", ")?;
+                format(&pair.1, out)?;
+                out.byte(b'>')?;
             }
         }
         TypeKind::Union(options) => {
             for (index, option) in options.iter().enumerate() {
                 if index > 0 {
-                    out.extend_from_slice(b" | ");
+                    out.write(b" | ")?;
                 }
-                format(option, out);
+                format(option, out)?;
             }
-            return;
+            return Ok(());
         }
         TypeKind::Shape(fields, open) => {
             if fields.is_empty() && !open {
-                out.extend_from_slice(b"{}");
+                out.write(b"{}")?;
             } else {
-                out.extend_from_slice(b"{ ");
+                out.write(b"{ ")?;
                 for (index, field) in fields.iter().enumerate() {
+                    out.node()?;
                     if index > 0 {
-                        out.extend_from_slice(b", ");
+                        out.write(b", ")?;
                     }
                     if field.name.ends_with(b"?") {
-                        quote(&field.name, out);
+                        quoted(&field.name, out)?;
                     } else {
-                        out.extend_from_slice(&field.name);
+                        out.write(&field.name)?;
                     }
                     if field.optional {
-                        out.push(b'?');
+                        out.byte(b'?')?;
                     }
-                    out.extend_from_slice(b": ");
-                    format(&field.ty, out);
+                    out.write(b": ")?;
+                    format(&field.ty, out)?;
                 }
                 if *open {
                     if !fields.is_empty() {
-                        out.extend_from_slice(b", ");
+                        out.write(b", ")?;
                     }
-                    out.extend_from_slice(b"...");
+                    out.write(b"...")?;
                 }
-                out.extend_from_slice(b" }");
+                out.write(b" }")?;
             }
         }
     }
-    if ty.nullable && out.last() != Some(&b'?') {
-        out.push(b'?');
+    if ty.nullable && !matches!(&ty.kind, TypeKind::Named if ty.name.ends_with('?')) {
+        out.byte(b'?')?;
     }
+    Ok(())
 }
 
 pub(crate) fn quote(bytes: &[u8], out: &mut Vec<u8>) {
-    out.push(b'"');
+    quoted(bytes, out).unwrap();
+}
+
+fn quoted(bytes: &[u8], out: &mut impl TypeWriter) -> Result<()> {
+    out.byte(b'"')?;
     let mut position = 0;
     while position < bytes.len() {
         let (rune, width, valid) = crate::scan::rune(&bytes[position..]);
@@ -220,28 +242,29 @@ pub(crate) fn quote(bytes: &[u8], out: &mut Vec<u8>) {
             _ => None,
         };
         if !valid {
-            hex(bytes[position] as u32, 2, b'x', out);
+            hex(bytes[position] as u32, 2, b'x', out)?;
         } else if let Some(escape) = escape {
-            out.extend_from_slice(&[b'\\', escape]);
+            out.write(&[b'\\', escape])?;
         } else if crate::printable::is_print(rune) {
-            out.extend_from_slice(&bytes[position..position + width]);
+            out.write(&bytes[position..position + width])?;
         } else if rune < ' ' || rune == '\u{7f}' {
-            hex(rune as u32, 2, b'x', out);
+            hex(rune as u32, 2, b'x', out)?;
         } else if rune <= '\u{ffff}' {
-            hex(rune as u32, 4, b'u', out);
+            hex(rune as u32, 4, b'u', out)?;
         } else {
-            hex(rune as u32, 8, b'U', out);
+            hex(rune as u32, 8, b'U', out)?;
         }
         position += width;
     }
-    out.push(b'"');
+    out.byte(b'"')
 }
 
-fn hex(value: u32, digits: usize, prefix: u8, out: &mut Vec<u8>) {
-    out.extend_from_slice(&[b'\\', prefix]);
+fn hex(value: u32, digits: usize, prefix: u8, out: &mut impl TypeWriter) -> Result<()> {
+    out.write(&[b'\\', prefix])?;
     for index in (0..digits).rev() {
-        out.push(b"0123456789abcdef"[((value >> (index * 4)) & 15) as usize]);
+        out.byte(b"0123456789abcdef"[((value >> (index * 4)) & 15) as usize])?;
     }
+    Ok(())
 }
 
 #[cfg(test)]

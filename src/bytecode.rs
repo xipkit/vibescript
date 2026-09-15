@@ -35,7 +35,7 @@ pub(crate) enum Op {
     StoreDeclaration(usize),
     Regex(usize, u8),
     TypeShadowed(usize, usize),
-    Normalize(usize),
+    Normalize(usize, usize),
     Declaration(usize),
     Global(usize),
     GlobalReceiver(usize, bool),
@@ -439,7 +439,11 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
                 c.declare_expr(value);
                 c.expr(value)?;
                 if let Some(ty) = ty {
-                    c.emit(Op::Normalize(ty));
+                    let label = c.program.constants.len();
+                    c.program
+                        .constants
+                        .push(Value::bytes(param.name.as_bytes()));
+                    c.emit(Op::Normalize(ty, label));
                 }
             }
             let slot = c.slot(&param.name);
@@ -1073,7 +1077,14 @@ impl Compiler<'_> {
         match target {
             Target::Typed(target, ty) => {
                 let ty = self.annotation(ty);
-                self.emit(Op::Normalize(ty));
+                let mut text = Vec::new();
+                target_label(target, &mut text);
+                if text.is_empty() {
+                    text.extend_from_slice(b"destructured value");
+                }
+                let label = self.program.constants.len();
+                self.program.constants.push(Value::bytes(text));
+                self.emit(Op::Normalize(ty, label));
                 self.assign_value(target)?;
             }
             Target::Value(Expr {
@@ -1933,6 +1944,36 @@ fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
                 }
             }
         }
+    }
+}
+
+fn target_label(target: &Target, text: &mut Vec<u8>) {
+    match target {
+        Target::Value(Expr {
+            node: Node::Var(name),
+            ..
+        }) => text.extend_from_slice(name.as_bytes()),
+        Target::Typed(target, ty) => {
+            target_label(target, text);
+            text.extend_from_slice(b": ");
+            crate::shapes::format(ty, text).unwrap();
+        }
+        Target::Tuple(parts) => {
+            text.push(b'(');
+            for (index, (target, rest)) in parts.iter().enumerate() {
+                if index > 0 {
+                    text.extend_from_slice(b", ");
+                }
+                if *rest {
+                    text.push(b'*');
+                }
+                if let Some(target) = target {
+                    target_label(target, text);
+                }
+            }
+            text.push(b')');
+        }
+        _ => (),
     }
 }
 

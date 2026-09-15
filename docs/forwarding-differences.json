@@ -376,12 +376,6 @@
   ],
   "diagnostic_wording": [
     {
-      "name": "forwarding_probe_typed_reject_send",
-      "error_class": "RuntimeError",
-      "go": "argument x expected int, got string",
-      "rust": "value does not match its type annotation"
-    },
-    {
       "name": "forwarding_probe_visibility_public_send_C.new_hidden",
       "error_class": "RuntimeError",
       "go": "private method hidden",
@@ -416,12 +410,6 @@
       "error_class": "RuntimeError",
       "go": "protected method guarded",
       "rust": "method is not accessible with this receiver"
-    },
-    {
-      "name": "forwarding_probe_typed_reject_public_send",
-      "error_class": "RuntimeError",
-      "go": "argument x expected int, got string",
-      "rust": "value does not match its type annotation"
     },
     {
       "name": "forwarding_probe_override_send_private _D.new",
@@ -526,12 +514,6 @@
       "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
     },
     {
-      "name": "forwarding_edge_address_send_typed_setter",
-      "error_class": "RuntimeError",
-      "go": "argument value expected array<int>, got array<string>",
-      "rust": "value does not match its type annotation"
-    },
-    {
       "name": "forwarding_edge_address_send_public_via_send",
       "error_class": "RuntimeError",
       "go": "private method hidden",
@@ -604,12 +586,6 @@
       "rust": "JSON.parse is a method and cannot be used as a value; call it directly"
     },
     {
-      "name": "forwarding_edge_address_public_send_typed_setter",
-      "error_class": "RuntimeError",
-      "go": "argument value expected array<int>, got array<string>",
-      "rust": "value does not match its type annotation"
-    },
-    {
       "name": "forwarding_edge_address_public_send_public_via_send",
       "error_class": "RuntimeError",
       "go": "private method hidden",
@@ -620,6 +596,40 @@
       "error_class": "RuntimeError",
       "go": "clear cannot modify a rescued error",
       "rust": "cannot modify rescued error"
+    }
+  ],
+  "resolved_type_diagnostics": [
+    {
+      "name": "forwarding_probe_typed_reject_send",
+      "error_class": "RuntimeError",
+      "go": "argument x expected int, got string",
+      "rust": "argument x expected int, got string",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_probe_typed_reject_send"
+    },
+    {
+      "name": "forwarding_probe_typed_reject_public_send",
+      "error_class": "RuntimeError",
+      "go": "argument x expected int, got string",
+      "rust": "argument x expected int, got string",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_probe_typed_reject_public_send"
+    },
+    {
+      "name": "forwarding_edge_address_send_typed_setter",
+      "error_class": "RuntimeError",
+      "go": "argument value expected array<int>, got array<string>",
+      "rust": "argument value expected array<int>, got array<string>",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_edge_address_send_typed_setter"
+    },
+    {
+      "name": "forwarding_edge_address_public_send_typed_setter",
+      "error_class": "RuntimeError",
+      "go": "argument value expected array<int>, got array<string>",
+      "rust": "argument value expected array<int>, got array<string>",
+      "previous_rust": "value does not match its type annotation",
+      "shared_fixture": "type_diagnostics_resolved_forwarding_edge_address_public_send_typed_setter"
     }
   ]
 }

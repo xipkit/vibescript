@@ -188,7 +188,16 @@ impl Address {
             }
         }
         if let Some(guard) = &bindings.guard {
-            updated = guard.normalize(ctx, updated)?;
+            let name = match &root {
+                Root::Object(instance, field) => {
+                    Some(crate::objects::field_name(instance, *field)?)
+                }
+                _ => None,
+            };
+            let context = name.as_ref().map_or(crate::types::Context::Value, |name| {
+                crate::types::Context::Ivar(name.as_bytes().unwrap())
+            });
+            updated = guard.normalize_with(ctx, updated, context)?;
         }
         refresh(ctx, root.clone(), &updated, pending, &changes.data)?;
         bindings.set(ctx, &root, Some(updated))?;
