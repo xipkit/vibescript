@@ -4,11 +4,11 @@ The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761f
 
 ## State isolation across host calls
 
-The selected contract isolates mutable class and module state at every `Script.call` boundary, including calls into another compiled script or engine. This decision was explicitly selected on 2026-09-15. Go v0.70.0 isolates a returned source class or module when it reenters its original compiled script, but lets a different script mutate the original live state. Rust will consistently give each call independent state.
+The selected contract isolates mutable class and module state at every `Script.call` boundary, including calls into another compiled script or engine. This decision was explicitly selected on 2026-09-15. Go v0.70.0 isolates a returned source class or module when it reenters its original compiled script, but lets a different script mutate the original live state. Rust consistently gives each call independent state.
 
 Existing same-script behavior remains the baseline: imported instance fields preserve their values, shared references and cycles within the receiving call, while class and source-module declarations initialize fresh invocation state. Mutations must not change the source value or another concurrent call. Foreign code must still use the receiving call's accounting, cancellation and module policy.
 
-Cross-script dispatch and file-module state transfer are still being implemented. This selected contract is separate from the thirty intentional and five unresolved cases in the existing compatibility audit; it does not add passing conformance cases by itself.
+Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. File-module closure state transfer remains pending. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty intentional and five unresolved cases in the existing compatibility audit.
 
 ## Documented value semantics take precedence
 

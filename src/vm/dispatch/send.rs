@@ -35,15 +35,7 @@ pub(super) fn call(
             parenthesized: false,
             scope: false,
         };
-        let selected = resolve(
-            program,
-            ctx,
-            storage,
-            &receiver,
-            (bytes, name),
-            site,
-            access,
-        )?;
+        let selected = resolve(ctx, storage, &receiver, (bytes, name), site, access)?;
         consumed += 1;
         if matches!(selected, namespaces::Member::Missing)
             && name.is_some_and(forwarding::supported)
@@ -88,7 +80,6 @@ pub(super) fn call(
 }
 
 fn resolve(
-    program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
     receiver: &Value,
@@ -107,7 +98,7 @@ fn resolve(
         return Err(forwarding::unknown(ctx, receiver, bytes)?);
     };
     if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
-        let selected = namespaces::member(program, ctx, storage, receiver, site, name, access)?;
+        let selected = namespaces::member(ctx, storage, receiver, site, name, access)?;
         if !matches!(selected, Member::Missing) || names::universal(name) {
             return Ok(selected);
         }

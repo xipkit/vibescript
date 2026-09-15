@@ -32,15 +32,8 @@ pub(super) fn member(
     };
     let selected = if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
         let receiver = receiver.clone();
-        let selected = namespaces::member(
-            program,
-            ctx,
-            storage,
-            &receiver,
-            call.site,
-            call.name,
-            call.access,
-        )?;
+        let selected =
+            namespaces::member(ctx, storage, &receiver, call.site, call.name, call.access)?;
         if matches!(selected, namespaces::Member::Missing) {
             namespaces::fallback(call.name)?;
         }
@@ -216,7 +209,8 @@ fn invoke(
     }
     let value = if mutating {
         let address = storage.addresses.data.pop().unwrap();
-        let guard = address_guard(program, ctx, frames, storage, &address)?;
+        let guard_program = programs::address(ctx, storage, &address)?;
+        let guard = address_guard(guard_program.as_deref(), ctx, frames, storage, &address)?;
         address.apply(
             ctx,
             address::Bindings {
@@ -250,7 +244,7 @@ pub(super) fn helper(
     if matches!(helper, Helper::Predicate(Predicate::IsType, _)) {
         type_predicate(program, ctx, frames, storage, &receiver, args)
     } else {
-        namespaces::call_helper(program, ctx, storage, receiver, helper, args, auto)
+        namespaces::call_helper(ctx, storage, receiver, helper, args, auto)
     }
 }
 
@@ -335,6 +329,7 @@ pub(super) fn reduce(
     };
     let caller = &frames.data[lexical_scope(ctx, frames)?.unwrap()];
     let access = namespaces::Access {
+        program: caller.program.index,
         caller: caller.program.functions[caller.function.unwrap()].namespace,
         implicit: false,
         instance: matches!(caller.receiver, Some(Value(Kind::Instance(_)))),

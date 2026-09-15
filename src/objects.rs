@@ -303,6 +303,21 @@ pub(crate) fn field(
     ))
 }
 
+pub(crate) fn children(
+    ctx: &mut CallContext,
+    instance: &Arc<Instance>,
+    values: &mut Buffer<Value>,
+) -> Result<()> {
+    let heap = instance.heap()?;
+    let data = heap.data.lock().unwrap();
+    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    for (_, value) in fields.buffer.data.iter().rev() {
+        ctx.charge(1)?;
+        values.push(ctx, value.clone())?;
+    }
+    Ok(())
+}
+
 pub(crate) fn set(
     ctx: &mut CallContext,
     instance: &Arc<Instance>,

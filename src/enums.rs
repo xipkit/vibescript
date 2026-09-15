@@ -197,7 +197,7 @@ impl Enumeration {
 pub(crate) struct Rebind {
     pub definitions: Option<Arc<[Arc<Definition>]>>,
     pub active: bool,
-    identities: Buffer<(usize, Arc<()>)>,
+    identities: Buffer<(Arc<Definition>, Arc<()>)>,
     storage: Option<Charge>,
 }
 
@@ -222,7 +222,7 @@ impl Rebind {
             return Ok(None);
         }
         let mut rebind = std::mem::take(&mut ctx.enum_rebind);
-        let result = rebind.identity(ctx, definition);
+        let result = rebind.identity(ctx, definition, declared);
         ctx.enum_rebind = rebind;
         result
     }
@@ -231,24 +231,27 @@ impl Rebind {
         &mut self,
         ctx: &mut CallContext,
         definition: &Arc<Definition>,
+        declared: bool,
     ) -> Result<Option<Arc<()>>> {
-        let Some(definitions) = &self.definitions else {
-            return Ok(None);
-        };
-        let mut found = None;
-        for (index, candidate) in definitions.iter().enumerate() {
-            ctx.charge(1)?;
-            if Arc::ptr_eq(candidate, definition) {
-                found = Some(index);
-                break;
+        if !declared {
+            let Some(definitions) = &self.definitions else {
+                return Ok(None);
+            };
+            let mut found = false;
+            for candidate in definitions.iter() {
+                ctx.charge(1)?;
+                if Arc::ptr_eq(candidate, definition) {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return Ok(None);
             }
         }
-        let Some(index) = found else {
-            return Ok(None);
-        };
         for (cached, identity) in &self.identities.data {
             ctx.charge(1)?;
-            if *cached == index {
+            if Arc::ptr_eq(cached, definition) {
                 return Ok(Some(identity.clone()));
             }
         }
@@ -257,7 +260,9 @@ impl Rebind {
         let charge = ctx.reserve(2 * size_of::<usize>())?;
         Charge::merge(&mut self.storage, charge);
         let identity = Arc::new(());
-        self.identities.data.push((index, identity.clone()));
+        self.identities
+            .data
+            .push((definition.clone(), identity.clone()));
         Ok(Some(identity))
     }
 }

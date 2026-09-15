@@ -62,7 +62,7 @@ pub(super) fn resume(
             if matches!(value.0, Kind::Bytes(_)) {
                 args.positional.data[index] = value;
             }
-        } else if let Some(call) = operators::string(program, ctx, &args.positional.data[index])? {
+        } else if let Some(call) = operators::string(ctx, &args.positional.data[index])? {
             enter_arguments(
                 program,
                 ctx,

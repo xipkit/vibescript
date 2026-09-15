@@ -87,13 +87,13 @@ pub(super) fn member(
     ctx.work_bytes(name.len())?;
     if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
         match namespaces::member(
-            program,
             ctx,
             storage,
             &receiver,
             site,
             name,
             namespaces::Access {
+                program: program.index,
                 caller: namespace,
                 implicit: false,
                 instance,

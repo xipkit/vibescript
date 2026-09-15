@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy)]
 pub(super) struct Access {
+    pub program: usize,
     pub caller: Option<usize>,
     pub implicit: bool,
     pub instance: bool,
@@ -62,13 +63,13 @@ pub(super) fn implicit(
         scope: false,
     };
     member(
-        program,
         ctx,
         storage,
         &value,
         site,
         name,
         Access {
+            program: program.index,
             caller: Some(module),
             implicit: true,
             instance: matches!(value.0, Kind::Instance(_)),
@@ -236,7 +237,6 @@ pub(super) fn variable_name(module: Option<usize>, name: &str) -> Result<(usize,
 }
 
 pub(super) fn member(
-    program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
     receiver: &Value,
@@ -250,16 +250,8 @@ pub(super) fn member(
         _ => unreachable!(),
     };
     let definition = &namespace.definition;
-    if !program
-        .namespaces
-        .get(definition.index)
-        .is_some_and(|current| Arc::ptr_eq(current, definition))
-    {
-        return Err(Error::new(
-            ErrorKind::Type,
-            "class belongs to a different compiled script",
-        ));
-    }
+    let owner = programs::namespace(ctx, storage, namespace)?;
+    let program = &*owner;
     if site.scope {
         if instance.is_some() {
             return Err(Error::new(
@@ -298,7 +290,8 @@ pub(super) fn member(
                 Visibility::Private => access.implicit,
                 Visibility::Protected => {
                     access.implicit
-                        || (access.caller == Some(definition.index)
+                        || (access.program == program.index
+                            && access.caller == Some(definition.index)
                             && access.instance == instance.is_some())
                 }
             };
@@ -399,6 +392,7 @@ pub(super) fn ambient_slot(
 pub(super) fn setter(
     program: &Program,
     ctx: &mut CallContext,
+    storage: &mut Storage,
     receiver: &Value,
     name: &str,
     caller: Option<usize>,
@@ -409,16 +403,7 @@ pub(super) fn setter(
         Kind::Instance(instance) => (instance.class(), true),
         _ => unreachable!(),
     };
-    if !program
-        .namespaces
-        .get(namespace.definition.index)
-        .is_some_and(|current| Arc::ptr_eq(current, &namespace.definition))
-    {
-        return Err(Error::new(
-            ErrorKind::Type,
-            "class belongs to a different compiled script",
-        ));
-    }
+    let _owner = programs::namespace(ctx, storage, namespace)?;
     let methods = if instance {
         &namespace.definition.instance_methods
     } else {
@@ -430,7 +415,10 @@ pub(super) fn setter(
         if method.name.strip_suffix('=') == Some(name) {
             if method.visibility == Visibility::Private
                 || (method.visibility == Visibility::Protected
-                    && (caller != Some(namespace.definition.index) || caller_instance != instance))
+                    && (!caller
+                        .and_then(|index| program.namespaces.get(index))
+                        .is_some_and(|definition| Arc::ptr_eq(definition, &namespace.definition))
+                        || caller_instance != instance))
             {
                 return Err(Error::new(
                     ErrorKind::Name,
@@ -453,7 +441,6 @@ pub(super) fn setter(
 }
 
 pub(super) fn call_helper(
-    program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
     receiver: Value,
@@ -486,7 +473,7 @@ pub(super) fn call_helper(
     let result = match query {
         Query::Class(class) => introspection::belongs(&receiver, class),
         Query::Respond(name, private) => {
-            responds(program, ctx, storage, &receiver, name, caller || private)?
+            responds(ctx, storage, &receiver, name, caller || private)?
         }
         Query::Type(_) => {
             return Err(Error::new(
@@ -499,7 +486,6 @@ pub(super) fn call_helper(
 }
 
 fn responds(
-    program: &Program,
     ctx: &mut CallContext,
     storage: &mut Storage,
     receiver: &Value,
@@ -514,6 +500,8 @@ fn responds(
         Kind::Instance(instance) => (instance.class(), Some(instance)),
         _ => unreachable!(),
     };
+    let owner = programs::namespace(ctx, storage, namespace)?;
+    let program = &*owner;
     let module = namespace.definition.index;
     if (instance.is_some() && name == b"class")
         || (instance.is_none() && namespace.definition.constructor.is_some() && name == b"new")

@@ -8,7 +8,6 @@ pub(super) struct Resolved {
 }
 
 fn method(
-    program: &Program,
     ctx: &mut CallContext,
     receiver: &Value,
     name: &str,
@@ -21,16 +20,6 @@ fn method(
         ctx.charge(1)?;
         ctx.work_bytes(name.len().max(method.name.len()))?;
         if method.name == name {
-            if !program
-                .namespaces
-                .get(definition.index)
-                .is_some_and(|current| Arc::ptr_eq(current, definition))
-            {
-                return Err(Error::new(
-                    ErrorKind::Type,
-                    "class belongs to a different compiled script",
-                ));
-            }
             return Ok(Some((
                 Call {
                     receiver: Some(receiver.clone()),
@@ -50,10 +39,10 @@ pub(super) fn resolve(
     name: &str,
     caller: (Option<usize>, bool),
 ) -> Result<Option<Resolved>> {
-    let mut found = method(program, ctx, receiver, name)?;
+    let mut found = method(ctx, receiver, name)?;
     let mut negate = false;
     if found.is_none() && name == "!=" {
-        found = method(program, ctx, receiver, "==")?;
+        found = method(ctx, receiver, "==")?;
         negate = found.is_some();
     }
     let Some((call, visibility)) = found else {
@@ -62,7 +51,16 @@ pub(super) fn resolve(
     let allowed = match visibility {
         Visibility::Public => true,
         Visibility::Private => false,
-        Visibility::Protected => caller.1 && caller.0 == program.functions[call.function].namespace,
+        Visibility::Protected => {
+            caller.1
+                && caller
+                    .0
+                    .and_then(|index| program.namespaces.get(index))
+                    .is_some_and(|definition| {
+                        matches!(&receiver.0, Kind::Instance(instance)
+                if Arc::ptr_eq(definition, &instance.class().definition))
+                    })
+        }
     };
     if !allowed {
         return Err(Error::new(
@@ -85,15 +83,19 @@ pub(super) fn index(
         .ok_or_else(|| Error::new(ErrorKind::Name, format!("instance does not define {name}")))
 }
 
-pub(super) fn string(
-    program: &Program,
-    ctx: &mut CallContext,
-    receiver: &Value,
-) -> Result<Option<Call>> {
-    let Some((call, _)) = method(program, ctx, receiver, "to_s")? else {
+pub(super) fn string(ctx: &mut CallContext, receiver: &Value) -> Result<Option<Call>> {
+    let Some((call, _)) = method(ctx, receiver, "to_s")? else {
         return Ok(None);
     };
-    for param in &program.functions[call.function].params {
+    let Kind::Instance(instance) = &receiver.0 else {
+        unreachable!()
+    };
+    let owner = instance
+        .class()
+        .owner
+        .as_ref()
+        .ok_or_else(|| Error::new(ErrorKind::Type, "namespace has no executable source"))?;
+    for param in &owner.program.functions[call.function].params {
         ctx.charge(1)?;
         if matches!(
             param.kind,

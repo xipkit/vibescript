@@ -261,7 +261,7 @@ fn initialization_observes_cancellation_and_stops_later_effects() {
 }
 
 #[test]
-fn escaped_namespace_metadata_is_accounted_and_cannot_dispatch_foreign_code() {
+fn escaped_namespace_metadata_is_accounted_and_dispatches_original_code() {
     let script = Engine::new()
         .compile("module M\n C=1\n def self.f;C;end\nend\ndef make;M;end\ndef read(m);m.f;end")
         .unwrap();
@@ -285,9 +285,9 @@ fn escaped_namespace_metadata_is_accounted_and_cannot_dispatch_foreign_code() {
     let foreign = Engine::new()
         .compile("module N\n def self.f;99;end\nend\ndef read(m);m.f;end")
         .unwrap();
-    let error = foreign
+    let result = foreign
         .call("read", &[output.value], CallOptions::default())
-        .unwrap_err();
-    assert_eq!(error.kind, ErrorKind::Type);
-    assert!(error.message.contains("different compiled script"));
+        .unwrap();
+    assert_eq!(result.value.as_int(), Some(1));
+    assert_eq!(result.stats.retained_memory_bytes, 0);
 }

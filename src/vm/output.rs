@@ -73,7 +73,7 @@ pub(super) fn resume(
             kind.write(ctx, rendered)?;
         } else {
             if kind != Output::Inspect {
-                if let Some(call) = operators::string(program, ctx, &original)? {
+                if let Some(call) = operators::string(ctx, &original)? {
                     enter_arguments(
                         program,
                         ctx,

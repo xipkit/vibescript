@@ -39,6 +39,7 @@ enum ReturnTo {
 
 struct Frame {
     program: Arc<Program>,
+    activation: bool,
     receiver: Option<Value>,
     constructor: bool,
     return_to: ReturnTo,
@@ -61,7 +62,9 @@ struct Frame {
 }
 
 struct Storage {
-    programs: Buffer<Arc<Program>>,
+    programs: Buffer<programs::Entry>,
+    activations: Buffer<programs::Activation>,
+    discovered: usize,
     handlers: Buffer<handlers::Handler>,
     namespaces: Buffer<crate::namespace::State>,
     declarations: Buffer<((usize, usize), Value)>,
@@ -141,6 +144,8 @@ pub(crate) fn execute(
     let mut frames = Buffer::empty();
     let mut storage = Storage {
         programs: Buffer::empty(),
+        activations: Buffer::empty(),
+        discovered: 0,
         handlers: Buffer::empty(),
         namespaces: Buffer::empty(),
         declarations: Buffer::empty(),
@@ -169,6 +174,7 @@ pub(crate) fn execute(
             input.keywords.insert(ctx, key, value)?;
         }
         ctx.enum_rebind.active = false;
+        programs::arguments(ctx, &mut storage)?;
         let mut pending_entry = Some((function, input));
         let mut initializer = if function == 0 {
             program.namespaces.len()
@@ -178,6 +184,7 @@ pub(crate) fn execute(
         loop {
             let event = (|| -> Result<Event> {
                 loop {
+                    programs::advance(ctx, &mut frames, &mut storage, stack.data.len())?;
                     if frames.data.is_empty() {
                         while initializer < program.namespaces.len() {
                             let module = initializer;
@@ -253,8 +260,10 @@ pub(crate) fn execute(
                                 if frames.data[current].mutating {
                                     let address = storage.addresses.data.pop().unwrap();
                                     if let Some(mutation) = mutation {
+                                        let guard_program =
+                                            programs::address(ctx, &mut storage, &address)?;
                                         let guard = address_guard(
-                                            program,
+                                            guard_program.as_deref(),
                                             ctx,
                                             &frames,
                                             &mut storage,
@@ -417,7 +426,6 @@ pub(crate) fn execute(
                             let slot = frame.local_base + local;
                             let value = storage.locals.data[slot].as_ref().unwrap().clone();
                             let value = normalize_ivar(
-                                program,
                                 ctx,
                                 &frames,
                                 &mut storage,
@@ -579,7 +587,6 @@ pub(crate) fn execute(
                                     ));
                                 };
                                 let value = normalize_ivar(
-                                    program,
                                     ctx,
                                     &frames,
                                     &mut storage,
@@ -648,7 +655,7 @@ pub(crate) fn execute(
                         Op::TextStart => storage.texts.push(ctx, Buffer::empty())?,
                         Op::TextPart => {
                             let value = stack.data.pop().unwrap();
-                            if let Some(call) = operators::string(program, ctx, &value)? {
+                            if let Some(call) = operators::string(ctx, &value)? {
                                 enter_arguments(
                                     program,
                                     ctx,
@@ -1103,8 +1110,14 @@ pub(crate) fn execute(
                                     "unsupported append operands",
                                 ));
                             }
-                            let guard =
-                                address_guard(program, ctx, &frames, &mut storage, &address)?;
+                            let guard_program = programs::address(ctx, &mut storage, &address)?;
+                            let guard = address_guard(
+                                guard_program.as_deref(),
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                &address,
+                            )?;
                             let result = address.apply(
                                 ctx,
                                 address::Bindings {
@@ -1246,20 +1259,21 @@ pub(crate) fn execute(
                             let address = storage.addresses.data.pop().unwrap();
                             if let Kind::Namespace(receiver) = &address.value.0 {
                                 namespaces::member(
-                                    program,
                                     ctx,
                                     &mut storage,
                                     &address.value,
                                     site,
                                     name,
                                     namespaces::Access {
+                                        program: program.index,
                                         caller: namespace,
                                         implicit: false,
                                         instance: caller_instance,
                                     },
                                 )?;
+                                let owner = programs::namespace(ctx, &mut storage, receiver)?;
                                 let address = namespaces::address(
-                                    program,
+                                    &owner,
                                     ctx,
                                     &mut storage,
                                     receiver.definition.index,
@@ -1281,13 +1295,13 @@ pub(crate) fn execute(
                             ) {
                                 let receiver = storage.addresses.data.last().unwrap().value.clone();
                                 match namespaces::member(
-                                    program,
                                     ctx,
                                     &mut storage,
                                     &receiver,
                                     site,
                                     name,
                                     namespaces::Access {
+                                        program: program.index,
                                         caller: namespace,
                                         implicit: false,
                                         instance: caller_instance,
@@ -1367,8 +1381,14 @@ pub(crate) fn execute(
                                     storage.addresses.push(ctx, Address::new(None, value))?;
                                     continue;
                                 }
-                                let guard =
-                                    address_guard(program, ctx, &frames, &mut storage, &address)?;
+                                let guard_program = programs::address(ctx, &mut storage, &address)?;
+                                let guard = address_guard(
+                                    guard_program.as_deref(),
+                                    ctx,
+                                    &frames,
+                                    &mut storage,
+                                    &address,
+                                )?;
                                 let value = address.apply(
                                     ctx,
                                     address::Bindings {
@@ -1395,13 +1415,13 @@ pub(crate) fn execute(
                                 {
                                     let receiver = address.value.clone();
                                     match namespaces::member(
-                                        program,
                                         ctx,
                                         &mut storage,
                                         &receiver,
                                         site,
                                         name,
                                         namespaces::Access {
+                                            program: program.index,
                                             caller: namespace,
                                             implicit: false,
                                             instance: caller_instance,
@@ -1491,6 +1511,7 @@ pub(crate) fn execute(
                                 if let Some(function) = namespaces::setter(
                                     program,
                                     ctx,
+                                    &mut storage,
                                     receiver,
                                     name,
                                     namespace,
@@ -1515,14 +1536,18 @@ pub(crate) fn execute(
                                     Kind::Instance(instance) => {
                                         set_ivar(ctx, &mut storage, instance, name, &value)?
                                     }
-                                    Kind::Namespace(namespace) => namespaces::set(
-                                        program,
-                                        ctx,
-                                        &mut storage,
-                                        namespace.definition.index,
-                                        name,
-                                        value.clone(),
-                                    )?,
+                                    Kind::Namespace(namespace) => {
+                                        let owner =
+                                            programs::namespace(ctx, &mut storage, namespace)?;
+                                        namespaces::set(
+                                            &owner,
+                                            ctx,
+                                            &mut storage,
+                                            namespace.definition.index,
+                                            name,
+                                            value.clone(),
+                                        )?;
+                                    }
                                     _ => unreachable!(),
                                 }
                                 stack.push(ctx, value)?;
@@ -1554,8 +1579,14 @@ pub(crate) fn execute(
                                     ReturnTo::Assigned(value);
                                 continue;
                             }
-                            let guard =
-                                address_guard(program, ctx, &frames, &mut storage, &address)?;
+                            let guard_program = programs::address(ctx, &mut storage, &address)?;
+                            let guard = address_guard(
+                                guard_program.as_deref(),
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                &address,
+                            )?;
                             let value = address.assign(
                                 ctx,
                                 address::Bindings {
@@ -1580,13 +1611,13 @@ pub(crate) fn execute(
                                 let receiver = &address.value;
                                 let name = &program.members[site.name];
                                 match namespaces::member(
-                                    program,
                                     ctx,
                                     &mut storage,
                                     receiver,
                                     site,
                                     name,
                                     namespaces::Access {
+                                        program: program.index,
                                         caller: namespace,
                                         implicit: false,
                                         instance: caller_instance,
@@ -1639,8 +1670,14 @@ pub(crate) fn execute(
                                     namespaces::Member::Missing => namespaces::fallback(name)?,
                                 }
                             }
-                            let guard =
-                                address_guard(program, ctx, &frames, &mut storage, &address)?;
+                            let guard_program = programs::address(ctx, &mut storage, &address)?;
+                            let guard = address_guard(
+                                guard_program.as_deref(),
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                &address,
+                            )?;
                             let value = address.apply(
                                 ctx,
                                 address::Bindings {
@@ -2097,6 +2134,7 @@ pub(crate) fn execute(
                                     );
                                     ctx.checkpoint()?;
                                     let value = ctx.import(&result?)?;
+                                    programs::imported(ctx, &mut storage, &value)?;
                                     stack.push(ctx, value)?;
                                 }
                                 Invocation::Member(site, mutating) => {
@@ -2112,6 +2150,7 @@ pub(crate) fn execute(
                                             mutating,
                                             args,
                                             access: namespaces::Access {
+                                                program: program.index,
                                                 caller: namespace,
                                                 implicit: false,
                                                 instance: caller_instance,
@@ -2137,6 +2176,7 @@ pub(crate) fn execute(
                             ctx.checkpoint()?;
                             let result = result?;
                             let value = ctx.import(&result)?;
+                            programs::imported(ctx, &mut storage, &value)?;
                             stack.data.truncate(base);
                             stack.push(ctx, value)?;
                         }
@@ -2147,13 +2187,13 @@ pub(crate) fn execute(
                                 let receiver = &root;
                                 let name = &program.members[site.name];
                                 match namespaces::member(
-                                    program,
                                     ctx,
                                     &mut storage,
                                     receiver,
                                     site,
                                     name,
                                     namespaces::Access {
+                                        program: program.index,
                                         caller: namespace,
                                         implicit: false,
                                         instance: caller_instance,
@@ -2571,7 +2611,6 @@ fn property_type(
 }
 
 fn normalize_ivar(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     storage: &mut Storage,
@@ -2579,6 +2618,8 @@ fn normalize_ivar(
     name: &str,
     value: Value,
 ) -> Result<Value> {
+    let owner = programs::namespace(ctx, storage, instance.class())?;
+    let program = &*owner;
     let Some(ty) = property_type(program, ctx, instance, name)? else {
         return Ok(value);
     };
@@ -2589,7 +2630,7 @@ fn normalize_ivar(
 }
 
 fn address_guard<'a>(
-    program: &'a Program,
+    program: Option<&'a Program>,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     storage: &mut Storage,
@@ -2598,6 +2639,7 @@ fn address_guard<'a>(
     let Some((instance, field)) = address.object_binding() else {
         return Ok(None);
     };
+    let program = program.expect("object address has an owning program");
     let name = crate::objects::field_name(instance, field)?;
     let name = std::str::from_utf8(name.as_bytes().unwrap()).unwrap();
     let Some(ty) = property_type(program, ctx, instance, name)? else {
@@ -2902,6 +2944,13 @@ fn enter_arguments(
     base: usize,
 ) -> Result<()> {
     let mut call = call.into();
+    let owner = call
+        .receiver
+        .as_ref()
+        .map(|receiver| programs::receiver(ctx, storage, receiver))
+        .transpose()?
+        .flatten();
+    let program = owner.as_deref().unwrap_or(program);
     let function = call.function;
     if call.constructor {
         let Some(Value(Kind::Namespace(class))) = &call.receiver else {
@@ -2997,7 +3046,8 @@ fn new_frame(
         storage.locals.data.push(None);
     }
     Ok(Frame {
-        program: storage.programs.data[program.index].clone(),
+        program: storage.programs.data[program.index].program.clone(),
+        activation: false,
         receiver: None,
         constructor: false,
         return_to: ReturnTo::Stack,
