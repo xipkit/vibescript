@@ -2,6 +2,14 @@
 
 The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: thirty intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
 
+## State isolation across host calls
+
+The selected contract isolates mutable class and module state at every `Script.call` boundary, including calls into another compiled script or engine. This decision was explicitly selected on 2026-09-15. Go v0.70.0 isolates a returned source class or module when it reenters its original compiled script, but lets a different script mutate the original live state. Rust will consistently give each call independent state.
+
+Existing same-script behavior remains the baseline: imported instance fields preserve their values, shared references and cycles within the receiving call, while class and source-module declarations initialize fresh invocation state. Mutations must not change the source value or another concurrent call. Foreign code must still use the receiving call's accounting, cancellation and module policy.
+
+Cross-script dispatch and file-module state transfer are still being implemented. This selected contract is separate from the thirty intentional and five unresolved cases in the existing compatibility audit; it does not add passing conformance cases by itself.
+
 ## Documented value semantics take precedence
 
 The Rust port follows Vibescript's documented collection value semantics when they conflict with Go v0.70.0. This policy was explicitly selected on 2026-09-13. [ADR-006](https://github.com/xipkit/vibescript/blob/v0.70.0/docs/adr/006-slim-language-for-predictable-sandboxing.md) defines arrays and hashes as logical values whose shared storage is not observable. The [standard-library contract](https://github.com/xipkit/vibescript/blob/v0.70.0/docs/stdlib_core_utilities.md) says mutations update the named binding or path while other values remain unchanged.
