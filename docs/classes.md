@@ -53,7 +53,7 @@ def run(input)
 end
 ```
 
-This returns `[[1], [1, 2]]`. Typed generated accessors also guard direct backing-field writes, shorthand parameters and nested mutations. Rejected nested mutations preserve the previous field value. A handwritten setter takes over the write contract, so backing-field writes stay dynamic beside that setter. Nominal class types accept instances of the exact declared class; nullable class fields can hold nil.
+This returns `[[1], [1, 2]]`. Typed generated accessors also guard direct backing-field writes, shorthand parameters and nested mutations. Rejected nested mutations preserve the previous field value. Enforcing property types on nested mutations follows the selected policy. A handwritten setter takes over the write contract, so backing-field writes stay dynamic beside that setter. Nominal class types accept instances of the exact declared class; nullable class fields can hold nil.
 
 ## Class state and visibility
 

@@ -1,14 +1,15 @@
 [
   {
     "name": "global_field",
-    "status": "open",
+    "status": "intentional",
     "source": "def good(x=42)\nx\nend\ndef bad(x=0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input)\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
     "go_result": [
       "escaped",
       "RuntimeError",
       "unknown hash method nope"
     ],
-    "rust_result": 8
+    "rust_result": 8,
+    "reason": "Selected policy: namespace lookup errors are catchable at the expression where lookup fails."
   },
   {
     "name": "selection_before_arguments",

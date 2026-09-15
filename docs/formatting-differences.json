@@ -15,8 +15,8 @@
         "ok",
         []
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_7_115_8.3",
@@ -47,8 +47,8 @@
           32
         ]
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_7_113_.2",
@@ -69,8 +69,8 @@
           34
         ]
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_7_113_8.3",
@@ -101,8 +101,8 @@
           34
         ]
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_8_115_.2",
@@ -118,8 +118,8 @@
         "ok",
         []
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_8_115_8.3",
@@ -150,8 +150,8 @@
           32
         ]
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_8_113_.2",
@@ -172,8 +172,8 @@
           34
         ]
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_field_8_113_8.3",
@@ -204,8 +204,8 @@
           34
         ]
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_probe_syntax_21_4",
@@ -221,8 +221,8 @@
         "ok",
         []
       ],
-      "policy": "provisional_integer_prefix",
-      "reason": "Rust renders the requested string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision. User preference was requested; no reply has been received."
+      "policy": "integer_prefix",
+      "reason": "Selected policy: render the requested integer string prefix. Go skips the big integer when its estimated conversion size exceeds four times the precision."
     },
     {
       "name": "format_boundary_special_1",
@@ -258,5 +258,5 @@
     }
   ],
   "nondeterministic_pointer_cases": 76,
-  "note": "Native and boundary tests check pointer syntax separately; numeric addresses cannot agree across processes. The integer-prefix behavior is provisional, not a user-approved policy."
+  "note": "Native and boundary tests check pointer syntax separately; numeric addresses cannot agree across processes. Integer-prefix behavior follows the selected policy."
 }

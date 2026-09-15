@@ -83,6 +83,24 @@ fn begin_expressions_are_called_after_selection_and_cleanup() {
 }
 
 #[test]
+fn missing_namespace_members_are_catchable_at_lookup() {
+    for (source, expected) in [
+        ("JSON.nope rescue 7", serde_json::json!(7)),
+        ("JSON::nope rescue 7", serde_json::json!(7)),
+        (
+            "def good(x=42)\nx\nend\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError\n99\nend",
+            serde_json::json!(8),
+        ),
+        (
+            "events=[];begin\nbegin\nJSON.nope\nrescue RuntimeError\nevents.push(1)\nensure\nevents.push(2)\nend\nrescue RuntimeError\nevents.push(3)\nend\nevents",
+            serde_json::json!([1, 2]),
+        ),
+    ] {
+        assert_eq!(result(source), expected, "{source}");
+    }
+}
+
+#[test]
 fn selection_rescue_finishes_before_arguments_and_callee_body() {
     for (argument, callee, expected) in [
         ("7", "x", vec![1, 2, 3]),
