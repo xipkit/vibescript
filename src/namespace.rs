@@ -64,8 +64,9 @@ impl Definition {
 pub(crate) struct Namespace {
     pub definition: Arc<Definition>,
     pub owner: Option<Arc<crate::code::Code>>,
+    pub environment: Option<Arc<crate::objects::Instance>>,
     header: Option<Charge>,
-    _metadata: Option<Charge>,
+    _metadata: Option<Arc<Charge>>,
 }
 
 impl Namespace {
@@ -73,16 +74,44 @@ impl Namespace {
         Arc::new(Self {
             definition,
             owner: None,
+            environment: None,
             header: None,
             _metadata: None,
         })
     }
 
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
-        if ctx.owns(&value.header) {
-            return Ok(value.clone());
+        ctx.checkpoint()?;
+        let environment = if let Some(environment) = &value.environment {
+            if ctx.namespace_depth >= crate::budget::MAX_VALUE_DEPTH {
+                return ctx.guard(
+                    crate::ErrorKind::Recursion,
+                    "namespace environment nesting too deep",
+                );
+            }
+            ctx.namespace_depth += 1;
+            let environment = crate::objects::import(ctx, environment);
+            ctx.namespace_depth -= 1;
+            Some(environment?)
+        } else {
+            None
+        };
+        if ctx.owns(&value.header)
+            && value
+                ._metadata
+                .as_deref()
+                .is_some_and(|charge| ctx.owns_charge(charge))
+        {
+            return match (&value.environment, environment) {
+                (Some(previous), Some(environment)) if !Arc::ptr_eq(previous, &environment) => {
+                    Self::with_environment(ctx, value, environment)
+                }
+                _ => Ok(value.clone()),
+            };
         }
-        let metadata = ctx.reserve(value.definition.bytes)?;
+        let metadata = ctx
+            .reserve(value.definition.bytes + size_of::<Charge>() + 2 * size_of::<usize>())?
+            .map(Arc::new);
         let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
         let owner = value
             .owner
@@ -94,9 +123,34 @@ impl Namespace {
         Ok(Arc::new(Self {
             definition: value.definition.clone(),
             owner,
+            environment,
             header,
             _metadata: metadata,
         }))
+    }
+
+    pub fn with_environment(
+        ctx: &mut CallContext,
+        value: &Arc<Self>,
+        environment: Arc<crate::objects::Instance>,
+    ) -> Result<Arc<Self>> {
+        let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
+        Ok(Arc::new(Self {
+            definition: value.definition.clone(),
+            owner: value.owner.clone(),
+            environment: Some(environment),
+            header,
+            _metadata: value._metadata.clone(),
+        }))
+    }
+
+    pub fn same_binding(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.definition, &other.definition)
+            && match (&self.environment, &other.environment) {
+                (Some(a), Some(b)) => a.same(b),
+                (None, None) => true,
+                _ => false,
+            }
     }
 }
 

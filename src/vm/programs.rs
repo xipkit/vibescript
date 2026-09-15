@@ -182,7 +182,12 @@ pub(super) fn imported(ctx: &mut CallContext, storage: &mut Storage, value: &Val
     while let Some(value) = values.data.pop() {
         ctx.charge(1)?;
         let namespace = match &value.0 {
-            Kind::Namespace(namespace) => Some(namespace),
+            Kind::Namespace(namespace) => {
+                if let Some(environment) = &namespace.environment {
+                    values.push(ctx, Value(Kind::Instance(environment.clone())))?;
+                }
+                Some(namespace)
+            }
             Kind::Instance(instance) => {
                 let mut seen = false;
                 for previous in &instances.data {

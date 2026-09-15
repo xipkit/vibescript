@@ -128,6 +128,7 @@ pub struct CallContext {
     pub(crate) pending_objects:
         Buffer<(Arc<crate::objects::Instance>, Arc<crate::objects::Instance>)>,
     pub(crate) importing_objects: bool,
+    pub(crate) namespace_depth: usize,
     pub(crate) code_roots: Option<Buffer<Arc<crate::code::Code>>>,
     pub(crate) enum_rebind: crate::enums::Rebind,
     pub(crate) random_source: Option<crate::random::Source>,
@@ -146,6 +147,7 @@ impl CallContext {
             objects: None,
             pending_objects: Buffer::empty(),
             importing_objects: false,
+            namespace_depth: 0,
             code_roots: None,
             enum_rebind: crate::enums::Rebind::default(),
             random_source: None,
@@ -293,7 +295,11 @@ impl CallContext {
     pub(crate) fn owns(&self, charge: &Option<Charge>) -> bool {
         charge
             .as_ref()
-            .is_some_and(|c| Arc::ptr_eq(&c.memory, &self.memory))
+            .is_some_and(|charge| self.owns_charge(charge))
+    }
+
+    pub(crate) fn owns_charge(&self, charge: &Charge) -> bool {
+        Arc::ptr_eq(&charge.memory, &self.memory)
     }
 
     pub(crate) fn identity(&self) -> Arc<Memory> {

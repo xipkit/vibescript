@@ -38,4 +38,4 @@ A foreign source program initializes its class and module bodies when first impo
 
 Rejected host values and values that a callback imports but does not return keep their code alive for safe cleanup without running its initializers. A later successful return of the same source value initializes it normally.
 
-This implements source namespace declarations and [classes](classes.md), including the selected [cross-script isolation contract](compatibility.md#state-isolation-across-host-calls). `require`/`load`, file exports and host capability namespaces remain pending. File-module closure state still needs separate handling.
+This implements source namespace declarations and [classes](classes.md), including the selected [cross-script isolation contract](compatibility.md#state-isolation-across-host-calls). `require`, file exports and host capability namespaces remain pending. File-module closure state still needs separate handling.

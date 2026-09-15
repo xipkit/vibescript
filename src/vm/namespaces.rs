@@ -264,7 +264,9 @@ pub(super) fn member(
             .ok_or_else(|| Error::new(ErrorKind::Name, "unknown class constant"));
     }
     if instance.is_some() && name == "class" {
-        return Ok(Member::Value(Value(Kind::Namespace(namespace.clone()))));
+        return Ok(Member::Value(Value(Kind::Namespace(
+            crate::namespace::Namespace::import(ctx, namespace)?,
+        ))));
     }
     if instance.is_none() && name == "new" {
         if let Some((function, accepts_arguments)) = definition.constructor {

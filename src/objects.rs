@@ -130,23 +130,33 @@ pub(crate) fn new(ctx: &mut CallContext, class: &Arc<Namespace>) -> Result<Arc<I
     if heap.data.lock().unwrap().allocations >= 32 {
         collect(ctx, &heap, false)?;
     }
-    let class = {
-        let mut data = heap.data.lock().unwrap();
+    let imported = class
+        .environment
+        .as_ref()
+        .map(|_| Namespace::import(ctx, class))
+        .transpose()?;
+    let class = imported.as_ref().unwrap_or(class);
+    let known = {
+        let data = heap.data.lock().unwrap();
         let mut known = None;
         for candidate in &data.classes.data {
             ctx.charge(1)?;
-            if Arc::ptr_eq(&candidate.definition, &class.definition) {
+            if candidate.same_binding(class) {
                 known = Some(candidate.clone());
                 break;
             }
         }
-        if let Some(known) = known {
-            known
-        } else {
-            let class = Namespace::import(ctx, class)?;
-            data.classes.push(ctx, class.clone())?;
-            class
-        }
+        known
+    };
+    let class = if let Some(known) = known {
+        known
+    } else {
+        // Importing a captured environment can allocate objects in this heap.
+        let class = Namespace::import(ctx, class)?;
+        let mut data = heap.data.lock().unwrap();
+        let class = data.namespace(ctx, &heap, &class, true)?.unwrap_or(class);
+        data.classes.push(ctx, class.clone())?;
+        class
     };
     let identity_header = ctx.reserve(size_of::<Identity>() + 2 * size_of::<usize>())?;
     let internal_header = ctx.reserve(size_of::<Instance>() + 2 * size_of::<usize>())?;
@@ -211,6 +221,45 @@ impl Data {
         }))
     }
 
+    fn instance(
+        &self,
+        ctx: &mut CallContext,
+        heap: &Arc<Heap>,
+        instance: &Arc<Instance>,
+        internal: bool,
+    ) -> Result<Option<Arc<Instance>>> {
+        if !Arc::ptr_eq(heap, &instance.heap()?) {
+            return Err(Error::new(
+                ErrorKind::Type,
+                "instance field belongs to a different invocation",
+            ));
+        }
+        match (&instance.owner, internal) {
+            (Owner::Internal(_), true) | (Owner::External(_), false) => Ok(None),
+            (_, true) => {
+                let slot = instance.identity.slot.load(Ordering::Relaxed);
+                Ok(Some(self.entries.data[slot].internal.clone()))
+            }
+            (_, false) => self.root(ctx, heap, &instance.identity).map(Some),
+        }
+    }
+
+    fn namespace(
+        &self,
+        ctx: &mut CallContext,
+        heap: &Arc<Heap>,
+        namespace: &Arc<Namespace>,
+        internal: bool,
+    ) -> Result<Option<Arc<Namespace>>> {
+        let Some(environment) = &namespace.environment else {
+            return Ok(None);
+        };
+        ctx.charge(1)?;
+        self.instance(ctx, heap, environment, internal)?
+            .map(|environment| Namespace::with_environment(ctx, namespace, environment))
+            .transpose()
+    }
+
     fn map(
         &mut self,
         ctx: &mut CallContext,
@@ -224,26 +273,12 @@ impl Data {
             return ctx.guard(ErrorKind::Recursion, "instance field nesting too deep");
         }
         match &value.0 {
-            Kind::Instance(instance) => {
-                if !Arc::ptr_eq(heap, &instance.heap()?) {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "instance field belongs to a different invocation",
-                    ));
-                }
-                match (&instance.owner, internal) {
-                    (Owner::Internal(_), true) | (Owner::External(_), false) => Ok(None),
-                    (_, true) => {
-                        let slot = instance.identity.slot.load(Ordering::Relaxed);
-                        Ok(Some(Value(Kind::Instance(
-                            self.entries.data[slot].internal.clone(),
-                        ))))
-                    }
-                    (_, false) => self
-                        .root(ctx, heap, &instance.identity)
-                        .map(|root| Some(Value(Kind::Instance(root)))),
-                }
-            }
+            Kind::Instance(instance) => self
+                .instance(ctx, heap, instance, internal)
+                .map(|value| value.map(|value| Value(Kind::Instance(value)))),
+            Kind::Namespace(namespace) => self
+                .namespace(ctx, heap, namespace, internal)
+                .map(|value| value.map(|value| Value(Kind::Namespace(value)))),
             Kind::Array(array) => {
                 let mut mapped: Option<Buffer<Value>> = None;
                 for (i, value) in array.buffer.data.iter().enumerate() {
@@ -310,6 +345,10 @@ pub(crate) fn children(
 ) -> Result<()> {
     let heap = instance.heap()?;
     let data = heap.data.lock().unwrap();
+    if let Some(environment) = &instance.class().environment {
+        ctx.charge(1)?;
+        values.push(ctx, Value(Kind::Instance(environment.clone())))?;
+    }
     let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
     for (_, value) in fields.buffer.data.iter().rev() {
         ctx.charge(1)?;
@@ -449,12 +488,12 @@ fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<In
 }
 
 pub(crate) fn import(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
-    let result = import_root(ctx, instance)?;
     if ctx.importing_objects {
-        return Ok(result);
+        return import_root(ctx, instance);
     }
     ctx.importing_objects = true;
-    let work = (|| -> Result<()> {
+    let work = (|| -> Result<Arc<Instance>> {
+        let result = import_root(ctx, instance)?;
         while let Some((instance, target)) = ctx.pending_objects.data.pop() {
             ctx.charge(1)?;
             let source = instance.heap()?;
@@ -480,12 +519,11 @@ pub(crate) fn import(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<
                 set(ctx, &target, name, &value)?;
             }
         }
-        Ok(())
+        Ok(result)
     })();
     ctx.importing_objects = false;
     ctx.pending_objects = Buffer::empty();
-    work?;
-    Ok(result)
+    work
 }
 
 pub(crate) fn finish(ctx: &mut CallContext) -> Result<()> {
@@ -527,10 +565,11 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
             let mut used = false;
             for entry in &data.entries.data {
                 ctx.charge(1)?;
-                if Arc::ptr_eq(
-                    &entry.internal.class().definition,
-                    &data.classes.data[slot].definition,
-                ) {
+                if entry
+                    .internal
+                    .class()
+                    .same_binding(&data.classes.data[slot])
+                {
                     used = true;
                     break;
                 }
@@ -552,10 +591,10 @@ fn prune_classes(data: &mut Data) {
     let mut slot = 0;
     while slot < data.classes.data.len() {
         if data.entries.data.iter().any(|entry| {
-            Arc::ptr_eq(
-                &entry.internal.class().definition,
-                &data.classes.data[slot].definition,
-            )
+            entry
+                .internal
+                .class()
+                .same_binding(&data.classes.data[slot])
         }) {
             slot += 1;
         } else {
@@ -579,6 +618,10 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<()>
         }
     }
     while let Some(slot) = data.pending.data.pop() {
+        if let Some(environment) = &data.entries.data[slot].internal.class().environment {
+            tick()?;
+            mark_instance(environment, &mut data.pending.data);
+        }
         for (_, value) in &data.entries.data[slot].fields.buffer.data {
             mark_references(value, &mut data.pending.data, tick, 1)?;
         }
@@ -612,6 +655,13 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<()>
     Ok(())
 }
 
+fn mark_instance(instance: &Arc<Instance>, pending: &mut Vec<usize>) {
+    if !instance.identity.marked.swap(true, Ordering::Relaxed) {
+        debug_assert!(pending.len() < pending.capacity());
+        pending.push(instance.identity.slot.load(Ordering::Relaxed));
+    }
+}
+
 fn mark_references(
     value: &Value,
     pending: &mut Vec<usize>,
@@ -626,10 +676,11 @@ fn mark_references(
         ));
     }
     match &value.0 {
-        Kind::Instance(instance) => {
-            if !instance.identity.marked.swap(true, Ordering::Relaxed) {
-                debug_assert!(pending.len() < pending.capacity());
-                pending.push(instance.identity.slot.load(Ordering::Relaxed));
+        Kind::Instance(instance) => mark_instance(instance, pending),
+        Kind::Namespace(namespace) => {
+            if let Some(environment) = &namespace.environment {
+                tick()?;
+                mark_instance(environment, pending);
             }
         }
         Kind::Array(array) => {
@@ -649,6 +700,9 @@ fn mark_references(
 
 #[cfg(test)]
 mod retirement_tests;
+
+#[cfg(test)]
+mod environments_tests;
 
 #[cfg(test)]
 mod tests {

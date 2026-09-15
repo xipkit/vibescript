@@ -295,9 +295,7 @@ fn equal_kinds(
             json::bytes_equal(ctx, &a.definition.text, &b.definition.text)
         }
         (Kind::Instance(a), Kind::Instance(b)) => Ok(a.same(b)),
-        (Kind::Namespace(a), Kind::Namespace(b)) => {
-            Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition))
-        }
+        (Kind::Namespace(a), Kind::Namespace(b)) => Ok(a.same_binding(b)),
         (Kind::Enum(a), Kind::Enum(b)) => Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition)),
         (Kind::EnumMember(a), Kind::EnumMember(b)) => Ok(a.index == b.index
             && std::sync::Arc::ptr_eq(&a.enumeration.definition, &b.enumeration.definition)),

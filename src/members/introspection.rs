@@ -165,7 +165,7 @@ pub(super) fn call(
 }
 
 pub(crate) fn belongs(receiver: &Value, class: &Arc<crate::namespace::Namespace>) -> bool {
-    matches!(&receiver.0, Kind::Instance(instance) if Arc::ptr_eq(&instance.class().definition, &class.definition))
+    matches!(&receiver.0, Kind::Instance(instance) if instance.class().same_binding(class))
 }
 
 pub(crate) fn callable(value: &Value) -> bool {
@@ -302,7 +302,7 @@ impl<'a> Atom<'a> {
                 }
                 return Ok(match (&receiver.0, &resolved.0) {
                     (Kind::Instance(instance), Kind::Namespace(class)) => {
-                        Arc::ptr_eq(&instance.class().definition, &class.definition)
+                        instance.class().same_binding(class)
                     }
                     (Kind::EnumMember(member), Kind::Enum(enumeration)) => {
                         Arc::ptr_eq(&member.enumeration.definition, &enumeration.definition)
