@@ -1,0 +1,666 @@
+{
+  "reference": "Go v0.70.0",
+  "note": "These cases agree on error class and callback/output order. Their remaining message wording is recorded separately; shared fixtures compare the error class.",
+  "diagnostics": [
+    {
+      "name": "call_member_route_12_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_1",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_12_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(P.new.call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "private method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "method is not accessible with this receiver"
+      ]
+    },
+    {
+      "name": "call_member_route_13_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_1",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_13_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({}.call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown hash method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_1",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_14_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=([].call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown array method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown array member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_1",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_15_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(7.call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "unknown int method call"
+      ],
+      "rust": [
+        "RuntimeError",
+        "unknown int member call"
+      ]
+    },
+    {
+      "name": "call_member_route_17_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt expects 1 argument, got 0"
+      ],
+      "rust": [
+        "RuntimeError",
+        "expected 1 arguments, got 0"
+      ]
+    },
+    {
+      "name": "call_member_route_17_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt expects a numeric argument, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math expects numeric arguments"
+      ]
+    },
+    {
+      "name": "call_member_route_17_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments or blocks"
+      ]
+    },
+    {
+      "name": "call_member_route_17_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt expects a numeric argument, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math expects numeric arguments"
+      ]
+    },
+    {
+      "name": "call_member_route_17_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments or blocks"
+      ]
+    },
+    {
+      "name": "call_member_route_17_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments or blocks"
+      ]
+    },
+    {
+      "name": "call_member_route_17_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=({call:Math::sqrt}.call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "Math.sqrt does not accept a block"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt does not accept keyword arguments or blocks"
+      ]
+    },
+    {
+      "name": "call_member_route_19_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_1",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_19_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Math[\"sqrt\"].call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Math.sqrt(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Math.sqrt is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_0",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call());[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_1",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(16));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_2",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(print(\"argument\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_3",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(flag:print(\"keyword\")));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_4",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(*([print(\"splat\")])));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_5",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(**{flag:print(\"keywords\")}));[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_6",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(print(\"argument\"),flag:print(\"keyword\")){print(\"block\");11});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    },
+    {
+      "name": "call_member_route_20_7",
+      "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nbegin\nc=C.new\nvalue=(Regexp[\"last_match\"].call(){|v|print(\"block\");v});[\"ok\",value]\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "a method has no member call; call Regexp.last_match(...) directly"
+      ],
+      "rust": [
+        "RuntimeError",
+        "Regexp.last_match is a method and cannot be used as a value; call it directly"
+      ]
+    }
+  ]
+}

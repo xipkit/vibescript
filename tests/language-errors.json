@@ -122787,5 +122787,82 @@
     "name": "format_malformed_malformed_2596_uncaught",
     "source": "def run(input)\nx=format(\"%91$#kw s\",10**30,10**30,10**30);[\"ok\",x.bytes]\nend",
     "go_error": "format references missing operand 91"
+  },
+  {
+    "name": "call_member_route_12_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=(P.new.call());[\"ok\",value]\nend",
+    "go_error": "private method call",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_13_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=({}.call());[\"ok\",value]\nend",
+    "go_error": "unknown hash method call",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_14_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=([].call());[\"ok\",value]\nend",
+    "go_error": "unknown array method call",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_15_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=(7.call());[\"ok\",value]\nend",
+    "go_error": "unknown int method call",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_17_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=({call:Math::sqrt}.call());[\"ok\",value]\nend",
+    "go_error": "Math.sqrt expects 1 argument, got 0",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_17_2_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=({call:Math::sqrt}.call(print(\"argument\")));[\"ok\",value]\nend",
+    "go_error": "Math.sqrt expects a numeric argument, got nil",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_17_3_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=({call:Math::sqrt}.call(flag:print(\"keyword\")));[\"ok\",value]\nend",
+    "go_error": "Math.sqrt does not accept keyword arguments",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_17_7_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=({call:Math::sqrt}.call(){|v|print(\"block\");v});[\"ok\",value]\nend",
+    "go_error": "Math.sqrt does not accept a block",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_18_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=({call:7}.call());[\"ok\",value]\nend",
+    "go_error": "attempted to call non-callable value",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_19_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=(Math[\"sqrt\"].call());[\"ok\",value]\nend",
+    "go_error": "a method has no member call; call Math.sqrt(...) directly",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "call_member_route_20_0_uncaught",
+    "source": "class C\ndef call(value=7,flag:0)\nout=[value,flag]\nif block_given?\nout.push(yield(value))\nend\nout\nend\ndef self.call(value=8)\nvalue\nend\nend\nclass D\ndef call(options={})\noptions\nend\nend\nclass P\nprivate\ndef call(value=7)\nvalue\nend\nend\nmodule M\ndef self.call(value=9)\nvalue\nend\nend\n\ndef run(input)\nc=C.new\nvalue=(Regexp[\"last_match\"].call());[\"ok\",value]\nend",
+    "go_error": "a method has no member call; call Regexp.last_match(...) directly",
+    "stdout": true,
+    "stderr": true
   }
 ]

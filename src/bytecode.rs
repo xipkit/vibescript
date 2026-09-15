@@ -1435,6 +1435,19 @@ impl Compiler<'_> {
         });
         let mut site = self.call_site(name, form == CallForm::Auto);
         site.parenthesized = form == CallForm::Parenthesized;
+        if name == "call" && form != CallForm::Auto {
+            self.emit(Op::Arguments);
+            self.emit(Op::CallMember(site));
+            self.argument_values(args)?;
+            if let Some(block) = block {
+                self.emit(Op::Attach(block));
+            }
+            self.emit(Op::Invoke(Invocation::Resolved));
+            if let Some(skip) = skip {
+                self.patch(skip, self.code.len());
+            }
+            return Ok(());
+        }
         if expanded(args)
             || block.is_some()
             || crate::iteration::method(name)
