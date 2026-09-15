@@ -202,7 +202,7 @@ fn format(ty: &Type, out: &mut Vec<u8>) {
     }
 }
 
-fn quote(bytes: &[u8], out: &mut Vec<u8>) {
+pub(crate) fn quote(bytes: &[u8], out: &mut Vec<u8>) {
     out.push(b'"');
     let mut position = 0;
     while position < bytes.len() {

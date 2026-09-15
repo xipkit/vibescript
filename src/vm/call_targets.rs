@@ -3,7 +3,7 @@ use crate::{arguments::Target, bytecode::CallSite};
 
 // Shared primitive methods need a receiver from direct member-call syntax;
 // bound methods and stored fields carry their own call target through rescue.
-mod names;
+use crate::members::names;
 
 pub(super) fn identifier(
     program: &Program,

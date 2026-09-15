@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "e2cdc5ef372de97ea2028f7c1f77909278c1f28f",
-  "dirty": " M docs/computed-calls.md\n M docs/value-helpers.md\n M src/budget.rs\n M src/bytecode.rs\n M src/duration.rs\n M src/enums.rs\n M src/integer.rs\n M src/members.rs\n M src/money.rs\n M src/namespace.rs\n M src/ops.rs\n M src/time.rs\n M src/vm.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/equality.md\n?? src/members/equality.rs\n?? tests/equality.rs\n",
+  "source_revision": "e6365316feb6ecb102eb7f1f94b4ae2ea240524d",
+  "dirty": " M README.md\n M docs/language-port.md\n M src/bytecode.rs\n M src/iteration.rs\n M src/members.rs\n M src/namespace.rs\n M src/shapes.rs\n M src/vm.rs\n M src/vm/call_targets.rs\n D src/vm/call_targets/names.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/introspection.md\n?? src/members/introspection.rs\n?? src/members/names.rs\n?? src/vm/dispatch.rs\n?? tests/introspection.rs\n",
   "binary_sha256": {
-    "go-simd": "fa792e4d3603ba6564a448d0494c16910a550600fdcee966cbe1a20d52fb6552",
-    "rust-simd": "8d7a339457e6a5fa7ec413fdf10c2413479551b9308cb7c7a1670ed092a3ea37"
+    "go-simd": "6343ee0af1071d4f9b8b014c2d84cf896291f02f76ebc04c4725f702b6724d34",
+    "rust-simd": "0b376757f5659578708a3e12a42857826bfbf42a3720cbfb24a09dd1eb192cd8"
   },
   "counts": {
     "match": 188,

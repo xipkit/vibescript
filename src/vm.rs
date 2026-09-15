@@ -13,6 +13,7 @@ use crate::{
 };
 
 mod call_targets;
+mod dispatch;
 mod handlers;
 mod namespaces;
 mod operators;
@@ -219,6 +220,16 @@ pub(crate) fn execute(
                                     block,
                                     &args[..count],
                                     stack.data.len(),
+                                )?;
+                            }
+                            Progress::Call(receiver, operation, argument) => {
+                                dispatch::reduce(
+                                    program,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    &mut stack,
+                                    [receiver, operation, argument],
                                 )?;
                             }
                             Progress::Done(mut value) => {
@@ -524,6 +535,11 @@ pub(crate) fn execute(
                                         None,
                                         declaration_value(program, ctx, &mut storage, index)?,
                                     )
+                                } else if let Some(global) = global_index(program, name) {
+                                    Address::new(
+                                        Some(global),
+                                        global_value(program, ctx, &mut storage, global)?,
+                                    )
                                 } else {
                                     return Err(Error::new(
                                         ErrorKind::Name,
@@ -759,12 +775,12 @@ pub(crate) fn execute(
                                 }
                                 namespaces::Member::Value(value) => stack.push(ctx, value)?,
                                 namespaces::Member::Helper(module, helper) => {
-                                    let value = namespaces::call_helper(
+                                    let value = dispatch::helper(
                                         program,
                                         ctx,
+                                        &frames,
                                         &mut storage,
-                                        module,
-                                        helper,
+                                        (module, helper),
                                         &Arguments::empty(),
                                         true,
                                     )?;
@@ -1267,12 +1283,12 @@ pub(crate) fn execute(
                                         continue;
                                     }
                                     namespaces::Member::Helper(module, helper) => {
-                                        let value = namespaces::call_helper(
+                                        let value = dispatch::helper(
                                             program,
                                             ctx,
+                                            &frames,
                                             &mut storage,
-                                            module,
-                                            helper,
+                                            (module, helper),
                                             &Arguments::empty(),
                                             true,
                                         )?;
@@ -1355,12 +1371,12 @@ pub(crate) fn execute(
                                             continue;
                                         }
                                         namespaces::Member::Helper(module, helper) => {
-                                            let value = namespaces::call_helper(
+                                            let value = dispatch::helper(
                                                 program,
                                                 ctx,
+                                                &frames,
                                                 &mut storage,
-                                                module,
-                                                helper,
+                                                (module, helper),
                                                 &Arguments::empty(),
                                                 true,
                                             )?;
@@ -1553,12 +1569,12 @@ pub(crate) fn execute(
                                     namespaces::Member::Helper(module, helper) => {
                                         let args =
                                             Arguments::from_values(ctx, &stack.data[base..])?;
-                                        let value = namespaces::call_helper(
+                                        let value = dispatch::helper(
                                             program,
                                             ctx,
+                                            &frames,
                                             &mut storage,
-                                            module,
-                                            helper,
+                                            (module, helper),
                                             &args,
                                             site.auto,
                                         )?;
@@ -1894,12 +1910,12 @@ pub(crate) fn execute(
                                     continue;
                                 }
                                 crate::arguments::Target::Helper(receiver, helper) => {
-                                    let value = namespaces::call_helper(
+                                    let value = dispatch::helper(
                                         program,
                                         ctx,
+                                        &frames,
                                         &mut storage,
-                                        receiver,
-                                        helper,
+                                        (receiver, helper),
                                         &args,
                                         false,
                                     )?;
@@ -1971,166 +1987,24 @@ pub(crate) fn execute(
                                     stack.push(ctx, value)?;
                                 }
                                 Invocation::Member(site, mutating) => {
-                                    let name = &program.members[site.name];
-                                    let receiver = if mutating {
-                                        &storage.addresses.data.last().unwrap().value
-                                    } else {
-                                        stack.data.last().unwrap()
-                                    };
-                                    if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_))
-                                    {
-                                        let receiver = receiver.clone();
-                                        match namespaces::member(
-                                            program,
-                                            ctx,
-                                            &mut storage,
-                                            &receiver,
+                                    dispatch::member(
+                                        program,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        &mut stack,
+                                        dispatch::Call {
                                             site,
-                                            name,
-                                            namespaces::Access {
+                                            name: &program.members[site.name],
+                                            mutating,
+                                            args,
+                                            access: namespaces::Access {
                                                 caller: namespace,
                                                 implicit: false,
                                                 instance: caller_instance,
                                             },
-                                        )? {
-                                            namespaces::Member::Function(function) => {
-                                                if mutating {
-                                                    storage.addresses.data.pop();
-                                                } else {
-                                                    stack.data.pop();
-                                                }
-                                                enter_arguments(
-                                                    program,
-                                                    ctx,
-                                                    &mut frames,
-                                                    &mut storage,
-                                                    function,
-                                                    args,
-                                                    stack.data.len(),
-                                                )?;
-                                                continue;
-                                            }
-                                            namespaces::Member::Value(value) => {
-                                                let value = members::field_call(
-                                                    ctx,
-                                                    site,
-                                                    value,
-                                                    &args.positional.data,
-                                                    &args.keywords.buffer.data,
-                                                    args.block.is_some(),
-                                                )?;
-                                                if mutating {
-                                                    storage.addresses.data.pop();
-                                                } else {
-                                                    stack.data.pop();
-                                                }
-                                                stack.push(ctx, value)?;
-                                                continue;
-                                            }
-                                            namespaces::Member::Helper(module, helper) => {
-                                                let value = namespaces::call_helper(
-                                                    program,
-                                                    ctx,
-                                                    &mut storage,
-                                                    module,
-                                                    helper,
-                                                    &args,
-                                                    site.auto,
-                                                )?;
-                                                if mutating {
-                                                    storage.addresses.data.pop();
-                                                } else {
-                                                    stack.data.pop();
-                                                }
-                                                stack.push(ctx, value)?;
-                                                continue;
-                                            }
-                                            namespaces::Member::Missing => {
-                                                namespaces::fallback(name)?
-                                            }
-                                        }
-                                    }
-                                    let receiver = if mutating {
-                                        &storage.addresses.data.last().unwrap().value
-                                    } else {
-                                        stack.data.last().unwrap()
-                                    };
-                                    if mutating {
-                                        storage.addresses.data.last().unwrap().check_writable()?;
-                                    }
-                                    let arity = args
-                                        .block
-                                        .map(|block| program.functions[block.function].block_arity);
-                                    let driver = if members::exported(ctx, site, name, receiver)? {
-                                        None
-                                    } else {
-                                        iteration::start(
-                                            ctx,
-                                            name,
-                                            receiver,
-                                            &args.positional.data,
-                                            &args.keywords.buffer.data,
-                                            arity,
-                                        )?
-                                    };
-                                    if let Some(iteration) = driver {
-                                        if !mutating {
-                                            stack.data.pop();
-                                        }
-                                        ctx.charge(1)?;
-                                        if frames.data.len() >= ctx.options.limits.recursion {
-                                            return ctx.guard(
-                                                ErrorKind::Recursion,
-                                                "recursion limit exceeded",
-                                            );
-                                        }
-                                        let mut frame = new_frame(
-                                            ctx,
-                                            program,
-                                            &mut storage,
-                                            None,
-                                            stack.data.len(),
-                                        )?;
-                                        frame.mutating = mutating;
-                                        if mutating {
-                                            // The native frame owns this address, including on nonlocal exits.
-                                            frame.address_base -= 1;
-                                        }
-                                        frame.block = args.block;
-                                        frame.arguments.push(ctx, args)?;
-                                        storage.iterations.push(ctx, iteration)?;
-                                        frames.push(ctx, frame)?;
-                                        continue;
-                                    }
-                                    let value = if mutating {
-                                        let address = storage.addresses.data.pop().unwrap();
-                                        let guard = address_guard(
-                                            program,
-                                            ctx,
-                                            &frames,
-                                            &mut storage,
-                                            &address,
-                                        )?;
-                                        address.apply(
-                                            ctx,
-                                            address::Bindings {
-                                                recover: !storage.handlers.data.is_empty(),
-                                                guard,
-                                                locals: &mut storage.locals.data,
-                                                namespaces: &mut storage.namespaces.data,
-                                            },
-                                            &mut storage.addresses.data,
-                                            |ctx, receiver| {
-                                                members::call_keywords(
-                                                    ctx, site, name, receiver, &args,
-                                                )
-                                            },
-                                        )?
-                                    } else {
-                                        let receiver = stack.data.pop().unwrap();
-                                        members::call_keywords(ctx, site, name, receiver, &args)?.1
-                                    };
-                                    stack.push(ctx, value)?;
+                                        },
+                                    )?;
                                 }
                                 Invocation::NonCallable => {
                                     return Err(Error::new(
@@ -2203,12 +2077,12 @@ pub(crate) fn execute(
                                     namespaces::Member::Helper(module, helper) => {
                                         let args =
                                             Arguments::from_values(ctx, &stack.data[base + 1..])?;
-                                        let value = namespaces::call_helper(
+                                        let value = dispatch::helper(
                                             program,
                                             ctx,
+                                            &frames,
                                             &mut storage,
-                                            module,
-                                            helper,
+                                            (module, helper),
                                             &args,
                                             site.auto,
                                         )?;
@@ -2573,7 +2447,7 @@ fn normalize_ivar(
         return Ok(value);
     };
     crate::types::normalize(ctx, &program.types[ty], value, |ctx, name| {
-        resolve_type(program, ctx, frames, storage, None, name)
+        resolve_type(program, ctx, frames, storage, None, name, false)
     })
 }
 
@@ -2593,7 +2467,7 @@ fn address_guard<'a>(
         return Ok(None);
     };
     crate::types::prepare(ctx, &program.types[ty], |ctx, name| {
-        resolve_type(program, ctx, frames, storage, None, name)
+        resolve_type(program, ctx, frames, storage, None, name, false)
     })
     .map(Some)
 }
@@ -2609,7 +2483,7 @@ fn normalize_type(
 ) -> Result<Value> {
     let lexical = frames.data[frame].parent;
     crate::types::normalize(ctx, &program.types[ty], value, |ctx, name| {
-        resolve_type(program, ctx, frames, storage, lexical, name)
+        resolve_type(program, ctx, frames, storage, lexical, name, false)
     })
 }
 
@@ -2620,6 +2494,7 @@ fn resolve_type(
     storage: &mut Storage,
     lexical: Option<usize>,
     name: &str,
+    enum_only: bool,
 ) -> Result<Value> {
     ctx.work_bytes(name.len())?;
     let (binding, member) = name
@@ -2639,7 +2514,7 @@ fn resolve_type(
                 ctx.charge(1)?;
                 if let Some(value) = &storage.locals.data[frame.local_base + slot] {
                     if let Some(value) =
-                        type_candidate(ctx, candidate, value, binding, member, fold)?
+                        type_candidate(ctx, candidate, value, binding, member, fold, enum_only)?
                     {
                         merge_type(&mut found, value)?;
                     }
@@ -2655,7 +2530,9 @@ fn resolve_type(
         for (index, (global, original)) in program.globals.iter().enumerate() {
             ctx.charge(1)?;
             let value = storage.locals.data[index].as_ref().unwrap_or(original);
-            if let Some(value) = type_candidate(ctx, global.name(), value, binding, member, fold)? {
+            if let Some(value) =
+                type_candidate(ctx, global.name(), value, binding, member, fold, enum_only)?
+            {
                 merge_type(&mut found, value)?;
             }
         }
@@ -2672,7 +2549,8 @@ fn resolve_type(
                 .iter()
                 .find(|(slot, _)| *slot == index)
                 .map_or(value, |(_, value)| value);
-            if let Some(value) = type_candidate(ctx, name, value, binding, member, fold)? {
+            if let Some(value) = type_candidate(ctx, name, value, binding, member, fold, enum_only)?
+            {
                 if found.is_none() {
                     declaration = Some(index);
                 }
@@ -2697,6 +2575,7 @@ fn type_candidate(
     binding: &str,
     member: Option<&str>,
     fold: bool,
+    enum_only: bool,
 ) -> Result<Option<Value>> {
     let same = if fold {
         crate::text::case::equal(ctx, candidate.as_bytes(), binding.as_bytes())?
@@ -2718,14 +2597,17 @@ fn type_candidate(
     }
     if let Some(index) = namespace.find(ctx, member.as_bytes())? {
         let value = &namespace.buffer.data[index].1;
-        if matches!(value.0, Kind::Enum(_) | Kind::Namespace(_)) {
+        if (matches!(value.0, Kind::Enum(_))
+            || (!enum_only && matches!(value.0, Kind::Namespace(_))))
+        {
             return Ok(Some(value.clone()));
         }
     }
     let mut found = None;
     for (key, value) in &namespace.buffer.data {
         ctx.charge(1)?;
-        if matches!(value.0, Kind::Enum(_) | Kind::Namespace(_))
+        if (matches!(value.0, Kind::Enum(_))
+            || (!enum_only && matches!(value.0, Kind::Namespace(_))))
             && crate::text::case::equal(ctx, key.require_bytes()?, member.as_bytes())?
         {
             merge_type(&mut found, value.clone())?;

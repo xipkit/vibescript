@@ -96,8 +96,7 @@ pub(crate) struct State {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Helper {
     Equality(bool),
-    Class,
-    Respond(bool),
+    Predicate(crate::members::introspection::Predicate, bool),
 }
 
 #[derive(Debug)]

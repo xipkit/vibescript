@@ -1416,7 +1416,8 @@ impl Compiler<'_> {
             })
         });
         let site = self.call_site(name, auto);
-        if expanded(args) || block.is_some() || crate::iteration::method(name) {
+        if expanded(args) || block.is_some() || crate::iteration::method(name) || name == "is_type?"
+        {
             self.call_arguments(args)?;
             if let Some(block) = block {
                 self.emit(Op::Attach(block));
@@ -1727,10 +1728,14 @@ impl Compiler<'_> {
                 }
             }
             Node::Var(name) if self.namespace.is_some() => {
-                let name = self.call_site(name, false).name;
-                let ambient = self.emit(Op::AmbientAddress(name, 0));
-                self.expr(receiver)?;
-                self.emit(Op::AddressValue);
+                let index = self.call_site(name, false).name;
+                let ambient = self.emit(Op::AmbientAddress(index, 0));
+                if self.global_fallback(name).is_some() {
+                    self.emit(Op::NamespaceAddress(index, false));
+                } else {
+                    self.expr(receiver)?;
+                    self.emit(Op::AddressValue);
+                }
                 self.patch(ambient, self.code.len());
             }
             Node::Var(name) if self.global_fallback(name).is_some() => {

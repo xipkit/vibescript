@@ -6,7 +6,9 @@ use crate::{
 };
 
 pub(crate) mod equality;
+pub(crate) mod introspection;
 mod lifecycle;
+pub(crate) mod names;
 
 pub(crate) fn call_keywords(
     ctx: &mut CallContext,
@@ -15,6 +17,17 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if let Some(value) = introspection::call(
+        ctx,
+        site,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = equality::call(
         ctx,
         site,
@@ -285,6 +298,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = introspection::call(ctx, site, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = equality::call(ctx, site, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }
@@ -424,7 +440,9 @@ pub(crate) fn field(
     receiver: &Value,
 ) -> Result<Option<Value>> {
     if !site.scope
-        && (lifecycle::supported(name) || equality::supported(name))
+        && (lifecycle::supported(name)
+            || equality::supported(name)
+            || introspection::supported(name))
         && lifecycle::callable(receiver)
     {
         return Ok(None);
@@ -445,7 +463,9 @@ pub(crate) fn field(
         if hash.object || !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
                 if !site.scope
-                    && (lifecycle::supported(name) || equality::supported(name))
+                    && (lifecycle::supported(name)
+                        || equality::supported(name)
+                        || introspection::supported(name))
                     && !lifecycle::callable(&hash.buffer.data[index].1)
                 {
                     return Ok(None);
@@ -550,6 +570,7 @@ fn hash_builtin(name: &str) -> bool {
             | "is_a?"
             | "kind_of?"
             | "instance_of?"
+            | "is_type?"
             | "dup"
             | "clone"
             | "freeze"

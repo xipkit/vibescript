@@ -1,10 +1,10 @@
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, MAX_VALUE_DEPTH},
-    bytecode::{CallSite, Method},
+    bytecode::Method,
     collections,
     hash::Hash,
-    hash_blocks, members, mutate, ops, ordering,
+    hash_blocks, mutate, ops, ordering,
     value::Kind,
 };
 
@@ -133,6 +133,7 @@ pub(crate) fn method(name: &str) -> bool {
 
 pub(crate) enum Progress {
     Yield([Value; 3], usize),
+    Call(Value, Value, Value),
     Done(Value),
 }
 
@@ -675,12 +676,23 @@ impl Loop {
                 return Ok(Progress::Yield([first, second, Value::nil()], count));
             }
             let value = if let Some(operation) = &self.operation {
-                reduce(
-                    ctx,
-                    operation,
-                    self.accumulator.take().unwrap(),
-                    args[0].clone(),
-                )?
+                let name = operation.require_bytes()?;
+                let receiver = self.accumulator.take().unwrap();
+                if matches!(
+                    name,
+                    b"+" | b"-" | b"*" | b"/" | b"%" | b"**" | b"<<" | b"&"
+                ) {
+                    ctx.work_bytes(name.len())?;
+                    ops::binary(
+                        ctx,
+                        std::str::from_utf8(name).unwrap(),
+                        receiver,
+                        args[0].clone(),
+                    )?
+                } else {
+                    self.waiting = true;
+                    return Ok(Progress::Call(receiver, operation.clone(), args[0].clone()));
+                }
             } else if let (Count, Some(pattern)) = (self.method, self.pattern.as_ref()) {
                 Value::boolean(ops::equal(ctx, &args[0], pattern, 0)?)
             } else if let (Any | All | NoneMatch, Some(pattern)) =
@@ -1024,7 +1036,7 @@ pub(crate) fn without_block(
     };
     match state.advance(ctx, None)? {
         Progress::Done(value) => Ok(Some(value)),
-        Progress::Yield(..) => unreachable!(),
+        Progress::Yield(..) | Progress::Call(..) => unreachable!(),
     }
 }
 
@@ -1032,24 +1044,4 @@ fn array_copy(ctx: &mut CallContext, values: &[Value]) -> Result<Value> {
     let mut output = Buffer::empty();
     output.extend(ctx, values)?;
     Value::from_array(ctx, output)
-}
-
-fn reduce(
-    ctx: &mut CallContext,
-    operation: &Value,
-    accumulator: Value,
-    item: Value,
-) -> Result<Value> {
-    let name = std::str::from_utf8(operation.require_bytes()?)
-        .map_err(|_| argument("invalid reduce operation"))?;
-    if matches!(name, "+" | "-" | "*" | "/" | "%" | "**" | "<<" | "&") {
-        return ops::binary(ctx, name, accumulator, item);
-    }
-    let site = CallSite {
-        name: 0,
-        method: Method::parse(name),
-        auto: false,
-        scope: false,
-    };
-    members::call(ctx, site, name, accumulator, &[item]).map(|(_, value)| value)
 }

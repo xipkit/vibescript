@@ -91,6 +91,7 @@ pub(super) fn fallback(name: &str) -> Result<()> {
             | "is_a?"
             | "kind_of?"
             | "instance_of?"
+            | "is_type?"
     ) {
         Ok(())
     } else {
@@ -308,9 +309,8 @@ pub(super) fn member(
     }
     let helper = match name {
         "eql?" | "equal?" => Some(crate::namespace::Helper::Equality(name == "eql?")),
-        "is_a?" | "kind_of?" | "instance_of?" => Some(crate::namespace::Helper::Class),
-        "respond_to?" => Some(crate::namespace::Helper::Respond(access.implicit)),
-        _ => None,
+        _ => crate::members::introspection::Predicate::parse(name)
+            .map(|predicate| crate::namespace::Helper::Predicate(predicate, access.implicit)),
     };
     if let Some(helper) = helper {
         return Ok(Member::Helper(receiver.clone(), helper));
@@ -459,56 +459,26 @@ pub(super) fn call_helper(
             args.block.is_some(),
         );
     }
-    if !args.keywords.buffer.data.is_empty() || args.block.is_some() {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "module predicate does not take keywords or a block",
-        ));
-    }
-    let count = args.positional.data.len();
-    if count != 1 && !(matches!(helper, Helper::Respond(_)) && count == 2) {
-        return Err(Error::new(
-            ErrorKind::Argument,
-            "invalid module predicate argument count",
-        ));
-    }
-    let (namespace, instance) = match &receiver.0 {
-        Kind::Namespace(namespace) => (namespace, None),
-        Kind::Instance(instance) => (instance.class(), Some(instance)),
-        _ => unreachable!(),
+    let Helper::Predicate(predicate, caller) = helper else {
+        unreachable!()
     };
-    let value = &args.positional.data[0];
-    let result = match helper {
-        Helper::Equality(_) => unreachable!(),
-        Helper::Class => {
-            if !matches!(value.0, Kind::Namespace(_)) {
-                return Err(Error::new(
-                    ErrorKind::Type,
-                    "class predicate expects a class argument",
-                ));
-            }
-            matches!(&value.0, Kind::Namespace(other) if instance.is_some() && Arc::ptr_eq(&namespace.definition, &other.definition))
+    use crate::members::introspection::{self, Query};
+    let query = predicate.validate(
+        ctx,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )?;
+    let result = match query {
+        Query::Class(class) => introspection::belongs(&receiver, class),
+        Query::Respond(name, private) => {
+            responds(program, ctx, storage, &receiver, name, caller || private)?
         }
-        Helper::Respond(caller) => {
-            let include_private = match args.positional.data.get(1) {
-                None => false,
-                Some(Value(Kind::Bool(value))) => *value,
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::Type,
-                        "respond_to? expects a boolean second argument",
-                    ));
-                }
-            };
-            let name = value.require_bytes()?;
-            responds(
-                program,
-                ctx,
-                storage,
-                &receiver,
-                name,
-                caller || include_private,
-            )?
+        Query::Type(_) => {
+            return Err(Error::new(
+                ErrorKind::Type,
+                "type predicate requires an execution context",
+            ));
         }
     };
     Ok(Value::boolean(result))
@@ -522,6 +492,9 @@ fn responds(
     name: &[u8],
     private: bool,
 ) -> Result<bool> {
+    let Some(text) = crate::members::introspection::method_name(ctx, name)? else {
+        return Ok(false);
+    };
     let (namespace, instance) = match &receiver.0 {
         Kind::Namespace(namespace) => (namespace, None),
         Kind::Instance(instance) => (instance.class(), Some(instance)),
@@ -545,37 +518,19 @@ fn responds(
             return Ok(private || method.visibility == Visibility::Public);
         }
     }
-    if matches!(
-        name,
-        b"nil?"
-            | b"itself"
-            | b"dup"
-            | b"clone"
-            | b"freeze"
-            | b"frozen?"
-            | b"eql?"
-            | b"equal?"
-            | b"respond_to?"
-            | b"is_a?"
-            | b"kind_of?"
-            | b"instance_of?"
-    ) {
-        return Ok(true);
+    let name = text;
+    if !crate::members::names::universal(name) {
+        return Ok(false);
     }
-    if matches!(name, b"tap" | b"yield_self") {
-        if let Some(instance) = instance {
-            return Ok(
-                crate::objects::field(ctx, instance, std::str::from_utf8(name).unwrap())?.is_none(),
-            );
-        }
-        return Ok(field(
-            program,
-            ctx,
-            storage,
-            module,
-            std::str::from_utf8(name).unwrap(),
-        )?
-        .is_none());
+    if matches!(name, "tap" | "yield_self") {
+        let value = if let Some(instance) = instance {
+            crate::objects::field(ctx, instance, name)?
+        } else {
+            field(program, ctx, storage, module, name)?
+        };
+        return Ok(value
+            .as_ref()
+            .is_none_or(crate::members::introspection::callable));
     }
-    Ok(false)
+    Ok(true)
 }

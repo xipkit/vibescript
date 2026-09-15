@@ -118024,5 +118024,351 @@
     "name": "equality_rejected_captured_cycle",
     "source": "enum E\nA\nB\nend\nclass C\nproperty p\nend\n\ndef run(input)\na=C.new;p=[a].eql?;a.p=p;[a.p([a]),p([a])]\nend",
     "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?()\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_extra",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?(:eql?,true,nil)\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?(:eql?,x:1)\nend",
+    "go_error": "respond_to? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?(:eql?) {raise \"entered\"}\nend",
+    "go_error": "respond_to? does not take a block"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_keyword_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?(x:1) {raise \"entered\"}\nend",
+    "go_error": "respond_to? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_wrong",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.respond_to?(1)\nend",
+    "go_error": "respond_to? expects a symbol or string method name"
+  },
+  {
+    "name": "introspection_reject_signature_respond_to?_detached",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\np=1.respond_to?;p(:eql?)\nend",
+    "go_error": "respond_to? expects 1 or 2 arguments"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?()\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_extra",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?(C,true,nil)\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?(C,x:1)\nend",
+    "go_error": "is_a? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?(C) {raise \"entered\"}\nend",
+    "go_error": "is_a? does not take a block"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_keyword_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?(x:1) {raise \"entered\"}\nend",
+    "go_error": "is_a? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_wrong",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_a?(1)\nend",
+    "go_error": "is_a? expects a class argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_a?_detached",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\np=1.is_a?;p(C)\nend",
+    "go_error": "is_a? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?()\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_extra",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?(C,true,nil)\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?(C,x:1)\nend",
+    "go_error": "kind_of? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?(C) {raise \"entered\"}\nend",
+    "go_error": "kind_of? does not take a block"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_keyword_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?(x:1) {raise \"entered\"}\nend",
+    "go_error": "kind_of? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_wrong",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.kind_of?(1)\nend",
+    "go_error": "kind_of? expects a class argument"
+  },
+  {
+    "name": "introspection_reject_signature_kind_of?_detached",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\np=1.kind_of?;p(C)\nend",
+    "go_error": "kind_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?()\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_extra",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?(C,true,nil)\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?(C,x:1)\nend",
+    "go_error": "instance_of? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?(C) {raise \"entered\"}\nend",
+    "go_error": "instance_of? does not take a block"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_keyword_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?(x:1) {raise \"entered\"}\nend",
+    "go_error": "instance_of? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_wrong",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.instance_of?(1)\nend",
+    "go_error": "instance_of? expects a class argument"
+  },
+  {
+    "name": "introspection_reject_signature_instance_of?_detached",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\np=1.instance_of?;p(C)\nend",
+    "go_error": "instance_of? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?\nend",
+    "go_error": "is_type? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?()\nend",
+    "go_error": "is_type? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_extra",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?(:int,true,nil)\nend",
+    "go_error": "is_type? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?(:int,x:1)\nend",
+    "go_error": "is_type? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?(:int) {raise \"entered\"}\nend",
+    "go_error": "is_type? does not take a block"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_keyword_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?(x:1) {raise \"entered\"}\nend",
+    "go_error": "is_type? does not take keyword arguments"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_wrong",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\n1.is_type?(1)\nend",
+    "go_error": "is_type? expects a symbol or string type atom"
+  },
+  {
+    "name": "introspection_reject_signature_is_type?_detached",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\np=1.is_type?;p(:int)\nend",
+    "go_error": "is_type? expects exactly one argument"
+  },
+  {
+    "name": "introspection_reject_include_all_nil",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,nil)\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_include_all_0",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,0)\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_include_all_1",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,1)\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_include_all_\"yes\"",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,\"yes\")\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_include_all_:yes",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,:yes)\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_include_all_[]",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,[])\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_include_all_{}",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nC.new.respond_to?(:hidden,{})\nend",
+    "go_error": "respond_to? expects a boolean second argument"
+  },
+  {
+    "name": "introspection_reject_atom_0",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"\""
+  },
+  {
+    "name": "introspection_reject_atom_1",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"?\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"?\""
+  },
+  {
+    "name": "introspection_reject_atom_2",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"int??\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"int??\""
+  },
+  {
+    "name": "introspection_reject_atom_3",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"any\")\nend",
+    "go_error": "unknown type atom \"any\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_4",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"array<int>\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"array<int>\""
+  },
+  {
+    "name": "introspection_reject_atom_5",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"int|string\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"int|string\""
+  },
+  {
+    "name": "introspection_reject_atom_6",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"{x:int}\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"{x:int}\""
+  },
+  {
+    "name": "introspection_reject_atom_7",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"regexp\")\nend",
+    "go_error": "unknown type atom \"regexp\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_8",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"type\")\nend",
+    "go_error": "unknown type atom \"type\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_9",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"missing\")\nend",
+    "go_error": "unknown type atom \"missing\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_12",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"c\")\nend",
+    "go_error": "unknown type atom \"c\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_14",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"C??\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"C??\""
+  },
+  {
+    "name": "introspection_reject_atom_15",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"JSON.C\")\nend",
+    "go_error": "unknown type atom \"JSON.C\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_16",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"JSON.c\")\nend",
+    "go_error": "unknown type atom \"JSON.c\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_17",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"a.b.C\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"a.b.C\""
+  },
+  {
+    "name": "introspection_reject_atom_18",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"_Name\")\nend",
+    "go_error": "unknown type atom \"_Name\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_19",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"1Name\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"1Name\""
+  },
+  {
+    "name": "introspection_reject_atom_20",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"é\")\nend",
+    "go_error": "unknown type atom \"é\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_23",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"int\\u0000\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"int\\x00\""
+  },
+  {
+    "name": "introspection_reject_atom_24",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"int\\n\")\nend",
+    "go_error": "is_type? supports type atoms only, got \"int\\n\""
+  },
+  {
+    "name": "introspection_reject_atom_25",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")\nend",
+    "go_error": "unknown type atom \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" in is_type?"
+  },
+  {
+    "name": "introspection_reject_atom_26",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")\nend",
+    "go_error": "is_type? supports type atoms only, got 257 bytes"
   }
+
 ]
