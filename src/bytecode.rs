@@ -347,6 +347,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub owner: std::sync::Weak<crate::code::Code>,
     pub handlers: Vec<errors::TrySpec>,
     pub source: crate::source::Source,
     pub namespaces: Vec<std::sync::Arc<crate::namespace::Definition>>,
@@ -391,6 +392,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         })
         .collect();
     let mut program = Program {
+        owner: std::sync::Weak::new(),
         handlers: Vec::new(),
         source: crate::source::Source::new(source),
         namespaces: Vec::new(),

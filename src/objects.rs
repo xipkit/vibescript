@@ -633,6 +633,9 @@ fn mark_references(
 }
 
 #[cfg(test)]
+mod retirement_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::{CallOptions, namespace::Definition};

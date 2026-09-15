@@ -1,5 +1,5 @@
 use crate::{CallContext, Result, Value, budget::Charge, hash::Hash, syntax::modules::Visibility};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, Weak};
 
 #[derive(Debug)]
 pub(crate) struct Method {
@@ -10,6 +10,7 @@ pub(crate) struct Method {
 
 #[derive(Debug)]
 pub(crate) struct Definition {
+    pub owner: OnceLock<Weak<crate::code::Code>>,
     pub index: usize,
     pub name: String,
     pub methods: Vec<Method>,
@@ -46,6 +47,7 @@ impl Definition {
                 .map(|(name, _)| name.capacity())
                 .sum::<usize>();
         Arc::new(Self {
+            owner: OnceLock::new(),
             index,
             name,
             methods,
@@ -61,6 +63,7 @@ impl Definition {
 #[derive(Debug)]
 pub(crate) struct Namespace {
     pub definition: Arc<Definition>,
+    pub owner: Option<Arc<crate::code::Code>>,
     header: Option<Charge>,
     _metadata: Option<Charge>,
 }
@@ -69,6 +72,7 @@ impl Namespace {
     pub fn untracked(definition: Arc<Definition>) -> Arc<Self> {
         Arc::new(Self {
             definition,
+            owner: None,
             header: None,
             _metadata: None,
         })
@@ -80,8 +84,16 @@ impl Namespace {
         }
         let metadata = ctx.reserve(value.definition.bytes)?;
         let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
+        let owner = value
+            .owner
+            .clone()
+            .or_else(|| value.definition.owner.get().and_then(Weak::upgrade));
+        if let Some(owner) = &owner {
+            crate::code::Code::retain(ctx, owner)?;
+        }
         Ok(Arc::new(Self {
             definition: value.definition.clone(),
+            owner,
             header,
             _metadata: metadata,
         }))

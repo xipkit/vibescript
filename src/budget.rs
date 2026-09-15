@@ -128,6 +128,7 @@ pub struct CallContext {
     pub(crate) pending_objects:
         Buffer<(Arc<crate::objects::Instance>, Arc<crate::objects::Instance>)>,
     pub(crate) importing_objects: bool,
+    pub(crate) code_roots: Option<Buffer<Arc<crate::code::Code>>>,
     pub(crate) enum_rebind: crate::enums::Rebind,
     pub(crate) random_source: Option<crate::random::Source>,
     pub(crate) output_writer: Option<crate::output::Writer>,
@@ -145,6 +146,7 @@ impl CallContext {
             objects: None,
             pending_objects: Buffer::empty(),
             importing_objects: false,
+            code_roots: None,
             enum_rebind: crate::enums::Rebind::default(),
             random_source: None,
             output_writer: None,

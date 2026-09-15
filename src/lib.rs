@@ -16,6 +16,7 @@ mod budget;
 mod builtin;
 mod bytecode;
 mod casing;
+mod code;
 mod collections;
 mod conversion;
 mod duration;
@@ -143,18 +144,10 @@ impl Engine {
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
-        let names = self.hosts.keys().cloned().collect();
-        let program =
-            bytecode::compile(source, names).map_err(|error| source::parse_error(source, error))?;
-        let hosts = program
-            .hosts
-            .iter()
-            .map(|n| self.hosts[n].clone())
-            .collect();
+        let code = code::Code::compile(source, &self.hosts)?;
         Ok(Script {
             inner: Arc::new(ScriptInner {
-                program,
-                hosts,
+                code,
                 random_source: self.random_source.clone(),
                 output_writer: self.output_writer.clone(),
                 error_writer: self.error_writer.clone(),
@@ -164,8 +157,7 @@ impl Engine {
 }
 
 struct ScriptInner {
-    program: bytecode::Program,
-    hosts: Vec<HostCallback>,
+    code: Arc<code::Code>,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -199,13 +191,15 @@ impl Script {
         ctx.checkpoint()?;
         let function = *self
             .inner
+            .code
             .program
             .names
             .get(name)
             .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
+        ctx.code_roots = Some(budget::Buffer::empty());
         let result = vm::execute(
-            &self.inner.program,
-            &self.inner.hosts,
+            &self.inner.code.program,
+            &self.inner.code.hosts,
             &mut ctx,
             function,
             args,
@@ -216,14 +210,18 @@ impl Script {
             Ok(value) => value,
             Err(error) => {
                 objects::cleanup(&mut ctx);
+                ctx.code_roots = None;
                 return Err(error);
             }
         };
         if let Err(error) = objects::finish(&mut ctx) {
             drop(value);
             objects::cleanup(&mut ctx);
+            ctx.code_roots = None;
             return Err(error);
         }
+        ctx.code_roots = None;
+        ctx.checkpoint()?;
         Ok(Outcome {
             value,
             stats: ctx.stats(),
