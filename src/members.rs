@@ -5,6 +5,7 @@ use crate::{
     value::Kind,
 };
 
+pub(crate) mod equality;
 mod lifecycle;
 
 pub(crate) fn call_keywords(
@@ -14,6 +15,17 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if let Some(value) = equality::call(
+        ctx,
+        site,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = lifecycle::call(
         ctx,
         site,
@@ -273,6 +285,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = equality::call(ctx, site, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = lifecycle::call(ctx, site, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }
@@ -408,7 +423,10 @@ pub(crate) fn field(
     name: &str,
     receiver: &Value,
 ) -> Result<Option<Value>> {
-    if !site.scope && lifecycle::supported(name) && lifecycle::callable(receiver) {
+    if !site.scope
+        && (lifecycle::supported(name) || equality::supported(name))
+        && lifecycle::callable(receiver)
+    {
         return Ok(None);
     }
     if let Kind::Offset(offset) = &receiver.0 {
@@ -427,7 +445,7 @@ pub(crate) fn field(
         if hash.object || !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
                 if !site.scope
-                    && lifecycle::supported(name)
+                    && (lifecycle::supported(name) || equality::supported(name))
                     && !lifecycle::callable(&hash.buffer.data[index].1)
                 {
                     return Ok(None);

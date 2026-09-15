@@ -95,7 +95,7 @@ pub(crate) struct State {
 }
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Helper {
-    Equality,
+    Equality(bool),
     Class,
     Respond(bool),
 }

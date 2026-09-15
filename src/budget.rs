@@ -128,6 +128,7 @@ pub struct CallContext {
     pub(crate) pending_objects:
         Buffer<(Arc<crate::objects::Instance>, Arc<crate::objects::Instance>)>,
     pub(crate) importing_objects: bool,
+    pub(crate) enum_rebind: crate::enums::Rebind,
     pub(crate) random_source: Option<crate::random::Source>,
     pub(crate) random: Option<crate::random::Seeded>,
 }
@@ -142,6 +143,7 @@ impl CallContext {
             objects: None,
             pending_objects: Buffer::empty(),
             importing_objects: false,
+            enum_rebind: crate::enums::Rebind::default(),
             random_source: None,
             random: None,
         }

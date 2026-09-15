@@ -567,16 +567,13 @@ pub(crate) fn member(
         return Err(invalid());
     }
     let result = match name {
-        "nil?" | "itself" | "dup" | "equal?" | "eql?" | "<=>" => {
-            if block && !matches!(name, "eql?" | "<=>") {
+        "nil?" | "itself" | "dup" | "<=>" => {
+            if block && name != "<=>" {
                 return Err(invalid());
             }
-            let comparison = matches!(name, "equal?" | "eql?" | "<=>");
-            ops::arity(args, usize::from(comparison))?;
+            ops::arity(args, usize::from(name == "<=>"))?;
             if name == "<=>" {
                 stamp(&args[0]).map_or(Value::nil(), |other| Value::int(time.order(other) as i64))
-            } else if comparison {
-                Value::boolean(stamp(&args[0]) == Some(time))
             } else if name == "nil?" {
                 Value::boolean(false)
             } else {

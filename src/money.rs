@@ -204,18 +204,15 @@ pub(crate) fn member(
         return Ok(None);
     };
     let result = match name {
-        "nil?" | "itself" | "dup" | "eql?" | "equal?" => {
+        "nil?" | "itself" | "dup" => {
             if keywords || block {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "money predicates do not accept keywords or blocks",
                 ));
             }
-            let comparison = matches!(name, "eql?" | "equal?");
-            ops::arity(args, usize::from(comparison))?;
-            if comparison {
-                Value::boolean(ops::equal(ctx, receiver, &args[0], 0)?)
-            } else if name == "nil?" {
+            ops::arity(args, 0)?;
+            if name == "nil?" {
                 Value::boolean(false)
             } else {
                 receiver.clone()

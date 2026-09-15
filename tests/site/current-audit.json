@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "17525c14cd948e215f0b4f665dfccd73280df18b",
-  "dirty": " M docs/errors.md\n M src/address.rs\n M src/iteration.rs\n M src/mutate.rs\n M src/range.rs\n M src/vm.rs\n M tests/language.json\n M tests/members.rs\n?? docs/numeric-guards.md\n?? src/iteration/\n?? tests/numeric_guards.rs\n?? tests/recoverable_mutations.rs\n",
+  "source_revision": "e2cdc5ef372de97ea2028f7c1f77909278c1f28f",
+  "dirty": " M docs/computed-calls.md\n M docs/value-helpers.md\n M src/budget.rs\n M src/bytecode.rs\n M src/duration.rs\n M src/enums.rs\n M src/integer.rs\n M src/members.rs\n M src/money.rs\n M src/namespace.rs\n M src/ops.rs\n M src/time.rs\n M src/vm.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/equality.md\n?? src/members/equality.rs\n?? tests/equality.rs\n",
   "binary_sha256": {
-    "go-simd": "50b347337788baac271b61af1b923fa39cc7ca3d9af4e461f8603e13ac3397ee",
-    "rust-simd": "aca507fdd2cd16120f22082f924166c3cbba2411ab579c60a85776ddb0cca0b4"
+    "go-simd": "fa792e4d3603ba6564a448d0494c16910a550600fdcee966cbe1a20d52fb6552",
+    "rust-simd": "8d7a339457e6a5fa7ec413fdf10c2413479551b9308cb7c7a1670ed092a3ea37"
   },
   "counts": {
     "match": 188,

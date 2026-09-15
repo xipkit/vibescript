@@ -307,18 +307,15 @@ pub(crate) fn member(
                 matches!(name, "ago" | "before" | "until"),
             )?
         }
-        "nil?" | "itself" | "dup" | "equal?" | "eql?" => {
-            if keywords || (block && name != "eql?") {
+        "nil?" | "itself" | "dup" => {
+            if keywords || block {
                 return Err(Error::new(
                     ErrorKind::Argument,
                     "unsupported duration arguments",
                 ));
             }
-            let equality = matches!(name, "equal?" | "eql?");
-            ops::arity(args, usize::from(equality))?;
-            if equality {
-                Value::boolean(args[0].as_duration() == Some(seconds))
-            } else if name == "nil?" {
+            ops::arity(args, 0)?;
+            if name == "nil?" {
                 Value::boolean(false)
             } else {
                 receiver.clone()

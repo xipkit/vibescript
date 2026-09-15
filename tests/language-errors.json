@@ -117929,5 +117929,100 @@
     "name": "safe_symbol_boundary_33",
     "source": "\ndef run(input)\n:[]...:[]\nend",
     "go_error": "expected integer value"
+  },
+  {
+    "name": "equality_rejected_builtin_eql?",
+    "source": "\ndef run(input)\na=JSON::parse;[a.eql?(a),a.eql?(JSON::parse),a.eql?(nil)]\nend",
+    "go_error": "a is a method and cannot be used as a value; call it with a(...)"
+  },
+  {
+    "name": "equality_rejected_builtin_equal?",
+    "source": "\ndef run(input)\na=JSON::parse;[a.equal?(a),a.equal?(JSON::parse),a.equal?(nil)]\nend",
+    "go_error": "a is a method and cannot be used as a value; call it with a(...)"
+  },
+  {
+    "name": "equality_rejected_stored",
+    "source": "\ndef run(input)\na=[1];p=a.eql?;p([1])\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_snapshot",
+    "source": "\ndef run(input)\na=[1];p=a.eql?;a.push(2);[p([1]),p(a)]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_in_array",
+    "source": "\ndef run(input)\na=[1];p=a.eql?;q=[p];q[0]([1])\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_in_hash",
+    "source": "\ndef run(input)\na=[1];p=a.eql?;q={p:p};q.p([1])\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_call_syntax",
+    "source": "\ndef run(input)\np=1.eql?;[(p)(1),p.call(1)]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_return",
+    "source": "\ndef run(input)\n1.eql?\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_display",
+    "source": "\ndef run(input)\np=1.eql?;[p.to_s,p.inspect,p.type]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_compare",
+    "source": "\ndef run(input)\np=1.eql?;[p==p,p.eql?(p),p.equal?(p),p==1.eql?]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_duplicated",
+    "source": "\ndef run(input)\np=[1].eql?;q=p.dup;[q([1]),q==p]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_cloned",
+    "source": "\ndef run(input)\np=[1].eql?;q=p.clone;[q([1]),q==p]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_stored_frozen",
+    "source": "\ndef run(input)\np=[1].eql?;q=p.freeze;[q([1]),q==p]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_temporal_stored",
+    "source": "\ndef run(input)\np=1.seconds.eql?;q=Time.at(0).eql?;[p(1.seconds),q(Time.at(0))]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
+  },
+  {
+    "name": "equality_rejected_scoped_predicate",
+    "source": "\ndef run(input)\np=JSON::eql?;p(JSON)\nend",
+    "go_error": "unknown member eql?"
+  },
+  {
+    "name": "equality_rejected_scoped_hash_predicate",
+    "source": "\ndef run(input)\na=[1];p=a::eql?;p([1])\nend",
+    "go_error": "scoped member access is only supported on enums and namespaces"
+  },
+  {
+    "name": "equality_rejected_class_stored",
+    "source": "enum E\nA\nB\nend\nclass C\nproperty p\nend\n\ndef run(input)\na=C.new;p=a.equal?;[p(a),p(C.new)]\nend",
+    "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)"
+  },
+  {
+    "name": "equality_rejected_class_cycle",
+    "source": "enum E\nA\nB\nend\nclass C\nproperty p\nend\n\ndef run(input)\na=C.new;p=a.equal?;a.p=p;[a.p(a),p(a),a.p==p]\nend",
+    "go_error": "equal? is a method and cannot be used as a value; call it with equal?(...)"
+  },
+  {
+    "name": "equality_rejected_captured_cycle",
+    "source": "enum E\nA\nB\nend\nclass C\nproperty p\nend\n\ndef run(input)\na=C.new;p=[a].eql?;a.p=p;[a.p([a]),p([a])]\nend",
+    "go_error": "eql? is a method and cannot be used as a value; call it with eql?(...)"
   }
 ]

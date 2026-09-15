@@ -348,6 +348,7 @@ pub(crate) struct Program {
     pub type_guards: Vec<Vec<String>>,
     pub types: Vec<crate::types::Type>,
     pub declarations: Vec<Value>,
+    pub enum_definitions: std::sync::Arc<[std::sync::Arc<crate::enums::Definition>]>,
     pub declaration_names: HashMap<String, usize>,
     pub globals: Vec<(Global, Value)>,
     pub functions: Vec<Function>,
@@ -377,6 +378,13 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         declaration_names.insert(name.clone(), declarations.len());
         declarations.push(crate::enums::compile(name, members)?);
     }
+    let enum_definitions = declarations
+        .iter()
+        .filter_map(|value| match &value.0 {
+            crate::value::Kind::Enum(enumeration) => Some(enumeration.definition.clone()),
+            _ => None,
+        })
+        .collect();
     let mut program = Program {
         handlers: Vec::new(),
         source: crate::source::Source::new(source),
@@ -384,6 +392,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         type_guards: Vec::new(),
         types: Vec::new(),
         declarations,
+        enum_definitions,
         declaration_names,
         globals: Vec::new(),
         functions: Vec::new(),

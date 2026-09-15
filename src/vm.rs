@@ -139,6 +139,8 @@ pub(crate) fn execute(
         addresses: Buffer::empty(),
         bypasses: Buffer::empty(),
     };
+    ctx.enum_rebind.definitions = Some(program.enum_definitions.clone());
+    ctx.enum_rebind.active = true;
     let result = (|| -> Result<Value> {
         storage.locals.ensure(ctx, program.globals.len())?;
         storage.locals.data.resize(program.globals.len(), None);
@@ -153,6 +155,7 @@ pub(crate) fn execute(
             let value = ctx.import(value)?;
             input.keywords.insert(ctx, key, value)?;
         }
+        ctx.enum_rebind.active = false;
         let mut pending_entry = Some((function, input));
         let mut initializer = if function == 0 {
             program.namespaces.len()
@@ -763,6 +766,7 @@ pub(crate) fn execute(
                                         module,
                                         helper,
                                         &Arguments::empty(),
+                                        true,
                                     )?;
                                     stack.push(ctx, value)?;
                                 }
@@ -1270,6 +1274,7 @@ pub(crate) fn execute(
                                             module,
                                             helper,
                                             &Arguments::empty(),
+                                            true,
                                         )?;
                                         stack.push(ctx, value)?;
                                         continue;
@@ -1357,6 +1362,7 @@ pub(crate) fn execute(
                                                 module,
                                                 helper,
                                                 &Arguments::empty(),
+                                                true,
                                             )?;
                                             stack.push(ctx, value)?;
                                             continue;
@@ -1554,6 +1560,7 @@ pub(crate) fn execute(
                                             module,
                                             helper,
                                             &args,
+                                            site.auto,
                                         )?;
                                         stack.data.truncate(base);
                                         stack.push(ctx, value)?;
@@ -1894,6 +1901,7 @@ pub(crate) fn execute(
                                         receiver,
                                         helper,
                                         &args,
+                                        false,
                                     )?;
                                     stack.push(ctx, value)?;
                                     continue;
@@ -2027,6 +2035,7 @@ pub(crate) fn execute(
                                                     module,
                                                     helper,
                                                     &args,
+                                                    site.auto,
                                                 )?;
                                                 if mutating {
                                                     storage.addresses.data.pop();
@@ -2201,6 +2210,7 @@ pub(crate) fn execute(
                                             module,
                                             helper,
                                             &args,
+                                            site.auto,
                                         )?;
                                         stack.data.truncate(base);
                                         stack.push(ctx, value)?;
@@ -2325,6 +2335,7 @@ pub(crate) fn execute(
             }
         }
     })();
+    ctx.enum_rebind = crate::enums::Rebind::default();
     result.map_err(|error| diagnose(program, &frames.data, function, error))
 }
 
@@ -2774,6 +2785,12 @@ fn declaration_value(
     }
     let value = if let Kind::Namespace(namespace) = &program.declarations[index].0 {
         namespaces::value(program, ctx, storage, namespace.definition.index)?
+    } else if let Kind::Enum(enumeration) = &program.declarations[index].0 {
+        ctx.charge(1)?;
+        Value(Kind::Enum(crate::enums::Enumeration::instantiate(
+            ctx,
+            enumeration,
+        )?))
     } else {
         ctx.import(&program.declarations[index])?
     };

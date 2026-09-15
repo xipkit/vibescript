@@ -261,9 +261,26 @@ pub(crate) fn compare(ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Opt
 }
 
 pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> Result<bool> {
+    equal_kinds(ctx, a, b, depth, false)
+}
+
+pub(crate) fn eql(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> Result<bool> {
+    equal_kinds(ctx, a, b, depth, true)
+}
+
+fn equal_kinds(
+    ctx: &mut CallContext,
+    a: &Value,
+    b: &Value,
+    depth: usize,
+    strict: bool,
+) -> Result<bool> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
         return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
+    }
+    if strict && a.type_name() != b.type_name() {
+        return Ok(false);
     }
     match (&a.0, &b.0) {
         (Kind::Nil, Kind::Nil) => Ok(true),
@@ -297,9 +314,16 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
         (Kind::Range(a), Kind::Range(b)) => {
             Ok(a.start == b.start && a.end == b.end && a.exclusive == b.exclusive)
         }
-        (Kind::Int(_) | Kind::Float(_), Kind::Int(_) | Kind::Float(_)) => {
-            Ok(a.as_float() == b.as_float())
+        (Kind::Int(integer), Kind::Float(float)) | (Kind::Float(float), Kind::Int(integer)) => {
+            // Casting the integer to float can round a neighboring integer to the
+            // same value. Range-check the integral float before converting it.
+            Ok(float.is_finite()
+                && float.fract() == 0.0
+                && *float >= i64::MIN as f64
+                && *float < -(i64::MIN as f64)
+                && *integer == *float as i64)
         }
+        (Kind::Float(a), Kind::Float(b)) => Ok(a == b),
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
             json::bytes_equal(ctx, &a.data, &b.data)
         }
@@ -308,7 +332,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
                 return Ok(false);
             }
             for (a, b) in a.buffer.data.iter().zip(&b.buffer.data) {
-                if !equal(ctx, a, b, depth + 1)? {
+                if !equal_kinds(ctx, a, b, depth + 1, strict)? {
                     return Ok(false);
                 }
             }
@@ -322,7 +346,7 @@ pub(crate) fn equal(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -
                 let Some(i) = b.find(ctx, k.require_bytes()?)? else {
                     return Ok(false);
                 };
-                if !equal(ctx, v, &b.buffer.data[i].1, depth + 1)? {
+                if !equal_kinds(ctx, v, &b.buffer.data[i].1, depth + 1, strict)? {
                     return Ok(false);
                 }
             }

@@ -24,6 +24,8 @@ pub(crate) struct MemberDefinition {
 #[derive(Debug)]
 pub(crate) struct Enumeration {
     pub definition: Arc<Definition>,
+    // Accounting views may differ while the enum and its members keep one identity.
+    identity: Arc<()>,
     header: Option<Charge>,
     _metadata: Option<Charge>,
 }
@@ -90,6 +92,7 @@ pub(crate) fn compile(name: String, members: Vec<String>) -> Result<Value> {
             lookup,
             bytes,
         }),
+        identity: Arc::new(()),
         header: None,
         _metadata: None,
     }))))
@@ -126,14 +129,31 @@ fn symbol(name: &str) -> String {
 }
 
 impl Enumeration {
+    pub(crate) fn identical(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity)
+    }
+
+    pub(crate) fn instantiate(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
+        let identity = Rebind::resolve(ctx, &value.definition, true)?
+            .expect("compiled enum belongs to the invocation");
+        Self::view(ctx, value, identity)
+    }
+
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
         if ctx.owns(&value.header) {
             return Ok(value.clone());
         }
+        let identity = Rebind::resolve(ctx, &value.definition, false)?
+            .unwrap_or_else(|| value.identity.clone());
+        Self::view(ctx, value, identity)
+    }
+
+    fn view(ctx: &mut CallContext, value: &Arc<Self>, identity: Arc<()>) -> Result<Arc<Self>> {
         let metadata = ctx.reserve(value.definition.bytes)?;
-        let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
+        let header = ctx.reserve(size_of::<Self>() + 4 * size_of::<usize>())?;
         Ok(Arc::new(Self {
             definition: value.definition.clone(),
+            identity,
             header,
             _metadata: metadata,
         }))
@@ -169,6 +189,76 @@ impl Enumeration {
             }
         }
         Ok(None)
+    }
+}
+
+// Only incoming arguments rebind to this script's enums. Callback results keep
+// their source identity; declarations use the same invocation token as arguments.
+pub(crate) struct Rebind {
+    pub definitions: Option<Arc<[Arc<Definition>]>>,
+    pub active: bool,
+    identities: Buffer<(usize, Arc<()>)>,
+    storage: Option<Charge>,
+}
+
+impl Default for Rebind {
+    fn default() -> Self {
+        Self {
+            definitions: None,
+            active: false,
+            identities: Buffer::empty(),
+            storage: None,
+        }
+    }
+}
+
+impl Rebind {
+    fn resolve(
+        ctx: &mut CallContext,
+        definition: &Arc<Definition>,
+        declared: bool,
+    ) -> Result<Option<Arc<()>>> {
+        if !declared && !ctx.enum_rebind.active {
+            return Ok(None);
+        }
+        let mut rebind = std::mem::take(&mut ctx.enum_rebind);
+        let result = rebind.identity(ctx, definition);
+        ctx.enum_rebind = rebind;
+        result
+    }
+
+    fn identity(
+        &mut self,
+        ctx: &mut CallContext,
+        definition: &Arc<Definition>,
+    ) -> Result<Option<Arc<()>>> {
+        let Some(definitions) = &self.definitions else {
+            return Ok(None);
+        };
+        let mut found = None;
+        for (index, candidate) in definitions.iter().enumerate() {
+            ctx.charge(1)?;
+            if Arc::ptr_eq(candidate, definition) {
+                found = Some(index);
+                break;
+            }
+        }
+        let Some(index) = found else {
+            return Ok(None);
+        };
+        for (cached, identity) in &self.identities.data {
+            ctx.charge(1)?;
+            if *cached == index {
+                return Ok(Some(identity.clone()));
+            }
+        }
+        self.identities
+            .ensure(ctx, self.identities.data.len() + 1)?;
+        let charge = ctx.reserve(2 * size_of::<usize>())?;
+        Charge::merge(&mut self.storage, charge);
+        let identity = Arc::new(());
+        self.identities.data.push((index, identity.clone()));
+        Ok(Some(identity))
     }
 }
 

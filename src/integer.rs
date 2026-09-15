@@ -28,6 +28,10 @@ pub(crate) struct Big {
 }
 
 impl Big {
+    pub(crate) fn identical(&self, other: &Self) -> bool {
+        self.negative == other.negative && Arc::ptr_eq(&self.words, &other.words)
+    }
+
     fn header_bytes() -> usize {
         size_of::<Self>() + size_of::<Vec<u32>>() + 4 * size_of::<usize>()
     }

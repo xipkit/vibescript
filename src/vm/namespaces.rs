@@ -307,7 +307,7 @@ pub(super) fn member(
         }
     }
     let helper = match name {
-        "eql?" | "equal?" => Some(crate::namespace::Helper::Equality),
+        "eql?" | "equal?" => Some(crate::namespace::Helper::Equality(name == "eql?")),
         "is_a?" | "kind_of?" | "instance_of?" => Some(crate::namespace::Helper::Class),
         "respond_to?" => Some(crate::namespace::Helper::Respond(access.implicit)),
         _ => None,
@@ -445,8 +445,20 @@ pub(super) fn call_helper(
     receiver: Value,
     helper: crate::namespace::Helper,
     args: &Arguments,
+    auto: bool,
 ) -> Result<Value> {
     use crate::namespace::Helper;
+    if let Helper::Equality(strict) = helper {
+        return crate::members::equality::invoke(
+            ctx,
+            auto,
+            if strict { "eql?" } else { "equal?" },
+            &receiver,
+            &args.positional.data,
+            !args.keywords.buffer.data.is_empty(),
+            args.block.is_some(),
+        );
+    }
     if !args.keywords.buffer.data.is_empty() || args.block.is_some() {
         return Err(Error::new(
             ErrorKind::Argument,
@@ -467,11 +479,7 @@ pub(super) fn call_helper(
     };
     let value = &args.positional.data[0];
     let result = match helper {
-        Helper::Equality => match (&receiver.0, &value.0) {
-            (Kind::Instance(a), Kind::Instance(b)) => a.same(b),
-            (Kind::Namespace(a), Kind::Namespace(b)) => Arc::ptr_eq(&a.definition, &b.definition),
-            _ => false,
-        },
+        Helper::Equality(_) => unreachable!(),
         Helper::Class => {
             if !matches!(value.0, Kind::Namespace(_)) {
                 return Err(Error::new(
