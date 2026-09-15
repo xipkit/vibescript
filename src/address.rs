@@ -8,6 +8,7 @@ struct Hop {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum Root {
     Local(usize),
+    Global(usize),
     Field(usize, usize),
     Object(std::sync::Arc<crate::objects::Instance>, usize),
 }
@@ -22,6 +23,7 @@ pub(crate) struct Bindings<'a> {
     pub guard: Option<crate::types::Prepared<'a>>,
     pub recover: bool,
     pub locals: &'a mut [Option<Value>],
+    pub globals: &'a mut [Option<Value>],
     pub namespaces: &'a mut [crate::namespace::State],
 }
 
@@ -29,6 +31,7 @@ impl Bindings<'_> {
     fn set(&mut self, ctx: &mut CallContext, root: &Root, value: Option<Value>) -> Result<()> {
         match root {
             Root::Local(slot) => self.locals[*slot] = value,
+            Root::Global(slot) => self.globals[*slot] = value,
             Root::Field(module, field) => {
                 self.namespaces[*module].fields.buffer.data[*field].1 = value.unwrap_or_default()
             }
@@ -69,6 +72,12 @@ impl Address {
             selectors: Buffer::empty(),
             member_target: false,
         }
+    }
+
+    pub fn global(slot: usize, value: Value) -> Self {
+        let mut address = Self::new(None, value);
+        address.root = Some(Root::Global(slot));
+        address
     }
 
     pub fn field(module: usize, field: usize, value: Value) -> Self {

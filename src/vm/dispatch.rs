@@ -223,6 +223,7 @@ fn invoke(
                 recover: !storage.handlers.data.is_empty(),
                 guard,
                 locals: &mut storage.locals.data,
+                globals: &mut storage.globals.data,
                 namespaces: &mut storage.namespaces.data,
             },
             &mut storage.addresses.data,

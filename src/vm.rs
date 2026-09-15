@@ -62,6 +62,7 @@ struct Storage {
     declarations: Buffer<(usize, Value)>,
     texts: Buffer<Buffer<u8>>,
     iterations: Buffer<Iteration>,
+    globals: Buffer<Option<Value>>,
     locals: Buffer<Option<Value>>,
     addresses: Buffer<Address>,
     bypasses: Buffer<usize>,
@@ -140,6 +141,7 @@ pub(crate) fn execute(
         declarations: Buffer::empty(),
         texts: Buffer::empty(),
         iterations: Buffer::empty(),
+        globals: Buffer::empty(),
         locals: Buffer::empty(),
         addresses: Buffer::empty(),
         bypasses: Buffer::empty(),
@@ -147,8 +149,8 @@ pub(crate) fn execute(
     ctx.enum_rebind.definitions = Some(program.enum_definitions.clone());
     ctx.enum_rebind.active = true;
     let result = (|| -> Result<Value> {
-        storage.locals.ensure(ctx, program.globals.len())?;
-        storage.locals.data.resize(program.globals.len(), None);
+        storage.globals.ensure(ctx, program.globals.len())?;
+        storage.globals.data.resize(program.globals.len(), None);
         let mut input = Arguments::empty();
         input.options_hash = false;
         input.positional = Buffer::with_capacity(ctx, args.len())?;
@@ -254,6 +256,7 @@ pub(crate) fn execute(
                                                 recover: !storage.handlers.data.is_empty(),
                                                 guard,
                                                 locals: &mut storage.locals.data,
+                                                globals: &mut storage.globals.data,
                                                 namespaces: &mut storage.namespaces.data,
                                             },
                                             &mut storage.addresses.data,
@@ -542,8 +545,8 @@ pub(crate) fn execute(
                                         declaration_value(program, ctx, &mut storage, index)?,
                                     )
                                 } else if let Some(global) = global_index(program, name) {
-                                    Address::new(
-                                        Some(global),
+                                    Address::global(
+                                        global,
                                         global_value(program, ctx, &mut storage, global)?,
                                     )
                                 } else {
@@ -848,7 +851,7 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::StoreGlobal(index) => {
-                            storage.locals.data[index] = stack.data.last().cloned();
+                            storage.globals.data[index] = stack.data.last().cloned();
                         }
                         Op::ResolveGlobalCall(index) => {
                             let value = global_value(program, ctx, &mut storage, index)?;
@@ -867,7 +870,11 @@ pub(crate) fn execute(
                                     root = None;
                                 }
                             }
-                            storage.addresses.push(ctx, Address::new(root, value))?;
+                            let address = match root {
+                                Some(slot) => Address::global(slot, value),
+                                None => Address::new(None, value),
+                            };
+                            storage.addresses.push(ctx, address)?;
                         }
                         Op::NonCallable => {
                             return Err(Error::new(
@@ -1094,6 +1101,7 @@ pub(crate) fn execute(
                                     recover: !storage.handlers.data.is_empty(),
                                     guard,
                                     locals: &mut storage.locals.data,
+                                    globals: &mut storage.globals.data,
                                     namespaces: &mut storage.namespaces.data,
                                 },
                                 &mut storage.addresses.data,
@@ -1357,6 +1365,7 @@ pub(crate) fn execute(
                                         recover: !storage.handlers.data.is_empty(),
                                         guard,
                                         locals: &mut storage.locals.data,
+                                        globals: &mut storage.globals.data,
                                         namespaces: &mut storage.namespaces.data,
                                     },
                                     &mut storage.addresses.data,
@@ -1543,6 +1552,7 @@ pub(crate) fn execute(
                                     recover: !storage.handlers.data.is_empty(),
                                     guard,
                                     locals: &mut storage.locals.data,
+                                    globals: &mut storage.globals.data,
                                     namespaces: &mut storage.namespaces.data,
                                 },
                                 &mut storage.addresses.data,
@@ -1627,6 +1637,7 @@ pub(crate) fn execute(
                                     recover: !storage.handlers.data.is_empty(),
                                     guard,
                                     locals: &mut storage.locals.data,
+                                    globals: &mut storage.globals.data,
                                     namespaces: &mut storage.namespaces.data,
                                 },
                                 &mut storage.addresses.data,
@@ -2643,7 +2654,7 @@ fn resolve_type(
         let mut declaration = None;
         for (index, (global, original)) in program.globals.iter().enumerate() {
             ctx.charge(1)?;
-            let value = storage.locals.data[index].as_ref().unwrap_or(original);
+            let value = storage.globals.data[index].as_ref().unwrap_or(original);
             if let Some(value) =
                 type_candidate(ctx, global.name(), value, binding, member, fold, enum_only)?
             {
@@ -2800,10 +2811,10 @@ fn global_value(
     storage: &mut Storage,
     index: usize,
 ) -> Result<Value> {
-    if storage.locals.data[index].is_none() {
-        storage.locals.data[index] = Some(ctx.import(&program.globals[index].1)?);
+    if storage.globals.data[index].is_none() {
+        storage.globals.data[index] = Some(ctx.import(&program.globals[index].1)?);
     }
-    Ok(storage.locals.data[index].as_ref().unwrap().clone())
+    Ok(storage.globals.data[index].as_ref().unwrap().clone())
 }
 
 fn callable_value_error(name: &str, kind: &str) -> Error {
