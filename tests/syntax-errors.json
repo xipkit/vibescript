@@ -12981,5 +12981,10 @@
     "name": "error_handling_158_syntax_raise_1_2_3",
     "source": "\ndef run(input)\nraise 1,2,3\nend",
     "go_error": "parse error at 3:10: unexpected token \",\""
+  },
+  {
+    "name": "loop_binding_3",
+    "source": "\ndef run(input)\nbegin\nloop {|*rest|break rest}\nrescue RuntimeError => e\n[e.type,e.message]\nend\nend",
+    "go_error": "parse error at 4:8: expected block parameter, got \"*\""
   }
 ]

@@ -197,20 +197,21 @@ fn invoke(
         if !mutating {
             stack.data.pop();
         }
-        ctx.charge(1)?;
-        if frames.data.len() >= ctx.options.limits.recursion {
-            return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
-        }
-        let mut frame = new_frame(ctx, program, storage, None, stack.data.len())?;
-        frame.mutating = mutating;
+        enter_iteration(
+            program,
+            ctx,
+            frames,
+            storage,
+            stack.data.len(),
+            args,
+            iteration,
+        )?;
         if mutating {
+            let frame = frames.data.last_mut().unwrap();
+            frame.mutating = true;
             // The native frame owns this address, including on nonlocal exits.
             frame.address_base -= 1;
         }
-        frame.block = args.block;
-        frame.arguments.push(ctx, args)?;
-        storage.iterations.push(ctx, iteration)?;
-        frames.push(ctx, frame)?;
         return Ok(());
     }
     let value = if mutating {

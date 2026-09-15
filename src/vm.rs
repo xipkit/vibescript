@@ -2036,6 +2036,24 @@ pub(crate) fn execute(
                                         )?;
                                         continue;
                                     }
+                                    if builtin == crate::builtin::Builtin::Loop {
+                                        let iteration = iteration::forever(
+                                            ctx,
+                                            &args.positional.data,
+                                            &args.keywords.buffer.data,
+                                            args.block.is_some(),
+                                        )?;
+                                        enter_iteration(
+                                            program,
+                                            ctx,
+                                            &mut frames,
+                                            &mut storage,
+                                            stack.data.len(),
+                                            args,
+                                            iteration,
+                                        )?;
+                                        continue;
+                                    }
                                     let value = builtin.call(
                                         ctx,
                                         &args.positional.data,
@@ -2909,6 +2927,26 @@ fn enter_arguments(
             storage.locals.data[frame.local_base + param.slot] = binding.value(ctx, i)?;
         }
     }
+    frames.push(ctx, frame)
+}
+
+fn enter_iteration(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    base: usize,
+    args: Arguments,
+    iteration: Iteration,
+) -> Result<()> {
+    ctx.charge(1)?;
+    if frames.data.len() >= ctx.options.limits.recursion {
+        return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+    }
+    let mut frame = new_frame(ctx, program, storage, None, base)?;
+    frame.block = args.block;
+    frame.arguments.push(ctx, args)?;
+    storage.iterations.push(ctx, iteration)?;
     frames.push(ctx, frame)
 }
 

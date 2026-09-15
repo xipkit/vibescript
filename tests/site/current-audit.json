@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "07adb873ed70188e12b168ac9a52f582afdef1bc",
-  "dirty": " M README.md\n M docs/language-port.md\n M src/builtin.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/hash-new-differences.json\n?? docs/hash-new.md\n?? tests/hash_new.rs\n",
+  "source_revision": "c2754627b899172a7f6a7c44ec2b673ede544abb",
+  "dirty": " M README.md\n M docs/language-port.md\n M src/builtin.rs\n M src/iteration.rs\n M src/vm.rs\n M src/vm/dispatch.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? docs/loop-differences.json\n?? docs/loop.md\n?? tests/kernel_loop.rs\n",
   "binary_sha256": {
-    "go-simd": "0e39220685004d553311f35827f4df706e5958408158c9010b74c9e978c49183",
-    "rust-simd": "9663fd75b1e0704e9419d55b20673d21987c9614bf0b1053afc6f3fd01e2bd10"
+    "go-simd": "627a799a61ee05cadf608e82b835683cada2b9fe8885dfcae2b37e108e5e66cb",
+    "rust-simd": "dadb2717e71d29a57e2ae54a36481ca585a9e9d68d08b211ceca80e7ed5e1ce0"
   },
   "counts": {
     "match": 188,

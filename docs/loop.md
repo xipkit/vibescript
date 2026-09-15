@@ -1,0 +1,9 @@
+# Repeated block execution
+
+`loop { ... }` or `loop do ... end` invokes its block until `break`. A break payload becomes the result; a bare break returns nil. `next` starts another iteration, discarding its payload. Ordinary block results are also discarded. A return leaves the enclosing method, and ordinary control transfers honor ensure clauses.
+
+The block receives no arguments. Ordinary parameters therefore receive nil, while nested rest destructuring receives an empty tail. Type annotations still apply before the body runs. Calls reject positional arguments first, then keywords, then a missing block. Invalid calls preserve argument evaluation order and never invoke the rejected block. Registered host functions and script functions can override the global helper under the usual name-resolution rules.
+
+The helper is a direct call target and cannot be read as an ordinary value. Its native frame holds the block and call roots for the duration of execution, charges work on every iteration and uses the existing recursion limit. Discarded results are released before the next block call; retained results continue consuming the memory budget. Cancellation and exhausted limits remain uncatchable and prevent subsequent rescue or ensure effects.
+
+Six native tests cover results, binding, nested control flow, validation order, host overrides, method boundaries, retained and discarded storage, work/memory/recursion limits, cancellation and independent subsequent calls. The shared corpus adds 53 matching expectations, six runtime rejections and one syntax rejection. Rust also accepts `loop { break :done }` according to the documented break-value rule; Go v0.70.0 rejects that compact spelling during parsing. The exact observation is retained in [the difference record](loop-differences.json).

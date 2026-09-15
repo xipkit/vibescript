@@ -122941,5 +122941,47 @@
     "go_error": "unknown hash method merge! (did you mean \"merge\"?)",
     "stdout": true,
     "stderr": true
+  },
+  {
+    "name": "loop_binding_6_uncaught",
+    "source": "\ndef run(input)\nloop {|v:int|break v}\nend",
+    "go_error": "argument v expected int, got nil",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "loop_call_0_uncaught",
+    "source": "\ndef run(input)\nloop()\nend",
+    "go_error": "loop requires a block",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "loop_call_1_uncaught",
+    "source": "\ndef run(input)\nloop(1)\nend",
+    "go_error": "loop does not take arguments",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "loop_call_2_uncaught",
+    "source": "\ndef run(input)\nloop(flag:1)\nend",
+    "go_error": "loop does not take keyword arguments",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "loop_call_10_uncaught",
+    "source": "\ndef run(input)\nloop\nend",
+    "go_error": "loop is a method and cannot be used as a value; call it with loop(...)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "loop_local_shadow_uncaught",
+    "source": "\ndef run(input)\nloop={};loop(){break 7}\nend",
+    "go_error": "attempted to call non-callable value",
+    "stdout": true,
+    "stderr": true
   }
 ]

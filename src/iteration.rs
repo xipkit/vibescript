@@ -164,6 +164,7 @@ impl Mutation {
 
 pub(crate) enum Iteration {
     Loop(Loop),
+    Forever { waiting: bool },
     Order(ordering::Driver),
     Hash(hash_blocks::Driver),
     Text(crate::text::iteration::Driver),
@@ -175,6 +176,7 @@ impl Iteration {
     pub fn waiting(&self) -> bool {
         match self {
             Self::Loop(state) => state.waiting,
+            Self::Forever { waiting } => *waiting,
             Self::Order(state) => state.waiting,
             Self::Hash(state) => state.waiting(),
             Self::Text(state) => state.waiting,
@@ -186,7 +188,8 @@ impl Iteration {
     pub fn take_mutation(&mut self) -> Option<Mutation> {
         match self {
             Self::Loop(state) => state.mutation.take(),
-            Self::Order(_)
+            Self::Forever { .. }
+            | Self::Order(_)
             | Self::Hash(_)
             | Self::Text(_)
             | Self::Regex(_)
@@ -197,6 +200,14 @@ impl Iteration {
     pub fn advance(&mut self, ctx: &mut CallContext, returned: Option<Value>) -> Result<Progress> {
         match self {
             Self::Loop(state) => state.advance(ctx, returned),
+            Self::Forever { waiting } => {
+                drop(returned);
+                *waiting = true;
+                Ok(Progress::Yield(
+                    [Value::nil(), Value::nil(), Value::nil()],
+                    0,
+                ))
+            }
             Self::Order(state) => state.advance(ctx, returned),
             Self::Hash(state) => state.advance(ctx, returned),
             Self::Text(state) => state.advance(ctx, returned),
@@ -234,6 +245,25 @@ pub(crate) struct Loop {
 
 fn argument(message: &str) -> Error {
     Error::new(ErrorKind::Argument, message)
+}
+
+pub(crate) fn forever(
+    ctx: &mut CallContext,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+    block: bool,
+) -> Result<Iteration> {
+    ctx.checkpoint()?;
+    if !args.is_empty() {
+        return Err(argument("loop does not take arguments"));
+    }
+    if !keywords.is_empty() {
+        return Err(argument("loop does not take keyword arguments"));
+    }
+    if !block {
+        return Err(argument("loop requires a block"));
+    }
+    Ok(Iteration::Forever { waiting: false })
 }
 
 pub(crate) fn start(

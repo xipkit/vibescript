@@ -8,6 +8,7 @@ pub(crate) enum Builtin {
     Output(crate::output::Kind),
     Format(crate::format::Function),
     Assert,
+    Loop,
     HashNew,
     Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
@@ -49,6 +50,7 @@ pub(crate) enum Global {
     Output(crate::output::Kind),
     Format(crate::format::Function),
     Assert,
+    Loop,
     Hash,
     Regexp,
     Regex,
@@ -70,6 +72,7 @@ impl Global {
             Self::Output(kind) => kind.name(),
             Self::Format(function) => function.name(),
             Self::Assert => "assert",
+            Self::Loop => "loop",
             Self::Hash => "Hash",
             Self::Regexp => "Regexp",
             Self::Regex => "Regex",
@@ -93,6 +96,7 @@ impl Global {
             "format" => Some(Self::Format(crate::format::Function::Format)),
             "sprintf" => Some(Self::Format(crate::format::Function::Sprintf)),
             "assert" => Some(Self::Assert),
+            "loop" => Some(Self::Loop),
             "Hash" => Some(Self::Hash),
             "Regexp" => Some(Self::Regexp),
             "Regex" => Some(Self::Regex),
@@ -119,6 +123,7 @@ impl Global {
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
             Self::Format(function) => return Value(Kind::Builtin(Format(function))),
             Self::Assert => return Value(Kind::Builtin(Assert)),
+            Self::Loop => return Value(Kind::Builtin(Loop)),
             Self::Hash => vec![("new", Value(Kind::Builtin(HashNew)))],
             Self::Regexp => [
                 crate::regex::value::Constructor::New,
@@ -252,6 +257,7 @@ impl Builtin {
             Self::Output(kind) => kind.name(),
             Self::Format(function) => function.name(),
             Self::Assert => "assert",
+            Self::Loop => "loop",
             Self::HashNew => "Hash.new",
             Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
@@ -287,7 +293,7 @@ impl Builtin {
     }
 
     pub fn value_error(self) -> Error {
-        if matches!(self, Self::Output(_) | Self::Format(_)) {
+        if matches!(self, Self::Output(_) | Self::Format(_) | Self::Loop) {
             let name = self.name();
             return Error::new(
                 ErrorKind::Type,
@@ -313,8 +319,8 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
-        // Calls with script conversions run through the VM.
-        if matches!(self, Self::Output(_) | Self::Format(_)) {
+        // Calls with script conversions or repeated blocks run through the VM.
+        if matches!(self, Self::Output(_) | Self::Format(_) | Self::Loop) {
             return Err(self.value_error());
         }
         if self == Self::HashNew {
@@ -480,6 +486,7 @@ impl Builtin {
             | Self::Regex(_)
             | Self::Regexp(_)
             | Self::Assert
+            | Self::Loop
             | Self::HashNew => unreachable!(),
         }
     }
