@@ -14,8 +14,13 @@ allocation-stats = []
 tokio = ["dep:tokio"]
 
 [dependencies]
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
 getrandom = "0.4"
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"], optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 serde_json = { version = "1", features = ["arbitrary_precision"] }
