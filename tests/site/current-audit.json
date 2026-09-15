@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "c2bd2d1810cf90d709526d5ffd81f2f8e8eeb236",
-  "dirty": " M README.md\n M docs/classes.md\n M docs/language-port.md\n M src/arguments.rs\n M src/builtin.rs\n M src/lib.rs\n M src/ops.rs\n M src/text/bounded.rs\n M src/vm.rs\n M src/vm/handlers.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/formatting-boundaries.json\n?? docs/formatting-differences.json\n?? docs/formatting.md\n?? licenses/format-NOTICE.txt\n?? src/format.rs\n?? src/format/\n?? src/vm/format.rs\n?? tests/formatting.rs\n",
+  "source_revision": "07adb873ed70188e12b168ac9a52f582afdef1bc",
+  "dirty": " M README.md\n M docs/language-port.md\n M src/builtin.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/hash-new-differences.json\n?? docs/hash-new.md\n?? tests/hash_new.rs\n",
   "binary_sha256": {
-    "go-simd": "c3277296e6d43551691331b7bb2e256ddaf7a89267708cf20c46d14420415941",
-    "rust-simd": "cf34098afdbc70ec341cb4df8752bb49cfe1dd7700d0e06c6ae1824a89fad6ea"
+    "go-simd": "0e39220685004d553311f35827f4df706e5958408158c9010b74c9e978c49183",
+    "rust-simd": "9663fd75b1e0704e9419d55b20673d21987c9614bf0b1053afc6f3fd01e2bd10"
   },
   "counts": {
     "match": 188,

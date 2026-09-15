@@ -122864,5 +122864,82 @@
     "go_error": "a method has no member call; call Regexp.last_match(...) directly",
     "stdout": true,
     "stderr": true
+  },
+  {
+    "name": "hash_new_read_27_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new.type_name);[\"ok\",value]\nend",
+    "go_error": "unknown hash method type_name",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_read_29_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new.to_s);[\"ok\",value]\nend",
+    "go_error": "unknown hash method to_s (did you mean \"to_a\"?)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_read_31_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new.call);[\"ok\",value]\nend",
+    "go_error": "a method has no member call; call Hash.new(...) directly",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_read_32_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new.method(:default));[\"ok\",value]\nend",
+    "go_error": "unknown hash method method",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_read_37_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new.default);[\"ok\",value]\nend",
+    "go_error": "unknown hash method default",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_read_38_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new.default_proc);[\"ok\",value]\nend",
+    "go_error": "unknown hash method default_proc",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_read_46_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.send(:new).call(print(\"argument\")));[\"ok\",value]\nend",
+    "go_error": "unknown hash method call",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_call_0_1_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new(nil));[\"ok\",value]\nend",
+    "go_error": "Hash.new takes no default: a missing key reads as nil, and hash.fetch(key, fallback) supplies a default per lookup",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_call_0_6_uncaught",
+    "source": "\ndef run(input)\nvalue=(Hash.new(flag:print(\"keyword\")));[\"ok\",value]\nend",
+    "go_error": "Hash.new does not accept keyword arguments",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_mutation_4_uncaught",
+    "source": "\ndef run(input)\nHash.new[:x]=1;Hash.new\nend",
+    "go_error": "cannot index builtin",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "hash_new_mutation_11_uncaught",
+    "source": "\ndef run(input)\na=Hash.new;b=a;a.merge!({x:1});[a,b]\nend",
+    "go_error": "unknown hash method merge! (did you mean \"merge\"?)",
+    "stdout": true,
+    "stderr": true
   }
 ]

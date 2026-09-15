@@ -8,6 +8,7 @@ pub(crate) enum Builtin {
     Output(crate::output::Kind),
     Format(crate::format::Function),
     Assert,
+    HashNew,
     Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
     Time(crate::time::Constructor),
@@ -48,6 +49,7 @@ pub(crate) enum Global {
     Output(crate::output::Kind),
     Format(crate::format::Function),
     Assert,
+    Hash,
     Regexp,
     Regex,
     Time,
@@ -68,6 +70,7 @@ impl Global {
             Self::Output(kind) => kind.name(),
             Self::Format(function) => function.name(),
             Self::Assert => "assert",
+            Self::Hash => "Hash",
             Self::Regexp => "Regexp",
             Self::Regex => "Regex",
             Self::Time => "Time",
@@ -90,6 +93,7 @@ impl Global {
             "format" => Some(Self::Format(crate::format::Function::Format)),
             "sprintf" => Some(Self::Format(crate::format::Function::Sprintf)),
             "assert" => Some(Self::Assert),
+            "Hash" => Some(Self::Hash),
             "Regexp" => Some(Self::Regexp),
             "Regex" => Some(Self::Regex),
             "Time" => Some(Self::Time),
@@ -115,6 +119,7 @@ impl Global {
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
             Self::Format(function) => return Value(Kind::Builtin(Format(function))),
             Self::Assert => return Value(Kind::Builtin(Assert)),
+            Self::Hash => vec![("new", Value(Kind::Builtin(HashNew)))],
             Self::Regexp => [
                 crate::regex::value::Constructor::New,
                 crate::regex::value::Constructor::Union,
@@ -224,7 +229,7 @@ impl Global {
 
 impl Builtin {
     pub fn auto(self) -> bool {
-        self == Self::Now
+        matches!(self, Self::Now | Self::HashNew)
             || matches!(
                 self,
                 Self::Random(crate::random::Method::Rand | crate::random::Method::Uuid)
@@ -247,6 +252,7 @@ impl Builtin {
             Self::Output(kind) => kind.name(),
             Self::Format(function) => function.name(),
             Self::Assert => "assert",
+            Self::HashNew => "Hash.new",
             Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
             Self::Time(constructor) => constructor.name(),
@@ -310,6 +316,21 @@ impl Builtin {
         // Calls with script conversions run through the VM.
         if matches!(self, Self::Output(_) | Self::Format(_)) {
             return Err(self.value_error());
+        }
+        if self == Self::HashNew {
+            if !keywords.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "Hash.new does not accept keyword arguments",
+                ));
+            }
+            if !args.is_empty() || block {
+                return Err(Error::new(
+                    ErrorKind::Argument,
+                    "Hash.new takes no default: a missing key reads as nil, and hash.fetch(key, fallback) supplies a default per lookup",
+                ));
+            }
+            return Value::from_hash(ctx, crate::hash::Hash::empty());
         }
         if self == Self::Assert {
             let Some(condition) = args.first() else {
@@ -458,7 +479,8 @@ impl Builtin {
             | Self::Random(_)
             | Self::Regex(_)
             | Self::Regexp(_)
-            | Self::Assert => unreachable!(),
+            | Self::Assert
+            | Self::HashNew => unreachable!(),
         }
     }
 }
