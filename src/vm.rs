@@ -233,6 +233,7 @@ pub(crate) fn execute(
                                         value = address.apply(
                                             ctx,
                                             address::Bindings {
+                                                recover: !storage.handlers.data.is_empty(),
                                                 guard,
                                                 locals: &mut storage.locals.data,
                                                 namespaces: &mut storage.namespaces.data,
@@ -1057,6 +1058,7 @@ pub(crate) fn execute(
                             let result = address.apply(
                                 ctx,
                                 address::Bindings {
+                                    recover: !storage.handlers.data.is_empty(),
                                     guard,
                                     locals: &mut storage.locals.data,
                                     namespaces: &mut storage.namespaces.data,
@@ -1297,6 +1299,7 @@ pub(crate) fn execute(
                                 let value = address.apply(
                                     ctx,
                                     address::Bindings {
+                                        recover: !storage.handlers.data.is_empty(),
                                         guard,
                                         locals: &mut storage.locals.data,
                                         namespaces: &mut storage.namespaces.data,
@@ -1481,6 +1484,7 @@ pub(crate) fn execute(
                             let value = address.assign(
                                 ctx,
                                 address::Bindings {
+                                    recover: !storage.handlers.data.is_empty(),
                                     guard,
                                     locals: &mut storage.locals.data,
                                     namespaces: &mut storage.namespaces.data,
@@ -1563,6 +1567,7 @@ pub(crate) fn execute(
                             let value = address.apply(
                                 ctx,
                                 address::Bindings {
+                                    recover: !storage.handlers.data.is_empty(),
                                     guard,
                                     locals: &mut storage.locals.data,
                                     namespaces: &mut storage.namespaces.data,
@@ -2100,6 +2105,7 @@ pub(crate) fn execute(
                                         address.apply(
                                             ctx,
                                             address::Bindings {
+                                                recover: !storage.handlers.data.is_empty(),
                                                 guard,
                                                 locals: &mut storage.locals.data,
                                                 namespaces: &mut storage.namespaces.data,

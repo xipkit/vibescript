@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "8d1c02102f7d3874a1a7f4a7a48d4dd4effa8e03",
-  "dirty": " M src/members.rs\n M src/vm/namespaces.rs\n M tests/language.json\n?? docs/value-helper-differences.json\n?? docs/value-helpers.md\n?? src/members/\n?? tests/value_helpers.rs\n",
+  "source_revision": "17525c14cd948e215f0b4f665dfccd73280df18b",
+  "dirty": " M docs/errors.md\n M src/address.rs\n M src/iteration.rs\n M src/mutate.rs\n M src/range.rs\n M src/vm.rs\n M tests/language.json\n M tests/members.rs\n?? docs/numeric-guards.md\n?? src/iteration/\n?? tests/numeric_guards.rs\n?? tests/recoverable_mutations.rs\n",
   "binary_sha256": {
-    "go-simd": "5a420ec2d555aa475ab35a57675151423244c063251bea5d36db627e5eebce27",
-    "rust-simd": "6af65246a34b784ee116b483bd9674f78b3f7d0e1fb298b2d0d372b4b3b230bc"
+    "go-simd": "50b347337788baac271b61af1b923fa39cc7ca3d9af4e461f8603e13ac3397ee",
+    "rust-simd": "aca507fdd2cd16120f22082f924166c3cbba2411ab579c60a85776ddb0cca0b4"
   },
   "counts": {
     "match": 188,

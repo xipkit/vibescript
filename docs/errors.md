@@ -2,6 +2,8 @@
 
 `begin` expressions and function bodies support ordered `rescue` clauses, `else`, `ensure`, and `retry`. A successful body returns its last value; a handled failure returns the selected rescue body's value. `else` runs only after normal completion of the body. `ensure` runs before an ordinary error or return, break, or next leaves the protected region. Its value is ignored, but an error or control transfer from ensure replaces the pending outcome.
 
+Rejected native mutations preserve their receiver bindings for rescue and ensure. Previously completed statements and explicit block writes remain visible. See [numeric guards](numeric-guards.md) for recoverable bounds, mutation publication and the accounting implications.
+
 ```vibescript
 def run(input)
   begin

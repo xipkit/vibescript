@@ -8,6 +8,8 @@ use crate::{
     value::Kind,
 };
 
+mod bounds;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MethodKind {
     Tap,
@@ -338,7 +340,7 @@ pub(crate) fn start(
                 method,
                 Each | Map | Select | Reject | Find | Reduce | Count | Step
             ),
-            Kind::Int(_) => matches!(method, Times | Upto | Downto | Step),
+            Kind::Int(_) | Kind::Big(_) => matches!(method, Times | Upto | Downto | Step),
             _ => false,
         };
     if !supported {
@@ -365,7 +367,7 @@ pub(crate) fn start(
     }
     let is_hash = matches!(receiver.0, Kind::Hash(_));
     let is_range = matches!(receiver.0, Kind::Range(_));
-    let is_int = matches!(receiver.0, Kind::Int(_));
+    let is_int = matches!(receiver.0, Kind::Int(_) | Kind::Big(_));
     let rejects_keywords = universal
         || is_range
         || (is_int && method != Times)
@@ -447,6 +449,7 @@ pub(crate) fn start(
     {
         return Err(argument(&format!("{name} requires an argument")));
     }
+    bounds::check(ctx, name, method, receiver, args, has_block)?;
     if matches!(method, EachSlice | EachCons) {
         let width = args[0].require_int()?;
         if width <= 0 {

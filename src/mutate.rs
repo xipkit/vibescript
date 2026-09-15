@@ -210,6 +210,9 @@ pub(crate) fn fill_span(
         let end = range.end.map_or(length - 1, i128::from);
         let end = if end < 0 { end + length } else { end };
         let end = (end + i128::from(range.end.is_none() || !range.exclusive)).max(start);
+        if end > isize::MAX as i128 {
+            return ctx.guard(ErrorKind::Arithmetic, "array.fill window is too large");
+        }
         return Ok((
             size(ctx, start)?,
             size(ctx, end)?,
@@ -233,6 +236,9 @@ pub(crate) fn fill_span(
         return Ok((0, 0, size(ctx, length)?));
     }
     let end = start + count;
+    if end > isize::MAX as i128 {
+        return ctx.guard(ErrorKind::Arithmetic, "array.fill window is too large");
+    }
     Ok((
         size(ctx, start)?,
         size(ctx, end)?,

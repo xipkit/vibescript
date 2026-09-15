@@ -69,11 +69,11 @@ fn shrinking_collections_release_removed_storage_and_excess_capacity() {
 
 #[test]
 fn mutators_check_expansion_and_scan_limits() {
-    for source in [
-        "[0].insert(9223372036854775807,1)",
-        "[0].fill(1,9223372036854775807,1)",
-        "[0].fill(1,0..9223372036854775807)",
-        "s=\"a\"*8192\ns.prepend(s,s)",
+    for (source, expected) in [
+        ("[0].insert(9223372036854775807,1)", ErrorKind::Memory),
+        ("[0].fill(1,9223372036854775807,1)", ErrorKind::Arithmetic),
+        ("[0].fill(1,0..9223372036854775807)", ErrorKind::Arithmetic),
+        ("s=\"a\"*8192\ns.prepend(s,s)", ErrorKind::Memory),
     ] {
         let error = Engine::new()
             .compile(source)
@@ -86,7 +86,7 @@ fn mutators_check_expansion_and_scan_limits() {
                 ..CallOptions::default()
             })
             .unwrap_err();
-        assert_eq!(error.kind, ErrorKind::Memory, "{source}");
+        assert_eq!(error.kind, expected, "{source}");
     }
     let source = "a=[1]\nfor i in 1..20\na=[a,a]\nend\nb=[a]\nb.delete(a)";
     let error = Engine::new()

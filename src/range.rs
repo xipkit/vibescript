@@ -124,7 +124,8 @@ impl Range {
             if last {
                 return Err(open_error("endless"));
             }
-            (i128::from(count), 0, 1)
+            let available = i128::from(i64::MAX) - i128::from(start) + 1;
+            (i128::from(count).min(available), 0, 1)
         };
         let mut current = i128::from(start) + skip * direction;
         let mut out = Buffer::empty();
@@ -177,8 +178,15 @@ pub(crate) fn method(
         }
         Size | ToArray => {
             crate::ops::arity(args, 0)?;
-            let n = i64::try_from(range.length()?)
-                .map_err(|_| Error::new(ErrorKind::Arithmetic, "range size overflow"))?;
+            let n = match i64::try_from(range.length()?) {
+                Ok(n) => n,
+                Err(_) if matches!(method, ToArray) => {
+                    return ctx.guard(ErrorKind::Arithmetic, "range.to_a result too large");
+                }
+                Err(_) => {
+                    return Err(Error::new(ErrorKind::Arithmetic, "range size overflow"));
+                }
+            };
             if matches!(method, Size) {
                 Ok(Value::int(n))
             } else {

@@ -20,6 +20,7 @@ impl From<usize> for Root {
 
 pub(crate) struct Bindings<'a> {
     pub guard: Option<crate::types::Prepared<'a>>,
+    pub recover: bool,
     pub locals: &'a mut [Option<Value>],
     pub namespaces: &'a mut [crate::namespace::State],
 }
@@ -159,9 +160,9 @@ impl Address {
         let Some(root) = root else {
             return action(ctx, value).map(|(_, result)| result);
         };
-        // The captured path now owns the receiver. Other pending writes and script aliases
-        // retain their own views until the mutation has been checked and published.
-        if bindings.guard.is_none() {
+        // A handler or type guard can observe a rejected update. Keep the binding
+        // intact until publication; otherwise transfer ownership for in-place writes.
+        if bindings.guard.is_none() && !bindings.recover {
             bindings.set(ctx, &root, None)?;
         }
         let forward = pending.iter().any(|a| a.root.as_ref() == Some(&root));
