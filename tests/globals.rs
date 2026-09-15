@@ -45,6 +45,51 @@ fn global_mutations_preserve_local_bindings_and_pending_writes() {
 }
 
 #[test]
+fn replacing_a_global_detaches_an_earlier_mutation_target() {
+    for (body, expected) in [
+        ("Math.push(begin;Math=[9];2;end)", serde_json::json!([9])),
+        // Plain indexed assignment selects its target after the right-hand side.
+        ("Math[0]=begin;Math=[9];2;end", serde_json::json!([2])),
+        ("Math[0]+=begin;Math=[9];2;end", serde_json::json!([9])),
+        (
+            "Math.push(begin;Math &&= [9];2;end)",
+            serde_json::json!([9]),
+        ),
+        (
+            "Math.push(begin;Math,other=[9],2;other;end)",
+            serde_json::json!([9]),
+        ),
+        ("Math.push(replace)", serde_json::json!([9])),
+        ("Math.push(begin;Math=[1];2;end)", serde_json::json!([1])),
+        (
+            "Math.push(begin;Math=Math;2;end)",
+            serde_json::json!([1, 2]),
+        ),
+        (
+            "Math.push(begin;Math ||= [9];2;end)",
+            serde_json::json!([1, 2]),
+        ),
+    ] {
+        let source = format!(
+            "def replace\nMath=[9]\n2\nend\ndef run(input)\nMath=input\n{body}\n[Math,input]\nend"
+        );
+        let script = Engine::new().compile(&source).unwrap();
+        let output = script
+            .call(
+                "run",
+                &[Value::array(vec![Value::int(1)])],
+                CallOptions::default(),
+            )
+            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        assert_eq!(
+            json(&output.value),
+            serde_json::json!([expected, [1]]),
+            "{body}"
+        );
+    }
+}
+
+#[test]
 fn namespace_global_writes_survive_unwind_and_reset_between_calls() {
     let script = Engine::new()
         .compile(

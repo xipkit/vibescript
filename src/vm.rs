@@ -851,7 +851,15 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::StoreGlobal(index) => {
-                            storage.globals.data[index] = stack.data.last().cloned();
+                            let value = stack.data.last().unwrap();
+                            address::refresh(
+                                ctx,
+                                address::Root::Global(index),
+                                value,
+                                &mut storage.addresses.data,
+                                &[],
+                            )?;
+                            storage.globals.data[index] = Some(value.clone());
                         }
                         Op::ResolveGlobalCall(index) => {
                             let value = global_value(program, ctx, &mut storage, index)?;
