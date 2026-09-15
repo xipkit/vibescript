@@ -15,7 +15,7 @@ fn type_error() -> Error {
 pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Value> {
     match (op, &value.0) {
         ("!", _) => Ok(Value::boolean(!value.truthy())),
-        ("+", Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) => Ok(value),
+        ("+", Kind::Int(_) | Kind::Big(_) | Kind::Float(_) | Kind::Bytes(_)) => Ok(value),
         ("-", Kind::Int(n)) if *n != i64::MIN => Ok(Value::int(-n)),
         ("-", Kind::Int(_) | Kind::Big(_)) => crate::integer::negate(ctx, &value, false),
         ("-", Kind::Float(n)) => Ok(Value::float(-n)),
