@@ -24,6 +24,12 @@ pub(crate) fn unary(ctx: &mut CallContext, op: &str, value: Value) -> Result<Val
 }
 
 pub(crate) fn binary(ctx: &mut CallContext, op: &str, a: Value, b: Value) -> Result<Value> {
+    if op == "%" {
+        if let Kind::Bytes(pattern) = &a.0 {
+            let values = b.as_array().unwrap_or_else(|| std::slice::from_ref(&b));
+            return crate::format::format(ctx, &pattern.data, values);
+        }
+    }
     if matches!(op, "=~" | "!~") {
         return crate::regex::value::binary(ctx, op, &a, &b);
     }

@@ -801,6 +801,9 @@ pub(super) fn apply_control(
                 ReturnTo::Output => {
                     output::resume(program, ctx, frames, storage, stack, Some(value))?
                 }
+                ReturnTo::Format => {
+                    format::resume(program, ctx, frames, storage, stack, Some(value))?
+                }
                 ReturnTo::Stack => stack.push(ctx, value)?,
                 ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value))?,
                 ReturnTo::Assigned(value) => stack.push(ctx, value)?,

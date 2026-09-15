@@ -112,7 +112,7 @@ def run(input)
 end
 ```
 
-This returns `[2, 5, "count=5"]`. Direct interpolation calls a `to_s` that accepts zero arguments, including private methods and methods with optional parameters. A required parameter or a non-string result preserves the default instance rendering. Containers keep their own element rendering. Errors and exhausted limits propagate through the conversion.
+This returns `[2, 5, "count=5"]`. Direct interpolation, output helpers and the `format`/`sprintf` globals call a `to_s` that accepts zero arguments, including private methods and methods with optional parameters. A required parameter or a non-string result preserves the default instance rendering. Containers keep their own element rendering, as does the string `%` operator. Errors and exhausted limits propagate through the conversion.
 
 `[]` receives the index selectors; `[]=` receives those selectors followed by the assigned value. Indexed assignment returns the assigned value, while still enforcing the setter's return annotation. Plain assignment evaluates the RHS before its target; compound assignment evaluates its receiver and selectors once before reading and updating the value.
 

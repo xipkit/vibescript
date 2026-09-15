@@ -21,6 +21,7 @@ mod conversion;
 mod duration;
 mod enums;
 mod error;
+mod format;
 mod hash;
 mod hash_blocks;
 mod integer;

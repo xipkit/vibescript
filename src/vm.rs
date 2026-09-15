@@ -14,6 +14,7 @@ use crate::{
 
 mod call_targets;
 mod dispatch;
+mod format;
 mod handlers;
 mod namespaces;
 mod operators;
@@ -30,6 +31,7 @@ enum ReturnTo {
     Negate,
     Text(Value),
     Output,
+    Format,
 }
 
 struct Frame {
@@ -1918,6 +1920,7 @@ pub(crate) fn execute(
                             let target = match target {
                                 crate::arguments::Target::Raise(..)
                                 | crate::arguments::Target::Output(..)
+                                | crate::arguments::Target::Format(..)
                                 | crate::arguments::Target::Receiver(..) => unreachable!(),
                                 crate::arguments::Target::Unbound(kind, name) => {
                                     let required = if kind == "hash" {
@@ -2017,6 +2020,18 @@ pub(crate) fn execute(
                                             &mut storage,
                                             &mut stack,
                                             kind,
+                                            args,
+                                        )?;
+                                        continue;
+                                    }
+                                    if let crate::builtin::Builtin::Format(function) = builtin {
+                                        format::start(
+                                            program,
+                                            ctx,
+                                            &mut frames,
+                                            &mut storage,
+                                            &mut stack,
+                                            function,
                                             args,
                                         )?;
                                         continue;

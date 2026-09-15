@@ -122557,5 +122557,235 @@
     "go_error": "argument options expected { retries: int }, got { retries: string }",
     "stdout": true,
     "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_100__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%d\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %d expects integer operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_120__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%x\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %x expects string or numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_88__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%X\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %X expects string or numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_98__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%b\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %b expects integer operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_111__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%o\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %o expects integer operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_79__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%O\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %O expects integer operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_85__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%U\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %U expects integer operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_99__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%c\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %c expects integer operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_102__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%f\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %f expects numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_70__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%F\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %F expects numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_101__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%e\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %e expects numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_69__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%E\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %E expects numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_103__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%g\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %g expects numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_71__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%G\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %G expects numeric operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_116__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%t\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format %t expects bool operand",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_field_0_37__uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%%\", nil));[\"ok\",value.bytes]\nend",
+    "go_error": "format has 1 unused operand(s)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_0_2_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"\", \"a\", \"b\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format has 2 unused operand(s)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_0_3_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"\", 1,2,3));[\"ok\",value.bytes]\nend",
+    "go_error": "format has 3 unused operand(s)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_7_0_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%.s\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format references missing operand 1",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_8_0_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%[2]s\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format references missing operand 2",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_12_2_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%[2]s%s\", \"a\", \"b\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format references missing operand 3",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_17_0_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%999999999999999999999$d\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format width exceeds limit 1048576 bytes",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_18_0_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%*s\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format dynamic width is not supported",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_probe_syntax_19_0_uncaught",
+    "source": "enum E\nA\nend\nclass C\ndef to_s\nprint(\"converted\");\"custom\"\nend\nend\nclass D\nend\n\ndef run(input)\nvalue=(format(\"%.*s\"));[\"ok\",value.bytes]\nend",
+    "go_error": "format dynamic precision is not supported",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_edge_route_2_uncaught",
+    "source": "class C\ndef to_s\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input)\nvalue=((format(7,C.new)).to_s);[\"ok\",value.bytes]\nend",
+    "go_error": "format expects a string format",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_edge_route_4_uncaught",
+    "source": "class C\ndef to_s\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input)\nvalue=((format(\"%s\",C.new,a:C.new)).to_s);[\"ok\",value.bytes]\nend",
+    "go_error": "format does not take keyword arguments",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_edge_route_5_uncaught",
+    "source": "class C\ndef to_s\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input)\nvalue=((format(\"%s\",C.new) {raise \"block\"}).to_s);[\"ok\",value.bytes]\nend",
+    "go_error": "format does not accept blocks",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_edge_route_6_uncaught",
+    "source": "class C\ndef to_s\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input)\nvalue=((\"%s\".send(:%,7)).to_s);[\"ok\",value.bytes]\nend",
+    "go_error": "unknown string method %",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_edge_route_11_uncaught",
+    "source": "class C\ndef to_s\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input)\nvalue=((format).to_s);[\"ok\",value.bytes]\nend",
+    "go_error": "format is a method and cannot be used as a value; call it with format(...)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_edge_route_12_uncaught",
+    "source": "class C\ndef to_s\nprint(\"C\");\"custom\"\nend\nend\n\ndef run(input)\nvalue=((sprintf).to_s);[\"ok\",value.bytes]\nend",
+    "go_error": "sprintf is a method and cannot be used as a value; call it with sprintf(...)",
+    "stdout": true,
+    "stderr": true
+  },
+  {
+    "name": "format_malformed_malformed_2335_uncaught",
+    "source": "def run(input)\nx=format(\"%21$ 0🙂g[2]k\",10**30);[\"ok\",x.bytes]\nend",
+    "go_error": "format references missing operand 21"
+  },
+  {
+    "name": "format_malformed_malformed_2348_uncaught",
+    "source": "def run(input)\nx=format(\"%221$#wk\",7,1.5,\"é\\xff\");[\"ok\",x.bytes]\nend",
+    "go_error": "format references missing operand 221"
+  },
+  {
+    "name": "format_malformed_malformed_2354_uncaught",
+    "source": "def run(input)\nx=format(\"%291$k\",1.5);[\"ok\",x.bytes]\nend",
+    "go_error": "format references missing operand 291"
+  },
+  {
+    "name": "format_malformed_malformed_2596_uncaught",
+    "source": "def run(input)\nx=format(\"%91$#kw s\",10**30,10**30,10**30);[\"ok\",x.bytes]\nend",
+    "go_error": "format references missing operand 91"
   }
 ]

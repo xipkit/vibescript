@@ -10,22 +10,88 @@ struct Output {
     bytes: Option<Buffer<u8>>,
     length: usize,
     limit: usize,
-    header: usize,
+    header: Option<usize>,
+    prefix: bool,
+    runes: Option<usize>,
 }
 
 impl Output {
     fn append(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
+        if self.done() {
+            return Ok(());
+        }
+        let bytes = if self.prefix {
+            &bytes[..bytes.len().min(self.limit - self.length)]
+        } else {
+            bytes
+        };
         if bytes.len() > self.limit - self.length {
             return ctx.guard(ErrorKind::OutputLimit, "replacement output exceeds 1 MiB");
         }
         self.length += bytes.len();
+        if let Some(runes) = &mut self.runes {
+            *runes += ops::runes(ctx, bytes)?.0;
+        }
         if let Some(output) = &mut self.bytes {
             output.extend(ctx, bytes)
         } else {
             ctx.work_bytes(bytes.len())?;
-            ctx.check_memory(self.header + self.length)
+            if let Some(header) = self.header {
+                ctx.check_memory(header + self.length)?;
+            }
+            Ok(())
         }
     }
+
+    fn done(&self) -> bool {
+        self.prefix && self.length == self.limit
+    }
+}
+
+pub(crate) fn measure(
+    ctx: &mut CallContext,
+    value: &Value,
+    limit: usize,
+    prefix: bool,
+) -> Result<usize> {
+    ctx.checkpoint()?;
+    let mut output = Output {
+        bytes: None,
+        length: 0,
+        limit,
+        header: None,
+        prefix,
+        runes: None,
+    };
+    visit(ctx, value, &mut output, 0)?;
+    Ok(output.length)
+}
+
+pub(crate) fn measure_runes(ctx: &mut CallContext, value: &Value) -> Result<usize> {
+    let mut output = Output {
+        bytes: None,
+        length: 0,
+        limit: usize::MAX,
+        header: None,
+        prefix: false,
+        runes: Some(0),
+    };
+    visit(ctx, value, &mut output, 0)?;
+    Ok(output.runes.unwrap())
+}
+
+pub(crate) fn prefix(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
+    let length = measure(ctx, value, limit, true)?;
+    let mut output = Output {
+        bytes: Some(Buffer::with_capacity(ctx, length)?),
+        length: 0,
+        limit: length,
+        header: None,
+        prefix: true,
+        runes: None,
+    };
+    visit(ctx, value, &mut output, 0)?;
+    Value::from_bytes(ctx, output.bytes.unwrap())
 }
 
 pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Value> {
@@ -40,7 +106,9 @@ pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
         bytes: None,
         length: 0,
         limit,
-        header: Bytes::header_bytes(),
+        header: Some(Bytes::header_bytes()),
+        prefix: false,
+        runes: None,
     };
     visit(ctx, value, &mut output, 0)?;
     let length = output.length;
@@ -60,7 +128,9 @@ pub(crate) fn output(
         bytes: None,
         length: 0,
         limit,
-        header: 0,
+        header: Some(0),
+        prefix: false,
+        runes: None,
     };
     visit(ctx, value, &mut output, 0)?;
     output.bytes = Some(Buffer::with_capacity(
@@ -77,6 +147,9 @@ pub(crate) fn output(
 }
 
 fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize) -> Result<()> {
+    if output.done() {
+        return Ok(());
+    }
     ctx.charge(1)?;
     if depth >= MAX_VALUE_DEPTH && matches!(value.0, Kind::Array(_) | Kind::Hash(_)) {
         return ctx.guard(ErrorKind::Recursion, "replacement string nesting too deep");
@@ -93,6 +166,9 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
                     output.append(ctx, b", ")?;
                 }
                 visit(ctx, value, output, depth + 1)?;
+                if output.done() {
+                    break;
+                }
             }
             output.append(ctx, b"]")
         }
@@ -110,6 +186,9 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
                 output.append(ctx, key.require_bytes()?)?;
                 output.append(ctx, b": ")?;
                 visit(ctx, value, output, depth + 1)?;
+                if output.done() {
+                    break;
+                }
             }
             output.append(ctx, b"}")
         }
@@ -144,7 +223,7 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
             output.append(ctx, scalar.bytes())
         }
         _ => {
-            if matches!(value.0, Kind::Big(_)) {
+            if !output.prefix && matches!(value.0, Kind::Big(_)) {
                 let bits = crate::integer::bits(value);
                 let minimum = (bits.saturating_sub(1) as u128 * 301029 / 1_000_000) + 1;
                 if minimum > (output.limit - output.length) as u128 {
@@ -161,6 +240,41 @@ fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize
 mod tests {
     use super::*;
     use crate::CallOptions;
+
+    #[test]
+    fn precision_prefixes_stop_before_expanding_shared_graphs() {
+        let mut value = Value::array(vec![Value::bytes(vec![b'x'; 1 << 20])]);
+        for _ in 0..24 {
+            value = Value::array(vec![value.clone(), value]);
+        }
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.options.limits.steps = Some(100);
+        let result = prefix(&mut ctx, &value, 1).unwrap();
+        assert_eq!(result.as_bytes(), Some(b"[".as_slice()));
+        assert!(ctx.stats().peak_memory_bytes < 128);
+        drop(result);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn measured_and_rendered_prefixes_preserve_bytes_and_boundaries() {
+        let value = Value::array(vec![
+            Value::bytes([0xc3, 0xa9, 0xff]),
+            Value::hash(vec![(b"x".to_vec(), Value::int(7))]),
+        ]);
+        let expected = b"[\xc3\xa9\xff, {x: 7}]";
+        for limit in 0..=expected.len() + 1 {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let length = measure(&mut ctx, &value, limit, true).unwrap();
+            assert_eq!(length, expected.len().min(limit));
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert!(ctx.stats().peak_memory_bytes < 256);
+            let result = prefix(&mut ctx, &value, limit).unwrap();
+            assert_eq!(result.as_bytes(), Some(&expected[..length]));
+            drop(result);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
 
     #[test]
     fn expansion_preflight_does_not_copy_shared_payloads() {

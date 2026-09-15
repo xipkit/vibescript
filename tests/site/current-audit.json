@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "a4a446cfdc250936300724a39c3e8af0d7a20bc6",
-  "dirty": " M docs/forwarding-differences.json\n M docs/forwarding.md\n M docs/language-port.md\n M docs/options-hash-differences.json\n M docs/options-hash.md\n M docs/output-differences.json\n M docs/output.md\n M docs/types.md\n M src/address.rs\n M src/builtin.rs\n M src/bytecode.rs\n M src/shapes.rs\n M src/types.rs\n M src/vm.rs\n M tests/language-errors.json\n M tests/language.json\n?? src/types/\n?? tests/type_diagnostics.rs\n",
+  "source_revision": "c2bd2d1810cf90d709526d5ffd81f2f8e8eeb236",
+  "dirty": " M README.md\n M docs/classes.md\n M docs/language-port.md\n M src/arguments.rs\n M src/builtin.rs\n M src/lib.rs\n M src/ops.rs\n M src/text/bounded.rs\n M src/vm.rs\n M src/vm/handlers.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/formatting-boundaries.json\n?? docs/formatting-differences.json\n?? docs/formatting.md\n?? licenses/format-NOTICE.txt\n?? src/format.rs\n?? src/format/\n?? src/vm/format.rs\n?? tests/formatting.rs\n",
   "binary_sha256": {
-    "go-simd": "601a00b4843861ba00bec637d76f6a44a55dccd47eab078830a1f1607b708664",
-    "rust-simd": "2cb8b07e06688e9c0efc6f6ad6103a82a8ae71ec4126c528dd0234b1c1e412dd"
+    "go-simd": "c3277296e6d43551691331b7bb2e256ddaf7a89267708cf20c46d14420415941",
+    "rust-simd": "cf34098afdbc70ec341cb4df8752bb49cfe1dd7700d0e06c6ae1824a89fad6ea"
   },
   "counts": {
     "match": 188,
