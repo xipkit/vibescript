@@ -130,6 +130,8 @@ pub struct CallContext {
     pub(crate) importing_objects: bool,
     pub(crate) enum_rebind: crate::enums::Rebind,
     pub(crate) random_source: Option<crate::random::Source>,
+    pub(crate) output_writer: Option<crate::output::Writer>,
+    pub(crate) error_writer: Option<crate::output::Writer>,
     pub(crate) random: Option<crate::random::Seeded>,
 }
 
@@ -145,6 +147,8 @@ impl CallContext {
             importing_objects: false,
             enum_rebind: crate::enums::Rebind::default(),
             random_source: None,
+            output_writer: None,
+            error_writer: None,
             random: None,
         }
     }

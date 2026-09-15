@@ -1244,8 +1244,8 @@
   ],
   "probe_sha256": "e96086e9d86c91119f5c95c810a8aa428a700350de1f943604a6201aeacf0c8f",
   "binary_sha256": {
-    "go-test": "5f41f1f74323a5cce698b0599fd3c0c13f0e52beeac8f177866d7647d2dc6974",
-    "rust-portable": "2a88712059f743badffd9cbb510d6a4f5eea73cebea4e77c389827f7fd947128",
-    "rust-simd": "09a34fe9902bd464f37b059fbc8194879a0ae92d375f825064e60c5feb1adfef"
+    "go-test": "122b59623acd3ce2e015a33e02e626faa2541ba1a2891558e19c62fc0a33001a",
+    "rust-portable": "35d822c3402fb861dda7e61126ccd678a006294ca0aeb3e8a229fc25dbf6d924",
+    "rust-simd": "1c95caa4fa75abcaa076999532b009d9b104cb3996caad7261b5a9293256acb5"
   }
 }

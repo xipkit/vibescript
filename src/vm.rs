@@ -17,6 +17,7 @@ mod dispatch;
 mod handlers;
 mod namespaces;
 mod operators;
+mod output;
 use handlers::{Control, Event};
 
 #[derive(Default)]
@@ -28,6 +29,7 @@ enum ReturnTo {
     Local(usize),
     Negate,
     Text(Value),
+    Output,
 }
 
 struct Frame {
@@ -834,13 +836,11 @@ pub(crate) fn execute(
                         }
                         Op::GlobalReceiver(index, auto) => {
                             let mut value = global_value(program, ctx, &mut storage, index)?;
-                            if auto {
-                                if let (Kind::Builtin(current), Kind::Builtin(original)) =
-                                    (&value.0, &program.globals[index].1.0)
-                                {
-                                    if current == original {
-                                        value = current.read(ctx)?;
-                                    }
+                            if let (Kind::Builtin(current), Kind::Builtin(original)) =
+                                (&value.0, &program.globals[index].1.0)
+                            {
+                                if current == original && (auto || !current.auto()) {
+                                    value = current.read(ctx)?;
                                 }
                             }
                             stack.push(ctx, value)?;
@@ -860,7 +860,7 @@ pub(crate) fn execute(
                             if let (Kind::Builtin(current), Kind::Builtin(original)) =
                                 (&value.0, &program.globals[index].1.0)
                             {
-                                if current == original && current.auto() {
+                                if current == original {
                                     value = current.read(ctx)?;
                                     root = None;
                                 }
@@ -1909,6 +1909,7 @@ pub(crate) fn execute(
                             };
                             let target = match target {
                                 crate::arguments::Target::Raise(..)
+                                | crate::arguments::Target::Output(..)
                                 | crate::arguments::Target::Receiver(..) => unreachable!(),
                                 crate::arguments::Target::Unbound(kind, name) => {
                                     let required = if kind == "hash" {
@@ -2000,6 +2001,18 @@ pub(crate) fn execute(
                             };
                             match target {
                                 Invocation::Builtin(builtin) => {
+                                    if let crate::builtin::Builtin::Output(kind) = builtin {
+                                        output::start(
+                                            program,
+                                            ctx,
+                                            &mut frames,
+                                            &mut storage,
+                                            &mut stack,
+                                            kind,
+                                            args,
+                                        )?;
+                                        continue;
+                                    }
                                     let value = builtin.call(
                                         ctx,
                                         &args.positional.data,

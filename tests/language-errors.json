@@ -119186,5 +119186,2007 @@
     "name": "options_reject_matrix_prefix_prefix_method",
     "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(1,retries:3)\nend\nend\ndef run(input)\nC.new.take(1,retries:3)\nend",
     "go_error": "missing argument options"
+  },
+  {
+    "name": "output_puts_bare_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_index_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs[1]\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_begin_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\n(begin\nputs\nend)(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_call_member_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs.call(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_scope_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs::call(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_safe_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs&.call(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs.send(:call,\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_public_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs.public_send(:call,\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=puts\na(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_scoped_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=puts::call\na(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_hash_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na={f:puts}\na.f(\"x\")\ntrue\nend",
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_puts_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(a:1)\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_puts_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(\"x\") {raise \"block ran\"}\nend",
+    "go_error": "puts does not accept blocks"
+  },
+  {
+    "name": "output_puts_kw_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(a:1) {raise \"block ran\"}\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_puts_missing_empty_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nputs()\nend",
+    "go_error": "puts output writer is not configured"
+  },
+  {
+    "name": "output_puts_missing_arg_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nputs(\"x\")\nend",
+    "go_error": "puts output writer is not configured"
+  },
+  {
+    "name": "output_puts_missing_kw_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nputs(a:1)\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_puts_missing_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nputs() {1}\nend",
+    "go_error": "puts does not accept blocks"
+  },
+  {
+    "name": "output_puts_missing_kw_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nputs(a:1) {1}\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_puts_class_error_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"render error\"\nend\nend\ndef run(input)\nputs(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "render error"
+  },
+  {
+    "name": "output_puts_class_typed_error_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nputs(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "return value for to_s expected string, got int"
+  },
+  {
+    "name": "output_print_bare_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_index_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint[1]\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_begin_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\n(begin\nprint\nend)(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_call_member_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint.call(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_scope_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint::call(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_safe_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint&.call(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint.send(:call,\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_public_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint.public_send(:call,\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=print\na(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_scoped_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=print::call\na(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_hash_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na={f:print}\na.f(\"x\")\ntrue\nend",
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_print_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(a:1)\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_print_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(\"x\") {raise \"block ran\"}\nend",
+    "go_error": "print does not accept blocks"
+  },
+  {
+    "name": "output_print_kw_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(a:1) {raise \"block ran\"}\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_print_missing_empty_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nprint()\nend",
+    "go_error": "print output writer is not configured"
+  },
+  {
+    "name": "output_print_missing_arg_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nprint(\"x\")\nend",
+    "go_error": "print output writer is not configured"
+  },
+  {
+    "name": "output_print_missing_kw_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nprint(a:1)\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_print_missing_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nprint() {1}\nend",
+    "go_error": "print does not accept blocks"
+  },
+  {
+    "name": "output_print_missing_kw_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nprint(a:1) {1}\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_print_class_error_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"render error\"\nend\nend\ndef run(input)\nprint(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "render error"
+  },
+  {
+    "name": "output_print_class_typed_error_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nprint(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "return value for to_s expected string, got int"
+  },
+  {
+    "name": "output_warn_bare_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_index_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn[1]\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_begin_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\n(begin\nwarn\nend)(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_call_member_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn.call(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_scope_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn::call(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_safe_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn&.call(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn.send(:call,\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_public_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn.public_send(:call,\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=warn\na(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_scoped_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=warn::call\na(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_hash_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na={f:warn}\na.f(\"x\")\ntrue\nend",
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_warn_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(a:1)\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_warn_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(\"x\") {raise \"block ran\"}\nend",
+    "go_error": "warn does not accept blocks"
+  },
+  {
+    "name": "output_warn_kw_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(a:1) {raise \"block ran\"}\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_warn_missing_empty_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nwarn()\nend",
+    "go_error": "warn error writer is not configured"
+  },
+  {
+    "name": "output_warn_missing_arg_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nwarn(\"x\")\nend",
+    "go_error": "warn error writer is not configured"
+  },
+  {
+    "name": "output_warn_missing_kw_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nwarn(a:1)\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_warn_missing_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nwarn() {1}\nend",
+    "go_error": "warn does not accept blocks"
+  },
+  {
+    "name": "output_warn_missing_kw_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\nwarn(a:1) {1}\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_warn_class_error_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"render error\"\nend\nend\ndef run(input)\nwarn(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "render error"
+  },
+  {
+    "name": "output_warn_class_typed_error_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nwarn(\"before\",C.new,\"after\")\ntrue\nend",
+    "go_error": "return value for to_s expected string, got int"
+  },
+  {
+    "name": "output_p_bare_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_index_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np[1]\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_begin_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\n(begin\np\nend)(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_call_member_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np.call(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_scope_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np::call(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_safe_call_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np&.call(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np.send(:call,\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_public_send_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np.public_send(:call,\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=p\na(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_scoped_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na=p::call\na(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_hash_alias_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\na={f:p}\na.f(\"x\")\ntrue\nend",
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_p_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(a:1)\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_p_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(\"x\") {raise \"block ran\"}\nend",
+    "go_error": "p does not accept blocks"
+  },
+  {
+    "name": "output_p_kw_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(a:1) {raise \"block ran\"}\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_p_missing_empty_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\np()\nend",
+    "go_error": "p output writer is not configured"
+  },
+  {
+    "name": "output_p_missing_arg_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\np(\"x\")\nend",
+    "go_error": "p output writer is not configured"
+  },
+  {
+    "name": "output_p_missing_kw_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\np(a:1)\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_p_missing_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\np() {1}\nend",
+    "go_error": "p does not accept blocks"
+  },
+  {
+    "name": "output_p_missing_kw_block_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "\ndef run(input)\np(a:1) {1}\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_writer_split_stdout_uncaught",
+    "stdout": true,
+    "stderr": false,
+    "source": "\ndef run(input)\nwarn(\"x\")\nend",
+    "go_error": "warn error writer is not configured"
+  },
+  {
+    "name": "output_writer_split_stderr_uncaught",
+    "stdout": false,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(\"x\")\nend",
+    "go_error": "puts output writer is not configured"
+  },
+  {
+    "name": "output_second_render_failure_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"render failed\"\nend\nend\ndef run(input)\nputs(\"first\",C.new,\"third\")\nend",
+    "go_error": "render failed"
+  },
+  {
+    "name": "output_matrix_puts_args_bad_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(*nil)\nend",
+    "go_error": "splat argument must be an array, got nil"
+  },
+  {
+    "name": "output_matrix_puts_args_bad_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash, got nil"
+  },
+  {
+    "name": "output_matrix_puts_args_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(1,**{a:2})\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_puts_args_duplicate_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(a:1,**{a:2})\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_puts_args_bad_kw_and_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(a:1) do\nraise \"block\"\nend\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_puts_args_bare_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs 1 do\nraise \"block\"\nend\nend",
+    "go_error": "puts does not accept blocks"
+  },
+  {
+    "name": "output_matrix_puts_args_keyword_effect_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs(print(\"a\"),key:print(\"b\"))\nend",
+    "go_error": "puts does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_puts_args_assigned_nil_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nputs=nil\nputs(print(\"evaluated\"))\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "output_matrix_puts_tos_coerced_return_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nputs(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "return value for to_s expected int, got float"
+  },
+  {
+    "name": "output_matrix_puts_tos_yield_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nyield\nend\nend\ndef run(input)\nputs(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "output_matrix_puts_configured_10_uncaught",
+    "stdout": true,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nputs(C.new)\ntrue\nend",
+    "go_error": "rendered"
+  },
+  {
+    "name": "output_matrix_puts_configured_01_uncaught",
+    "stdout": false,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nputs(C.new)\ntrue\nend",
+    "go_error": "puts output writer is not configured"
+  },
+  {
+    "name": "output_matrix_puts_configured_00_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nputs(C.new)\ntrue\nend",
+    "go_error": "puts output writer is not configured"
+  },
+  {
+    "name": "output_matrix_print_args_bad_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(*nil)\nend",
+    "go_error": "splat argument must be an array, got nil"
+  },
+  {
+    "name": "output_matrix_print_args_bad_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash, got nil"
+  },
+  {
+    "name": "output_matrix_print_args_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(1,**{a:2})\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_print_args_duplicate_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(a:1,**{a:2})\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_print_args_bad_kw_and_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(a:1) do\nraise \"block\"\nend\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_print_args_bare_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint 1 do\nraise \"block\"\nend\nend",
+    "go_error": "print does not accept blocks"
+  },
+  {
+    "name": "output_matrix_print_args_keyword_effect_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint(print(\"a\"),key:print(\"b\"))\nend",
+    "go_error": "print does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_print_args_assigned_nil_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nprint=nil\nprint(print(\"evaluated\"))\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "output_matrix_print_tos_coerced_return_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nprint(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "return value for to_s expected int, got float"
+  },
+  {
+    "name": "output_matrix_print_tos_yield_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nyield\nend\nend\ndef run(input)\nprint(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "output_matrix_print_configured_10_uncaught",
+    "stdout": true,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nprint(C.new)\ntrue\nend",
+    "go_error": "rendered"
+  },
+  {
+    "name": "output_matrix_print_configured_01_uncaught",
+    "stdout": false,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nprint(C.new)\ntrue\nend",
+    "go_error": "print output writer is not configured"
+  },
+  {
+    "name": "output_matrix_print_configured_00_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nprint(C.new)\ntrue\nend",
+    "go_error": "print output writer is not configured"
+  },
+  {
+    "name": "output_matrix_warn_args_bad_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(*nil)\nend",
+    "go_error": "splat argument must be an array, got nil"
+  },
+  {
+    "name": "output_matrix_warn_args_bad_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash, got nil"
+  },
+  {
+    "name": "output_matrix_warn_args_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(1,**{a:2})\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_warn_args_duplicate_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(a:1,**{a:2})\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_warn_args_bad_kw_and_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(a:1) do\nraise \"block\"\nend\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_warn_args_bare_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn 1 do\nraise \"block\"\nend\nend",
+    "go_error": "warn does not accept blocks"
+  },
+  {
+    "name": "output_matrix_warn_args_keyword_effect_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn(print(\"a\"),key:print(\"b\"))\nend",
+    "go_error": "warn does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_warn_args_assigned_nil_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\nwarn=nil\nwarn(print(\"evaluated\"))\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "output_matrix_warn_tos_coerced_return_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nwarn(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "return value for to_s expected int, got float"
+  },
+  {
+    "name": "output_matrix_warn_tos_yield_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "class C\ndef to_s\nyield\nend\nend\ndef run(input)\nwarn(\"first\",C.new,\"last\")\ntrue\nend",
+    "go_error": "no block given"
+  },
+  {
+    "name": "output_matrix_warn_configured_10_uncaught",
+    "stdout": true,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nwarn(C.new)\ntrue\nend",
+    "go_error": "warn error writer is not configured"
+  },
+  {
+    "name": "output_matrix_warn_configured_01_uncaught",
+    "stdout": false,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nwarn(C.new)\ntrue\nend",
+    "go_error": "rendered"
+  },
+  {
+    "name": "output_matrix_warn_configured_00_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\nwarn(C.new)\ntrue\nend",
+    "go_error": "warn error writer is not configured"
+  },
+  {
+    "name": "output_matrix_p_args_bad_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(*nil)\nend",
+    "go_error": "splat argument must be an array, got nil"
+  },
+  {
+    "name": "output_matrix_p_args_bad_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(**nil)\nend",
+    "go_error": "keyword splat argument must be a hash, got nil"
+  },
+  {
+    "name": "output_matrix_p_args_kw_splat_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(1,**{a:2})\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_p_args_duplicate_kw_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(a:1,**{a:2})\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_p_args_bad_kw_and_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(a:1) do\nraise \"block\"\nend\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_p_args_bare_block_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np 1 do\nraise \"block\"\nend\nend",
+    "go_error": "p does not accept blocks"
+  },
+  {
+    "name": "output_matrix_p_args_keyword_effect_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np(print(\"a\"),key:print(\"b\"))\nend",
+    "go_error": "p does not accept keyword arguments"
+  },
+  {
+    "name": "output_matrix_p_args_assigned_nil_uncaught",
+    "stdout": true,
+    "stderr": true,
+    "source": "\ndef run(input)\np=nil\np(print(\"evaluated\"))\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "output_matrix_p_configured_01_uncaught",
+    "stdout": false,
+    "stderr": true,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\np(C.new)\ntrue\nend",
+    "go_error": "p output writer is not configured"
+  },
+  {
+    "name": "output_matrix_p_configured_00_uncaught",
+    "stdout": false,
+    "stderr": false,
+    "source": "class C\ndef to_s\nraise \"rendered\"\nend\nend\ndef run(input)\np(C.new)\ntrue\nend",
+    "go_error": "p output writer is not configured"
+  },
+  {
+    "name": "output_guard_puts_itself_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:itself);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_itself_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:itself)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_itself_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:itself,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_itself_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_dup_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:dup);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_dup_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:dup)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_dup_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_dup_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_clone_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:clone);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_clone_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:clone)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_clone_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:clone,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_clone_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:clone,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_freeze_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:freeze);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_freeze_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:freeze)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_freeze_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_freeze_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:freeze,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_tap_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:tap);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_tap_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:tap)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_tap_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:tap,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_tap_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:tap,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_yield_self_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:yield_self);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_yield_self_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:yield_self)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_yield_self_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_yield_self_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:yield_self,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_public_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=puts.send(:public_send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_public_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:puts.public_send(:public_send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_public_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.send(:public_send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_public_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.send(:public_send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_safe_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs&.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_puts_expanded_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nputs.call(*[print(\"effect\")])\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "puts is a method and cannot be used as a value; call it with puts(...)"
+  },
+  {
+    "name": "output_guard_print_itself_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:itself);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_itself_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:itself)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_itself_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:itself,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_itself_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_dup_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:dup);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_dup_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:dup)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_dup_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_dup_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_clone_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:clone);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_clone_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:clone)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_clone_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:clone,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_clone_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:clone,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_freeze_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:freeze);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_freeze_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:freeze)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_freeze_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_freeze_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:freeze,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_tap_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:tap);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_tap_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:tap)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_tap_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:tap,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_tap_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:tap,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_yield_self_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:yield_self);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_yield_self_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:yield_self)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_yield_self_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_yield_self_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:yield_self,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_public_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=print.send(:public_send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_public_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:print.public_send(:public_send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_public_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.send(:public_send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_public_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.send(:public_send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_safe_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint&.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_print_expanded_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nprint.call(*[print(\"effect\")])\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "print is a method and cannot be used as a value; call it with print(...)"
+  },
+  {
+    "name": "output_guard_warn_itself_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:itself);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_itself_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:itself)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_itself_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:itself,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_itself_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_dup_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:dup);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_dup_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:dup)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_dup_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_dup_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_clone_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:clone);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_clone_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:clone)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_clone_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:clone,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_clone_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:clone,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_freeze_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:freeze);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_freeze_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:freeze)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_freeze_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_freeze_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:freeze,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_tap_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:tap);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_tap_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:tap)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_tap_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:tap,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_tap_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:tap,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_yield_self_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:yield_self);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_yield_self_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:yield_self)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_yield_self_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_yield_self_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:yield_self,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_public_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=warn.send(:public_send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_public_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:warn.public_send(:public_send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_public_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.send(:public_send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_public_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.send(:public_send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_safe_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn&.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_warn_expanded_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nwarn.call(*[print(\"effect\")])\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "warn is a method and cannot be used as a value; call it with warn(...)"
+  },
+  {
+    "name": "output_guard_p_itself_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:itself);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_itself_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:itself)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_itself_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:itself,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_itself_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_dup_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:dup);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_dup_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:dup)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_dup_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:dup,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_dup_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_clone_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:clone);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_clone_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:clone)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_clone_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:clone,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_clone_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:clone,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_freeze_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:freeze);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_freeze_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:freeze)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_freeze_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:freeze,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_freeze_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:freeze,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_tap_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:tap);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_tap_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:tap)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_tap_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:tap,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_tap_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:tap,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_yield_self_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:yield_self);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_yield_self_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:yield_self)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_yield_self_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:yield_self,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_yield_self_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:yield_self,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_public_send_alias_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nf=p.send(:public_send);f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_public_send_field_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nh={f:p.public_send(:public_send)};h.f(C.new);true\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_public_send_effect_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.send(:public_send,print(\"effect\")) {print(\"block\")}\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_public_send_safe_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.send(:public_send,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_safe_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np&.call(print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_p_expanded_call_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\np.call(*[print(\"effect\")])\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "p is a method and cannot be used as a value; call it with p(...)"
+  },
+  {
+    "name": "output_guard_money_itself_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nmoney.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+  },
+  {
+    "name": "output_guard_money_dup_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nmoney.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "money is a method and cannot be used as a value; call it with money(...)"
+  },
+  {
+    "name": "output_guard_money_cents_itself_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nmoney_cents.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "money_cents is a method and cannot be used as a value; call it with money_cents(...)"
+  },
+  {
+    "name": "output_guard_money_cents_dup_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nmoney_cents.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "money_cents is a method and cannot be used as a value; call it with money_cents(...)"
+  },
+  {
+    "name": "output_guard_to_int_itself_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nto_int.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "output_guard_to_int_dup_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nto_int.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "to_int is a method and cannot be used as a value; call it with to_int(...)"
+  },
+  {
+    "name": "output_guard_to_float_itself_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nto_float.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "to_float is a method and cannot be used as a value; call it with to_float(...)"
+  },
+  {
+    "name": "output_guard_to_float_dup_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nto_float.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "to_float is a method and cannot be used as a value; call it with to_float(...)"
+  },
+  {
+    "name": "output_guard_srand_itself_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nsrand.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "srand is a method and cannot be used as a value; call it with srand(...)"
+  },
+  {
+    "name": "output_guard_srand_dup_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nsrand.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "srand is a method and cannot be used as a value; call it with srand(...)"
+  },
+  {
+    "name": "output_guard_random_id_itself_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nrandom_id.send(:itself,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
+  },
+  {
+    "name": "output_guard_random_id_dup_uncaught",
+    "source": "class C\ndef to_s\n\"custom\"\nend\nend\ndef run(input)\nrandom_id.send(:dup,print(\"effect\"))\nend",
+    "stdout": true,
+    "stderr": true,
+    "go_error": "random_id is a method and cannot be used as a value; call it with random_id(...)"
   }
 ]

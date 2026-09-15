@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "6c561d2fb049f4fba2f7eba2ea2aa49c0f673f56",
-  "dirty": " M docs/forwarding-differences.json\n M docs/forwarding.md\n M docs/language-port.md\n M src/arguments.rs\n M src/bytecode.rs\n M src/bytecode/calls.rs\n M src/members/lifecycle.rs\n M src/syntax.rs\n M src/vm.rs\n M src/vm/dispatch.rs\n M src/vm/dispatch/send.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/options-hash-differences.json\n?? docs/options-hash.md\n?? tests/options_hash.rs\n",
+  "source_revision": "c5bbc7d003911715ee06eeaa6ff04c0cd129f166",
+  "dirty": " M README.md\n M benchmarks/go/main.go\n M docs/language-port.md\n M examples/compare.rs\n M scripts/compare.py\n M scripts/fixtures.py\n M src/arguments.rs\n M src/budget.rs\n M src/builtin.rs\n M src/lib.rs\n M src/main.rs\n M src/text/bounded.rs\n M src/text/inspect.rs\n M src/vm.rs\n M src/vm/handlers.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/language.rs\n?? docs/output-differences.json\n?? docs/output.md\n?? src/output.rs\n?? src/vm/output.rs\n?? tests/output.rs\n",
   "binary_sha256": {
-    "go-simd": "0602815635a5f5d66ed72a4024b9aae9e9b1bd8a0a5f75b35022a8b1eff707f3",
-    "rust-simd": "09a34fe9902bd464f37b059fbc8194879a0ae92d375f825064e60c5feb1adfef"
+    "go-simd": "6deee5bebce327e1b563b096f3e94b84b7c5661c0447beee6837165243b97783",
+    "rust-simd": "1c95caa4fa75abcaa076999532b009d9b104cb3996caad7261b5a9293256acb5"
   },
   "counts": {
     "match": 188,

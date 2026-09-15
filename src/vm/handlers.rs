@@ -798,6 +798,9 @@ pub(super) fn apply_control(
                 return Ok(None);
             }
             match return_to {
+                ReturnTo::Output => {
+                    output::resume(program, ctx, frames, storage, stack, Some(value))?
+                }
                 ReturnTo::Stack => stack.push(ctx, value)?,
                 ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value))?,
                 ReturnTo::Assigned(value) => stack.push(ctx, value)?,

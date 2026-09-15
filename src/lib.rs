@@ -35,6 +35,7 @@ mod numeric;
 mod objects;
 mod ops;
 mod ordering;
+mod output;
 mod printable;
 mod random;
 mod range;
@@ -68,11 +69,34 @@ type HostCallback =
 pub struct Engine {
     hosts: BTreeMap<String, HostCallback>,
     random_source: Option<random::Source>,
+    output_writer: Option<output::Writer>,
+    error_writer: Option<output::Writer>,
 }
 impl Engine {
     /// Creates an engine with core builtins and no external capabilities.
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Sets the writer used by `puts`, `print`, and `p` in subsequently compiled scripts.
+    ///
+    /// The callback must write the entire byte slice or return an error. It may run
+    /// concurrently and must cooperate with the supplied context's cancellation and
+    /// deadlines. Bytes retained by the writer belong to the host. No writer is
+    /// configured by default; output helpers then report a script error.
+    pub fn set_output_writer(
+        &mut self,
+        writer: impl Fn(&mut CallContext, &[u8]) -> Result<()> + Send + Sync + 'static,
+    ) {
+        self.output_writer = Some(Arc::new(writer));
+    }
+    /// Sets the writer used by `warn` in subsequently compiled scripts.
+    ///
+    /// It follows the same full-write and cooperation contract as [`Self::set_output_writer`].
+    pub fn set_error_writer(
+        &mut self,
+        writer: impl Fn(&mut CallContext, &[u8]) -> Result<()> + Send + Sync + 'static,
+    ) {
+        self.error_writer = Some(Arc::new(writer));
     }
     /// Sets the entropy reader used by subsequently compiled scripts.
     ///
@@ -131,6 +155,8 @@ impl Engine {
                 program,
                 hosts,
                 random_source: self.random_source.clone(),
+                output_writer: self.output_writer.clone(),
+                error_writer: self.error_writer.clone(),
             }),
         })
     }
@@ -140,6 +166,8 @@ struct ScriptInner {
     program: bytecode::Program,
     hosts: Vec<HostCallback>,
     random_source: Option<random::Source>,
+    output_writer: Option<output::Writer>,
+    error_writer: Option<output::Writer>,
 }
 
 /// Immutable compiled code, safely shared across independent calls and threads.
@@ -165,6 +193,8 @@ impl Script {
     ) -> Result<Outcome> {
         let mut ctx = CallContext::new(options);
         ctx.random_source = self.inner.random_source.clone();
+        ctx.output_writer = self.inner.output_writer.clone();
+        ctx.error_writer = self.inner.error_writer.clone();
         ctx.checkpoint()?;
         let function = *self
             .inner

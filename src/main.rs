@@ -4,7 +4,7 @@ use std::{
     process::ExitCode,
     time::{Duration, Instant},
 };
-use vibescript::{CallOptions, Engine, parse_json, stringify_json};
+use vibescript::{CallOptions, Engine, Error, ErrorKind, parse_json, stringify_json};
 
 fn main() -> ExitCode {
     match run() {
@@ -68,7 +68,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let file = file.ok_or("expected source file; use --help")?;
     let source = fs::read_to_string(file)?;
-    let script = Engine::new().compile(&source)?;
+    let mut engine = Engine::new();
+    engine.set_output_writer(|_, bytes| {
+        io::stdout()
+            .lock()
+            .write_all(bytes)
+            .map_err(|error| Error::new(ErrorKind::Host, error.to_string()))
+    });
+    engine.set_error_writer(|_, bytes| {
+        io::stderr()
+            .lock()
+            .write_all(bytes)
+            .map_err(|error| Error::new(ErrorKind::Host, error.to_string()))
+    });
+    let script = engine.compile(&source)?;
     let result = if let Some(name) = function {
         script.call(&name, &input, options)?
     } else {

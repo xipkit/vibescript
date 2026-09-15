@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    Output(crate::output::Kind),
     Assert,
     Regexp(crate::regex::value::Constructor),
     Regex(crate::regex::Utility),
@@ -43,6 +44,7 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Output(crate::output::Kind),
     Assert,
     Regexp,
     Regex,
@@ -61,6 +63,7 @@ pub(crate) enum Global {
 impl Global {
     pub fn name(self) -> &'static str {
         match self {
+            Self::Output(kind) => kind.name(),
             Self::Assert => "assert",
             Self::Regexp => "Regexp",
             Self::Regex => "Regex",
@@ -77,6 +80,9 @@ impl Global {
         }
     }
     pub fn parse(name: &str) -> Option<Self> {
+        if let Some(kind) = crate::output::Kind::parse(name) {
+            return Some(Self::Output(kind));
+        }
         match name {
             "assert" => Some(Self::Assert),
             "Regexp" => Some(Self::Regexp),
@@ -101,6 +107,7 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
             Self::Assert => return Value(Kind::Builtin(Assert)),
             Self::Regexp => [
                 crate::regex::value::Constructor::New,
@@ -231,6 +238,7 @@ impl Builtin {
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::Output(kind) => kind.name(),
             Self::Assert => "assert",
             Self::Regexp(constructor) => constructor.name(),
             Self::Regex(utility) => utility.name(),
@@ -266,6 +274,15 @@ impl Builtin {
     }
 
     pub fn value_error(self) -> Error {
+        if let Self::Output(kind) = self {
+            let name = kind.name();
+            return Error::new(
+                ErrorKind::Type,
+                format!(
+                    "{name} is a method and cannot be used as a value; call it with {name}(...)"
+                ),
+            );
+        }
         Error::new(
             ErrorKind::Type,
             format!(
@@ -283,6 +300,10 @@ impl Builtin {
         block: bool,
     ) -> Result<Value> {
         ctx.checkpoint()?;
+        // Script output calls run through the VM; these helpers cannot escape as values.
+        if matches!(self, Self::Output(_)) {
+            return Err(self.value_error());
+        }
         if self == Self::Assert {
             let Some(condition) = args.first() else {
                 return Err(Error::new(
@@ -418,6 +439,7 @@ impl Builtin {
                 })
             }
             Self::Math(_)
+            | Self::Output(_)
             | Self::Money
             | Self::MoneyCents
             | Self::DurationBuild

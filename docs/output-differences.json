@@ -1,0 +1,284 @@
+{
+  "reference": "Go v0.70.0",
+  "cases": [
+    {
+      "name": "output_matrix_puts_match",
+      "source": "\ndef run(input)\nbegin\nputs(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_match_data",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "620a5b3c6f626a6563743e5d0a",
+        "stderr_hex": ""
+      },
+      "rust": {
+        "stdout_hex": "620a5b625d0a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "name": "output_matrix_puts_match_copy",
+      "source": "\ndef run(input)\nbegin\nputs(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_match_data",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "3c6f626a6563743e0a",
+        "stderr_hex": ""
+      },
+      "rust": {
+        "stdout_hex": "620a",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "name": "output_matrix_print_match",
+      "source": "\ndef run(input)\nbegin\nprint(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_match_data",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "625b3c6f626a6563743e5d",
+        "stderr_hex": ""
+      },
+      "rust": {
+        "stdout_hex": "625b625d",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "name": "output_matrix_print_match_copy",
+      "source": "\ndef run(input)\nbegin\nprint(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_match_data",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "3c6f626a6563743e",
+        "stderr_hex": ""
+      },
+      "rust": {
+        "stdout_hex": "62",
+        "stderr_hex": ""
+      }
+    },
+    {
+      "name": "output_matrix_warn_match",
+      "source": "\ndef run(input)\nbegin\nwarn(\"b\".match(/(a)?(b)/),[\"b\".match(/(a)?(b)/)])\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_match_data",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "",
+        "stderr_hex": "620a5b3c6f626a6563743e5d0a"
+      },
+      "rust": {
+        "stdout_hex": "",
+        "stderr_hex": "620a5b625d0a"
+      }
+    },
+    {
+      "name": "output_matrix_warn_match_copy",
+      "source": "\ndef run(input)\nbegin\nwarn(\"b\".match(/(a)?(b)/).dup)\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_match_data",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "",
+        "stderr_hex": "3c6f626a6563743e0a"
+      },
+      "rust": {
+        "stdout_hex": "",
+        "stderr_hex": "620a"
+      }
+    },
+    {
+      "name": "output_matrix_error_nested",
+      "source": "\ndef run(input)\nbegin\nbegin\nraise \"message\"\nrescue RuntimeError=>e\nputs([e]);p([e]);true\nend\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "expected": true,
+      "policy": "protected_error_rendering",
+      "reason": "Keep protected value string rendering inside collections and duplicates, consistent with the existing Rust value and replacement renderers.",
+      "go": {
+        "stdout_hex": "5b3c6f626a6563743e5d0a5b7b6261636b74726163653a205b22353a313a696e206072756e60222c2022323a313a696e206072756e60225d2c20636c6173733a202252756e74696d654572726f72222c20636f64655f6672616d653a202220202d2d3e206c696e6520352c20636f6c756d6e20315c6e2035207c207261697365205c226d6573736167655c225c6e2020207c205e222c206d6573736167653a20226d657373616765222c20746f5f733a20226d657373616765222c20747970653a202252756e74696d654572726f72227d5d0a",
+        "stderr_hex": ""
+      },
+      "rust": {
+        "stdout_hex": "5b6d6573736167655d0a5b7b6261636b74726163653a205b22353a313a696e206072756e60222c2022323a313a696e206072756e60225d2c20636c6173733a202252756e74696d654572726f72222c20636f64655f6672616d653a202220202d2d3e206c696e6520352c20636f6c756d6e20315c6e2035207c207261697365205c226d6573736167655c225c6e2020207c205e222c206d6573736167653a20226d657373616765222c20746f5f733a20226d657373616765222c20747970653a202252756e74696d654572726f72227d5d0a",
+        "stderr_hex": ""
+      }
+    }
+  ],
+  "diagnostic_wording": [
+    {
+      "name": "output_print_class_typed_error",
+      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nprint(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ]
+    },
+    {
+      "name": "output_puts_class_typed_error",
+      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nputs(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ]
+    },
+    {
+      "name": "output_warn_class_typed_error",
+      "source": "class C\ndef to_s -> String\n7\nend\nend\ndef run(input)\nbegin\nwarn(\"before\",C.new,\"after\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected string, got int"
+      ],
+      "rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ]
+    },
+    {
+      "name": "output_matrix_p_args_bad_kw_splat",
+      "source": "\ndef run(input)\nbegin\np(**nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "keyword splat argument must be a hash, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "keyword splat argument must be a hash"
+      ]
+    },
+    {
+      "name": "output_matrix_p_args_bad_splat",
+      "source": "\ndef run(input)\nbegin\np(*nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "splat argument must be an array, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "splat argument must be an array"
+      ]
+    },
+    {
+      "name": "output_matrix_print_args_bad_kw_splat",
+      "source": "\ndef run(input)\nbegin\nprint(**nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "keyword splat argument must be a hash, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "keyword splat argument must be a hash"
+      ]
+    },
+    {
+      "name": "output_matrix_print_args_bad_splat",
+      "source": "\ndef run(input)\nbegin\nprint(*nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "splat argument must be an array, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "splat argument must be an array"
+      ]
+    },
+    {
+      "name": "output_matrix_print_tos_coerced_return",
+      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nprint(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ]
+    },
+    {
+      "name": "output_matrix_puts_args_bad_kw_splat",
+      "source": "\ndef run(input)\nbegin\nputs(**nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "keyword splat argument must be a hash, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "keyword splat argument must be a hash"
+      ]
+    },
+    {
+      "name": "output_matrix_puts_args_bad_splat",
+      "source": "\ndef run(input)\nbegin\nputs(*nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "splat argument must be an array, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "splat argument must be an array"
+      ]
+    },
+    {
+      "name": "output_matrix_puts_tos_coerced_return",
+      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nputs(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ]
+    },
+    {
+      "name": "output_matrix_warn_args_bad_kw_splat",
+      "source": "\ndef run(input)\nbegin\nwarn(**nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "keyword splat argument must be a hash, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "keyword splat argument must be a hash"
+      ]
+    },
+    {
+      "name": "output_matrix_warn_args_bad_splat",
+      "source": "\ndef run(input)\nbegin\nwarn(*nil)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "splat argument must be an array, got nil"
+      ],
+      "rust": [
+        "RuntimeError",
+        "splat argument must be an array"
+      ]
+    },
+    {
+      "name": "output_matrix_warn_tos_coerced_return",
+      "source": "class C\ndef to_s -> Int\n7.0\nend\nend\ndef run(input)\nbegin\nwarn(\"first\",C.new,\"last\")\ntrue\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
+      "go": [
+        "RuntimeError",
+        "return value for to_s expected int, got float"
+      ],
+      "rust": [
+        "RuntimeError",
+        "value does not match its type annotation"
+      ]
+    }
+  ],
+  "counts": {
+    "protected_output": 7,
+    "diagnostic_wording": 14
+  }
+}

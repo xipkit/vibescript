@@ -1,8 +1,11 @@
+use std::sync::{Arc, Mutex};
 use vibescript::{
     CallOptions, CancellationToken, Engine, ErrorKind, Limits, Value, stringify_json,
 };
 
-fn engine(case: &serde_json::Value) -> Engine {
+type Capture = Option<Arc<Mutex<Vec<u8>>>>;
+
+fn engine(case: &serde_json::Value) -> (Engine, [Capture; 2]) {
     let mut engine = Engine::new();
     if let Some(byte) = case.get("entropy_byte") {
         let byte = u8::try_from(byte.as_u64().unwrap()).unwrap();
@@ -11,7 +14,27 @@ fn engine(case: &serde_json::Value) -> Engine {
             Ok(output.len())
         });
     }
-    engine
+    let output = ["stdout", "stderr"].map(|name| {
+        case[name]
+            .as_bool()
+            .unwrap_or(false)
+            .then(|| Arc::new(Mutex::new(Vec::new())))
+    });
+    if let Some(buffer) = &output[0] {
+        let buffer = buffer.clone();
+        engine.set_output_writer(move |_, bytes| {
+            buffer.lock().unwrap().extend_from_slice(bytes);
+            Ok(())
+        });
+    }
+    if let Some(buffer) = &output[1] {
+        let buffer = buffer.clone();
+        engine.set_error_writer(move |_, bytes| {
+            buffer.lock().unwrap().extend_from_slice(bytes);
+            Ok(())
+        });
+    }
+    (engine, output)
 }
 
 fn call(
@@ -36,7 +59,8 @@ fn language_conformance() {
             .as_str()
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
-        let script = engine(case)
+        let (engine, output) = engine(case);
+        let script = engine
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         let mut options = CallOptions::default();
@@ -48,6 +72,18 @@ fn language_conformance() {
         let actual: serde_json::Value =
             serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap();
         assert_eq!(actual, case["expected"], "{name}");
+        for (field, buffer) in ["stdout_hex", "stderr_hex"].into_iter().zip(output) {
+            if let Some(buffer) = buffer {
+                let expected = case[field].as_str().unwrap();
+                assert_eq!(expected.len() % 2, 0, "{name} {field}");
+                let expected: Vec<_> = expected
+                    .as_bytes()
+                    .chunks_exact(2)
+                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                    .collect();
+                assert_eq!(*buffer.lock().unwrap(), expected, "{name} {field}");
+            }
+        }
     }
 }
 
@@ -136,6 +172,7 @@ fn language_runtime_rejections() {
             .map(str::to_owned)
             .unwrap_or_else(|| format!("def run(input)\n{}\nend", case["body"].as_str().unwrap()));
         let script = engine(case)
+            .0
             .compile(&source)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(

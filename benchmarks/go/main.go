@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"os"
 	"runtime"
 	"strconv"
@@ -22,6 +25,8 @@ type fixture struct {
 	Accounting  bool              `json:"accounting"`
 	Iterations  int               `json:"iterations"`
 	EntropyByte *byte             `json:"entropy_byte,omitempty"`
+	Stdout      bool              `json:"stdout,omitempty"`
+	Stderr      bool              `json:"stderr,omitempty"`
 }
 
 type repeatingByte byte
@@ -86,6 +91,19 @@ func run() error {
 		if fixture.EntropyByte != nil {
 			cfg.RandomReader = repeatingByte(*fixture.EntropyByte)
 		}
+		var stdout, stderr bytes.Buffer
+		if fixture.Stdout {
+			cfg.OutputWriter = io.Discard
+			if mode == "validate" {
+				cfg.OutputWriter = &stdout
+			}
+		}
+		if fixture.Stderr {
+			cfg.ErrorWriter = io.Discard
+			if mode == "validate" {
+				cfg.ErrorWriter = &stderr
+			}
+		}
 		engine, err := vibes.NewEngine(cfg)
 		if err != nil {
 			return err
@@ -122,6 +140,12 @@ func run() error {
 		record := map[string]any{"name": fixture.Name, "digest": fmt.Sprintf("%016x", digest.Sum64()), "output_bytes": len(output)}
 		if mode == "validate" {
 			record["result_json"] = output
+			if fixture.Stdout {
+				record["stdout_hex"] = hex.EncodeToString(stdout.Bytes())
+			}
+			if fixture.Stderr {
+				record["stderr_hex"] = hex.EncodeToString(stderr.Bytes())
+			}
 		} else {
 			iterations := n
 			if iterations == 0 {

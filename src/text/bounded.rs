@@ -10,6 +10,7 @@ struct Output {
     bytes: Option<Buffer<u8>>,
     length: usize,
     limit: usize,
+    header: usize,
 }
 
 impl Output {
@@ -22,7 +23,7 @@ impl Output {
             output.extend(ctx, bytes)
         } else {
             ctx.work_bytes(bytes.len())?;
-            ctx.check_memory(Bytes::header_bytes() + self.length)
+            ctx.check_memory(self.header + self.length)
         }
     }
 }
@@ -39,6 +40,7 @@ pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
         bytes: None,
         length: 0,
         limit,
+        header: Bytes::header_bytes(),
     };
     visit(ctx, value, &mut output, 0)?;
     let length = output.length;
@@ -46,6 +48,32 @@ pub(crate) fn render(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
     output.length = 0;
     visit(ctx, value, &mut output, 0)?;
     Value::from_bytes(ctx, output.bytes.unwrap())
+}
+
+pub(crate) fn output(
+    ctx: &mut CallContext,
+    value: &Value,
+    limit: usize,
+    newline: bool,
+) -> Result<Buffer<u8>> {
+    let mut output = Output {
+        bytes: None,
+        length: 0,
+        limit,
+        header: 0,
+    };
+    visit(ctx, value, &mut output, 0)?;
+    output.bytes = Some(Buffer::with_capacity(
+        ctx,
+        output.length + usize::from(newline),
+    )?);
+    output.length = 0;
+    visit(ctx, value, &mut output, 0)?;
+    let mut bytes = output.bytes.unwrap();
+    if newline {
+        bytes.push(ctx, b'\n')?;
+    }
+    Ok(bytes)
 }
 
 fn visit(ctx: &mut CallContext, value: &Value, output: &mut Output, depth: usize) -> Result<()> {

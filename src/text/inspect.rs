@@ -57,11 +57,16 @@ fn inspect(ctx: &mut CallContext, value: &Value) -> Result<Value> {
 enum Output {
     Size(usize),
     Bytes(Buffer<u8>),
+    Bounded {
+        bytes: Option<Buffer<u8>>,
+        length: usize,
+        limit: usize,
+    },
 }
 
 impl Output {
     fn sizing(&self) -> bool {
-        matches!(self, Self::Size(_))
+        matches!(self, Self::Size(_) | Self::Bounded { bytes: None, .. })
     }
 
     fn add_size(&mut self, ctx: &mut CallContext, bytes: usize) -> Result<()> {
@@ -80,8 +85,51 @@ impl Output {
         match self {
             Self::Size(_) => self.add_size(ctx, bytes.len()),
             Self::Bytes(buffer) => buffer.extend(ctx, bytes),
+            Self::Bounded {
+                bytes: buffer,
+                length,
+                limit,
+            } => {
+                if bytes.len() > *limit - *length {
+                    return ctx.guard(ErrorKind::OutputLimit, "inspect output exceeds limit");
+                }
+                *length += bytes.len();
+                if let Some(buffer) = buffer {
+                    buffer.extend(ctx, bytes)
+                } else {
+                    ctx.work_bytes(bytes.len())?;
+                    ctx.check_memory(*length)
+                }
+            }
         }
     }
+}
+
+pub(crate) fn output(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Buffer<u8>> {
+    let mut output = Output::Bounded {
+        bytes: None,
+        length: 0,
+        limit,
+    };
+    render(ctx, value, &mut output, 0)?;
+    let Output::Bounded { length, .. } = output else {
+        unreachable!()
+    };
+    output = Output::Bounded {
+        bytes: Some(Buffer::with_capacity(ctx, length + 1)?),
+        length: 0,
+        limit,
+    };
+    render(ctx, value, &mut output, 0)?;
+    let Output::Bounded {
+        bytes: Some(mut bytes),
+        ..
+    } = output
+    else {
+        unreachable!()
+    };
+    bytes.push(ctx, b'\n')?;
+    Ok(bytes)
 }
 
 fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) -> Result<()> {
@@ -160,7 +208,7 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) 
         Kind::Money(money) => write!(scalar, "{money}").unwrap(),
         Kind::Duration(seconds) => write!(scalar, "{seconds}s").unwrap(),
         Kind::Big(_) | Kind::Time(_) | Kind::Zoned(_) => {
-            if out.sizing() {
+            if matches!(out, Output::Size(_)) {
                 // Reserve an upper bound without allocating or converting a big integer twice.
                 let bytes = if matches!(value.0, Kind::Big(_)) {
                     crate::integer::bits(value) / 3 + 2
@@ -168,6 +216,15 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) 
                     64
                 };
                 return out.add_size(ctx, bytes);
+            }
+            if let Output::Bounded { length, limit, .. } = out {
+                if matches!(value.0, Kind::Big(_)) {
+                    let bits = crate::integer::bits(value);
+                    let minimum = (bits.saturating_sub(1) as u128 * 301029 / 1_000_000) + 1;
+                    if minimum > (*limit - *length) as u128 {
+                        return ctx.guard(ErrorKind::OutputLimit, "inspect output exceeds limit");
+                    }
+                }
             }
             let text = ops::to_string(ctx, value)?;
             return out.append(ctx, text.require_bytes()?);

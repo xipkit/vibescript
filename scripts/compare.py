@@ -59,6 +59,7 @@ def validate(out):
     path=out/"validation-inputs.json"
     path.write_text(json.dumps(expected,ensure_ascii=False,sort_keys=True)+"\n")
     reference={case["name"]:case["expected"] for case in expected}
+    output_reference={case["name"]:case for case in expected}
     digests={}
     for variant in VARIANTS:
         records=invoke(variant,path,1,"validate",out/f"validation-{variant}.jsonl")
@@ -66,6 +67,10 @@ def validate(out):
         for record in records:
             result=json.loads(record["result_json"])
             assert equal_json(result,reference[record["name"]]),(variant,record["name"],repr(result)[:500],repr(reference[record["name"]])[:500])
+            case=output_reference[record["name"]]
+            for field in ["stdout_hex","stderr_hex"]:
+                if case.get(field.removesuffix("_hex")):
+                    assert record[field]==case[field],(variant,record["name"],field,record[field][:500],case[field][:500])
         digests[variant]={record["name"]:record["digest"] for record in records}
         print(f"{variant}: {len(records)} shared cases match expected results",flush=True)
     for name in [c["name"] for c in benchmark_cases()]:
@@ -88,7 +93,7 @@ def validate_rejections(out):
     for variant in VARIANTS:
         for case in cases:
             fixture={"name":case["name"],"source":case.get("source") or "def run(input)\n"+case["body"]+"\nend","args":[None],"accounting":True}
-            for field in ["entropy_byte","function"]:
+            for field in ["entropy_byte","function","stdout","stderr"]:
                 if field in case:
                     fixture[field]=case[field]
             if case.get("function")=="__main__":

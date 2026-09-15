@@ -1,5 +1,10 @@
 use serde_json::{Value as Json, json};
-use std::{fs, hint::black_box, time::Instant};
+use std::{
+    fs,
+    hint::black_box,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 use vibescript::{CallOptions, Engine, Limits, parse_json, stringify_json};
 
 #[cfg(feature = "allocation-stats")]
@@ -77,6 +82,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(output.len())
             });
         }
+        let stdout = case["stdout"]
+            .as_bool()
+            .unwrap_or(false)
+            .then(|| Arc::new(Mutex::new(Vec::new())));
+        let stderr = case["stderr"]
+            .as_bool()
+            .unwrap_or(false)
+            .then(|| Arc::new(Mutex::new(Vec::new())));
+        let capture = mode == "validate";
+        if let Some(buffer) = &stdout {
+            let buffer = buffer.clone();
+            engine.set_output_writer(move |_, bytes| {
+                if capture {
+                    buffer.lock().unwrap().extend_from_slice(bytes);
+                }
+                Ok(())
+            });
+        }
+        if let Some(buffer) = &stderr {
+            let buffer = buffer.clone();
+            engine.set_error_writer(move |_, bytes| {
+                if capture {
+                    buffer.lock().unwrap().extend_from_slice(bytes);
+                }
+                Ok(())
+            });
+        }
         let script = engine.compile(source)?;
         let function = case["function"].as_str().unwrap_or("run");
         let mut input = Vec::new();
@@ -101,6 +133,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut record = json!({"name":name,"digest":format!("{hash:016x}"),"output_bytes":output.len(),"steps":result.stats.steps,"tracked_peak_bytes":result.stats.peak_memory_bytes,"tracked_retained_bytes":result.stats.retained_memory_bytes});
         if mode == "validate" {
             record["result_json"] = Json::String(String::from_utf8(output.to_vec())?);
+            for (name, buffer) in [("stdout_hex", &stdout), ("stderr_hex", &stderr)] {
+                if let Some(buffer) = buffer {
+                    record[name] = Json::String(hex(&buffer.lock().unwrap()));
+                }
+            }
         } else {
             let n = if fixed > 0 {
                 fixed
@@ -141,6 +178,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string(&record)?);
     }
     Ok(())
+}
+fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    bytes
+        .iter()
+        .flat_map(|byte| {
+            [
+                char::from(DIGITS[usize::from(byte >> 4)]),
+                char::from(DIGITS[usize::from(byte & 15)]),
+            ]
+        })
+        .collect()
 }
 fn codec_options() -> CallOptions {
     CallOptions {
