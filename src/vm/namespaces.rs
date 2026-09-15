@@ -112,18 +112,19 @@ pub(super) fn state(
     storage: &mut Storage,
     module: usize,
 ) -> Result<usize> {
+    let definition = &program.namespaces[module];
     for (index, state) in storage.namespaces.data.iter().enumerate() {
         ctx.charge(1)?;
-        if state.namespace.definition.index == module {
+        if state.program == program.index && Arc::ptr_eq(&state.namespace.definition, definition) {
             return Ok(index);
         }
     }
-    let definition = &program.namespaces[module];
     let namespace = Namespace::import(ctx, &Namespace::untracked(definition.clone()))?;
     let index = storage.namespaces.data.len();
     storage.namespaces.push(
         ctx,
         State {
+            program: program.index,
             namespace,
             fields: Hash::empty(),
             initialized: definition.body.is_none(),
@@ -344,17 +345,17 @@ pub(super) fn member(
 }
 
 pub(super) fn ambient_slot(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     storage: &Storage,
     mut current: usize,
     name: &str,
 ) -> Result<Option<usize>> {
-    if !frames.data[current]
-        .function
-        .is_some_and(|f| program.functions[f].namespace.is_some())
-    {
+    if !frames.data[current].function.is_some_and(|f| {
+        frames.data[current].program.functions[f]
+            .namespace
+            .is_some()
+    }) {
         return Ok(None);
     }
     loop {
@@ -362,16 +363,23 @@ pub(super) fn ambient_slot(
         let frame = &frames.data[current];
         if frame
             .function
-            .is_some_and(|f| program.functions[f].initializer)
+            .is_some_and(|f| frame.program.functions[f].initializer)
         {
             let Some(parent) = frame.parent else {
                 return Ok(None);
             };
             let parent = &frames.data[parent];
+            if parent.program.index != frame.program.index {
+                return Ok(None);
+            }
             let Some(function) = parent.function else {
                 return Ok(None);
             };
-            for (slot, candidate) in program.functions[function].local_names.iter().enumerate() {
+            for (slot, candidate) in parent.program.functions[function]
+                .local_names
+                .iter()
+                .enumerate()
+            {
                 ctx.charge(1)?;
                 ctx.work_bytes(name.len().max(candidate.len()))?;
                 let slot = parent.local_base + slot;

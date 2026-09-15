@@ -197,14 +197,7 @@ impl Script {
             .get(name)
             .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
         ctx.code_roots = Some(budget::Buffer::empty());
-        let result = vm::execute(
-            &self.inner.code.program,
-            &self.inner.code.hosts,
-            &mut ctx,
-            function,
-            args,
-            keywords,
-        );
+        let result = vm::execute(&self.inner.code, &mut ctx, function, args, keywords);
         ctx.random = None;
         let value = match result {
             Ok(value) => value,

@@ -101,6 +101,7 @@ impl Namespace {
 }
 
 pub(crate) struct State {
+    pub program: usize,
     pub namespace: Arc<Namespace>,
     pub fields: Hash,
     pub initialized: bool,

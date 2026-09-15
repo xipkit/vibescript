@@ -1,16 +1,17 @@
 use crate::{
-    CallContext, Error, ErrorKind, HostCallback, Result, Value,
+    CallContext, Error, ErrorKind, Result, Value,
     address::{self, Address},
     arguments::{Arguments, Binding, Block},
     budget::Buffer,
     builtin::Global,
-    bytecode::{ArgumentOp, Invocation, Op, Program, Selection},
+    bytecode::{ArgumentOp, Invocation, Op, Selection},
     hash::Hash,
     iteration::{self, Iteration, Progress},
     members, ops,
     range::Range,
     value::Kind,
 };
+use std::sync::Arc;
 
 mod call_targets;
 mod dispatch;
@@ -19,7 +20,9 @@ mod handlers;
 mod namespaces;
 mod operators;
 mod output;
+mod programs;
 use handlers::{Control, Event};
+use programs::Program;
 
 #[derive(Default)]
 enum ReturnTo {
@@ -35,6 +38,7 @@ enum ReturnTo {
 }
 
 struct Frame {
+    program: Arc<Program>,
     receiver: Option<Value>,
     constructor: bool,
     return_to: ReturnTo,
@@ -57,9 +61,10 @@ struct Frame {
 }
 
 struct Storage {
+    programs: Buffer<Arc<Program>>,
     handlers: Buffer<handlers::Handler>,
     namespaces: Buffer<crate::namespace::State>,
-    declarations: Buffer<(usize, Value)>,
+    declarations: Buffer<((usize, usize), Value)>,
     texts: Buffer<Buffer<u8>>,
     iterations: Buffer<Iteration>,
     globals: Buffer<Option<Value>>,
@@ -125,8 +130,7 @@ impl LoopState {
 }
 
 pub(crate) fn execute(
-    program: &Program,
-    hosts: &[HostCallback],
+    code: &Arc<crate::code::Code>,
     ctx: &mut CallContext,
     function: usize,
     args: &[Value],
@@ -136,6 +140,7 @@ pub(crate) fn execute(
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
     let mut storage = Storage {
+        programs: Buffer::empty(),
         handlers: Buffer::empty(),
         namespaces: Buffer::empty(),
         declarations: Buffer::empty(),
@@ -146,11 +151,12 @@ pub(crate) fn execute(
         addresses: Buffer::empty(),
         bypasses: Buffer::empty(),
     };
-    ctx.enum_rebind.definitions = Some(program.enum_definitions.clone());
+    ctx.enum_rebind.definitions = Some(code.program.enum_definitions.clone());
     ctx.enum_rebind.active = true;
     let result = (|| -> Result<Value> {
-        storage.globals.ensure(ctx, program.globals.len())?;
-        storage.globals.data.resize(program.globals.len(), None);
+        let root = programs::load(ctx, &mut storage, code)?;
+        let program = &*root;
+        let mut active = root.clone();
         let mut input = Arguments::empty();
         input.options_hash = false;
         input.positional = Buffer::with_capacity(ctx, args.len())?;
@@ -206,6 +212,11 @@ pub(crate) fn execute(
                         }
                     }
                     let current = frames.data.len() - 1;
+                    if !Arc::ptr_eq(&active, &frames.data[current].program) {
+                        active = frames.data[current].program.clone();
+                    }
+                    let program = &*active;
+                    let hosts = &program.code.hosts;
                     if frames.data[current].function.is_none() {
                         ctx.charge(1)?;
                         let iteration =
@@ -219,7 +230,6 @@ pub(crate) fn execute(
                             Progress::Yield(args, count) => {
                                 let block = frames.data[current].block.unwrap();
                                 enter_block(
-                                    program,
                                     ctx,
                                     &mut frames,
                                     &mut storage,
@@ -277,9 +287,8 @@ pub(crate) fn execute(
                         op
                     };
                     ctx.charge(1)?;
-                    let mut slot = |slot, skip| {
-                        resolve_slot(program, ctx, &frames, &storage, current, slot, skip)
-                    };
+                    let mut slot =
+                        |slot, skip| resolve_slot(ctx, &frames, &storage, current, slot, skip);
                     let op = match op {
                         Op::Load(n) => Op::Load(slot(n, false)?),
                         Op::Bypass(n) => Op::Bypass(slot(n, false)?),
@@ -311,7 +320,6 @@ pub(crate) fn execute(
                             handlers::begin(ctx, &frames, &mut storage, &stack, spec)?
                         }
                         Op::TryBody | Op::TryEnd => handlers::normal(
-                            program,
                             ctx,
                             &mut frames,
                             &mut storage,
@@ -319,13 +327,9 @@ pub(crate) fn execute(
                             matches!(op, Op::TryBody),
                         )?,
                         Op::EnsureEnd => {
-                            if let Some(event) = handlers::end_ensure(
-                                program,
-                                &mut frames,
-                                &mut storage,
-                                &mut stack,
-                                ctx,
-                            )? {
+                            if let Some(event) =
+                                handlers::end_ensure(&mut frames, &mut storage, &mut stack, ctx)?
+                            {
                                 return Ok(event);
                             }
                         }
@@ -335,9 +339,8 @@ pub(crate) fn execute(
                         Op::RaiseStart(named, target) => {
                             let class = if let Some((name, slot)) = named {
                                 let local = if let Some(slot) = slot {
-                                    let slot = resolve_slot(
-                                        program, ctx, &frames, &storage, current, slot, false,
-                                    )?;
+                                    let slot =
+                                        resolve_slot(ctx, &frames, &storage, current, slot, false)?;
                                     storage.locals.data[slot].is_some()
                                 } else {
                                     false
@@ -348,7 +351,6 @@ pub(crate) fn execute(
                                         program, ctx, &frames, &storage, current, name,
                                     )?
                                     || handlers::class_constant_bound(
-                                        program,
                                         ctx,
                                         &mut frames,
                                         &mut storage,
@@ -451,9 +453,9 @@ pub(crate) fn execute(
                                     .next()
                                     .is_some_and(crate::syntax::unicode::upper)
                             {
-                                if let Some(slot) = namespaces::ambient_slot(
-                                    program, ctx, &frames, &storage, current, name,
-                                )? {
+                                if let Some(slot) =
+                                    namespaces::ambient_slot(ctx, &frames, &storage, current, name)?
+                                {
                                     let value = storage.locals.data[slot].as_ref().unwrap().clone();
                                     if address {
                                         storage
@@ -532,9 +534,9 @@ pub(crate) fn execute(
                                 && namespaces::field(program, ctx, &mut storage, module, name)?
                                     .is_none()
                             {
-                                if let Some(slot) = namespaces::ambient_slot(
-                                    program, ctx, &frames, &storage, current, name,
-                                )? {
+                                if let Some(slot) =
+                                    namespaces::ambient_slot(ctx, &frames, &storage, current, name)?
+                                {
                                     Address::new(
                                         Some(slot),
                                         storage.locals.data[slot].as_ref().unwrap().clone(),
@@ -546,7 +548,7 @@ pub(crate) fn execute(
                                     )
                                 } else if let Some(global) = global_index(program, name) {
                                     Address::global(
-                                        global,
+                                        program.global_base + global,
                                         global_value(program, ctx, &mut storage, global)?,
                                     )
                                 } else {
@@ -604,16 +606,17 @@ pub(crate) fn execute(
                             let mut found = false;
                             for (key, value) in &mut storage.declarations.data {
                                 ctx.charge(1)?;
-                                if *key == index {
+                                if *key == (program.index, index) {
                                     *value = stack.data.last().unwrap().clone();
                                     found = true;
                                     break;
                                 }
                             }
                             if !found {
-                                storage
-                                    .declarations
-                                    .push(ctx, (index, stack.data.last().unwrap().clone()))?;
+                                storage.declarations.push(
+                                    ctx,
+                                    ((program.index, index), stack.data.last().unwrap().clone()),
+                                )?;
                             }
                         }
                         Op::Integer(n, radix) => {
@@ -705,7 +708,6 @@ pub(crate) fn execute(
                             )? {
                                 stack.push(ctx, value)?;
                             } else if let Some(slot) = namespaces::ambient_slot(
-                                program,
                                 ctx,
                                 &frames,
                                 &storage,
@@ -851,6 +853,7 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::StoreGlobal(index) => {
+                            let index = program.global_base + index;
                             let value = stack.data.last().unwrap();
                             address::refresh(
                                 ctx,
@@ -879,7 +882,7 @@ pub(crate) fn execute(
                                 }
                             }
                             let address = match root {
-                                Some(slot) => Address::global(slot, value),
+                                Some(slot) => Address::global(program.global_base + slot, value),
                                 None => Address::new(None, value),
                             };
                             storage.addresses.push(ctx, address)?;
@@ -985,7 +988,6 @@ pub(crate) fn execute(
                             let block = frame.block.unwrap();
                             let base = stack.data.len() - n;
                             enter_block(
-                                program,
                                 ctx,
                                 &mut frames,
                                 &mut storage,
@@ -1778,17 +1780,11 @@ pub(crate) fn execute(
                             frame.arguments.data.truncate(state.argument_base);
                             stack.push(ctx, state.result())?;
                         }
-                        Op::LoopGuard(breaking) => {
-                            handlers::guard_loop(program, ctx, &frames, breaking)?
-                        }
+                        Op::LoopGuard(breaking) => handlers::guard_loop(ctx, &frames, breaking)?,
                         Op::Break(has_value) | Op::Next(has_value) => {
                             let value = has_value.then(|| stack.data.pop().unwrap());
-                            let control = handlers::loop_control(
-                                program,
-                                &frames,
-                                matches!(op, Op::Break(_)),
-                                value,
-                            )?;
+                            let control =
+                                handlers::loop_control(&frames, matches!(op, Op::Break(_)), value)?;
                             return Ok(Event::Control(control));
                         }
                         Op::Call(function, n) => {
@@ -2277,19 +2273,11 @@ pub(crate) fn execute(
             let outcome = (|| -> Result<Option<Value>> {
                 match event? {
                     Event::Error(error) => {
-                        handlers::error(
-                            program,
-                            ctx,
-                            &mut frames,
-                            &mut storage,
-                            &mut stack,
-                            error,
-                        )?;
+                        handlers::error(ctx, &mut frames, &mut storage, &mut stack, error)?;
                         Ok(None)
                     }
                     Event::Control(control) => {
                         if let Some(control) = handlers::intercept(
-                            program,
                             ctx,
                             &mut frames,
                             &mut storage,
@@ -2297,7 +2285,6 @@ pub(crate) fn execute(
                             control,
                         )? {
                             handlers::apply_control(
-                                program,
                                 ctx,
                                 &mut frames,
                                 &mut storage,
@@ -2321,31 +2308,33 @@ pub(crate) fn execute(
                     ctx.checkpoint()?;
                     let error =
                         handlers::SavedError::new(program, ctx, &frames.data, function, error)?;
-                    handlers::error(program, ctx, &mut frames, &mut storage, &mut stack, error)?;
+                    handlers::error(ctx, &mut frames, &mut storage, &mut stack, error)?;
                 }
             }
         }
     })();
     ctx.enum_rebind = crate::enums::Rebind::default();
-    result.map_err(|error| diagnose(program, &frames.data, function, error))
+    result.map_err(|error| diagnose(&code.program, &frames.data, function, error))
 }
 
-fn frame_offset(program: &Program, frame: &Frame) -> Option<u32> {
+fn frame_offset(frame: &Frame) -> Option<(&crate::bytecode::Program, u32)> {
+    let program = &frame.program.code.program;
     let function = &program.functions[frame.function?];
-    Some(
+    Some((
+        program,
         function
             .locations
             .get(frame.ip.saturating_sub(1))
             .copied()
             .unwrap_or(function.offset),
-    )
+    ))
 }
 
 fn diagnostic_site<'a>(
-    program: &Program,
+    mut program: &'a crate::bytecode::Program,
     mut frames: &'a [Frame],
     mut entry: usize,
-) -> (&'a [Frame], u32) {
+) -> (&'a crate::bytecode::Program, &'a [Frame], u32) {
     while let Some((index, frame)) = frames
         .iter()
         .enumerate()
@@ -2353,7 +2342,8 @@ fn diagnostic_site<'a>(
         .find(|(_, frame)| frame.function.is_some())
     {
         let function = frame.function.unwrap();
-        let op = program.functions[function]
+        let owner = &frame.program.code.program;
+        let op = owner.functions[function]
             .code
             .get(frame.ip.saturating_sub(1));
         if frame.binding.data.is_empty()
@@ -2365,58 +2355,69 @@ fn diagnostic_site<'a>(
             break;
         }
         frames = &frames[..index];
+        program = owner;
         entry = function;
     }
-    let offset = frames
+    let (program, offset) = frames
         .iter()
         .rev()
-        .find_map(|frame| frame_offset(program, frame))
-        .unwrap_or(program.functions[entry].offset);
-    (frames, offset)
+        .find_map(frame_offset)
+        .unwrap_or((program, program.functions[entry].offset));
+    (program, frames, offset)
 }
 
 fn trace_entries<'a>(
-    program: &'a Program,
+    program: &'a crate::bytecode::Program,
     frames: &'a [Frame],
     offset: u32,
-) -> impl Iterator<Item = (Option<&'a std::sync::Arc<str>>, u32)> + 'a {
+) -> impl Iterator<Item = (Option<&'a Arc<str>>, &'a crate::source::Source, u32)> + 'a {
     let name = frames
         .iter()
         .rev()
         .filter(|frame| frame.binding.data.is_empty())
-        .filter_map(|frame| frame.function.map(|index| &program.functions[index]))
+        .filter_map(|frame| frame.function.map(|index| &frame.program.functions[index]))
         .find(|function| function.name != "<block>" && !function.initializer)
         .filter(|function| function.name != "__main__")
         .map(|function| &function.trace_name);
-    std::iter::once((name, offset)).chain(frames.iter().enumerate().rev().filter_map(
-        move |(index, frame)| {
-            let function = &program.functions[frame.function?];
-            if function.name == "<block>"
-                || function.name == "__main__"
-                || function.initializer
-                || !frame.binding.data.is_empty()
-            {
-                return None;
-            }
-            let at = frames[..index]
-                .iter()
-                .rev()
-                .find_map(|frame| frame_offset(program, frame))
-                .unwrap_or(function.offset);
-            Some((Some(&function.trace_name), at))
-        },
-    ))
+    std::iter::once((name, &program.source, offset)).chain(
+        frames
+            .iter()
+            .enumerate()
+            .rev()
+            .filter_map(move |(index, frame)| {
+                let owner = &frame.program.code.program;
+                let function = &owner.functions[frame.function?];
+                if function.name == "<block>"
+                    || function.name == "__main__"
+                    || function.initializer
+                    || !frame.binding.data.is_empty()
+                {
+                    return None;
+                }
+                let (caller, at) = frames[..index]
+                    .iter()
+                    .rev()
+                    .find_map(frame_offset)
+                    .unwrap_or((owner, function.offset));
+                Some((Some(&function.trace_name), &caller.source, at))
+            }),
+    )
 }
 
-fn diagnose(program: &Program, frames: &[Frame], entry: usize, mut error: Error) -> Error {
+fn diagnose(
+    program: &crate::bytecode::Program,
+    frames: &[Frame],
+    entry: usize,
+    mut error: Error,
+) -> Error {
     if error.diagnostic.is_some() {
         return error;
     }
-    let (frames, offset) = diagnostic_site(program, frames, entry);
+    let (program, frames, offset) = diagnostic_site(program, frames, entry);
     let trace = trace_entries(program, frames, offset)
-        .map(|(name, at)| crate::StackFrame {
+        .map(|(name, source, at)| crate::StackFrame {
             function: name.cloned().unwrap_or_else(|| "<script>".into()),
-            position: program.source.position(at),
+            position: source.position(at),
         })
         .collect();
     error.offset = Some(offset as usize);
@@ -2429,13 +2430,13 @@ fn diagnose(program: &Program, frames: &[Frame], entry: usize, mut error: Error)
 }
 
 fn normalize_return(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     storage: &mut Storage,
     frame: usize,
     value: Value,
 ) -> Result<Value> {
+    let program = &frames.data[frame].program;
     if frames.data[frame].constructor {
         return Ok(frames.data[frame].receiver.as_ref().unwrap().clone());
     }
@@ -2474,7 +2475,11 @@ fn runtime_bound(
         ctx.charge(1)?;
         let frame = &frames.data[index];
         if let Some(function) = frame.function {
-            for (slot, candidate) in program.functions[function].local_names.iter().enumerate() {
+            for (slot, candidate) in frame.program.functions[function]
+                .local_names
+                .iter()
+                .enumerate()
+            {
                 ctx.charge(1)?;
                 if storage.locals.data[frame.local_base + slot].is_some()
                     && crate::enums::compare_names(ctx, candidate.as_bytes(), name.as_bytes())?
@@ -2641,7 +2646,7 @@ fn resolve_type(
         while let Some(index) = scope {
             ctx.charge(1)?;
             let frame = &frames.data[index];
-            let function = &program.functions[frame.function.unwrap()];
+            let function = &frame.program.functions[frame.function.unwrap()];
             let mut found = None;
             for (slot, candidate) in function.local_names.iter().enumerate() {
                 ctx.charge(1)?;
@@ -2662,7 +2667,9 @@ fn resolve_type(
         let mut declaration = None;
         for (index, (global, original)) in program.globals.iter().enumerate() {
             ctx.charge(1)?;
-            let value = storage.globals.data[index].as_ref().unwrap_or(original);
+            let value = storage.globals.data[program.global_base + index]
+                .as_ref()
+                .unwrap_or(original);
             if let Some(value) =
                 type_candidate(ctx, global.name(), value, binding, member, fold, enum_only)?
             {
@@ -2680,7 +2687,7 @@ fn resolve_type(
                 .declarations
                 .data
                 .iter()
-                .find(|(slot, _)| *slot == index)
+                .find(|(slot, _)| *slot == (program.index, index))
                 .map_or(value, |(_, value)| value);
             if let Some(value) = type_candidate(ctx, name, value, binding, member, fold, enum_only)?
             {
@@ -2794,7 +2801,7 @@ fn declaration_value(
 ) -> Result<Value> {
     for (cached, value) in &storage.declarations.data {
         ctx.charge(1)?;
-        if *cached == index {
+        if *cached == (program.index, index) {
             return Ok(value.clone());
         }
     }
@@ -2809,7 +2816,9 @@ fn declaration_value(
     } else {
         ctx.import(&program.declarations[index])?
     };
-    storage.declarations.push(ctx, (index, value.clone()))?;
+    storage
+        .declarations
+        .push(ctx, ((program.index, index), value.clone()))?;
     Ok(value)
 }
 
@@ -2819,10 +2828,11 @@ fn global_value(
     storage: &mut Storage,
     index: usize,
 ) -> Result<Value> {
-    if storage.globals.data[index].is_none() {
-        storage.globals.data[index] = Some(ctx.import(&program.globals[index].1)?);
+    let slot = program.global_base + index;
+    if storage.globals.data[slot].is_none() {
+        storage.globals.data[slot] = Some(ctx.import(&program.globals[index].1)?);
     }
-    Ok(storage.globals.data[index].as_ref().unwrap().clone())
+    Ok(storage.globals.data[slot].as_ref().unwrap().clone())
 }
 
 fn callable_value_error(name: &str, kind: &str) -> Error {
@@ -2904,7 +2914,7 @@ fn enter_arguments(
     }
     let fun = &program.functions[function];
     if fun.instance
-        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if Some(instance.class().definition.index) == fun.namespace)
+        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if fun.namespace.is_some_and(|namespace| Arc::ptr_eq(&program.namespaces[namespace], &instance.class().definition)))
     {
         return Err(Error::new(
             ErrorKind::Type,
@@ -2987,6 +2997,7 @@ fn new_frame(
         storage.locals.data.push(None);
     }
     Ok(Frame {
+        program: storage.programs.data[program.index].clone(),
         receiver: None,
         constructor: false,
         return_to: ReturnTo::Stack,
@@ -3010,7 +3021,6 @@ fn new_frame(
 }
 
 fn resolve_slot(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     storage: &Storage,
@@ -3019,16 +3029,11 @@ fn resolve_slot(
     skip: bool,
 ) -> Result<usize> {
     let own = frames.data[frame].local_base + slot;
-    let function = &program.functions[frames.data[frame].function.unwrap()];
+    let function = &frames.data[frame].program.functions[frames.data[frame].function.unwrap()];
     if function.initializer && storage.locals.data[own].is_none() {
-        if let Some(slot) = namespaces::ambient_slot(
-            program,
-            ctx,
-            frames,
-            storage,
-            frame,
-            &function.local_names[slot],
-        )? {
+        if let Some(slot) =
+            namespaces::ambient_slot(ctx, frames, storage, frame, &function.local_names[slot])?
+        {
             return Ok(slot);
         }
     }
@@ -3043,12 +3048,12 @@ fn resolve_slot(
                 return Ok(local);
             }
         }
-        let Some(capture) = program.functions[frames.data[frame].function.unwrap()]
-            .captures
-            .get(slot)
-            .copied()
-            .flatten()
-        else {
+        let Some(capture) = frames.data[frame].program.functions
+            [frames.data[frame].function.unwrap()]
+        .captures
+        .get(slot)
+        .copied()
+        .flatten() else {
             return Ok(if skip { usize::MAX } else { own });
         };
         for _ in 0..=capture.depth {
@@ -3060,7 +3065,6 @@ fn resolve_slot(
 }
 
 fn enter_block(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -3072,7 +3076,8 @@ fn enter_block(
     if frames.data.len() >= ctx.options.limits.recursion {
         return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
     }
-    let mut frame = new_frame(ctx, program, storage, Some(block.function), base)?;
+    let program = frames.data[block.parent].program.clone();
+    let mut frame = new_frame(ctx, &program, storage, Some(block.function), base)?;
     frame.receiver = frames.data[block.parent].receiver.clone();
     frame.parent = Some(block.parent);
     frame.home = frames.data[block.parent].home;

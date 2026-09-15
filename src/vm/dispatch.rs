@@ -180,7 +180,7 @@ fn invoke(
     }
     let arity = args
         .block
-        .map(|block| program.functions[block.function].block_arity);
+        .map(|block| frames.data[block.parent].program.functions[block.function].block_arity);
     let driver = if members::exported(ctx, site, name, receiver)? {
         None
     } else {
@@ -335,7 +335,7 @@ pub(super) fn reduce(
     };
     let caller = &frames.data[lexical_scope(ctx, frames)?.unwrap()];
     let access = namespaces::Access {
-        caller: program.functions[caller.function.unwrap()].namespace,
+        caller: caller.program.functions[caller.function.unwrap()].namespace,
         implicit: false,
         instance: matches!(caller.receiver, Some(Value(Kind::Instance(_)))),
     };

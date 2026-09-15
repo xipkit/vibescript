@@ -90,14 +90,14 @@ impl SavedError {
             }
         } else {
             ctx.charge(frames.len() as u64)?;
-            let (frames, offset) = diagnostic_site(program, frames, entry);
+            let (program, frames, offset) = diagnostic_site(program, frames, entry);
             let position = program.source.position_metered(ctx, offset)?;
             let (code_frame, snippet_charge) =
                 program.source.frame_metered(ctx, offset, position)?;
             Charge::merge(&mut charge, snippet_charge);
             let mut trace: Buffer<crate::StackFrame> =
                 Buffer::with_capacity(ctx, trace_entries(program, frames, offset).count())?;
-            for (name, at) in trace_entries(program, frames, offset) {
+            for (name, source, at) in trace_entries(program, frames, offset) {
                 ctx.charge(trace.data.len() as u64 + 1)?;
                 let seen = name.is_some_and(|name| {
                     trace
@@ -115,7 +115,7 @@ impl SavedError {
                 }
                 trace.data.push(crate::StackFrame {
                     function: name.cloned().unwrap_or_else(|| "<script>".into()),
-                    position: program.source.position_metered(ctx, at)?,
+                    position: source.position_metered(ctx, at)?,
                 });
             }
             let (trace, trace_charge) = trace.into_parts();
@@ -230,7 +230,6 @@ pub(super) struct Handler {
 }
 
 fn declare(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     storage: &mut Storage,
@@ -239,7 +238,7 @@ fn declare(
 ) -> Result<()> {
     for &slot in slots {
         ctx.charge(1)?;
-        let slot = resolve_slot(program, ctx, frames, storage, frame, slot, false)?;
+        let slot = resolve_slot(ctx, frames, storage, frame, slot, false)?;
         storage.locals.data[slot].get_or_insert_with(Value::nil);
     }
     Ok(())
@@ -333,7 +332,6 @@ pub(super) fn retry(storage: &Storage) -> Result<Control> {
 }
 
 fn prepare_ensure(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -343,12 +341,13 @@ fn prepare_ensure(
 ) -> Result<Option<Pending>> {
     let h = &storage.handlers.data[handler];
     let (owner, index) = (h.frame, h.spec);
+    let program = frames.data[owner].program.clone();
     let spec = &program.handlers[index];
-    declare(program, ctx, frames, storage, owner, &spec.body_locals)?;
+    declare(ctx, frames, storage, owner, &spec.body_locals)?;
     for clause in &spec.rescues {
-        declare(program, ctx, frames, storage, owner, &clause.locals)?;
+        declare(ctx, frames, storage, owner, &clause.locals)?;
     }
-    declare(program, ctx, frames, storage, owner, &spec.alternate_locals)?;
+    declare(ctx, frames, storage, owner, &spec.alternate_locals)?;
     clear_binding(storage, handler);
     restore(frames, storage, stack, handler);
     if let Some(ensure) = spec.ensure {
@@ -365,7 +364,6 @@ fn prepare_ensure(
 }
 
 pub(super) fn normal(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -374,12 +372,13 @@ pub(super) fn normal(
 ) -> Result<()> {
     let index = storage.handlers.data.len() - 1;
     let h = &storage.handlers.data[index];
+    let program = frames.data[h.frame].program.clone();
     let (owner, spec) = (h.frame, &program.handlers[h.spec]);
     let value = stack.data.pop().unwrap();
     if body {
-        declare(program, ctx, frames, storage, owner, &spec.body_locals)?;
+        declare(ctx, frames, storage, owner, &spec.body_locals)?;
         for clause in &spec.rescues {
-            declare(program, ctx, frames, storage, owner, &clause.locals)?;
+            declare(ctx, frames, storage, owner, &clause.locals)?;
         }
         if let Some(alternate) = spec.alternate {
             storage.handlers.data[index].phase = Phase::Else;
@@ -387,29 +386,22 @@ pub(super) fn normal(
             return Ok(());
         }
     }
-    if let Some(Pending::Value(value)) = prepare_ensure(
-        program,
-        ctx,
-        frames,
-        storage,
-        stack,
-        index,
-        Pending::Value(value),
-    )? {
+    if let Some(Pending::Value(value)) =
+        prepare_ensure(ctx, frames, storage, stack, index, Pending::Value(value))?
+    {
         stack.push(ctx, value)?;
     }
     Ok(())
 }
 
 pub(super) fn end_ensure(
-    program: &Program,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
     ctx: &mut CallContext,
 ) -> Result<Option<Event>> {
     let mut h = storage.handlers.data.pop().unwrap();
-    frames.data[h.frame].ip = program.handlers[h.spec].end;
+    frames.data[h.frame].ip = frames.data[h.frame].program.handlers[h.spec].end;
     match h.pending.take().unwrap() {
         Pending::Value(value) => {
             stack.push(ctx, value)?;
@@ -421,7 +413,6 @@ pub(super) fn end_ensure(
 }
 
 pub(super) fn error(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -432,6 +423,7 @@ pub(super) fn error(
     while let Some(index) = storage.handlers.data.len().checked_sub(1) {
         ctx.charge(1)?;
         let h = &storage.handlers.data[index];
+        let program = frames.data[h.frame].program.clone();
         let (owner, spec, phase) = (h.frame, &program.handlers[h.spec], h.phase);
         if phase == Phase::Ensure {
             clear_binding(storage, index);
@@ -439,7 +431,7 @@ pub(super) fn error(
             continue;
         }
         restore(frames, storage, stack, index);
-        declare(program, ctx, frames, storage, owner, &spec.body_locals)?;
+        declare(ctx, frames, storage, owner, &spec.body_locals)?;
         if phase == Phase::Body {
             for clause in &spec.rescues {
                 ctx.charge(1)?;
@@ -463,11 +455,10 @@ pub(super) fn error(
                     }
                     return Ok(());
                 }
-                declare(program, ctx, frames, storage, owner, &clause.locals)?;
+                declare(ctx, frames, storage, owner, &clause.locals)?;
             }
         }
         if prepare_ensure(
-            program,
             ctx,
             frames,
             storage,
@@ -484,7 +475,6 @@ pub(super) fn error(
 }
 
 pub(super) fn intercept(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -519,7 +509,6 @@ pub(super) fn intercept(
             continue;
         }
         match prepare_ensure(
-            program,
             ctx,
             frames,
             storage,
@@ -540,7 +529,6 @@ pub(super) fn intercept(
 }
 
 pub(super) fn restart(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -553,7 +541,7 @@ pub(super) fn restart(
     let h = &mut storage.handlers.data[index];
     h.phase = Phase::Body;
     h.pending = None;
-    frames.data[h.frame].ip = program.handlers[h.spec].body;
+    frames.data[h.frame].ip = frames.data[h.frame].program.handlers[h.spec].body;
     Ok(())
 }
 
@@ -565,13 +553,13 @@ pub(super) fn class(value: &Value) -> Option<ErrorClass> {
 }
 
 pub(super) fn class_constant_bound(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
     current: usize,
     name: &str,
 ) -> Result<bool> {
+    let program = &frames.data[current].program;
     let module = frames.data[current]
         .function
         .and_then(|f| program.functions[f].namespace);
@@ -610,7 +598,6 @@ pub(super) fn raise(
 }
 
 pub(super) fn guard_loop(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &Buffer<Frame>,
     breaking: bool,
@@ -620,7 +607,7 @@ pub(super) fn guard_loop(
         if !frame.loops.data.is_empty()
             || frame
                 .function
-                .is_none_or(|i| program.functions[i].name == "<block>")
+                .is_none_or(|i| frame.program.functions[i].name == "<block>")
         {
             return Ok(());
         }
@@ -636,7 +623,6 @@ pub(super) fn guard_loop(
 }
 
 fn invalid_loop_control(
-    program: &Program,
     frames: &Buffer<Frame>,
     breaking: bool,
     value: Option<Value>,
@@ -645,7 +631,7 @@ fn invalid_loop_control(
     if frames.data[..frame].iter().any(|f| {
         !f.loops.data.is_empty()
             || f.function
-                .is_none_or(|i| program.functions[i].name == "<block>")
+                .is_none_or(|i| f.program.functions[i].name == "<block>")
     }) {
         Ok(Control::Invalid {
             frame,
@@ -665,7 +651,6 @@ fn invalid_loop_control(
 }
 
 pub(super) fn loop_control(
-    program: &Program,
     frames: &Buffer<Frame>,
     breaking: bool,
     value: Option<Value>,
@@ -687,7 +672,7 @@ pub(super) fn loop_control(
         });
     }
     if frame.parent.is_none() {
-        return invalid_loop_control(program, frames, breaking, value);
+        return invalid_loop_control(frames, breaking, value);
     }
     if !breaking {
         return Ok(Control::Return {
@@ -708,7 +693,7 @@ pub(super) fn loop_control(
         });
     }
     if frames.data[target].block.is_none() {
-        return invalid_loop_control(program, frames, true, value);
+        return invalid_loop_control(frames, true, value);
     }
     Ok(Control::Return {
         target,
@@ -718,7 +703,6 @@ pub(super) fn loop_control(
 }
 
 pub(super) fn apply_control(
-    program: &Program,
     ctx: &mut CallContext,
     frames: &mut Buffer<Frame>,
     storage: &mut Storage,
@@ -731,7 +715,7 @@ pub(super) fn apply_control(
             unwind(frames, storage, stack, frame);
             return Err(jump.error());
         }
-        Control::Retry { handler } => restart(program, ctx, frames, storage, stack, handler)?,
+        Control::Retry { handler } => restart(ctx, frames, storage, stack, handler)?,
         Control::Break {
             target,
             loop_index,
@@ -772,18 +756,23 @@ pub(super) fn apply_control(
             normalize,
         } => {
             let value = if normalize {
-                normalize_return(program, ctx, frames, storage, target, value)?
+                normalize_return(ctx, frames, storage, target, value)?
             } else {
                 value
             };
             let return_to = std::mem::take(&mut frames.data[target].return_to);
             let initialized = frames.data[target].function.and_then(|function| {
-                program.functions[function]
+                frames.data[target].program.functions[function]
                     .initializer
-                    .then(|| program.functions[function].namespace.unwrap())
+                    .then(|| {
+                        frames.data[target].program.functions[function]
+                            .namespace
+                            .unwrap()
+                    })
             });
             if let Some(module) = initialized {
-                let state = namespaces::state(program, ctx, storage, module)?;
+                let program = frames.data[target].program.clone();
+                let state = namespaces::state(&program, ctx, storage, module)?;
                 storage.namespaces.data[state].initialized = true;
             }
             unwind(frames, storage, stack, target);
@@ -799,10 +788,12 @@ pub(super) fn apply_control(
             }
             match return_to {
                 ReturnTo::Output => {
-                    output::resume(program, ctx, frames, storage, stack, Some(value))?
+                    let program = frames.data.last().unwrap().program.clone();
+                    output::resume(&program, ctx, frames, storage, stack, Some(value))?
                 }
                 ReturnTo::Format => {
-                    format::resume(program, ctx, frames, storage, stack, Some(value))?
+                    let program = frames.data.last().unwrap().program.clone();
+                    format::resume(&program, ctx, frames, storage, stack, Some(value))?
                 }
                 ReturnTo::Stack => stack.push(ctx, value)?,
                 ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value))?,

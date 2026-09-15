@@ -16,14 +16,16 @@ pub(super) fn identifier(
 ) -> Result<Target> {
     let name = &program.members[index];
     let frame = &frames.data[current];
-    let namespace = frame.function.and_then(|f| program.functions[f].namespace);
+    let namespace = frame
+        .function
+        .and_then(|f| frame.program.functions[f].namespace);
     if let Some(Some(value)) = storage.locals.data.get(slot) {
         return Ok(value_invocation(value));
     }
     if let Some(value) = namespaces::constant(program, ctx, storage, namespace, name)? {
         return Ok(value_invocation(&value));
     }
-    if let Some(slot) = namespaces::ambient_slot(program, ctx, frames, storage, current, name)? {
+    if let Some(slot) = namespaces::ambient_slot(ctx, frames, storage, current, name)? {
         return Ok(value_invocation(
             storage.locals.data[slot].as_ref().unwrap(),
         ));
