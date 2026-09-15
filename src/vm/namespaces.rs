@@ -80,6 +80,9 @@ pub(super) fn fallback(name: &str) -> Result<()> {
         "nil?"
             | "itself"
             | "dup"
+            | "clone"
+            | "freeze"
+            | "frozen?"
             | "tap"
             | "yield_self"
             | "eql?"
@@ -312,7 +315,10 @@ pub(super) fn member(
     if let Some(helper) = helper {
         return Ok(Member::Helper(receiver.clone(), helper));
     }
-    if !matches!(name, "nil?" | "itself" | "dup") {
+    if !matches!(
+        name,
+        "nil?" | "itself" | "dup" | "clone" | "freeze" | "frozen?"
+    ) {
         let value = if let Some(instance) = instance {
             crate::objects::field(ctx, instance, name)?
         } else {
@@ -536,6 +542,9 @@ fn responds(
         b"nil?"
             | b"itself"
             | b"dup"
+            | b"clone"
+            | b"freeze"
+            | b"frozen?"
             | b"eql?"
             | b"equal?"
             | b"respond_to?"

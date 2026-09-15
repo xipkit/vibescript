@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "c6590cda38fdf4180509eec470a4c1edac971f68",
-  "dirty": " M README.md\n M docs/errors.md\n M docs/language-port.md\n M src/arguments.rs\n M src/bytecode.rs\n M src/bytecode/errors.rs\n M src/members.rs\n M src/syntax.rs\n M src/syntax/errors.rs\n M src/vm.rs\n M tests/language.json\n?? docs/computed-call-gaps.json\n?? docs/computed-calls.md\n?? src/bytecode/calls.rs\n?? src/vm/call_targets.rs\n?? src/vm/call_targets/\n?? tests/computed_calls.rs\n",
+  "source_revision": "8d1c02102f7d3874a1a7f4a7a48d4dd4effa8e03",
+  "dirty": " M src/members.rs\n M src/vm/namespaces.rs\n M tests/language.json\n?? docs/value-helper-differences.json\n?? docs/value-helpers.md\n?? src/members/\n?? tests/value_helpers.rs\n",
   "binary_sha256": {
-    "go-simd": "aaad37035ee289df6b18cb28c327cad8e9638cf473b763648d73783d6e1ac2fc",
-    "rust-simd": "6c04b6cb67a8b8fda15972f0b091141531a254e61dc5847b6ea586b246e6b176"
+    "go-simd": "5a420ec2d555aa475ab35a57675151423244c063251bea5d36db627e5eebce27",
+    "rust-simd": "6af65246a34b784ee116b483bd9674f78b3f7d0e1fb298b2d0d372b4b3b230bc"
   },
   "counts": {
     "match": 188,

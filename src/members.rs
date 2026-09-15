@@ -5,6 +5,8 @@ use crate::{
     value::Kind,
 };
 
+mod lifecycle;
+
 pub(crate) fn call_keywords(
     ctx: &mut CallContext,
     site: CallSite,
@@ -12,6 +14,17 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if let Some(value) = lifecycle::call(
+        ctx,
+        site,
+        name,
+        &receiver,
+        &args.positional.data,
+        !args.keywords.buffer.data.is_empty(),
+        args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
     if let Some(value) = crate::shapes::member(
         ctx,
         name,
@@ -260,6 +273,9 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if let Some(value) = lifecycle::call(ctx, site, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
     if let Some(result) = crate::text::basic::call(ctx, name, &receiver, args, false, false)? {
         return Ok((receiver, result));
     }
@@ -392,6 +408,9 @@ pub(crate) fn field(
     name: &str,
     receiver: &Value,
 ) -> Result<Option<Value>> {
+    if !site.scope && lifecycle::supported(name) && lifecycle::callable(receiver) {
+        return Ok(None);
+    }
     if let Kind::Offset(offset) = &receiver.0 {
         return Err(offset.value_error());
     }
@@ -407,6 +426,12 @@ pub(crate) fn field(
     if let Kind::Hash(hash) = &receiver.0 {
         if hash.object || !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
+                if !site.scope
+                    && lifecycle::supported(name)
+                    && !lifecycle::callable(&hash.buffer.data[index].1)
+                {
+                    return Ok(None);
+                }
                 return Ok(Some(hash.buffer.data[index].1.clone()));
             }
             if site.scope || !hash_builtin(name) {
@@ -508,5 +533,8 @@ fn hash_builtin(name: &str) -> bool {
             | "kind_of?"
             | "instance_of?"
             | "dup"
+            | "clone"
+            | "freeze"
+            | "frozen?"
     )
 }
