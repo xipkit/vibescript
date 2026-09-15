@@ -1,0 +1,59 @@
+[
+  {
+    "name": "global_field",
+    "status": "open",
+    "source": "def good(x=42)\nx\nend\ndef bad(x=0)\nraise \"callee\"\nend\ndef argument\nraise \"argument\"\nend\ndef run(input)\nbegin\n(JSON.nope rescue good)(8)\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
+    "go_result": [
+      "escaped",
+      "RuntimeError",
+      "unknown hash method nope"
+    ],
+    "rust_result": 8
+  },
+  {
+    "name": "selection_before_arguments",
+    "status": "open",
+    "source": "\ndef run(input)\nbegin\nevents=[];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
+    "go_result": [
+      "escaped",
+      "RuntimeError",
+      "x is a method and cannot be used as a value; call it with x(...)"
+    ],
+    "rust_result": [
+      [
+        8
+      ],
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  {
+    "name": "retry_target",
+    "status": "open",
+    "source": "\ndef run(input)\nbegin\nn=0;(begin\nn+=1;raise \"again\" if n<3;JSON::parse\nrescue\nretry\nend)(\"[8]\")\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
+    "go_result": "[8]",
+    "rust_result": [
+      8
+    ]
+  },
+  {
+    "name": "begin_ensure_target",
+    "status": "open",
+    "source": "\ndef run(input)\nbegin\nevents=[];x=(begin\nJSON::parse\nensure\nevents.push(1)\nend)(\"[8]\");[x,events]\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
+    "go_result": [
+      "escaped",
+      "RuntimeError",
+      "x is a method and cannot be used as a value; call it with x(...)"
+    ],
+    "rust_result": [
+      [
+        8
+      ],
+      [
+        1
+      ]
+    ]
+  }
+]

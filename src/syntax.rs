@@ -39,6 +39,7 @@ pub(crate) enum Node {
     Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
     Loop(Box<Stmt>),
     Call(String, Vec<Argument>),
+    ComputedCall(Box<Expr>, Vec<Argument>),
     BlockCall(Box<Expr>, Block),
     Yield(Vec<Expr>),
     Member(Box<Expr>, String),
@@ -57,6 +58,7 @@ impl Expr {
                 Node::Member(receiver, _)
                 | Node::Method(receiver, _, _)
                 | Node::Index(receiver, _)
+                | Node::ComputedCall(receiver, _)
                 | Node::BlockCall(receiver, _) => receiver,
                 _ => return false,
             };
@@ -65,6 +67,7 @@ impl Expr {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Try {
+    pub modifier: bool,
     pub body: Vec<Stmt>,
     pub rescues: Vec<Rescue>,
     pub alternate: Vec<Stmt>,
@@ -1346,6 +1349,25 @@ impl Parser<'_> {
         };
         self.make(Node::Literal(Value::symbol(bytes)), 1)
     }
+    fn parenthesized_call(&mut self, lhs: Expr, args: Vec<Argument>) -> Result<Expr> {
+        let origin = lhs.offset;
+        let argument_depth = args.iter().map(|a| a.value.depth).max().unwrap_or(0);
+        let d = 1 + match &lhs.node {
+            Node::Var(_) => argument_depth,
+            Node::Member(receiver, _)
+            | Node::SafeMember(receiver, _)
+            | Node::Scope(receiver, _, None) => receiver.depth.max(argument_depth),
+            _ => lhs.depth.max(argument_depth),
+        };
+        let node = match lhs.node {
+            Node::Var(name) => Node::Call(name, args),
+            Node::Member(receiver, name) => Node::Method(receiver, name, args),
+            Node::SafeMember(receiver, name) => Node::SafeMethod(receiver, name, args),
+            Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
+            _ => Node::ComputedCall(Box::new(lhs), args),
+        };
+        self.make_at(node, d, origin)
+    }
     fn expr_tail(&mut self, mut lhs: Expr, min: u8) -> Result<Expr> {
         loop {
             if let Some(next) = self.continuation_position(min) {
@@ -1359,7 +1381,6 @@ impl Parser<'_> {
                 lhs = self.rescue_modifier(lhs)?;
                 continue;
             }
-            let origin = lhs.offset;
             let offset = self.tokens[self.pos].offset as u32;
             if self.command_start(&lhs, min) {
                 lhs = self.command_expression(lhs)?;
@@ -1375,12 +1396,8 @@ impl Parser<'_> {
                 continue;
             }
             if self.take_p('(') {
-                let Node::Var(name) = lhs.node else {
-                    return self.err("only named functions are callable");
-                };
                 let args = self.call_arguments()?;
-                let d = 1 + args.iter().map(|a| a.value.depth).max().unwrap_or(0);
-                lhs = self.make_at(Node::Call(name, args), d, origin)?;
+                lhs = self.parenthesized_call(lhs, args)?;
                 continue;
             }
             if self.token() == &Token::Op("::") {

@@ -5,6 +5,7 @@ use crate::{
 };
 use std::collections::{HashMap, HashSet};
 
+mod calls;
 mod errors;
 mod namespaces;
 
@@ -102,6 +103,9 @@ pub(crate) enum Op {
     Method(CallSite, usize),
     Arguments,
     ResolveCall(usize, usize),
+    CallName(usize, usize),
+    CallValue,
+    CallMember(CallSite),
     Bypass(usize),
     BypassEnd(usize),
     Argument(ArgumentOp),
@@ -658,7 +662,9 @@ impl Compiler<'_> {
                 }
             }
             Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref())),
-            Node::Method(recv, _, args) | Node::SafeMethod(recv, _, args) => {
+            Node::Method(recv, _, args)
+            | Node::SafeMethod(recv, _, args)
+            | Node::ComputedCall(recv, args) => {
                 self.declare_expr(recv);
                 for arg in args {
                     self.declare_expr(&arg.value);
@@ -1113,7 +1119,7 @@ impl Compiler<'_> {
     }
     fn expression(&mut self, e: &Expr) -> Result<()> {
         match &e.node {
-            Node::Try(attempt) => self.attempt(attempt)?,
+            Node::Try(attempt) => self.attempt(attempt, false)?,
             Node::Regex(pattern, flags) => {
                 let index = self.program.constants.len();
                 self.program.constants.push(Value::bytes(pattern.clone()));
@@ -1313,52 +1319,8 @@ impl Compiler<'_> {
                 self.emit(Op::Yield(args.len()));
             }
             Node::BlockCall(call, block) => self.block_call(call, block)?,
-            Node::Call(name, args) => {
-                self.global(name);
-                if let Some(&slot) = self.locals.get(name) {
-                    let name = self.call_site(name, false).name;
-                    self.emit(Op::ResolveCall(slot, name));
-                    self.argument_values(args)?;
-                    self.emit(Op::Invoke(Invocation::Resolved));
-                    return Ok(());
-                }
-                let target = if self.program.declaration_names.contains_key(name) {
-                    Invocation::NonCallable
-                } else if let Some(&fun) = self.program.names.get(name) {
-                    Invocation::Function(fun)
-                } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
-                    Invocation::Host(host)
-                } else if let Some(global) = self.global(name) {
-                    self.emit(Op::ResolveGlobalCall(global));
-                    self.argument_values(args)?;
-                    self.emit(Op::Invoke(Invocation::Resolved));
-                    return Ok(());
-                } else {
-                    let site = self.call_site(name, false);
-                    if self.namespace.is_some() {
-                        self.emit(Op::ResolveCall(usize::MAX, site.name));
-                        self.argument_values(args)?;
-                        self.emit(Op::Invoke(Invocation::Resolved));
-                    } else {
-                        self.emit(Op::Unbound(site.name));
-                    }
-                    return Ok(());
-                };
-                if expanded(args) {
-                    self.call_arguments(args)?;
-                    self.emit(Op::Invoke(target));
-                } else {
-                    for arg in args {
-                        self.expr(&arg.value)?;
-                    }
-                    self.emit(match target {
-                        Invocation::Function(fun) => Op::Call(fun, args.len()),
-                        Invocation::Host(host) => Op::Host(host, args.len()),
-                        Invocation::NonCallable => Op::NonCallable,
-                        _ => unreachable!(),
-                    });
-                }
-            }
+            Node::ComputedCall(call, args) => self.computed_call(call, args, None)?,
+            Node::Call(name, args) => self.named_call(name, args)?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
                 self.member_call(
                     recv,
@@ -1534,11 +1496,11 @@ impl Compiler<'_> {
             Node::Scope(receiver, name, args) => {
                 return self.scoped_call(receiver, name, args.as_deref(), Some(function));
             }
+            Node::ComputedCall(call, args) => {
+                return self.computed_call(call, args, Some(function));
+            }
             _ => {
-                self.expr(call)?;
-                self.emit(Op::Pop);
-                self.emit(Op::NonCallable);
-                return Ok(());
+                return self.computed_call(call, &[], Some(function));
             }
         };
         if name == "block_given?" {
@@ -1864,7 +1826,9 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
             }
         }
         Node::Loop(stmt) => block_call_names(std::slice::from_ref(stmt), names),
-        Node::Method(receiver, _, args) | Node::SafeMethod(receiver, _, args) => {
+        Node::Method(receiver, _, args)
+        | Node::SafeMethod(receiver, _, args)
+        | Node::ComputedCall(receiver, args) => {
             call_names(receiver, names);
             for arg in args {
                 call_names(&arg.value, names);

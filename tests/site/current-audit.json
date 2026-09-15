@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "d48793bb5a7d03936abf8c2c7b7591619d2818d0",
-  "dirty": " M README.md\n M docs/diagnostics.md\n M docs/language-port.md\n M src/address.rs\n M src/arguments.rs\n M src/budget.rs\n M src/builtin.rs\n M src/bytecode.rs\n M src/error.rs\n M src/hash.rs\n M src/iteration.rs\n M src/mutate.rs\n M src/objects.rs\n M src/regex/matches.rs\n M src/source.rs\n M src/syntax.rs\n M src/syntax/lexer.rs\n M src/syntax/modules.rs\n M src/text.rs\n M src/text/bounded.rs\n M src/value.rs\n M src/vm.rs\n M tests/error_classes.rs\n M tests/language.json\n M tests/site/README.md\n M tests/site/cases.json\n M tests/syntax-errors.json\n?? docs/errors.md\n?? src/bytecode/errors.rs\n?? src/syntax/errors.rs\n?? src/vm/handlers.rs\n?? tests/error_handling.rs\n",
+  "source_revision": "c6590cda38fdf4180509eec470a4c1edac971f68",
+  "dirty": " M README.md\n M docs/errors.md\n M docs/language-port.md\n M src/arguments.rs\n M src/bytecode.rs\n M src/bytecode/errors.rs\n M src/members.rs\n M src/syntax.rs\n M src/syntax/errors.rs\n M src/vm.rs\n M tests/language.json\n?? docs/computed-call-gaps.json\n?? docs/computed-calls.md\n?? src/bytecode/calls.rs\n?? src/vm/call_targets.rs\n?? src/vm/call_targets/\n?? tests/computed_calls.rs\n",
   "binary_sha256": {
-    "go-simd": "e693dc5f11c466f5334e334835d5f3728b9b2aaa3b7db7068800e6e6a9ddae28",
-    "rust-simd": "ff20e2a790f7febdaf0a060fff53a6ea327645483e48485d5480bdaf3a3029d9"
+    "go-simd": "aaad37035ee289df6b18cb28c327cad8e9638cf473b763648d73783d6e1ac2fc",
+    "rust-simd": "6c04b6cb67a8b8fda15972f0b091141531a254e61dc5847b6ea586b246e6b176"
   },
   "counts": {
     "match": 188,

@@ -12,6 +12,8 @@ pub(crate) enum Target {
     Raise(Option<crate::ErrorClass>, Value),
     Method(crate::namespace::Call),
     Helper(Value, crate::namespace::Helper),
+    Member(Value, usize),
+    Unbound(&'static str, usize),
     Plain(Invocation),
     Offset(std::sync::Arc<crate::regex::matches::Offset>),
 }

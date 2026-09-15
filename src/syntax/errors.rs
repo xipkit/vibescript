@@ -99,6 +99,7 @@ impl Parser<'_> {
         }
         self.expect_word("end")?;
         Ok(Try {
+            modifier: false,
             body,
             rescues,
             alternate,
@@ -111,6 +112,7 @@ impl Parser<'_> {
         let rescue_offset = self.tokens[self.pos - 1].offset as u32;
         let fallback = self.line_expr(0)?;
         let attempt = Try {
+            modifier: true,
             body: vec![Statement::Expr(body).at(offset)],
             rescues: vec![Rescue {
                 classes: vec![crate::ErrorClass::Standard],

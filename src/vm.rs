@@ -12,6 +12,7 @@ use crate::{
     value::Kind,
 };
 
+mod call_targets;
 mod handlers;
 mod namespaces;
 mod operators;
@@ -269,6 +270,9 @@ pub(crate) fn execute(
                         Op::AddressBound(n, next) => Op::AddressBound(slot(n, false)?, next),
                         Op::ResolveCall(n, name) => {
                             Op::ResolveCall(if n == usize::MAX { n } else { slot(n, true)? }, name)
+                        }
+                        Op::CallName(n, name) => {
+                            Op::CallName(if n == usize::MAX { n } else { slot(n, false)? }, name)
                         }
                         op => op,
                     };
@@ -1733,6 +1737,41 @@ pub(crate) fn execute(
                             return Err(callable_value_error(&program.hosts[host], "method"));
                         }
                         Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
+                        Op::CallName(slot, name) => {
+                            let target = call_targets::identifier(
+                                program,
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                current,
+                                slot,
+                                name,
+                            )?;
+                            frames.data[current]
+                                .arguments
+                                .data
+                                .last_mut()
+                                .unwrap()
+                                .target = Some(target);
+                        }
+                        Op::CallValue => {
+                            let value = stack.data.pop().unwrap();
+                            frame.arguments.data.last_mut().unwrap().target =
+                                Some(value_invocation(&value));
+                        }
+                        Op::CallMember(site) => {
+                            let receiver = stack.data.pop().unwrap();
+                            let target = call_targets::member(
+                                program,
+                                ctx,
+                                &mut storage,
+                                receiver,
+                                site,
+                                namespace,
+                                self_value.is_some(),
+                            )?;
+                            frame.arguments.data.last_mut().unwrap().target = Some(target);
+                        }
                         Op::ResolveCall(slot, name) => {
                             let name_index = name;
                             let name = &program.members[name];
@@ -1801,6 +1840,34 @@ pub(crate) fn execute(
                             };
                             let target = match target {
                                 crate::arguments::Target::Raise(..) => unreachable!(),
+                                crate::arguments::Target::Unbound(kind, name) => {
+                                    let required = if kind == "hash" {
+                                        "hash or object"
+                                    } else {
+                                        kind
+                                    };
+                                    return Err(Error::new(
+                                        ErrorKind::Runtime,
+                                        format!(
+                                            "{kind}.{} requires a {required} receiver, got nil",
+                                            program.members[name]
+                                        ),
+                                    ));
+                                }
+                                crate::arguments::Target::Member(receiver, name) => {
+                                    stack.push(ctx, receiver)?;
+                                    Invocation::Member(
+                                        crate::bytecode::CallSite {
+                                            name,
+                                            method: crate::bytecode::Method::parse(
+                                                &program.members[name],
+                                            ),
+                                            auto: false,
+                                            scope: false,
+                                        },
+                                        false,
+                                    )
+                                }
                                 crate::arguments::Target::Plain(target) => target,
                                 crate::arguments::Target::Method(call) => {
                                     enter_arguments(

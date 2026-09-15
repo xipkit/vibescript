@@ -21,7 +21,7 @@ pub(crate) struct RescueSpec {
 }
 
 impl Compiler<'_> {
-    pub(super) fn attempt(&mut self, attempt: &syntax::Try) -> Result<()> {
+    pub(super) fn attempt(&mut self, attempt: &syntax::Try, target: bool) -> Result<()> {
         let index = self.program.handlers.len();
         self.program.handlers.push(TrySpec::default());
         self.emit(Op::TryBegin(index));
@@ -30,7 +30,7 @@ impl Compiler<'_> {
             body_locals: self.statement_bindings(&attempt.body),
             ..TrySpec::default()
         };
-        self.block(&attempt.body)?;
+        self.attempt_block(&attempt.body, target)?;
         self.emit(Op::TryBody);
         for clause in &attempt.rescues {
             let saved_offset = std::mem::replace(&mut self.offset, clause.offset);
@@ -54,7 +54,7 @@ impl Compiler<'_> {
                 .filter(|slot| Some(*slot) != binding)
                 .collect();
             let start = self.code.len();
-            self.block(&clause.body)?;
+            self.attempt_block(&clause.body, target)?;
             self.emit(Op::TryEnd);
             if let Some(name) = &clause.binding {
                 if let Some(slot) = previous {
@@ -90,6 +90,25 @@ impl Compiler<'_> {
         spec.end = self.code.len();
         self.program.handlers[index] = spec;
         Ok(())
+    }
+
+    fn attempt_block(&mut self, body: &[Stmt], target: bool) -> Result<()> {
+        if target {
+            let [
+                Stmt {
+                    node: Statement::Expr(expr),
+                    ..
+                },
+            ] = body
+            else {
+                unreachable!()
+            };
+            self.call_target(expr)?;
+            self.emit(Op::Nil);
+            Ok(())
+        } else {
+            self.block(body)
+        }
     }
 
     pub(super) fn raise(&mut self, value: Option<&Expr>, message: Option<&Expr>) -> Result<()> {

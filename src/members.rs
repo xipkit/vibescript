@@ -386,7 +386,7 @@ pub(crate) fn exported(
     Ok(false)
 }
 
-fn field(
+pub(crate) fn field(
     ctx: &mut CallContext,
     site: CallSite,
     name: &str,
