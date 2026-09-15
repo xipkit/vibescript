@@ -51,6 +51,13 @@ impl Arguments {
         Ok(arguments)
     }
 
+    /// Selects the callee and its options binding rule, including rescue fallbacks.
+    pub fn resolve(&mut self, target: Target, parenthesized: bool) {
+        self.options_hash =
+            !parenthesized || !matches!(&target, Target::Method(call) if !call.constructor);
+        self.target = Some(target);
+    }
+
     pub fn skip(&mut self, ctx: &mut CallContext, count: usize) -> Result<()> {
         let length = self.positional.data.len();
         for start in (count..length).step_by(CHUNK) {

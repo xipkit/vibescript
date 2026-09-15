@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "cdc7c57826f50c26aab93909a9b7964678581f31",
-  "dirty": " M README.md\n M docs/classes.md\n M docs/introspection.md\n M docs/language-port.md\n M src/address.rs\n M src/arguments.rs\n M src/bytecode.rs\n M src/members.rs\n M src/members/names.rs\n M src/vm.rs\n M src/vm/dispatch.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/forwarding-differences.json\n?? docs/forwarding.md\n?? src/members/forwarding.rs\n?? src/vm/dispatch/\n?? tests/forwarding.rs\n",
+  "source_revision": "6c561d2fb049f4fba2f7eba2ea2aa49c0f673f56",
+  "dirty": " M docs/forwarding-differences.json\n M docs/forwarding.md\n M docs/language-port.md\n M src/arguments.rs\n M src/bytecode.rs\n M src/bytecode/calls.rs\n M src/members/lifecycle.rs\n M src/syntax.rs\n M src/vm.rs\n M src/vm/dispatch.rs\n M src/vm/dispatch/send.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/options-hash-differences.json\n?? docs/options-hash.md\n?? tests/options_hash.rs\n",
   "binary_sha256": {
-    "go-simd": "cc638f767ac5f734800ded3fdf1b5471f1ef96f9bc634e6f404ece3eabacfbf3",
-    "rust-simd": "73aabda6e00d927f8f650bf477e5cefe5ffa027cbfe285f99eb2a4d9fe481f73"
+    "go-simd": "0602815635a5f5d66ed72a4024b9aae9e9b1bd8a0a5f75b35022a8b1eff707f3",
+    "rust-simd": "09a34fe9902bd464f37b059fbc8194879a0ae92d375f825064e60c5feb1adfef"
   },
   "counts": {
     "match": 188,

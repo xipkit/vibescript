@@ -283,9 +283,11 @@ pub(crate) fn execute(
                         Op::AddStore(n) => Op::AddStore(slot(n, false)?),
                         Op::AddressLocal(n) => Op::AddressLocal(slot(n, false)?),
                         Op::AddressBound(n, next) => Op::AddressBound(slot(n, false)?, next),
-                        Op::ResolveCall(n, name) => {
-                            Op::ResolveCall(if n == usize::MAX { n } else { slot(n, true)? }, name)
-                        }
+                        Op::ResolveCall(n, name, parenthesized) => Op::ResolveCall(
+                            if n == usize::MAX { n } else { slot(n, true)? },
+                            name,
+                            parenthesized,
+                        ),
                         Op::CallName(n, name) => {
                             Op::CallName(if n == usize::MAX { n } else { slot(n, false)? }, name)
                         }
@@ -802,6 +804,7 @@ pub(crate) fn execute(
                                             &program.members[name],
                                         ),
                                         auto: true,
+                                        parenthesized: false,
                                         scope: false,
                                     };
                                     let (_, value) = members::call(
@@ -1809,12 +1812,16 @@ pub(crate) fn execute(
                                 .data
                                 .last_mut()
                                 .unwrap()
-                                .target = Some(target);
+                                .resolve(target, true);
                         }
                         Op::CallValue => {
                             let value = stack.data.pop().unwrap();
-                            frame.arguments.data.last_mut().unwrap().target =
-                                Some(value_invocation(&value));
+                            frame
+                                .arguments
+                                .data
+                                .last_mut()
+                                .unwrap()
+                                .resolve(value_invocation(&value), true);
                         }
                         Op::CallMember(site) => {
                             let receiver = stack.data.pop().unwrap();
@@ -1827,9 +1834,14 @@ pub(crate) fn execute(
                                 namespace,
                                 self_value.is_some(),
                             )?;
-                            frame.arguments.data.last_mut().unwrap().target = Some(target);
+                            frame
+                                .arguments
+                                .data
+                                .last_mut()
+                                .unwrap()
+                                .resolve(target, site.parenthesized);
                         }
-                        Op::ResolveCall(slot, name) => {
+                        Op::ResolveCall(slot, name, parenthesized) => {
                             let name_index = name;
                             let name = &program.members[name];
                             let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
@@ -1871,7 +1883,7 @@ pub(crate) fn execute(
                                 }
                             };
                             let mut arguments = Arguments::empty();
-                            arguments.target = Some(target);
+                            arguments.resolve(target, parenthesized);
                             frame.arguments.push(ctx, arguments)?;
                         }
                         Op::Argument(op) => {
@@ -1921,6 +1933,7 @@ pub(crate) fn execute(
                                                 &program.members[name],
                                             ),
                                             auto: false,
+                                            parenthesized: false,
                                             scope: false,
                                         },
                                         false,
@@ -1977,6 +1990,7 @@ pub(crate) fn execute(
                                             &program.members[name],
                                         ),
                                         auto: false,
+                                        parenthesized: false,
                                         scope: false,
                                     },
                                     false,

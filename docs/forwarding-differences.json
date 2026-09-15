@@ -2,13 +2,11 @@
   "reference": "Go v0.70.0",
   "classification": {
     "selected_match_protection": "The user selected consistent protection through nested writes and duplicates.",
-    "open_options_hash_binding": "Ordinary parenthesized script methods currently collapse keyword arguments in Rust. Go requires explicit positional options here. Forwarded calls agree with Go; ordinary call syntax remains to be fixed.",
     "existing_typed_mutation_guard": "Forwarding preserves the existing Rust guard on nested writes to typed backing fields. Go permits these writes. This difference remains separate from the selected collection and match-data policies.",
     "selected_collection_snapshots": "The user selected documented collection value semantics. Forwarded reads and callable hash lookups use the evaluated receiver snapshot when later arguments mutate it."
   },
   "counts": {
     "selected_match_protection": 6,
-    "open_options_hash_binding": 3,
     "existing_typed_mutation_guard": 2,
     "selected_collection_snapshots": 12
   },
@@ -76,54 +74,6 @@
         "RuntimeError",
         "cannot modify match data"
       ]
-    },
-    {
-      "name": "forwarding_probe_control_options_C.new",
-      "status": "open_options_hash_binding",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nC.new.take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "function": "run",
-      "args": [
-        null
-      ],
-      "go": [
-        "ArgumentError",
-        "missing argument options"
-      ],
-      "rust": {
-        "retries": 3
-      }
-    },
-    {
-      "name": "forwarding_probe_control_options_C",
-      "status": "open_options_hash_binding",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nC.take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "function": "run",
-      "args": [
-        null
-      ],
-      "go": [
-        "ArgumentError",
-        "missing argument options"
-      ],
-      "rust": {
-        "retries": 3
-      }
-    },
-    {
-      "name": "forwarding_probe_control_options_M",
-      "status": "open_options_hash_binding",
-      "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nbegin\nM.take(retries:3)\nrescue RuntimeError | LimitError=>e\n[e.type,e.message]\nend\nend",
-      "function": "run",
-      "args": [
-        null
-      ],
-      "go": [
-        "ArgumentError",
-        "missing argument options"
-      ],
-      "rust": {
-        "retries": 3
-      }
     },
     {
       "name": "forwarding_edge_address_send_typed_ivar_path",

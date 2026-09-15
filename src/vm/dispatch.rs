@@ -77,6 +77,9 @@ fn invoke(
     };
     match selected {
         namespaces::Member::Function(function) => {
+            if site.parenthesized && !function.constructor {
+                args.options_hash = false;
+            }
             if mutating {
                 storage.addresses.data.pop();
             } else {
@@ -312,6 +315,7 @@ pub(super) fn reduce(
                     name: 0,
                     method: None,
                     auto: false,
+                    parenthesized: false,
                     scope: false,
                 };
                 let value = members::field_call(
@@ -337,6 +341,7 @@ pub(super) fn reduce(
         name: 0,
         method: crate::bytecode::Method::parse(name),
         auto: false,
+        parenthesized: false,
         scope: false,
     };
     stack.push(ctx, receiver)?;

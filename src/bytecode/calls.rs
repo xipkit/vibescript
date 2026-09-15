@@ -1,11 +1,16 @@
 use super::*;
 
 impl Compiler<'_> {
-    pub(super) fn named_call(&mut self, name: &str, args: &[Argument]) -> Result<()> {
+    pub(super) fn named_call(
+        &mut self,
+        name: &str,
+        args: &[Argument],
+        form: CallForm,
+    ) -> Result<()> {
         self.global(name);
         if let Some(&slot) = self.locals.get(name) {
             let name = self.call_site(name, false).name;
-            self.emit(Op::ResolveCall(slot, name));
+            self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             self.argument_values(args)?;
             self.emit(Op::Invoke(Invocation::Resolved));
             return Ok(());
@@ -24,7 +29,11 @@ impl Compiler<'_> {
         } else {
             let site = self.call_site(name, false);
             if self.namespace.is_some() {
-                self.emit(Op::ResolveCall(usize::MAX, site.name));
+                self.emit(Op::ResolveCall(
+                    usize::MAX,
+                    site.name,
+                    form == CallForm::Parenthesized,
+                ));
                 self.argument_values(args)?;
                 self.emit(Op::Invoke(Invocation::Resolved));
             } else {

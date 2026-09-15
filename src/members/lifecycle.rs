@@ -82,6 +82,7 @@ mod tests {
                     name: 0,
                     method: None,
                     auto: false,
+                    parenthesized: true,
                     scope: false,
                 };
                 let arguments = if export {

@@ -1,7 +1,10 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
-    syntax::{self, Argument, ArgumentKind, Block, Expr, Node, ParamKind, Statement, Stmt, Target},
+    syntax::{
+        self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
+        Target,
+    },
 };
 use std::collections::{HashMap, HashSet};
 
@@ -103,7 +106,7 @@ pub(crate) enum Op {
     Method(CallSite, usize),
     Arguments,
     ForwardArguments,
-    ResolveCall(usize, usize),
+    ResolveCall(usize, usize, bool),
     CallName(usize, usize),
     CallValue,
     CallMember(CallSite),
@@ -153,6 +156,7 @@ pub(crate) struct CallSite {
     pub name: usize,
     pub method: Option<Method>,
     pub auto: bool,
+    pub parenthesized: bool,
     pub scope: bool,
 }
 
@@ -622,7 +626,7 @@ impl Compiler<'_> {
                     self.declare_expr(value);
                 }
             }
-            Node::Call(name, args) => {
+            Node::Call(name, args, _) => {
                 if name != "it" {
                     self.reads.insert(name.clone());
                 }
@@ -672,8 +676,8 @@ impl Compiler<'_> {
                 }
             }
             Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref())),
-            Node::Method(recv, _, args)
-            | Node::SafeMethod(recv, _, args)
+            Node::Method(recv, _, args, _)
+            | Node::SafeMethod(recv, _, args, _)
             | Node::ComputedCall(recv, args) => {
                 self.declare_expr(recv);
                 for arg in args {
@@ -1318,7 +1322,7 @@ impl Compiler<'_> {
                     self.emit(Op::Binary(op));
                 }
             }
-            Node::Call(name, args) if name == "block_given?" => {
+            Node::Call(name, args, _) if name == "block_given?" => {
                 self.emit(Op::BlockGiven(!args.is_empty(), false));
             }
             Node::Yield(args) => {
@@ -1330,24 +1334,24 @@ impl Compiler<'_> {
             }
             Node::BlockCall(call, block) => self.block_call(call, block)?,
             Node::ComputedCall(call, args) => self.computed_call(call, args, None)?,
-            Node::Call(name, args) => self.named_call(name, args)?,
+            Node::Call(name, args, form) => self.named_call(name, args, *form)?,
             Node::Member(recv, name) | Node::SafeMember(recv, name) => {
                 self.member_call(
                     recv,
                     name,
                     &[],
-                    true,
+                    CallForm::Auto,
                     None,
                     matches!(e.node, Node::SafeMember(..)),
                 )?;
             }
             Node::Scope(recv, name, args) => self.scoped_call(recv, name, args.as_deref(), None)?,
-            Node::Method(recv, name, args) | Node::SafeMethod(recv, name, args) => {
+            Node::Method(recv, name, args, form) | Node::SafeMethod(recv, name, args, form) => {
                 self.member_call(
                     recv,
                     name,
                     args,
-                    false,
+                    *form,
                     None,
                     matches!(e.node, Node::SafeMethod(..)),
                 )?;
@@ -1369,6 +1373,7 @@ impl Compiler<'_> {
             name: index,
             method: Method::parse(name),
             auto,
+            parenthesized: !auto,
             scope: false,
         }
     }
@@ -1399,7 +1404,7 @@ impl Compiler<'_> {
         receiver: &Expr,
         name: &str,
         args: &[Argument],
-        auto: bool,
+        form: CallForm,
         block: Option<usize>,
         safe: bool,
     ) -> Result<()> {
@@ -1417,7 +1422,8 @@ impl Compiler<'_> {
                 Op::JumpNil(0)
             })
         });
-        let site = self.call_site(name, auto);
+        let mut site = self.call_site(name, form == CallForm::Auto);
+        site.parenthesized = form == CallForm::Parenthesized;
         if expanded(args)
             || block.is_some()
             || crate::iteration::method(name)
@@ -1491,25 +1497,26 @@ impl Compiler<'_> {
     }
     fn block_call(&mut self, call: &Expr, block: &Block) -> Result<()> {
         let function = self.compile_block(block)?;
-        let (name, args) = match &call.node {
-            Node::Var(name) => (name.as_str(), &[][..]),
-            Node::Call(name, args) => (name.as_str(), args.as_slice()),
+        let (name, args, form) = match &call.node {
+            Node::Var(name) => (name.as_str(), &[][..], CallForm::Bare),
+            Node::Call(name, args, form) => (name.as_str(), args.as_slice(), *form),
             Node::Member(receiver, name) | Node::SafeMember(receiver, name) => {
                 return self.member_call(
                     receiver,
                     name,
                     &[],
-                    false,
+                    CallForm::Bare,
                     Some(function),
                     matches!(call.node, Node::SafeMember(..)),
                 );
             }
-            Node::Method(receiver, name, args) | Node::SafeMethod(receiver, name, args) => {
+            Node::Method(receiver, name, args, form)
+            | Node::SafeMethod(receiver, name, args, form) => {
                 return self.member_call(
                     receiver,
                     name,
                     args,
-                    false,
+                    *form,
                     Some(function),
                     matches!(call.node, Node::SafeMethod(..)),
                 );
@@ -1530,7 +1537,7 @@ impl Compiler<'_> {
         }
         let target = if let Some(&slot) = self.locals.get(name) {
             let name = self.call_site(name, false).name;
-            self.emit(Op::ResolveCall(slot, name));
+            self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             Invocation::Resolved
         } else if let Some(global) = self.global_binding(name) {
             self.emit(Op::ResolveGlobalCall(global));
@@ -1545,7 +1552,11 @@ impl Compiler<'_> {
             } else {
                 let site = self.call_site(name, false);
                 if self.namespace.is_some() {
-                    self.emit(Op::ResolveCall(usize::MAX, site.name));
+                    self.emit(Op::ResolveCall(
+                        usize::MAX,
+                        site.name,
+                        form == CallForm::Parenthesized,
+                    ));
                     self.argument_values(args)?;
                     self.emit(Op::Attach(function));
                     self.emit(Op::Invoke(Invocation::Resolved));
@@ -1799,7 +1810,7 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
         | Node::Integer(_)
         | Node::BigInteger(..)
         | Node::Var(_) => (),
-        Node::Call(name, args) => {
+        Node::Call(name, args, _) => {
             names.insert(name);
             for arg in args {
                 call_names(&arg.value, names);
@@ -1851,8 +1862,8 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
             }
         }
         Node::Loop(stmt) => block_call_names(std::slice::from_ref(stmt), names),
-        Node::Method(receiver, _, args)
-        | Node::SafeMethod(receiver, _, args)
+        Node::Method(receiver, _, args, _)
+        | Node::SafeMethod(receiver, _, args, _)
         | Node::ComputedCall(receiver, args) => {
             call_names(receiver, names);
             for arg in args {

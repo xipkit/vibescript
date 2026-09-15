@@ -32,6 +32,7 @@ pub(super) fn call(
             name: 0,
             method: name.and_then(crate::bytecode::Method::parse),
             auto: false,
+            parenthesized: false,
             scope: false,
         };
         let selected = resolve(

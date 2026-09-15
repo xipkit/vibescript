@@ -118741,5 +118741,450 @@
     "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nh={nested:{go:JSON::parse}};h.dup.nested.go.public_send(:nil?)\nend",
     "go_error": "go is a method and cannot be used as a value; call it with go(...)"
   }
-
+,
+  {
+    "name": "options_reject_probe_C.new_take_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.new.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_take_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.new.take)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_take_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.new&.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_take_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.new.take rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_take_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue C.new.take)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_take_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.new.take(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_call_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.new.call(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_call_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.new.call)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_call_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.new&.call(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_call_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.new.call rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_call_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue C.new.call)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C.new_call_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.new.call(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_take_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_take_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.take)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_take_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC&.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_take_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.take rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_take_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue C.take)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_take_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.take(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_call_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.call(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_call_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.call)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_call_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC&.call(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_call_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(C.call rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_call_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue C.call)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_C_call_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nC.call(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_take_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nM.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_take_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(M.take)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_take_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nM&.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_take_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(M.take rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_take_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue M.take)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_take_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nM.take(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_call_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nM.call(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_call_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(M.call)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_call_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nM&.call(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_call_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(M.call rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_call_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue M.call)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_M_call_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nM.call(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_send_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nD.new.send(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_send_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(D.new.send)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_send_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nD.new&.send(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_send_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(D.new.send rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_send_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue D.new.send)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_send_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nD.new.send(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_public_send_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nD.new.public_send(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_public_send_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(D.new.public_send)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_public_send_safe",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nD.new&.public_send(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_public_send_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(D.new.public_send rescue plain)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_public_send_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\n(missing rescue D.new.public_send)(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_D.new_public_send_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\n\ndef run(input)\nD.new.public_send(retries:3) {raise \"entered\"}\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_instance_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef take(options)\noptions\nend\ndef check\ntake(retries:3)\nend\nend\n\ndef run(input)\nI.new.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_instance_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef take(options)\noptions\nend\ndef check\n(take)(retries:3)\nend\nend\n\ndef run(input)\nI.new.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_instance_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef take(options)\noptions\nend\ndef check\n(take rescue plain)(retries:3)\nend\nend\n\ndef run(input)\nI.new.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_instance_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef take(options)\noptions\nend\ndef check\n(missing rescue take)(retries:3)\nend\nend\n\ndef run(input)\nI.new.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_instance_self",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef take(options)\noptions\nend\ndef check\nself.take(retries:3)\nend\nend\n\ndef run(input)\nI.new.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_instance_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef take(options)\noptions\nend\ndef check\ntake(retries:3) {raise \"entered\"}\nend\nend\n\ndef run(input)\nI.new.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_class_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef self.take(options)\noptions\nend\ndef self.check\ntake(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_class_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef self.take(options)\noptions\nend\ndef self.check\n(take)(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_class_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef self.take(options)\noptions\nend\ndef self.check\n(take rescue plain)(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_class_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef self.take(options)\noptions\nend\ndef self.check\n(missing rescue take)(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_class_self",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef self.take(options)\noptions\nend\ndef self.check\nself.take(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_class_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nclass I\ndef self.take(options)\noptions\nend\ndef self.check\ntake(retries:3) {raise \"entered\"}\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_module_paren",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nmodule I\ndef self.take(options)\noptions\nend\ndef self.check\ntake(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_module_wrapped",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nmodule I\ndef self.take(options)\noptions\nend\ndef self.check\n(take)(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_module_selected",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nmodule I\ndef self.take(options)\noptions\nend\ndef self.check\n(take rescue plain)(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_module_recovered",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nmodule I\ndef self.take(options)\noptions\nend\ndef self.check\n(missing rescue take)(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_module_self",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nmodule I\ndef self.take(options)\noptions\nend\ndef self.check\nself.take(retries:3)\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_probe_implicit_module_block",
+    "source": "def plain(options)\noptions\nend\nclass C\nproperty options\ndef initialize(options={})\n@options=options\nend\ndef take(options)\noptions\nend\ndef self.take(options)\noptions\nend\ndef call(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\ndef self.call(options)\noptions\nend\nend\nclass D\ndef send(options)\noptions\nend\ndef public_send(options)\noptions\nend\nend\nmodule I\ndef self.take(options)\noptions\nend\ndef self.check\ntake(retries:3) {raise \"entered\"}\nend\nend\n\ndef run(input)\nI.check\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_required_keyword_method",
+    "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(retries:3)\nend\nend\ndef run(input)\nC.new.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_required_splat_method",
+    "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(**{retries:3})\nend\nend\ndef run(input)\nC.new.take(**{retries:3})\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_required_positional_splat_method",
+    "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(*[],retries:3)\nend\nend\ndef run(input)\nC.new.take(*[],retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_required_bad_type_method",
+    "source": "def plain(options)\noptions\nend\nclass C\ndef take(options)\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take(retries:\"bad\")\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_default_keyword_method",
+    "source": "def plain(options={fallback:1})\noptions\nend\nclass C\ndef take(options={fallback:1})\noptions\nend\ndef check\ntake(retries:3)\nend\nend\ndef run(input)\nC.new.take(retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_default_splat_method",
+    "source": "def plain(options={fallback:1})\noptions\nend\nclass C\ndef take(options={fallback:1})\noptions\nend\ndef check\ntake(**{retries:3})\nend\nend\ndef run(input)\nC.new.take(**{retries:3})\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_default_positional_splat_method",
+    "source": "def plain(options={fallback:1})\noptions\nend\nclass C\ndef take(options={fallback:1})\noptions\nend\ndef check\ntake(*[],retries:3)\nend\nend\ndef run(input)\nC.new.take(*[],retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_default_bad_type_method",
+    "source": "def plain(options={fallback:1})\noptions\nend\nclass C\ndef take(options={fallback:1})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take(retries:\"bad\")\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_rest_keyword_method",
+    "source": "def plain(*options)\noptions\nend\nclass C\ndef take(*options)\noptions\nend\ndef check\ntake(retries:3)\nend\nend\ndef run(input)\nC.new.take(retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_rest_splat_method",
+    "source": "def plain(*options)\noptions\nend\nclass C\ndef take(*options)\noptions\nend\ndef check\ntake(**{retries:3})\nend\nend\ndef run(input)\nC.new.take(**{retries:3})\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_rest_matching_method",
+    "source": "def plain(*options)\noptions\nend\nclass C\ndef take(*options)\noptions\nend\ndef check\ntake(options:{retries:3})\nend\nend\ndef run(input)\nC.new.take(options:{retries:3})\nend",
+    "go_error": "unexpected keyword argument options"
+  },
+  {
+    "name": "options_reject_matrix_rest_positional_splat_method",
+    "source": "def plain(*options)\noptions\nend\nclass C\ndef take(*options)\noptions\nend\ndef check\ntake(*[],retries:3)\nend\nend\ndef run(input)\nC.new.take(*[],retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_rest_prefix_method",
+    "source": "def plain(*options)\noptions\nend\nclass C\ndef take(*options)\noptions\nend\ndef check\ntake(1,retries:3)\nend\nend\ndef run(input)\nC.new.take(1,retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_rest_bad_type_method",
+    "source": "def plain(*options)\noptions\nend\nclass C\ndef take(*options)\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take(retries:\"bad\")\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_typed_keyword_method",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:3)\nend\nend\ndef run(input)\nC.new.take(retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_typed_splat_method",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(**{retries:3})\nend\nend\ndef run(input)\nC.new.take(**{retries:3})\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_typed_positional_splat_method",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(*[],retries:3)\nend\nend\ndef run(input)\nC.new.take(*[],retries:3)\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_typed_bad_type_method",
+    "source": "def plain(options:{retries:int})\noptions\nend\nclass C\ndef take(options:{retries:int})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take(retries:\"bad\")\nend",
+    "go_error": "missing argument options"
+  },
+  {
+    "name": "options_reject_matrix_typed_default_keyword_method",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:3)\nend\nend\ndef run(input)\nC.new.take(retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_typed_default_splat_method",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(**{retries:3})\nend\nend\ndef run(input)\nC.new.take(**{retries:3})\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_typed_default_positional_splat_method",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(*[],retries:3)\nend\nend\ndef run(input)\nC.new.take(*[],retries:3)\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_typed_default_bad_type_method",
+    "source": "def plain(options:{retries:int}={retries:9})\noptions\nend\nclass C\ndef take(options:{retries:int}={retries:9})\noptions\nend\ndef check\ntake(retries:\"bad\")\nend\nend\ndef run(input)\nC.new.take(retries:\"bad\")\nend",
+    "go_error": "unexpected keyword argument retries"
+  },
+  {
+    "name": "options_reject_matrix_prefix_prefix_method",
+    "source": "def plain(prefix,options)\n[prefix,options]\nend\nclass C\ndef take(prefix,options)\n[prefix,options]\nend\ndef check\ntake(1,retries:3)\nend\nend\ndef run(input)\nC.new.take(1,retries:3)\nend",
+    "go_error": "missing argument options"
+  }
 ]

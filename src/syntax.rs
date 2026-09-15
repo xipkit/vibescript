@@ -38,15 +38,15 @@ pub(crate) enum Node {
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
     Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
     Loop(Box<Stmt>),
-    Call(String, Vec<Argument>),
+    Call(String, Vec<Argument>, CallForm),
     ComputedCall(Box<Expr>, Vec<Argument>),
     BlockCall(Box<Expr>, Block),
     Yield(Vec<Expr>),
     Member(Box<Expr>, String),
     SafeMember(Box<Expr>, String),
     Scope(Box<Expr>, String, Option<Vec<Argument>>),
-    Method(Box<Expr>, String, Vec<Argument>),
-    SafeMethod(Box<Expr>, String, Vec<Argument>),
+    Method(Box<Expr>, String, Vec<Argument>, CallForm),
+    SafeMethod(Box<Expr>, String, Vec<Argument>, CallForm),
     Index(Box<Expr>, Vec<Expr>),
 }
 impl Expr {
@@ -56,7 +56,7 @@ impl Expr {
             current = match &current.node {
                 Node::SafeMember(..) | Node::SafeMethod(..) => return true,
                 Node::Member(receiver, _)
-                | Node::Method(receiver, _, _)
+                | Node::Method(receiver, _, _, _)
                 | Node::Index(receiver, _)
                 | Node::ComputedCall(receiver, _)
                 | Node::BlockCall(receiver, _) => receiver,
@@ -64,6 +64,12 @@ impl Expr {
             };
         }
     }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CallForm {
+    Auto,
+    Bare,
+    Parenthesized,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Try {
@@ -1360,9 +1366,13 @@ impl Parser<'_> {
             _ => lhs.depth.max(argument_depth),
         };
         let node = match lhs.node {
-            Node::Var(name) => Node::Call(name, args),
-            Node::Member(receiver, name) => Node::Method(receiver, name, args),
-            Node::SafeMember(receiver, name) => Node::SafeMethod(receiver, name, args),
+            Node::Var(name) => Node::Call(name, args, CallForm::Parenthesized),
+            Node::Member(receiver, name) => {
+                Node::Method(receiver, name, args, CallForm::Parenthesized)
+            }
+            Node::SafeMember(receiver, name) => {
+                Node::SafeMethod(receiver, name, args, CallForm::Parenthesized)
+            }
             Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
             _ => Node::ComputedCall(Box::new(lhs), args),
         };
@@ -1421,19 +1431,7 @@ impl Parser<'_> {
                 continue;
             }
             if min <= 2 && self.take_p('?') {
-                self.lines();
-                self.ternaries.push(self.groups);
-                let yes = self.expr(0)?;
-                self.ternaries.pop();
-                self.expect_p(':')?;
-                self.lines();
-                let no = self.expr(2)?;
-                let depth = 1 + lhs.depth.max(yes.depth).max(no.depth);
-                lhs = self.make_at(
-                    Node::Conditional(Box::new(lhs), Box::new(yes), Box::new(no)),
-                    depth,
-                    offset,
-                )?;
+                lhs = self.ternary_expression(lhs, offset)?;
                 continue;
             }
             if matches!(self.token(), Token::Words(words) if words.ambiguous) {
@@ -1478,7 +1476,22 @@ impl Parser<'_> {
         }
         Ok(lhs)
     }
-    // Keep call-specific temporaries off every recursive expression frame.
+    // Keep branch-specific temporaries off recursive expression frames.
+    fn ternary_expression(&mut self, condition: Expr, offset: u32) -> Result<Expr> {
+        self.lines();
+        self.ternaries.push(self.groups);
+        let yes = self.expr(0)?;
+        self.ternaries.pop();
+        self.expect_p(':')?;
+        self.lines();
+        let no = self.expr(2)?;
+        let depth = 1 + condition.depth.max(yes.depth).max(no.depth);
+        self.make_at(
+            Node::Conditional(Box::new(condition), Box::new(yes), Box::new(no)),
+            depth,
+            offset,
+        )
+    }
     fn command_expression(&mut self, lhs: Expr) -> Result<Expr> {
         self.command_depth += 1;
         if self.command_depth > 64 {
@@ -1495,9 +1508,11 @@ impl Parser<'_> {
             .depth
             .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
         let node = match lhs.node {
-            Node::Var(name) => Node::Call(name, args),
-            Node::Member(receiver, name) => Node::Method(receiver, name, args),
-            Node::SafeMember(receiver, name) => Node::SafeMethod(receiver, name, args),
+            Node::Var(name) => Node::Call(name, args, CallForm::Bare),
+            Node::Member(receiver, name) => Node::Method(receiver, name, args, CallForm::Bare),
+            Node::SafeMember(receiver, name) => {
+                Node::SafeMethod(receiver, name, args, CallForm::Bare)
+            }
             _ => unreachable!(),
         };
         self.make_at(node, depth, lhs.offset)
@@ -1550,7 +1565,11 @@ impl Parser<'_> {
                 .depth
                 .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
             let method = if safe { Node::SafeMethod } else { Node::Method };
-            self.make_at(method(Box::new(lhs), name, args), depth, offset)
+            self.make_at(
+                method(Box::new(lhs), name, args, CallForm::Parenthesized),
+                depth,
+                offset,
+            )
         } else {
             let depth = lhs.depth + 1;
             let member = if safe { Node::SafeMember } else { Node::Member };
