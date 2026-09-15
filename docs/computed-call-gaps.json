@@ -12,7 +12,8 @@
   },
   {
     "name": "selection_before_arguments",
-    "status": "open",
+    "status": "intentional",
+    "reason": "Selected policy: parentheses after a begin expression call the selected value.",
     "source": "\ndef run(input)\nbegin\nevents=[];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
     "go_result": [
       "escaped",
@@ -31,7 +32,8 @@
   },
   {
     "name": "retry_target",
-    "status": "open",
+    "status": "intentional",
+    "reason": "Selected policy: parentheses after a begin expression call the selected value.",
     "source": "\ndef run(input)\nbegin\nn=0;(begin\nn+=1;raise \"again\" if n<3;JSON::parse\nrescue\nretry\nend)(\"[8]\")\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
     "go_result": "[8]",
     "rust_result": [
@@ -40,7 +42,8 @@
   },
   {
     "name": "begin_ensure_target",
-    "status": "open",
+    "status": "intentional",
+    "reason": "Selected policy: parentheses after a begin expression call the selected value.",
     "source": "\ndef run(input)\nbegin\nevents=[];x=(begin\nJSON::parse\nensure\nevents.push(1)\nend)(\"[8]\");[x,events]\nrescue RuntimeError => outer\n[\"escaped\",outer.type,outer.message]\nend\nend",
     "go_result": [
       "escaped",

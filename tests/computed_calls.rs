@@ -63,6 +63,26 @@ fn computed_targets_support_nested_calls_keywords_splats_and_blocks() {
 }
 
 #[test]
+fn begin_expressions_are_called_after_selection_and_cleanup() {
+    for (source, expected) in [
+        (
+            "events=[];x=(begin\nevents.push(1);JSON::parse\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]",
+            serde_json::json!([[8], [1, 2]]),
+        ),
+        (
+            "n=0;x=(begin\nn+=1;raise \"again\" if n<3;JSON::parse\nrescue\nretry\nend)(\"[8]\");[x,n]",
+            serde_json::json!([[8], 3]),
+        ),
+        (
+            "events=[];x=(begin\nJSON::parse\nensure\nevents.push(1)\nend)(begin\nevents.push(2);\"[8]\"\nend);[x,events]",
+            serde_json::json!([[8], [1, 2]]),
+        ),
+    ] {
+        assert_eq!(result(source), expected, "{source}");
+    }
+}
+
+#[test]
 fn selection_rescue_finishes_before_arguments_and_callee_body() {
     for (argument, callee, expected) in [
         ("7", "x", vec![1, 2, 3]),
