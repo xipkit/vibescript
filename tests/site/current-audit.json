@@ -1,10 +1,10 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "e6365316feb6ecb102eb7f1f94b4ae2ea240524d",
-  "dirty": " M README.md\n M docs/language-port.md\n M src/bytecode.rs\n M src/iteration.rs\n M src/members.rs\n M src/namespace.rs\n M src/shapes.rs\n M src/vm.rs\n M src/vm/call_targets.rs\n D src/vm/call_targets/names.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/introspection.md\n?? src/members/introspection.rs\n?? src/members/names.rs\n?? src/vm/dispatch.rs\n?? tests/introspection.rs\n",
+  "source_revision": "cdc7c57826f50c26aab93909a9b7964678581f31",
+  "dirty": " M README.md\n M docs/classes.md\n M docs/introspection.md\n M docs/language-port.md\n M src/address.rs\n M src/arguments.rs\n M src/bytecode.rs\n M src/members.rs\n M src/members/names.rs\n M src/vm.rs\n M src/vm/dispatch.rs\n M src/vm/namespaces.rs\n M tests/language-errors.json\n M tests/language.json\n?? docs/forwarding-differences.json\n?? docs/forwarding.md\n?? src/members/forwarding.rs\n?? src/vm/dispatch/\n?? tests/forwarding.rs\n",
   "binary_sha256": {
-    "go-simd": "6343ee0af1071d4f9b8b014c2d84cf896291f02f76ebc04c4725f702b6724d34",
-    "rust-simd": "0b376757f5659578708a3e12a42857826bfbf42a3720cbfb24a09dd1eb192cd8"
+    "go-simd": "cc638f767ac5f734800ded3fdf1b5471f1ef96f9bc634e6f404ece3eabacfbf3",
+    "rust-simd": "73aabda6e00d927f8f650bf477e5cefe5ffa027cbfe285f99eb2a4d9fe481f73"
   },
   "counts": {
     "match": 188,

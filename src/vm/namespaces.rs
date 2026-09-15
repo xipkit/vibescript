@@ -5,6 +5,7 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[derive(Clone, Copy)]
 pub(super) struct Access {
     pub caller: Option<usize>,
     pub implicit: bool,
@@ -92,6 +93,8 @@ pub(super) fn fallback(name: &str) -> Result<()> {
             | "kind_of?"
             | "instance_of?"
             | "is_type?"
+            | "send"
+            | "public_send"
     ) {
         Ok(())
     } else {
@@ -292,7 +295,9 @@ pub(super) fn member(
                 Visibility::Public => true,
                 Visibility::Private => access.implicit,
                 Visibility::Protected => {
-                    access.caller == Some(definition.index) && access.instance == instance.is_some()
+                    access.implicit
+                        || (access.caller == Some(definition.index)
+                            && access.instance == instance.is_some())
                 }
             };
             if !allowed {
@@ -317,7 +322,7 @@ pub(super) fn member(
     }
     if !matches!(
         name,
-        "nil?" | "itself" | "dup" | "clone" | "freeze" | "frozen?"
+        "nil?" | "itself" | "dup" | "clone" | "freeze" | "frozen?" | "send" | "public_send"
     ) {
         let value = if let Some(instance) = instance {
             crate::objects::field(ctx, instance, name)?

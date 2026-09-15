@@ -5,6 +5,8 @@ use crate::{
     namespace::Helper,
 };
 
+mod send;
+
 pub(super) struct Call<'a> {
     pub site: CallSite,
     pub name: &'a str,
@@ -21,87 +23,141 @@ pub(super) fn member(
     stack: &mut Buffer<Value>,
     call: Call<'_>,
 ) -> Result<()> {
-    let Call {
-        site,
-        name,
-        mutating,
-        args,
-        access,
-    } = call;
-    let receiver = if mutating {
+    let receiver = if let Some(crate::arguments::Target::Receiver(receiver)) = &call.args.target {
+        receiver
+    } else if call.mutating {
         &storage.addresses.data.last().unwrap().value
     } else {
         stack.data.last().unwrap()
     };
-    if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
+    let selected = if matches!(receiver.0, Kind::Namespace(_) | Kind::Instance(_)) {
         let receiver = receiver.clone();
-        match namespaces::member(
+        let selected = namespaces::member(
             program,
             ctx,
             storage,
             &receiver,
-            site,
-            name,
-            namespaces::Access {
-                caller: access.caller,
-                implicit: false,
-                instance: access.instance,
-            },
-        )? {
-            namespaces::Member::Function(function) => {
-                if mutating {
-                    storage.addresses.data.pop();
-                } else {
-                    stack.data.pop();
-                }
-                enter_arguments(
-                    program,
-                    ctx,
-                    frames,
-                    storage,
-                    function,
-                    args,
-                    stack.data.len(),
-                )?;
-                return Ok(());
-            }
-            namespaces::Member::Value(value) => {
-                let value = members::field_call(
-                    ctx,
-                    site,
-                    value,
-                    &args.positional.data,
-                    &args.keywords.buffer.data,
-                    args.block.is_some(),
-                )?;
-                if mutating {
-                    storage.addresses.data.pop();
-                } else {
-                    stack.data.pop();
-                }
-                stack.push(ctx, value)?;
-                return Ok(());
-            }
-            namespaces::Member::Helper(module, helper) => {
-                let value = dispatch::helper(
-                    program,
-                    ctx,
-                    frames,
-                    storage,
-                    (module, helper),
-                    &args,
-                    site.auto,
-                )?;
-                if mutating {
-                    storage.addresses.data.pop();
-                } else {
-                    stack.data.pop();
-                }
-                stack.push(ctx, value)?;
-                return Ok(());
-            }
-            namespaces::Member::Missing => namespaces::fallback(name)?,
+            call.site,
+            call.name,
+            call.access,
+        )?;
+        if matches!(selected, namespaces::Member::Missing) {
+            namespaces::fallback(call.name)?;
         }
+        selected
+    } else {
+        namespaces::Member::Missing
+    };
+    invoke(program, ctx, frames, storage, stack, call, selected)
+}
+
+fn invoke(
+    program: &Program,
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    call: Call<'_>,
+    selected: namespaces::Member,
+) -> Result<()> {
+    let Call {
+        site,
+        name,
+        mut mutating,
+        mut args,
+        access,
+    } = call;
+    let captured = if matches!(args.target, Some(crate::arguments::Target::Receiver(_))) {
+        let Some(crate::arguments::Target::Receiver(receiver)) = args.target.take() else {
+            unreachable!()
+        };
+        Some(receiver)
+    } else {
+        None
+    };
+    match selected {
+        namespaces::Member::Function(function) => {
+            if mutating {
+                storage.addresses.data.pop();
+            } else {
+                stack.data.pop();
+            }
+            enter_arguments(
+                program,
+                ctx,
+                frames,
+                storage,
+                function,
+                args,
+                stack.data.len(),
+            )?;
+            return Ok(());
+        }
+        namespaces::Member::Value(value) => {
+            let value = members::field_call(
+                ctx,
+                site,
+                value,
+                &args.positional.data,
+                &args.keywords.buffer.data,
+                args.block.is_some(),
+            )?;
+            if mutating {
+                storage.addresses.data.pop();
+            } else {
+                stack.data.pop();
+            }
+            stack.push(ctx, value)?;
+            return Ok(());
+        }
+        namespaces::Member::Helper(module, helper) => {
+            let value = dispatch::helper(
+                program,
+                ctx,
+                frames,
+                storage,
+                (module, helper),
+                &args,
+                site.auto,
+            )?;
+            if mutating {
+                storage.addresses.data.pop();
+            } else {
+                stack.data.pop();
+            }
+            stack.push(ctx, value)?;
+            return Ok(());
+        }
+        namespaces::Member::Missing => {}
+    }
+    let receiver = if let Some(receiver) = &captured {
+        receiver
+    } else if mutating {
+        &storage.addresses.data.last().unwrap().value
+    } else {
+        stack.data.last().unwrap()
+    };
+    if members::forwarding::applicable(ctx, site, name, receiver)? {
+        return send::call(
+            program,
+            ctx,
+            frames,
+            storage,
+            stack,
+            Call {
+                site,
+                name,
+                mutating,
+                args,
+                access,
+            },
+            captured,
+        );
+    }
+    if let Some(receiver) = captured {
+        storage.addresses.data.pop().unwrap();
+        stack.push(ctx, receiver)?;
+        mutating = false;
     }
     if name == "is_type?"
         && members::introspection::applicable(ctx, site, name, stack.data.last().unwrap())?

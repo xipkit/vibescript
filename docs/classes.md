@@ -81,7 +81,7 @@ end
 
 This returns `2` on every call. Uppercase assignments in a class body or class method write class constants. In instance methods, assignments normally create method locals; explicitly referring to a class member accesses the class state.
 
-Methods and accessors support public, private and protected sections, inline modifiers and symbol directives. Private methods require an implicit receiver. Protected instance methods allow callers from the same class's instances; protected class methods allow callers from that class's class methods. Aliases preserve the target definition and its visibility at the alias declaration.
+Methods and accessors support public, private and protected sections, inline modifiers and symbol directives. Ordinary private calls require an implicit receiver. Protected instance methods allow callers from the same class's instances; protected class methods allow callers from that class's class methods. [Dynamic `send`](forwarding.md) can reach private and protected methods; `public_send` retains normal explicit-receiver visibility. Aliases preserve the target definition and its visibility at the alias declaration.
 
 Instances expose `class`, `respond_to?`, `is_a?`, `kind_of?` and `instance_of?`. The class predicates compare exact class identity. Private and protected methods are reported by `respond_to?` when called implicitly on the current receiver or with a true second argument.
 
@@ -148,4 +148,4 @@ Object fields, identity storage, imports and graph traversal are accounted. Cycl
 
 Instances returned to Rust can be passed back to the same compiled script. Imports preserve shared references and cycles within the new call while isolating mutations from the source value. Concurrent calls also get independent imported objects and class state.
 
-The class port is incomplete. `puts`/`print` output, general `is_type?` coverage and transfer of live namespace state between compiled scripts remain pending. Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.
+The class port is incomplete. `puts`/`print` output and transfer of live namespace state between compiled scripts remain pending. Inheritance, singleton classes, `super`, and module mixins are outside the Vibescript language.

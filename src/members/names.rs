@@ -374,19 +374,7 @@ pub(crate) fn available(value: &Value, name: &str) -> bool {
     if typed(value, name).is_some() || temporal_method(value, name) {
         return true;
     }
-    let unit = matches!(
-        name,
-        "second"
-            | "seconds"
-            | "minute"
-            | "minutes"
-            | "hour"
-            | "hours"
-            | "day"
-            | "days"
-            | "week"
-            | "weeks"
-    );
+    let unit = duration_unit(name);
     match value.0 {
         Kind::Int(_) => unit,
         Kind::Money(_) => matches!(name, "currency" | "cents" | "amount"),
@@ -456,6 +444,34 @@ pub(crate) fn available(value: &Value, name: &str) -> bool {
         ),
         _ => false,
     }
+}
+
+pub(crate) fn property(value: &Value, name: &str) -> bool {
+    match value.0 {
+        Kind::Int(_) | Kind::Big(_) => duration_unit(name),
+        Kind::Money(_) | Kind::Duration(_) | Kind::Time(_) | Kind::Zoned(_) => {
+            available(value, name) && typed(value, name).is_none() && !temporal_method(value, name)
+        }
+        Kind::Enum(_) => name == "name",
+        Kind::EnumMember(_) => matches!(name, "name" | "symbol" | "enum"),
+        _ => false,
+    }
+}
+
+fn duration_unit(name: &str) -> bool {
+    matches!(
+        name,
+        "second"
+            | "seconds"
+            | "minute"
+            | "minutes"
+            | "hour"
+            | "hours"
+            | "day"
+            | "days"
+            | "week"
+            | "weeks"
+    )
 }
 
 pub(crate) fn temporal_method(value: &Value, name: &str) -> bool {

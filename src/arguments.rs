@@ -9,6 +9,7 @@ use crate::{
 use std::{cmp::Ordering, mem};
 
 pub(crate) enum Target {
+    Receiver(Value),
     Raise(Option<crate::ErrorClass>, Value),
     Method(crate::namespace::Call),
     Helper(Value, crate::namespace::Helper),
@@ -48,6 +49,19 @@ impl Arguments {
         arguments.positional = Buffer::with_capacity(ctx, values.len())?;
         arguments.positional.extend(ctx, values)?;
         Ok(arguments)
+    }
+
+    pub fn skip(&mut self, ctx: &mut CallContext, count: usize) -> Result<()> {
+        let length = self.positional.data.len();
+        for start in (count..length).step_by(CHUNK) {
+            let end = start + (length - start).min(CHUNK);
+            ctx.charge((end - start) as u64)?;
+            for index in start..end {
+                self.positional.data.swap(index - count, index);
+            }
+        }
+        self.positional.data.truncate(length - count);
+        Ok(())
     }
 
     pub fn push(

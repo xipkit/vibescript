@@ -118370,5 +118370,376 @@
     "source": "enum E\nA\nend\nclass C\nproperty p\ndef shown\n1\nend\nprivate def hidden\n2\nend\ndef inside\n[respond_to?(:hidden),self.respond_to?(:hidden),respond_to?(:hidden,false)]\nend\nend\nmodule M\ndef self.shown\n1\nend\nend\n\ndef run(input)\nnil.is_type?(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\")\nend",
     "go_error": "is_type? supports type atoms only, got 257 bytes"
   }
+,
+  {
+    "name": "forwarding_reject_probe_signature_send_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send\nend",
+    "go_error": "send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send()\nend",
+    "go_error": "send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_invalid",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send(1)\nend",
+    "go_error": "send expects a symbol or string method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_nil",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send(nil)\nend",
+    "go_error": "send expects a symbol or string method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send(name: :odd?)\nend",
+    "go_error": "send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send {raise \"entered\"}\nend",
+    "go_error": "send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_invalid_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send(false) {raise \"entered\"}\nend",
+    "go_error": "send expects a symbol or string method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_missing",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send(:absent)\nend",
+    "go_error": "unknown int method absent"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_send_empty_name",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.send(\"\")\nend",
+    "go_error": "unknown int method "
+  },
+  {
+    "name": "forwarding_reject_probe_typed_reject_send",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.send(:typed,\"bad\")\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_0",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(1).send(:seconds)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_1",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(1.seconds).send(:seconds)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_2",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(1.seconds).send(:parts)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_3",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).send(:year)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_4",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).send(:to_i)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_5",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).send(:getutc)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_6",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).send(:zone)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_7",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(money(\"1.00 USD\")).send(:currency)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_8",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(money(\"1.00 USD\")).send(:cents)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_9",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E).send(:name)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_10",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E::A).send(:name)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_11",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E::A).send(:symbol)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_12",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E::A).send(:enum)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_send_13",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(C.new).send(:class)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_bare",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send\nend",
+    "go_error": "public_send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_empty",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send()\nend",
+    "go_error": "public_send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_invalid",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send(1)\nend",
+    "go_error": "public_send expects a symbol or string method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_nil",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send(nil)\nend",
+    "go_error": "public_send expects a symbol or string method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_keyword",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send(name: :odd?)\nend",
+    "go_error": "public_send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send {raise \"entered\"}\nend",
+    "go_error": "public_send expects a method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_invalid_block",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send(false) {raise \"entered\"}\nend",
+    "go_error": "public_send expects a symbol or string method name"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_missing",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send(:absent)\nend",
+    "go_error": "unknown int method absent"
+  },
+  {
+    "name": "forwarding_reject_probe_signature_public_send_empty_name",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n1.public_send(\"\")\nend",
+    "go_error": "unknown int method "
+  },
+  {
+    "name": "forwarding_reject_probe_visibility_public_send_C.new_hidden",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.public_send(:hidden)\nend",
+    "go_error": "private method hidden"
+  },
+  {
+    "name": "forwarding_reject_probe_visibility_inside_public_send_C.new_hidden",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.check(:public_send,:hidden)\nend",
+    "go_error": "private method hidden"
+  },
+  {
+    "name": "forwarding_reject_probe_visibility_public_send_C.new_guarded",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.public_send(:guarded)\nend",
+    "go_error": "protected method guarded"
+  },
+  {
+    "name": "forwarding_reject_probe_visibility_public_send_C_hidden",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.public_send(:hidden)\nend",
+    "go_error": "private method hidden"
+  },
+  {
+    "name": "forwarding_reject_probe_visibility_inside_public_send_C_hidden",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.check(:public_send,:hidden)\nend",
+    "go_error": "private method hidden"
+  },
+  {
+    "name": "forwarding_reject_probe_visibility_public_send_C_guarded",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.public_send(:guarded)\nend",
+    "go_error": "protected method guarded"
+  },
+  {
+    "name": "forwarding_reject_probe_typed_reject_public_send",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\nC.new.public_send(:typed,\"bad\")\nend",
+    "go_error": "argument x expected int, got string"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_0",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(1).public_send(:seconds)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_1",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(1.seconds).public_send(:seconds)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_2",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(1.seconds).public_send(:parts)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_3",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).public_send(:year)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_4",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).public_send(:to_i)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_5",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).public_send(:getutc)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_6",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(Time.at(0)).public_send(:zone)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_7",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(money(\"1.00 USD\")).public_send(:currency)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_8",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(money(\"1.00 USD\")).public_send(:cents)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_9",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E).public_send(:name)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_10",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E::A).public_send(:name)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_11",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E::A).public_send(:symbol)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_12",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(E::A).public_send(:enum)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_property_public_send_13",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\ndef run(input)\n(C.new).public_send(:class)\nend",
+    "go_error": "attempted to call non-callable value"
+  },
+  {
+    "name": "forwarding_reject_probe_override_send_private _D.new",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprivate def send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.new.send(:nil?)\nend",
+    "go_error": "private method send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_send_private _D",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprivate def self.send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.send(:nil?)\nend",
+    "go_error": "private method send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_send_protected _D.new",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprotected def send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.new.send(:nil?)\nend",
+    "go_error": "protected method send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_send_protected _D",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprotected def self.send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.send(:nil?)\nend",
+    "go_error": "protected method send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_public_send_private _D.new",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprivate def public_send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.new.public_send(:nil?)\nend",
+    "go_error": "private method public_send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_public_send_private _D",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprivate def self.public_send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.public_send(:nil?)\nend",
+    "go_error": "private method public_send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_public_send_protected _D.new",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprotected def public_send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.new.public_send(:nil?)\nend",
+    "go_error": "protected method public_send"
+  },
+  {
+    "name": "forwarding_reject_probe_override_public_send_protected _D",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\nclass D\nprotected def self.public_send(x)\n[x,7]\nend\nend\n\ndef run(input)\nD.public_send(:nil?)\nend",
+    "go_error": "protected method public_send"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_receiver_send_1",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\n({go:JSON::parse}.go).send(:nil?)\nend",
+    "go_error": "go is a method and cannot be used as a value; call it with go(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_receiver_send_2",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\n(\"a\".match(/a/).begin).send(:nil?)\nend",
+    "go_error": "begin is a method and cannot be used as a value; call it with begin(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_send_bound_class",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nC.data=JSON::parse;C.data.send(:nil?)\nend",
+    "go_error": "data is a method and cannot be used as a value; call it with data(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_send_bound_instance",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nc=C.new;c.data=JSON::parse;c.data.send(:nil?)\nend",
+    "go_error": "data is a method and cannot be used as a value; call it with data(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_send_temporary_index",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\n[{go:JSON::parse}][0].go.send(:nil?)\nend",
+    "go_error": "go is a method and cannot be used as a value; call it with go(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_send_nested_copied",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nh={nested:{go:JSON::parse}};h.dup.nested.go.send(:nil?)\nend",
+    "go_error": "go is a method and cannot be used as a value; call it with go(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_receiver_public_send_1",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\n({go:JSON::parse}.go).public_send(:nil?)\nend",
+    "go_error": "go is a method and cannot be used as a value; call it with go(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_receiver_public_send_2",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\n(\"a\".match(/a/).begin).public_send(:nil?)\nend",
+    "go_error": "begin is a method and cannot be used as a value; call it with begin(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_public_send_bound_class",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nC.data=JSON::parse;C.data.public_send(:nil?)\nend",
+    "go_error": "data is a method and cannot be used as a value; call it with data(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_public_send_bound_instance",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nc=C.new;c.data=JSON::parse;c.data.public_send(:nil?)\nend",
+    "go_error": "data is a method and cannot be used as a value; call it with data(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_public_send_temporary_index",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\n[{go:JSON::parse}][0].go.public_send(:nil?)\nend",
+    "go_error": "go is a method and cannot be used as a value; call it with go(...)"
+  },
+  {
+    "name": "forwarding_reject_edge_callable_path_public_send_nested_copied",
+    "source": "enum E\nA\nend\nclass C\nproperty p\ndef initialize(x=1)\n@p=x\nend\ndef take(options)\noptions\nend\ndef keywords(x:, **rest)\n[x,rest]\nend\ndef typed(x:int) -> int\nx\nend\ndef add(x)\n@p+=x;@p\nend\nprivate def hidden(x=3)\n[@p,x]\nend\nprotected def guarded(x=4)\n[@p,x]\nend\nprivate def self.hidden(x=3)\nx\nend\nprotected def self.guarded(x=4)\nx\nend\ndef self.take(options)\noptions\nend\ndef check(kind,method)\nself.send(kind,method)\nend\ndef self.check(kind,method)\nself.send(kind,method)\nend\nend\nmodule M\ndef self.take(options)\noptions\nend\nend\n\n\ndef run(input)\nh={nested:{go:JSON::parse}};h.dup.nested.go.public_send(:nil?)\nend",
+    "go_error": "go is a method and cannot be used as a value; call it with go(...)"
+  }
 
 ]

@@ -50,6 +50,10 @@ pub(crate) struct Address {
 }
 
 impl Address {
+    pub fn has_binding(&self) -> bool {
+        self.root.is_some()
+    }
+
     pub fn object_binding(&self) -> Option<(&std::sync::Arc<crate::objects::Instance>, usize)> {
         match self.root.as_ref() {
             Some(Root::Object(instance, field)) => Some((instance, *field)),

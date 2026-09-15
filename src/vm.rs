@@ -1278,6 +1278,8 @@ pub(crate) fn execute(
                                         continue;
                                     }
                                     namespaces::Member::Value(value) => {
+                                        let value =
+                                            members::field_call(ctx, site, value, &[], &[], false)?;
                                         storage.addresses.data.pop();
                                         storage.addresses.push(ctx, Address::new(None, value))?;
                                         continue;
@@ -1301,11 +1303,30 @@ pub(crate) fn execute(
                             let address = storage.addresses.data.last_mut().unwrap();
                             let key = ctx.bytes(name.as_bytes())?;
                             let data = if let Kind::Hash(hash) = &address.value.0 {
-                                hash.find(ctx, name.as_bytes())?.is_some()
+                                hash.find(ctx, name.as_bytes())?
                             } else {
-                                false
+                                None
                             };
-                            if data {
+                            if let Some(index) = data {
+                                if !address.has_binding() {
+                                    let Kind::Hash(hash) = &address.value.0 else {
+                                        unreachable!()
+                                    };
+                                    let value = &hash.buffer.data[index].1;
+                                    if members::introspection::callable(value) {
+                                        let value = members::field_call(
+                                            ctx,
+                                            site,
+                                            value.clone(),
+                                            &[],
+                                            &[],
+                                            false,
+                                        )?;
+                                        storage.addresses.data.pop();
+                                        storage.addresses.push(ctx, Address::new(None, value))?;
+                                        continue;
+                                    }
+                                }
                                 address.index(ctx, &[key])?;
                             } else {
                                 let address = storage.addresses.data.pop().unwrap();
@@ -1765,6 +1786,14 @@ pub(crate) fn execute(
                             return Err(callable_value_error(&program.hosts[host], "method"));
                         }
                         Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
+                        Op::ForwardArguments => {
+                            // Forwarded reads need the evaluated value; mutators keep the live address.
+                            let mut args = Arguments::empty();
+                            args.target = Some(crate::arguments::Target::Receiver(
+                                storage.addresses.data.last().unwrap().value.clone(),
+                            ));
+                            frame.arguments.push(ctx, args)?;
+                        }
                         Op::CallName(slot, name) => {
                             let target = call_targets::identifier(
                                 program,
@@ -1867,7 +1896,8 @@ pub(crate) fn execute(
                                 crate::arguments::Target::Plain(target)
                             };
                             let target = match target {
-                                crate::arguments::Target::Raise(..) => unreachable!(),
+                                crate::arguments::Target::Raise(..)
+                                | crate::arguments::Target::Receiver(..) => unreachable!(),
                                 crate::arguments::Target::Unbound(kind, name) => {
                                     let required = if kind == "hash" {
                                         "hash or object"

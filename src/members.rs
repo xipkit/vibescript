@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub(crate) mod equality;
+pub(crate) mod forwarding;
 pub(crate) mod introspection;
 mod lifecycle;
 pub(crate) mod names;
@@ -17,6 +18,13 @@ pub(crate) fn call_keywords(
     receiver: Value,
     args: &crate::arguments::Arguments,
 ) -> Result<(Value, Value)> {
+    if forwarding::applicable(ctx, site, name, &receiver)? {
+        forwarding::method(name, &args.positional.data)?;
+        return Err(Error::new(
+            ErrorKind::Type,
+            "forwarded call requires an execution context",
+        ));
+    }
     if let Some(value) = introspection::call(
         ctx,
         site,
@@ -298,6 +306,13 @@ pub(crate) fn call(
     receiver: Value,
     args: &[Value],
 ) -> Result<(Value, Value)> {
+    if forwarding::applicable(ctx, site, name, &receiver)? {
+        forwarding::method(name, args)?;
+        return Err(Error::new(
+            ErrorKind::Type,
+            "forwarded call requires an execution context",
+        ));
+    }
     if let Some(value) = introspection::call(ctx, site, name, &receiver, args, false, false)? {
         return Ok((receiver, value));
     }
@@ -439,12 +454,7 @@ pub(crate) fn field(
     name: &str,
     receiver: &Value,
 ) -> Result<Option<Value>> {
-    if !site.scope
-        && (lifecycle::supported(name)
-            || equality::supported(name)
-            || introspection::supported(name))
-        && lifecycle::callable(receiver)
-    {
+    if !site.scope && names::universal(name) && lifecycle::callable(receiver) {
         return Ok(None);
     }
     if let Kind::Offset(offset) = &receiver.0 {
@@ -463,9 +473,8 @@ pub(crate) fn field(
         if hash.object || !hash_builtin(name) {
             if let Some(index) = hash.find(ctx, name.as_bytes())? {
                 if !site.scope
-                    && (lifecycle::supported(name)
-                        || equality::supported(name)
-                        || introspection::supported(name))
+                    && names::universal(name)
+                    && !matches!(name, "tap" | "yield_self")
                     && !lifecycle::callable(&hash.buffer.data[index].1)
                 {
                     return Ok(None);
@@ -571,6 +580,8 @@ fn hash_builtin(name: &str) -> bool {
             | "kind_of?"
             | "instance_of?"
             | "is_type?"
+            | "send"
+            | "public_send"
             | "dup"
             | "clone"
             | "freeze"

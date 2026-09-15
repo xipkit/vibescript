@@ -102,6 +102,7 @@ pub(crate) enum Op {
     HostValue(usize),
     Method(CallSite, usize),
     Arguments,
+    ForwardArguments,
     ResolveCall(usize, usize),
     CallName(usize, usize),
     CallValue,
@@ -1402,7 +1403,8 @@ impl Compiler<'_> {
         block: Option<usize>,
         safe: bool,
     ) -> Result<()> {
-        let mutating = mutating_member(name);
+        let forwarding = crate::members::forwarding::supported(name);
+        let mutating = mutating_member(name) || forwarding;
         if mutating {
             self.address(receiver)?;
         } else {
@@ -1416,9 +1418,18 @@ impl Compiler<'_> {
             })
         });
         let site = self.call_site(name, auto);
-        if expanded(args) || block.is_some() || crate::iteration::method(name) || name == "is_type?"
+        if expanded(args)
+            || block.is_some()
+            || crate::iteration::method(name)
+            || name == "is_type?"
+            || forwarding
         {
-            self.call_arguments(args)?;
+            if forwarding {
+                self.emit(Op::ForwardArguments);
+                self.argument_values(args)?;
+            } else {
+                self.call_arguments(args)?;
+            }
             if let Some(block) = block {
                 self.emit(Op::Attach(block));
             }
