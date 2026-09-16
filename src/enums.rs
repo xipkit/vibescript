@@ -139,6 +139,10 @@ impl Enumeration {
         Self::view(ctx, value, identity)
     }
 
+    pub(crate) fn fresh(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
+        Self::view(ctx, value, Arc::new(()))
+    }
+
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
         if ctx.owns(&value.header) {
             return Ok(value.clone());

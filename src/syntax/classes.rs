@@ -254,6 +254,7 @@ impl Parser<'_> {
             if kind != "setter" {
                 class.instance_methods.push((
                     Definition {
+                        private: false,
                         offset,
                         accessor: Some((name.clone(), false)),
                         name: name.clone(),
@@ -274,6 +275,7 @@ impl Parser<'_> {
             if kind != "getter" {
                 class.instance_methods.push((
                     Definition {
+                        private: false,
                         offset,
                         accessor: Some((name.clone(), true)),
                         name: format!("{name}="),

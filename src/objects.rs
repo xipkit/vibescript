@@ -373,6 +373,24 @@ pub(crate) fn children(
     Ok(())
 }
 
+pub(crate) fn bindings(
+    ctx: &mut CallContext,
+    instance: &Arc<Instance>,
+) -> Result<Buffer<(Value, Value)>> {
+    let heap = instance.heap()?;
+    let mut data = heap.data.lock().unwrap();
+    let fields = &data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
+    let mut values = Buffer::with_capacity(ctx, fields.buffer.data.len())?;
+    values.extend(ctx, &fields.buffer.data)?;
+    for (_, value) in &mut values.data {
+        ctx.charge(1)?;
+        if let Some(mapped) = data.map(ctx, &heap, value, false, 1)? {
+            *value = mapped;
+        }
+    }
+    Ok(values)
+}
+
 pub(crate) fn set(
     ctx: &mut CallContext,
     instance: &Arc<Instance>,

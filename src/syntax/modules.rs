@@ -78,6 +78,7 @@ impl Parser<'_> {
         self.locals = outer_locals;
         self.declared_it = outer_it;
         Ok(Definition {
+            private: false,
             offset,
             accessor: None,
             name,

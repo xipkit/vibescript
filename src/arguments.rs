@@ -18,6 +18,7 @@ pub(crate) enum Target {
     Member(Value, usize),
     Unbound(&'static str, usize),
     Plain(Invocation),
+    Function(std::sync::Arc<crate::vm::Program>, usize),
     Offset(std::sync::Arc<crate::regex::matches::Offset>),
 }
 

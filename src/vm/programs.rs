@@ -2,7 +2,7 @@ use super::*;
 use crate::{budget::Charge, code::Code};
 use std::{ops::Deref, sync::Arc};
 
-pub(super) struct Program {
+pub(crate) struct Program {
     pub code: Arc<Code>,
     pub environment: Option<Arc<crate::objects::Instance>>,
     pub index: usize,

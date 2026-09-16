@@ -228,6 +228,7 @@ impl Stmt {
 #[derive(Clone, Debug)]
 pub(crate) struct Definition {
     pub offset: u32,
+    pub private: bool,
     pub accessor: Option<(String, bool)>,
     pub name: String,
     pub params: Vec<Parameter>,
@@ -273,7 +274,13 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             let module = p.module()?;
             top.push(Statement::Module(module.name.clone()).at(offset));
             modules.push(module);
-        } else if p.word("def") {
+        } else if matches!(p.token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
+        {
+            let private = p.word("private");
+            if !private {
+                p.word("export");
+            }
+            p.expect_word("def")?;
             let name = p.name()?;
             if name.starts_with('@') {
                 return p.err("expected function name");
@@ -281,7 +288,9 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
-            defs.push(p.definition(name, offset)?);
+            let mut definition = p.definition(name, offset)?;
+            definition.private = private;
+            defs.push(definition);
         } else if p.word("enum") {
             p.line_breaks();
             let name = p.enum_name()?;
@@ -316,6 +325,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
         0,
         Definition {
             offset: 0,
+            private: true,
             accessor: None,
             name: "__main__".into(),
             params: Vec::new(),
@@ -2118,6 +2128,7 @@ fn reserved(w: &str) -> bool {
             | "rescue"
             | "ensure"
             | "def"
+            | "export"
             | "unless"
             | "case"
             | "yield"
@@ -2139,8 +2150,7 @@ fn keyword(w: &str) -> bool {
     reserved(w)
         || matches!(
             w,
-            "export"
-                | "self"
+            "self"
                 | "private"
                 | "property"
                 | "getter"

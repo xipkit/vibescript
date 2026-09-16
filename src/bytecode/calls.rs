@@ -8,6 +8,14 @@ impl Compiler<'_> {
         form: CallForm,
     ) -> Result<()> {
         self.global(name);
+        if self.program.file {
+            let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
+            let name = self.call_site(name, false).name;
+            self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+            self.argument_values(args)?;
+            self.emit(Op::Invoke(Invocation::Resolved));
+            return Ok(());
+        }
         if let Some(&slot) = self.locals.get(name) {
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));

@@ -32,6 +32,8 @@ pub(crate) enum Op {
     NamespaceAddress(usize, bool),
     AmbientValue(usize, usize),
     AmbientAddress(usize, usize),
+    FileValue(usize, usize),
+    FileAddress(usize, usize),
     StoreDeclaration(usize),
     Regex(usize, u8),
     TypeShadowed(usize, usize),
@@ -322,6 +324,7 @@ impl Method {
 #[derive(Debug, Default)]
 pub(crate) struct Function {
     pub offset: u32,
+    pub private: bool,
     pub locations: Vec<u32>,
     pub trace_name: std::sync::Arc<str>,
     pub instance: bool,
@@ -347,6 +350,7 @@ pub(crate) struct Capture {
 }
 #[derive(Debug)]
 pub(crate) struct Program {
+    pub file: bool,
     pub owner: std::sync::Weak<crate::code::Code>,
     pub handlers: Vec<errors::TrySpec>,
     pub source: crate::source::Source,
@@ -365,6 +369,14 @@ pub(crate) struct Program {
 }
 
 pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
+    compile_mode(source, hosts, false)
+}
+
+pub(crate) fn compile_file(source: &str, hosts: Vec<String>) -> Result<Program> {
+    compile_mode(source, hosts, true)
+}
+
+fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program> {
     let parsed = syntax::parse(source)?;
     let mut defs = parsed.functions;
     let mut contexts = vec![(None, false, false); defs.len()];
@@ -392,6 +404,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         })
         .collect();
     let mut program = Program {
+        file,
         owner: std::sync::Weak::new(),
         handlers: Vec::new(),
         source: crate::source::Source::new(source),
@@ -481,6 +494,7 @@ pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
         debug_assert_eq!(c.code.len(), c.locations.len());
         let function = Function {
             offset: def.offset,
+            private: def.private,
             locations: c.locations,
             trace_name: def.name.rsplit(['.', '#']).next().unwrap().into(),
             instance: contexts[index].2,
@@ -720,6 +734,8 @@ impl Compiler<'_> {
             | Op::AddressJumpNil(n, _)
             | Op::Bind(_, n)
             | Op::NamespaceConstant(_, n)
+            | Op::FileValue(_, n)
+            | Op::FileAddress(_, n)
             | Op::AmbientValue(_, n)
             | Op::AmbientAddress(_, n)
             | Op::TypeShadowed(_, n)
@@ -924,7 +940,7 @@ impl Compiler<'_> {
                             self.patch(skip, self.code.len());
                             return Ok(());
                         }
-                        if binary.is_none() {
+                        if binary.is_none() && !self.program.file {
                             if let Node::Binary("+", left, right) = &rhs.node {
                                 self.assignment_rhs(binding_target, &[left, right])?;
                                 let instruction = self.emit(Op::AddStore(slot));
@@ -936,7 +952,7 @@ impl Compiler<'_> {
                             self.expr(target)?;
                         }
                         self.assignment_rhs(binding_target, &[rhs])?;
-                        if binary == Some("+") {
+                        if binary == Some("+") && !self.program.file {
                             self.emit(Op::AddStore(slot));
                             return Ok(());
                         }
@@ -1203,6 +1219,10 @@ impl Compiler<'_> {
                         let name = self.call_site(name, false).name;
                         self.emit(Op::AmbientValue(name, 0))
                     });
+                let file = (self.program.file && !self.locals.contains_key(name)).then(|| {
+                    let name = self.call_site(name, false).name;
+                    self.emit(Op::FileValue(name, 0))
+                });
                 if let Some(&slot) = self.locals.get(name) {
                     if !self.parameters.contains(name) {
                         let name = self.call_site(name, false).name;
@@ -1227,6 +1247,9 @@ impl Compiler<'_> {
                 }
                 if let Some(ambient) = ambient {
                     self.patch(ambient, self.code.len());
+                }
+                if let Some(file) = file {
+                    self.patch(file, self.code.len());
                 }
             }
             Node::Array(values) => {
@@ -1561,6 +1584,16 @@ impl Compiler<'_> {
             self.emit(Op::BlockGiven(!args.is_empty(), true));
             return Ok(());
         }
+        if self.program.file {
+            self.global(name);
+            let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
+            let name = self.call_site(name, false).name;
+            self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
+            self.argument_values(args)?;
+            self.emit(Op::Attach(function));
+            self.emit(Op::Invoke(Invocation::Resolved));
+            return Ok(());
+        }
         let target = if let Some(&slot) = self.locals.get(name) {
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
@@ -1748,6 +1781,20 @@ impl Compiler<'_> {
         result
     }
     fn address_at(&mut self, receiver: &Expr) -> Result<()> {
+        let file = if self.program.file {
+            if let Node::Var(name) = &receiver.node {
+                if !name.starts_with('@') && !self.parameters.contains(name) {
+                    let name = self.call_site(name, false).name;
+                    Some(self.emit(Op::FileAddress(name, 0)))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         match &receiver.node {
             Node::Var(name) if name.starts_with('@') => {
                 let name = self.call_site(name, false).name;
@@ -1811,6 +1858,9 @@ impl Compiler<'_> {
                 self.expr(receiver)?;
                 self.emit(Op::AddressValue);
             }
+        }
+        if let Some(file) = file {
+            self.patch(file, self.code.len());
         }
         Ok(())
     }

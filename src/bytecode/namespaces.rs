@@ -75,6 +75,7 @@ impl Program {
         } else {
             let function = functions.len();
             functions.push(syntax::Definition {
+                private: true,
                 offset: module.offset,
                 accessor: None,
                 name: format!("{name}::<body>"),
@@ -91,6 +92,7 @@ impl Program {
             } else {
                 let function = functions.len();
                 functions.push(syntax::Definition {
+                    private: true,
                     offset: module.offset,
                     accessor: None,
                     name: format!("{name}#<initialize>"),

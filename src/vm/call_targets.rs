@@ -30,6 +30,9 @@ pub(super) fn identifier(
             storage.locals.data[slot].as_ref().unwrap(),
         ));
     }
+    if let Some(value) = file_bindings::get(program, ctx, name)? {
+        return Ok(value_invocation(&value));
+    }
     if program.declaration_names.contains_key(name) {
         return Ok(Target::Plain(Invocation::NonCallable));
     }
@@ -43,6 +46,9 @@ pub(super) fn identifier(
         return Ok(value_invocation(&global_value(
             program, ctx, storage, global,
         )?));
+    }
+    if let Some(target) = file_bindings::root_target(program, storage, name) {
+        return Ok(target);
     }
     match namespaces::implicit(
         program,

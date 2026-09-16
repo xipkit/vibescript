@@ -238,8 +238,15 @@ fn declare(
 ) -> Result<()> {
     for &slot in slots {
         ctx.charge(1)?;
-        let slot = resolve_slot(ctx, frames, storage, frame, slot, false)?;
-        storage.locals.data[slot].get_or_insert_with(Value::nil);
+        let resolved = resolve_slot(ctx, frames, storage, frame, slot, false)?;
+        let owner = &frames.data[frame];
+        let program = &owner.program;
+        if file_bindings::local(program, ctx, frames, storage, frame, slot, resolved)? {
+            let name = &program.functions[owner.function.unwrap()].local_names[slot];
+            file_bindings::declare(program, ctx, storage, name)?;
+        } else {
+            storage.locals.data[resolved].get_or_insert_with(Value::nil);
+        }
     }
     Ok(())
 }

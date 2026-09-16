@@ -26,9 +26,28 @@ impl Code {
     }
 
     pub fn compile(source: &str, registered: &BTreeMap<String, HostCallback>) -> Result<Arc<Self>> {
+        Self::compile_mode(source, registered, false)
+    }
+
+    pub fn compile_file(
+        source: &str,
+        registered: &BTreeMap<String, HostCallback>,
+    ) -> Result<Arc<Self>> {
+        Self::compile_mode(source, registered, true)
+    }
+
+    fn compile_mode(
+        source: &str,
+        registered: &BTreeMap<String, HostCallback>,
+        file: bool,
+    ) -> Result<Arc<Self>> {
         let names = registered.keys().cloned().collect();
-        let mut program = crate::bytecode::compile(source, names)
-            .map_err(|error| crate::source::parse_error(source, error))?;
+        let mut program = if file {
+            crate::bytecode::compile_file(source, names)
+        } else {
+            crate::bytecode::compile(source, names)
+        }
+        .map_err(|error| crate::source::parse_error(source, error))?;
         let hosts = program
             .hosts
             .iter()

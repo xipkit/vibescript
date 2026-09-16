@@ -15,6 +15,9 @@ use std::sync::Arc;
 
 mod call_targets;
 mod dispatch;
+mod file_bindings;
+#[cfg(test)]
+mod file_bindings_tests;
 mod format;
 mod handlers;
 mod namespaces;
@@ -25,7 +28,7 @@ mod scopes;
 #[cfg(test)]
 mod scopes_tests;
 use handlers::{Control, Event};
-use programs::Program;
+pub(crate) use programs::Program;
 
 #[derive(Default)]
 enum ReturnTo {
@@ -74,6 +77,7 @@ struct Storage {
     texts: Buffer<Buffer<u8>>,
     iterations: Buffer<Iteration>,
     globals: Buffer<Option<Value>>,
+    ambient_globals: Buffer<(Global, usize)>,
     locals: Buffer<Option<Value>>,
     addresses: Buffer<Address>,
     bypasses: Buffer<usize>,
@@ -155,14 +159,21 @@ pub(crate) fn execute(
         texts: Buffer::empty(),
         iterations: Buffer::empty(),
         globals: Buffer::empty(),
+        ambient_globals: Buffer::empty(),
         locals: Buffer::empty(),
         addresses: Buffer::empty(),
         bypasses: Buffer::empty(),
     };
-    ctx.enum_rebind.definitions = Some(code.program.enum_definitions.clone());
+    ctx.enum_rebind.definitions =
+        (!code.program.file).then(|| code.program.enum_definitions.clone());
     ctx.enum_rebind.active = true;
     let result = (|| -> Result<Value> {
-        let root = programs::load(ctx, &mut storage, code, None)?;
+        let environment = code
+            .program
+            .file
+            .then(|| crate::objects::environment(ctx))
+            .transpose()?;
+        let root = programs::load(ctx, &mut storage, code, environment.as_ref())?;
         let program = &*root;
         let mut active = root.clone();
         let mut input = Arguments::empty();
@@ -179,7 +190,7 @@ pub(crate) fn execute(
         ctx.enum_rebind.active = false;
         programs::arguments(ctx, &mut storage, &input)?;
         let mut pending_entry = Some((function, input));
-        let mut initializer = if function == 0 {
+        let mut initializer = if function == 0 && !program.file {
             program.namespaces.len()
         } else {
             0
@@ -301,6 +312,11 @@ pub(crate) fn execute(
                     ctx.charge(1)?;
                     let mut slot =
                         |slot, skip| resolve_slot(ctx, &frames, &storage, current, slot, skip);
+                    let file_local = if program.file {
+                        file_bindings::local_name(op)
+                    } else {
+                        None
+                    };
                     let op = match op {
                         Op::Load(n) => Op::Load(slot(n, false)?),
                         Op::Bypass(n) => Op::Bypass(slot(n, false)?),
@@ -320,6 +336,19 @@ pub(crate) fn execute(
                             Op::CallName(if n == usize::MAX { n } else { slot(n, false)? }, name)
                         }
                         op => op,
+                    };
+                    let file_local = if let Some(relative) = file_local {
+                        let absolute = file_bindings::local_name(op).unwrap();
+                        file_bindings::local(
+                            program, ctx, &frames, &storage, current, relative, absolute,
+                        )?
+                        .then_some(
+                            program.functions[frames.data[current].function.unwrap()].local_names
+                                [relative]
+                                .as_str(),
+                        )
+                    } else {
+                        None
                     };
                     let frame = &mut frames.data[current];
                     let namespace = frame
@@ -479,6 +508,36 @@ pub(crate) fn execute(
                                 }
                             }
                         }
+                        Op::FileValue(name, next) => {
+                            if let Some(mut value) =
+                                file_bindings::get(program, ctx, &program.members[name])?
+                            {
+                                if let Kind::Offset(offset) = &value.0 {
+                                    return Err(offset.value_error());
+                                }
+                                if let Kind::Builtin(builtin) = value.0 {
+                                    value = builtin.read(ctx)?;
+                                }
+                                stack.push(ctx, value)?;
+                                frame.ip = next;
+                            }
+                        }
+                        Op::FileAddress(name, next) => {
+                            let name = &program.members[name];
+                            if file_bindings::unshadowed(
+                                program,
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                current,
+                                name,
+                            )? && file_bindings::get(program, ctx, name)?.is_some()
+                            {
+                                let address = file_bindings::address(program, ctx, name)?;
+                                storage.addresses.push(ctx, address)?;
+                                frames.data[current].ip = next;
+                            }
+                        }
                         Op::NamespaceSelf(module) => {
                             let value = if let Some(value) = &self_value {
                                 value.clone()
@@ -558,10 +617,13 @@ pub(crate) fn execute(
                                         declaration_value(program, ctx, &mut storage, index)?,
                                     )
                                 } else if let Some(global) = global_index(program, name) {
-                                    Address::global(
-                                        program.global_base + global,
-                                        global_value(program, ctx, &mut storage, global)?,
-                                    )
+                                    file_bindings::global_address(
+                                        program,
+                                        ctx,
+                                        &mut storage,
+                                        global,
+                                        false,
+                                    )?
                                 } else {
                                     return Err(Error::new(
                                         ErrorKind::Name,
@@ -613,6 +675,16 @@ pub(crate) fn execute(
                             )?;
                         }
                         Op::StoreDeclaration(index) => {
+                            if file_bindings::environment(program).is_some() {
+                                file_bindings::set(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    file_bindings::declaration_name(program, index),
+                                    stack.data.last().unwrap(),
+                                )?;
+                                continue;
+                            }
                             let mut found = false;
                             for (key, value) in &mut storage.declarations.data {
                                 ctx.charge(1)?;
@@ -689,7 +761,11 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::Load(n) => {
-                            let mut v = storage.locals.data[n].clone().unwrap_or_default();
+                            let mut v = if let Some(name) = file_local {
+                                file_bindings::get(program, ctx, name)?.unwrap_or_default()
+                            } else {
+                                storage.locals.data[n].clone().unwrap_or_default()
+                            };
                             if let Kind::Offset(offset) = &v.0 {
                                 return Err(offset.value_error());
                             }
@@ -699,7 +775,14 @@ pub(crate) fn execute(
                             stack.push(ctx, v)?;
                         }
                         Op::LoadOptional(slot, name) => {
-                            if let Some(value) = &storage.locals.data[slot] {
+                            let scoped = if let Some(name) = file_local {
+                                file_bindings::get(program, ctx, name)?
+                            } else {
+                                None
+                            };
+                            if let Some(value) =
+                                scoped.as_ref().or(storage.locals.data[slot].as_ref())
+                            {
                                 if let Kind::Offset(offset) = &value.0 {
                                     return Err(offset.value_error());
                                 }
@@ -769,12 +852,36 @@ pub(crate) fn execute(
                             }
                         }
                         Op::ReceiverBound(slot, next) => {
-                            if let Some(value) = &storage.locals.data[slot] {
+                            let scoped = if let Some(name) = file_local {
+                                file_bindings::get(program, ctx, name)?
+                            } else {
+                                None
+                            };
+                            if let Some(value) =
+                                scoped.as_ref().or(storage.locals.data[slot].as_ref())
+                            {
                                 stack.push(ctx, value.clone())?;
                                 frame.ip = next;
                             }
                         }
                         Op::Unbound(name) => {
+                            if let Some(crate::arguments::Target::Function(owner, function)) =
+                                file_bindings::root_target(
+                                    program,
+                                    &storage,
+                                    &program.members[name],
+                                )
+                            {
+                                enter_auto(
+                                    &owner,
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    function,
+                                    stack.data.len(),
+                                )?;
+                                continue;
+                            }
                             match namespaces::implicit(
                                 program,
                                 ctx,
@@ -863,6 +970,16 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::StoreGlobal(index) => {
+                            if file_bindings::environment(program).is_some() {
+                                file_bindings::set(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    program.globals[index].0.name(),
+                                    stack.data.last().unwrap(),
+                                )?;
+                                continue;
+                            }
                             let index = program.global_base + index;
                             let value = stack.data.last().unwrap();
                             address::refresh(
@@ -881,20 +998,13 @@ pub(crate) fn execute(
                             frame.arguments.push(ctx, arguments)?;
                         }
                         Op::AddressGlobal(index) => {
-                            let mut value = global_value(program, ctx, &mut storage, index)?;
-                            let mut root = Some(index);
-                            if let (Kind::Builtin(current), Kind::Builtin(original)) =
-                                (&value.0, &program.globals[index].1.0)
-                            {
-                                if current == original {
-                                    value = current.read(ctx)?;
-                                    root = None;
-                                }
-                            }
-                            let address = match root {
-                                Some(slot) => Address::global(program.global_base + slot, value),
-                                None => Address::new(None, value),
-                            };
+                            let address = file_bindings::global_address(
+                                program,
+                                ctx,
+                                &mut storage,
+                                index,
+                                true,
+                            )?;
                             storage.addresses.push(ctx, address)?;
                         }
                         Op::NonCallable => {
@@ -949,7 +1059,11 @@ pub(crate) fn execute(
                         }
                         Op::BindEnd => frame.binding = Buffer::empty(),
                         Op::Declare(slot) => {
-                            storage.locals.data[slot].get_or_insert_with(Value::nil);
+                            if let Some(name) = file_local {
+                                file_bindings::declare(program, ctx, &mut storage, name)?;
+                            } else {
+                                storage.locals.data[slot].get_or_insert_with(Value::nil);
+                            }
                         }
                         Op::Bypass(slot) => storage.bypasses.push(ctx, slot)?,
                         Op::BypassEnd(n) => {
@@ -1009,8 +1123,12 @@ pub(crate) fn execute(
                         }
                         Op::Store(n) => {
                             let value = stack.data.last().unwrap();
-                            address::refresh(ctx, n, value, &mut storage.addresses.data, &[])?;
-                            storage.locals.data[n] = Some(value.clone());
+                            if let Some(name) = file_local {
+                                file_bindings::set(program, ctx, &mut storage, name, value)?;
+                            } else {
+                                address::refresh(ctx, n, value, &mut storage.addresses.data, &[])?;
+                                storage.locals.data[n] = Some(value.clone());
+                            }
                         }
                         Op::Pop => {
                             stack.data.pop().unwrap();
@@ -1208,11 +1326,26 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::AddressLocal(n) => {
-                            let value = storage.locals.data[n].clone().unwrap_or_default();
-                            storage.addresses.push(ctx, Address::new(Some(n), value))?;
+                            let address = if let Some(name) = file_local {
+                                file_bindings::address(program, ctx, name)?
+                            } else {
+                                Address::new(
+                                    Some(n),
+                                    storage.locals.data[n].clone().unwrap_or_default(),
+                                )
+                            };
+                            storage.addresses.push(ctx, address)?;
                         }
                         Op::AddressBound(slot, next) => {
-                            if let Some(value) = &storage.locals.data[slot] {
+                            if let Some(name) =
+                                file_local.filter(|_| file_bindings::environment(program).is_some())
+                            {
+                                if file_bindings::get(program, ctx, name)?.is_some() {
+                                    let address = file_bindings::address(program, ctx, name)?;
+                                    storage.addresses.push(ctx, address)?;
+                                    frame.ip = next;
+                                }
+                            } else if let Some(value) = &storage.locals.data[slot] {
                                 storage
                                     .addresses
                                     .push(ctx, Address::new(Some(slot), value.clone()))?;
@@ -1911,6 +2044,8 @@ pub(crate) fn execute(
                             let name = &program.members[name];
                             let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
                                 value_invocation(value)
+                            } else if let Some(value) = file_bindings::get(program, ctx, name)? {
+                                value_invocation(&value)
                             } else if program.declaration_names.contains_key(name) {
                                 crate::arguments::Target::Plain(Invocation::NonCallable)
                             } else if let Some(&function) = program.names.get(name) {
@@ -1920,6 +2055,10 @@ pub(crate) fn execute(
                                 crate::arguments::Target::Plain(Invocation::Host(host))
                             } else if let Some(global) = global_index(program, name) {
                                 value_invocation(&global_value(program, ctx, &mut storage, global)?)
+                            } else if let Some(target) =
+                                file_bindings::root_target(program, &storage, name)
+                            {
+                                target
                             } else {
                                 match namespaces::implicit(
                                     program,
@@ -2007,6 +2146,18 @@ pub(crate) fn execute(
                                     )
                                 }
                                 crate::arguments::Target::Plain(target) => target,
+                                crate::arguments::Target::Function(owner, function) => {
+                                    enter_arguments(
+                                        &owner,
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        function,
+                                        args,
+                                        stack.data.len(),
+                                    )?;
+                                    continue;
+                                }
                                 crate::arguments::Target::Method(call) => {
                                     enter_arguments(
                                         program,
@@ -2540,6 +2691,9 @@ fn runtime_bound(
     {
         return Ok(true);
     }
+    if file_bindings::get(program, ctx, name)?.is_some() {
+        return Ok(true);
+    }
     for host in &program.hosts {
         ctx.charge(1)?;
         if crate::enums::compare_names(ctx, host.as_bytes(), name.as_bytes())?
@@ -2710,11 +2864,31 @@ fn resolve_type(
         }
         let mut found = None;
         let mut declaration = None;
+        if let Some(environment) = file_bindings::environment(program) {
+            for (key, value) in crate::objects::bindings(ctx, environment)?.data {
+                let candidate = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
+                if let Some(value) =
+                    type_candidate(ctx, candidate, &value, binding, member, fold, enum_only)?
+                {
+                    merge_type(&mut found, value)?;
+                }
+            }
+            if let Some(value) = found {
+                return Ok(value);
+            }
+        }
         for (index, (global, original)) in program.globals.iter().enumerate() {
             ctx.charge(1)?;
-            let value = storage.globals.data[program.global_base + index]
-                .as_ref()
-                .unwrap_or(original);
+            let scoped = if file_bindings::environment(program).is_some() {
+                Some(global_value(program, ctx, storage, index)?)
+            } else {
+                None
+            };
+            let value = scoped.as_ref().unwrap_or_else(|| {
+                storage.globals.data[program.global_base + index]
+                    .as_ref()
+                    .unwrap_or(original)
+            });
             if let Some(value) =
                 type_candidate(ctx, global.name(), value, binding, member, fold, enum_only)?
             {
@@ -2728,12 +2902,15 @@ fn resolve_type(
                 Kind::Namespace(namespace) => &namespace.definition.name,
                 _ => continue,
             };
-            let value = storage
-                .declarations
-                .data
-                .iter()
-                .find(|(slot, _)| *slot == (program.index, index))
-                .map_or(value, |(_, value)| value);
+            let scoped = file_bindings::get(program, ctx, name)?;
+            let value = scoped.as_ref().unwrap_or_else(|| {
+                storage
+                    .declarations
+                    .data
+                    .iter()
+                    .find(|(slot, _)| *slot == (program.index, index))
+                    .map_or(value, |(_, value)| value)
+            });
             if let Some(value) = type_candidate(ctx, name, value, binding, member, fold, enum_only)?
             {
                 if found.is_none() {
@@ -2842,6 +3019,16 @@ fn declaration_value(
     storage: &mut Storage,
     index: usize,
 ) -> Result<Value> {
+    let scoped = file_bindings::environment(program).is_some();
+    if scoped {
+        if let Some(value) = file_bindings::get(
+            program,
+            ctx,
+            file_bindings::declaration_name(program, index),
+        )? {
+            return Ok(value);
+        }
+    }
     for (cached, value) in &storage.declarations.data {
         ctx.charge(1)?;
         if *cached == (program.index, index) {
@@ -2852,13 +3039,23 @@ fn declaration_value(
         namespaces::value(program, ctx, storage, namespace.definition.index)?
     } else if let Kind::Enum(enumeration) = &program.declarations[index].0 {
         ctx.charge(1)?;
-        Value(Kind::Enum(crate::enums::Enumeration::instantiate(
-            ctx,
-            enumeration,
-        )?))
+        Value(Kind::Enum(if scoped {
+            crate::enums::Enumeration::fresh(ctx, enumeration)?
+        } else {
+            crate::enums::Enumeration::instantiate(ctx, enumeration)?
+        }))
     } else {
         ctx.import(&program.declarations[index])?
     };
+    if scoped {
+        file_bindings::set(
+            program,
+            ctx,
+            storage,
+            file_bindings::declaration_name(program, index),
+            &value,
+        )?;
+    }
     storage
         .declarations
         .push(ctx, ((program.index, index), value.clone()))?;
@@ -2871,6 +3068,13 @@ fn global_value(
     storage: &mut Storage,
     index: usize,
 ) -> Result<Value> {
+    if file_bindings::environment(program).is_some() {
+        if let Some(value) = file_bindings::get(program, ctx, program.globals[index].0.name())? {
+            return Ok(value);
+        }
+        let slot = file_bindings::global_slot(program, ctx, storage, index)?;
+        return Ok(storage.globals.data[slot].as_ref().unwrap().clone());
+    }
     let slot = program.global_base + index;
     if storage.globals.data[slot].is_none() {
         storage.globals.data[slot] = Some(ctx.import(&program.globals[index].1)?);
