@@ -75,6 +75,7 @@ impl SavedError {
                         + diagnostic.frames.capacity() * size_of::<crate::StackFrame>(),
                 )?,
             );
+            charge_filename(ctx, &mut charge, diagnostic.filename.as_ref(), [])?;
             for (index, frame) in diagnostic.frames.iter().enumerate() {
                 ctx.charge(index as u64 + 1)?;
                 if !diagnostic.frames[..index]
@@ -87,10 +88,21 @@ impl SavedError {
                         ctx.reserve(frame.function.len() + 2 * size_of::<usize>())?,
                     );
                 }
+                charge_filename(
+                    ctx,
+                    &mut charge,
+                    frame.filename.as_ref(),
+                    std::iter::once(diagnostic.filename.as_ref()).chain(
+                        diagnostic.frames[..index]
+                            .iter()
+                            .map(|prior| prior.filename.as_ref()),
+                    ),
+                )?;
             }
         } else {
             ctx.charge(frames.len() as u64)?;
             let (program, frames, offset) = diagnostic_site(program, frames, entry);
+            charge_filename(ctx, &mut charge, program.source.filename.as_ref(), [])?;
             let position = program.source.position_metered(ctx, offset)?;
             let (code_frame, snippet_charge) =
                 program.source.frame_metered(ctx, offset, position)?;
@@ -113,8 +125,16 @@ impl SavedError {
                         ctx.reserve(name.len() + 2 * size_of::<usize>())?,
                     );
                 }
+                charge_filename(
+                    ctx,
+                    &mut charge,
+                    source.filename.as_ref(),
+                    std::iter::once(program.source.filename.as_ref())
+                        .chain(trace.data.iter().map(|prior| prior.filename.as_ref())),
+                )?;
                 trace.data.push(crate::StackFrame {
                     function: name.cloned().unwrap_or_else(|| "<script>".into()),
+                    filename: source.filename.clone(),
                     position: source.position_metered(ctx, at)?,
                 });
             }
@@ -126,6 +146,7 @@ impl SavedError {
             );
             error.offset = Some(offset as usize);
             error.diagnostic = Some(Arc::new(crate::Diagnostic {
+                filename: program.source.filename.clone(),
                 position,
                 code_frame,
                 frames: trace,
@@ -164,11 +185,16 @@ impl SavedError {
         let mut trace = Buffer::empty();
         if let Some(diagnostic) = &self.error.diagnostic {
             for frame in &diagnostic.frames {
+                ctx.work_bytes(frame.filename.as_ref().map_or(0, |name| name.len()))?;
                 let (text, _charge) = crate::source::formatted(
                     ctx,
                     format_args!(
-                        "{}:{}:in `{}`",
-                        frame.position.line, frame.position.column, frame.function
+                        "{}:in `{}`",
+                        crate::source::Location {
+                            filename: frame.filename.as_deref(),
+                            position: frame.position,
+                        },
+                        frame.function
                     ),
                 )?;
                 let value = ctx.bytes(text.as_bytes())?;
@@ -191,6 +217,29 @@ impl SavedError {
         hash.tag = crate::hash::Tag::Error;
         Ok(Value(Kind::Hash(hash.into_arc(ctx)?)))
     }
+}
+
+fn charge_filename<'a>(
+    ctx: &mut CallContext,
+    charge: &mut Option<Charge>,
+    filename: Option<&Arc<[u8]>>,
+    prior: impl IntoIterator<Item = Option<&'a Arc<[u8]>>>,
+) -> Result<()> {
+    let Some(filename) = filename else {
+        return Ok(());
+    };
+    for previous in prior {
+        ctx.charge(1)?;
+        if previous.is_some_and(|previous| Arc::ptr_eq(previous, filename)) {
+            return Ok(());
+        }
+    }
+    ctx.work_bytes(filename.len())?;
+    Charge::merge(
+        charge,
+        ctx.reserve(filename.len() + 2 * size_of::<usize>())?,
+    );
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

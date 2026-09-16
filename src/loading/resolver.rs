@@ -19,6 +19,10 @@ impl Origin {
     pub(crate) fn name(&self) -> &[u8] {
         &self.relative
     }
+
+    pub(crate) fn filename(&self) -> Arc<[u8]> {
+        self.relative.clone()
+    }
 }
 
 pub(super) struct Resolver {

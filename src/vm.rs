@@ -2978,11 +2978,13 @@ fn diagnose(
     let trace = trace_entries(program, frames, offset)
         .map(|(name, source, at)| crate::StackFrame {
             function: name.cloned().unwrap_or_else(|| "<script>".into()),
+            filename: source.filename.clone(),
             position: source.position(at),
         })
         .collect();
     error.offset = Some(offset as usize);
     error.diagnostic = Some(std::sync::Arc::new(crate::Diagnostic {
+        filename: program.source.filename.clone(),
         position: program.source.position(offset),
         code_frame: program.source.frame(offset),
         frames: trace,

@@ -7,7 +7,8 @@ use std::{
     },
 };
 use vibescript::{
-    CallOptions, CancellationToken, Engine, ErrorKind, ModuleConfig, Value, stringify_json,
+    CallOptions, CancellationToken, Engine, ErrorKind, ModuleConfig, Position, Value,
+    stringify_json,
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -62,6 +63,209 @@ impl Drop for Files {
 fn json(value: &Value) -> serde_json::Value {
     let encoded = stringify_json(value, CallOptions::default()).unwrap();
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
+}
+
+#[test]
+fn required_diagnostics_follow_the_source_at_each_call_site() {
+    let files = Files::new();
+    files.write(
+        "pkg/main.vibe",
+        "inner=require(\"./inner\")\ndef fail\n inner.fail()\nend",
+    );
+    files.write("pkg/inner.vibe", "def fail\n 1/0\nend");
+    let script = files
+        .engine()
+        .compile("def run\n require(\"pkg/main\").fail()\nend")
+        .unwrap();
+    let error = script.call("run", &[], CallOptions::default()).unwrap_err();
+    let diagnostic = error.diagnostic.as_ref().unwrap();
+    assert_eq!(
+        diagnostic.filename.as_deref(),
+        Some(b"pkg/inner.vibe".as_slice())
+    );
+    assert_eq!(diagnostic.position, Position { line: 2, column: 3 });
+    assert_eq!(
+        diagnostic.code_frame,
+        "  --> pkg/inner.vibe:2:3\n 2 |  1/0\n   |   ^"
+    );
+    assert_eq!(
+        diagnostic
+            .frames
+            .iter()
+            .map(|frame| (
+                &*frame.function,
+                frame.filename.as_deref(),
+                frame.position.line,
+                frame.position.column,
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("fail", Some(b"pkg/inner.vibe".as_slice()), 2, 3),
+            ("fail", Some(b"pkg/main.vibe".as_slice()), 3, 2),
+            ("fail", None, 2, 2),
+            ("run", None, 1, 1),
+        ]
+    );
+    assert!(error.to_string().contains("at fail (pkg/main.vibe:3:2)"));
+    assert!(Arc::ptr_eq(
+        diagnostic.filename.as_ref().unwrap(),
+        diagnostic.frames[0].filename.as_ref().unwrap(),
+    ));
+}
+
+#[test]
+fn required_parse_and_initializer_failures_identify_the_failed_file() {
+    let files = Files::new();
+    files.write("pkg/main.vibe", "require(\"./broken\")");
+    files.write("pkg/broken.vibe", "def fail\n $\nend");
+    let engine = files.engine();
+    let script = engine.compile("require(\"pkg/main\")").unwrap();
+    let error = script.run(CallOptions::default()).unwrap_err();
+    let diagnostic = error.diagnostic.as_ref().unwrap();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    assert_eq!(
+        diagnostic.filename.as_deref(),
+        Some(b"pkg/broken.vibe".as_slice())
+    );
+    assert_eq!(diagnostic.position, Position { line: 2, column: 2 });
+    assert!(diagnostic.frames.is_empty());
+    assert!(
+        error
+            .to_string()
+            .starts_with("parse error at pkg/broken.vibe:2:2:")
+    );
+
+    for source in ["1/0", "class C\n X=1/0\nend", "module C\n X=1/0\nend"] {
+        files.write("pkg/broken.vibe", source);
+        engine.clear_module_cache();
+        let error = script.run(CallOptions::default()).unwrap_err();
+        let diagnostic = error.diagnostic.as_ref().unwrap();
+        assert_eq!(error.kind, ErrorKind::Arithmetic);
+        assert_eq!(
+            diagnostic.filename.as_deref(),
+            Some(b"pkg/broken.vibe".as_slice())
+        );
+        assert_eq!(error.offset, Some(source.find('/').unwrap()));
+        assert_eq!(diagnostic.frames[0].filename, diagnostic.filename);
+        assert!(!error.to_string().contains("__main__"));
+    }
+}
+
+#[test]
+fn required_binding_defaults_and_blocks_keep_their_expression_origins() {
+    let files = Files::new();
+    files.write(
+        "calls.vibe",
+        "def typed(n:int);n;end\ndef default(n=1/0);n;end\ndef invoke;yield;end\ndef returned -> int;\"bad\";end",
+    );
+    let engine = files.engine();
+    for (expression, file, line) in [
+        ("m.typed(\"bad\")", None, 3),
+        ("m.returned()", None, 3),
+        ("m.default()", Some(b"calls.vibe".as_slice()), 2),
+        ("m.invoke{1/0}", None, 3),
+    ] {
+        let source = format!("def run\n m=require(:calls)\n {expression}\nend");
+        let error = engine
+            .compile(&source)
+            .unwrap()
+            .call("run", &[], CallOptions::default())
+            .unwrap_err();
+        let diagnostic = error.diagnostic.as_ref().unwrap();
+        assert_eq!(
+            diagnostic.filename.as_deref(),
+            file,
+            "{expression}: {error}"
+        );
+        assert_eq!(diagnostic.position.line, line, "{expression}: {error}");
+    }
+}
+
+#[test]
+fn rescued_required_errors_keep_named_snippets_and_traces_through_reraise() {
+    let files = Files::new();
+    files.write("pkg/failure.vibe", "def fail\n 1/0\nend");
+    let script = files
+        .engine()
+        .compile(
+            "m=require(\"pkg/failure\");begin\nm.fail\nrescue=>e\n[e.code_frame,e.backtrace]\nend",
+        )
+        .unwrap();
+    // Compare budgets after warming the shared compilation cache.
+    script.run(CallOptions::default()).unwrap();
+    let output = script.run(CallOptions::default()).unwrap();
+    assert_eq!(
+        json(&output.value),
+        serde_json::json!([
+            "  --> pkg/failure.vibe:2:3\n 2 |  1/0\n   |   ^",
+            ["pkg/failure.vibe:2:3:in `fail`", "2:1:in `fail`"],
+        ])
+    );
+    let mut options = CallOptions::default();
+    options.limits.steps = Some(output.stats.steps);
+    script.run(options.clone()).unwrap();
+    options.limits.steps = Some(output.stats.steps - 1);
+    assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Steps);
+    let mut options = CallOptions::default();
+    options.limits.memory_bytes = Some(output.stats.peak_memory_bytes);
+    script.run(options.clone()).unwrap();
+    options.limits.memory_bytes = Some(output.stats.peak_memory_bytes - 1);
+    assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Memory);
+
+    let source = "m=require(\"pkg/failure\");begin\nm.fail\nrescue\nraise\nensure\n1\nend";
+    let error = files
+        .engine()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(
+        error.diagnostic.as_ref().unwrap().filename.as_deref(),
+        Some(b"pkg/failure.vibe".as_slice())
+    );
+    assert_eq!(
+        error.diagnostic.as_ref().unwrap().position,
+        Position { line: 2, column: 3 }
+    );
+}
+
+#[test]
+fn imported_module_errors_keep_original_filenames_without_retaining_host_state() {
+    let files = Files::new();
+    files.write("original/module.vibe", "def fail\n host()\nend");
+    let state = Arc::new(AtomicUsize::new(0));
+    let captured = state.clone();
+    let mut engine = files.engine();
+    engine.register("host", move |_, _| {
+        captured.fetch_add(1, Ordering::Relaxed);
+        Err(vibescript::Error::new(ErrorKind::Host, "host failed"))
+    });
+    let module = engine
+        .compile("require(\"original/module\")")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    drop(engine);
+    let receiver = Engine::new().compile("def run(m)\n m.fail()\nend").unwrap();
+    let error = receiver
+        .call("run", &[module], CallOptions::default())
+        .unwrap_err();
+    drop(receiver);
+    assert_eq!(state.load(Ordering::Relaxed), 1);
+    assert_eq!(Arc::strong_count(&state), 1);
+    let diagnostic = error.diagnostic.as_ref().unwrap();
+    assert_eq!(
+        diagnostic.filename.as_deref(),
+        Some(b"original/module.vibe".as_slice())
+    );
+    assert_eq!(diagnostic.position, Position { line: 2, column: 2 });
+    assert_eq!(diagnostic.frames[1].filename, None);
+    assert!(
+        error
+            .to_string()
+            .contains("at fail (original/module.vibe:2:2)")
+    );
 }
 
 #[test]

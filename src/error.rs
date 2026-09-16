@@ -11,6 +11,8 @@ pub struct Position {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StackFrame {
     pub function: Arc<str>,
+    /// Root-relative module filename bytes, or none for an unnamed source.
+    pub filename: Option<Arc<[u8]>>,
     pub position: Position,
 }
 
@@ -18,6 +20,8 @@ pub struct StackFrame {
 #[doc = include_str!("../docs/diagnostics.md")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Diagnostic {
+    /// Root-relative module filename bytes, or none for an unnamed source.
+    pub filename: Option<Arc<[u8]>>,
     pub position: Position,
     pub code_frame: String,
     pub frames: Vec<StackFrame>,
@@ -241,8 +245,12 @@ impl fmt::Display for Error {
             if self.kind == ErrorKind::Syntax {
                 write!(
                     f,
-                    "parse error at {}:{}: {}",
-                    diagnostic.position.line, diagnostic.position.column, self.message
+                    "parse error at {}: {}",
+                    crate::source::Location {
+                        filename: diagnostic.filename.as_deref(),
+                        position: diagnostic.position,
+                    },
+                    self.message
                 )?;
             } else {
                 f.write_str(&self.message)?;
@@ -258,8 +266,12 @@ impl fmt::Display for Error {
                 }
                 write!(
                     f,
-                    "\n  at {} ({}:{})",
-                    frame.function, frame.position.line, frame.position.column
+                    "\n  at {} ({})",
+                    frame.function,
+                    crate::source::Location {
+                        filename: frame.filename.as_deref(),
+                        position: frame.position,
+                    }
                 )?;
             }
             Ok(())

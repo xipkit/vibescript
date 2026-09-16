@@ -59,12 +59,14 @@ impl Code {
         origin: Option<crate::loading::Origin>,
     ) -> Result<Arc<Self>> {
         let names = registered.keys().cloned().collect();
+        let filename = origin.as_ref().map(crate::loading::Origin::filename);
         let mut program = if file {
             crate::bytecode::compile_file(source, names)
         } else {
             crate::bytecode::compile(source, names)
         }
-        .map_err(|error| crate::source::parse_error(source, error))?;
+        .map_err(|error| crate::source::parse_error(source, filename.as_ref(), error))?;
+        program.source.filename = filename;
         let hosts = program
             .hosts
             .iter()

@@ -17,6 +17,7 @@ struct Checkpoint {
 
 #[derive(Debug)]
 pub(crate) struct Source {
+    pub filename: Option<Arc<[u8]>>,
     text: Box<str>,
     checkpoints: Vec<Checkpoint>,
 }
@@ -40,6 +41,7 @@ impl Source {
             advance(&mut position, ch);
         }
         Self {
+            filename: None,
             text: text.into(),
             checkpoints,
         }
@@ -78,6 +80,7 @@ impl Source {
             &self.text,
             boundary(&self.text, offset as usize),
             self.position(offset),
+            self.filename.as_deref(),
         )
     }
 
@@ -88,7 +91,13 @@ impl Source {
         position: Position,
     ) -> Result<(String, Option<Charge>)> {
         ctx.work_bytes(WINDOW * 12)?;
-        let snippet = Snippet::new(&self.text, boundary(&self.text, offset as usize), position);
+        ctx.work_bytes(self.filename.as_ref().map_or(0, |name| name.len()))?;
+        let snippet = Snippet::new(
+            &self.text,
+            boundary(&self.text, offset as usize),
+            position,
+            self.filename.as_deref(),
+        );
         formatted(ctx, format_args!("{snippet}"))
     }
 }
@@ -116,10 +125,11 @@ struct Snippet<'a> {
     prefix: bool,
     suffix: bool,
     position: Position,
+    filename: Option<&'a [u8]>,
 }
 
 impl<'a> Snippet<'a> {
-    fn new(text: &'a str, offset: usize, position: Position) -> Self {
+    fn new(text: &'a str, offset: usize, position: Position, filename: Option<&'a [u8]>) -> Self {
         let mut start = offset;
         for ch in text[..offset].chars().rev().take(WINDOW / 2) {
             if ch == '\n' {
@@ -150,6 +160,7 @@ impl<'a> Snippet<'a> {
             prefix: start > 0 && text.as_bytes()[start - 1] != b'\n',
             suffix: end < text.len() && text.as_bytes()[end] != b'\n',
             position,
+            filename,
         }
     }
 }
@@ -157,9 +168,22 @@ impl<'a> Snippet<'a> {
 impl fmt::Display for Snippet<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Position { line, column } = self.position;
+        f.write_str("  --> ")?;
+        if self.filename.is_some() {
+            write!(
+                f,
+                "{}",
+                Location {
+                    filename: self.filename,
+                    position: self.position
+                }
+            )?;
+        } else {
+            write!(f, "line {line}, column {column}")?;
+        }
         write!(
             f,
-            "  --> line {line}, column {column}\n {line} | {}{}{}\n ",
+            "\n {line} | {}{}{}\n ",
             if self.prefix { "..." } else { "" },
             self.text,
             if self.suffix { "..." } else { "" }
@@ -178,8 +202,45 @@ impl fmt::Display for Snippet<'_> {
     }
 }
 
-fn frame(text: &str, offset: usize, position: Position) -> String {
-    Snippet::new(text, offset, position).to_string()
+fn frame(text: &str, offset: usize, position: Position, filename: Option<&[u8]>) -> String {
+    Snippet::new(text, offset, position, filename).to_string()
+}
+
+pub(crate) struct Location<'a> {
+    pub filename: Option<&'a [u8]>,
+    pub position: Position,
+}
+
+impl fmt::Display for Location<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(mut bytes) = self.filename {
+            while !bytes.is_empty() {
+                let (text, invalid) = match std::str::from_utf8(bytes) {
+                    Ok(text) => (text, 0),
+                    Err(error) => (
+                        std::str::from_utf8(&bytes[..error.valid_up_to()]).unwrap(),
+                        error
+                            .error_len()
+                            .unwrap_or(bytes.len() - error.valid_up_to()),
+                    ),
+                };
+                for ch in text.chars() {
+                    if ch.is_control() || ch == '\\' {
+                        write!(f, "{}", ch.escape_default())?;
+                    } else {
+                        f.write_char(ch)?;
+                    }
+                }
+                bytes = &bytes[text.len()..];
+                for byte in &bytes[..invalid] {
+                    write!(f, "\\x{byte:02x}")?;
+                }
+                bytes = &bytes[invalid..];
+            }
+            f.write_char(':')?;
+        }
+        write!(f, "{}:{}", self.position.line, self.position.column)
+    }
 }
 
 pub(crate) fn formatted(
@@ -205,7 +266,7 @@ pub(crate) fn formatted(
     Ok((String::from_utf8(bytes).unwrap(), charge))
 }
 
-pub(crate) fn parse_error(source: &str, mut error: Error) -> Error {
+pub(crate) fn parse_error(source: &str, filename: Option<&Arc<[u8]>>, mut error: Error) -> Error {
     if let Some(offset) = error
         .offset
         .filter(|_| source.len() <= crate::syntax::MAX_SOURCE)
@@ -216,8 +277,9 @@ pub(crate) fn parse_error(source: &str, mut error: Error) -> Error {
             advance(&mut position, ch);
         }
         error.diagnostic = Some(Arc::new(Diagnostic {
+            filename: filename.cloned(),
             position,
-            code_frame: frame(source, offset, position),
+            code_frame: frame(source, offset, position, filename.map(|name| &**name)),
             frames: Vec::new(),
         }));
     }
@@ -227,6 +289,32 @@ pub(crate) fn parse_error(source: &str, mut error: Error) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filenames_preserve_unicode_and_escape_control_characters_and_invalid_bytes() {
+        for (filename, rendered) in [
+            ("pkg/日本語.vibe".as_bytes(), "pkg/日本語.vibe"),
+            (b"pkg/a\n\r\t\\.vibe".as_slice(), "pkg/a\\n\\r\\t\\\\.vibe"),
+            (
+                b"pkg/\xff\xc0\x80\xe2\x98".as_slice(),
+                "pkg/\\xff\\xc0\\x80\\xe2\\x98",
+            ),
+            (b"a\0\x1b\x7f".as_slice(), "a\\u{0}\\u{1b}\\u{7f}"),
+        ] {
+            let mut source = Source::new("1/0");
+            source.filename = Some(filename.into());
+            let expected = format!("  --> {rendered}:1:2\n 1 | 1/0\n   |  ^");
+            assert_eq!(source.frame(1), expected);
+            let mut ctx = CallContext::new(crate::CallOptions::default());
+            let (text, charge) = source
+                .frame_metered(&mut ctx, 1, source.position(1))
+                .unwrap();
+            assert_eq!(text, expected);
+            assert!(ctx.stats().retained_memory_bytes >= text.len());
+            drop((text, charge));
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
 
     #[test]
     fn sparse_positions_agree_with_a_linear_unicode_walk() {

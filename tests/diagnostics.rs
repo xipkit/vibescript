@@ -2,7 +2,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use vibescript::{CallOptions, Engine, Error, ErrorKind, Position, Value};
+use vibescript::{CallOptions, Diagnostic, Engine, Error, ErrorKind, Position, StackFrame, Value};
 
 fn failure(source: &str) -> Error {
     Engine::new()
@@ -232,6 +232,84 @@ fn host_forwarded_script_errors_preserve_the_original_diagnostic() {
         error.diagnostic.as_ref().unwrap(),
         original.diagnostic.as_ref().unwrap()
     ));
+}
+
+#[test]
+fn forwarded_filenames_are_charged_once_per_shared_allocation() {
+    let filename: Arc<[u8]> = vec![b'x'; 32768].into();
+    let distinct: Arc<[u8]> = filename.as_ref().into();
+    let mut outcomes = Vec::new();
+    for (site, labels) in [
+        (None, [None, None, None]),
+        (
+            Some(filename.clone()),
+            [
+                Some(filename.clone()),
+                Some(filename.clone()),
+                Some(filename.clone()),
+            ],
+        ),
+        (
+            Some(filename.clone()),
+            [
+                Some(filename.clone()),
+                Some(distinct.clone()),
+                Some(distinct.clone()),
+            ],
+        ),
+        (None, [None, Some(filename.clone()), Some(filename.clone())]),
+    ] {
+        let function: Arc<str> = "remote".into();
+        let mut original = Error::new(ErrorKind::Runtime, "failed elsewhere");
+        original.diagnostic = Some(Arc::new(Diagnostic {
+            filename: site,
+            position: Position { line: 2, column: 3 },
+            code_frame: String::new(),
+            frames: labels
+                .into_iter()
+                .map(|filename| StackFrame {
+                    function: function.clone(),
+                    filename,
+                    position: Position { line: 2, column: 3 },
+                })
+                .collect(),
+        }));
+        let forwarded = original.clone();
+        let mut engine = Engine::new();
+        engine.register("fail", move |_, _| Err(forwarded.clone()));
+        engine.register("usage", |ctx, _| {
+            Ok(Value::int(ctx.stats().retained_memory_bytes as i64))
+        });
+        let script = engine
+            .compile("begin\nfail()\nrescue\nusage()\nend")
+            .unwrap();
+        let output = script.run(CallOptions::default()).unwrap();
+        assert_eq!(output.stats.retained_memory_bytes, 0);
+        let mut options = CallOptions::default();
+        options.limits.memory_bytes = Some(output.stats.peak_memory_bytes);
+        assert_eq!(
+            script.run(options.clone()).unwrap().value.as_int(),
+            output.value.as_int()
+        );
+        options.limits.memory_bytes = Some(output.stats.peak_memory_bytes - 1);
+        assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Memory);
+        let mut options = CallOptions::default();
+        options.limits.steps = Some(output.stats.steps);
+        script.run(options.clone()).unwrap();
+        options.limits.steps = Some(output.stats.steps - 1);
+        assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Steps);
+        outcomes.push(output.value.as_int().unwrap());
+        let error = engine
+            .compile("fail()")
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error, original);
+    }
+    let single = outcomes[1] - outcomes[0];
+    assert!((32768..33792).contains(&single), "{outcomes:?}");
+    assert_eq!(outcomes[2] - outcomes[1], single);
+    assert_eq!(outcomes[3], outcomes[1]);
 }
 
 #[test]
