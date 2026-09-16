@@ -65,6 +65,52 @@ fn json(value: &Value) -> serde_json::Value {
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
 }
 
+#[test]
+fn required_files_use_the_receiving_calls_capability_grants() {
+    let files = Files::new();
+    files.write("notify.vibe", "def notify(n); sms.deliver(n); end");
+    let mut engine = files.engine();
+    engine.set_strict_effects(true);
+    let script = engine
+        .compile("def run; require(:notify).notify(21); end")
+        .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let method = vibescript::HostMethod::new("sms.deliver", move |_, args, _| {
+        observed.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::int(args[0].as_int().unwrap() * 2))
+    });
+    let options = CallOptions {
+        allow_require: true,
+        capabilities: vec![vibescript::Capability::new("sms", move |_| {
+            Ok(Value::object(vec![(b"deliver".to_vec(), method.value())]))
+        })],
+        ..CallOptions::default()
+    };
+    for _ in 0..2 {
+        assert_eq!(
+            script
+                .call("run", &[], options.clone())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(42)
+        );
+    }
+    let error = script
+        .call(
+            "run",
+            &[],
+            CallOptions {
+                allow_require: true,
+                ..CallOptions::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Name);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+}
+
 fn require_denied(error: &Error) {
     assert_eq!(error.kind, ErrorKind::Runtime, "{error}");
     assert_eq!(error.class(), Some(ErrorClass::Runtime), "{error}");

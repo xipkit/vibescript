@@ -284,6 +284,7 @@ pub(super) fn read_root(
         ),
         RootBinding::Value(value) => {
             let value = match value.0 {
+                Kind::Host(method) => return Err(method.value_error()),
                 Kind::Builtin(builtin) => builtin.read(ctx)?,
                 Kind::Offset(offset) => return Err(offset.value_error()),
                 _ => value,

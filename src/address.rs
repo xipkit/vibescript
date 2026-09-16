@@ -52,6 +52,7 @@ pub(crate) struct Address {
     pub selectors: Buffer<Value>,
     pub member_target: bool,
     pub exported: Option<std::sync::Arc<crate::exports::Function>>,
+    pub capability: Option<std::sync::Arc<crate::capability::BoundMethod>>,
 }
 
 impl Address {
@@ -74,6 +75,7 @@ impl Address {
             selectors: Buffer::empty(),
             member_target: false,
             exported: None,
+            capability: None,
         }
     }
 
@@ -184,6 +186,7 @@ impl Address {
             selectors: _,
             member_target: _,
             exported: _,
+            capability: _,
         } = self;
         let Some(root) = root else {
             return action(ctx, value).map(|(_, result)| result);

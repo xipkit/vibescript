@@ -15,6 +15,7 @@ pub mod asynchronous;
 mod budget;
 mod builtin;
 mod bytecode;
+mod capability;
 mod casing;
 mod code;
 mod collections;
@@ -60,6 +61,7 @@ mod value;
 mod vm;
 
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
+pub use capability::{Capability, HostMethod};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
@@ -230,6 +232,7 @@ impl Script {
             .get(name)
             .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
         ctx.code_roots = Some(budget::Buffer::empty());
+        ctx.host_roots = Some(budget::Buffer::empty());
         let result = vm::execute(
             &self.inner.code,
             &self.inner.loader,
@@ -244,6 +247,7 @@ impl Script {
             Err(error) => {
                 objects::cleanup(&mut ctx);
                 ctx.code_roots = None;
+                ctx.host_roots = None;
                 return Err(error);
             }
         };
@@ -251,9 +255,11 @@ impl Script {
             drop(value);
             objects::cleanup(&mut ctx);
             ctx.code_roots = None;
+            ctx.host_roots = None;
             return Err(error);
         }
         ctx.code_roots = None;
+        ctx.host_roots = None;
         ctx.checkpoint()?;
         Ok(Outcome {
             value,

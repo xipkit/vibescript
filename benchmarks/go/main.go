@@ -24,6 +24,7 @@ type fixture struct {
 	Args              []json.RawMessage          `json:"args"`
 	Globals           map[string]json.RawMessage `json:"globals,omitempty"`
 	StrictEffects     bool                       `json:"strict_effects,omitempty"`
+	CapabilityProbe   bool                       `json:"capability_probe,omitempty"`
 	AllowRequire      bool                       `json:"allow_require,omitempty"`
 	ModulePaths       []string                   `json:"module_paths,omitempty"`
 	ModuleAllow       []string                   `json:"module_allow,omitempty"`
@@ -136,6 +137,9 @@ func run() error {
 			}
 		}
 		options := vibes.CallOptions{AllowRequire: fixture.AllowRequire}
+		if fixture.CapabilityProbe {
+			options.Capabilities = []vibes.CapabilityAdapter{probeCapability{}}
+		}
 		if len(fixture.Globals) > 0 {
 			options.Globals = make(map[string]value.Value, len(fixture.Globals))
 			for name, raw := range fixture.Globals {
@@ -216,4 +220,55 @@ func run() error {
 		}
 	}
 	return nil
+}
+
+type probeCapability struct{}
+
+// Bind creates independent capability state for one comparison invocation.
+func (probeCapability) Bind(_ vibes.CapabilityBinding) (map[string]value.Value, error) {
+	count := int64(0)
+	next := vibes.NewBuiltin("host.next", func(_ *vibes.Execution, _ value.Value, _ []value.Value, _ map[string]value.Value, _ value.Value) (value.Value, error) {
+		count++
+		return value.NewInt(count), nil
+	})
+	checked := vibes.NewBuiltin("host.checked", func(_ *vibes.Execution, _ value.Value, args []value.Value, _ map[string]value.Value, _ value.Value) (value.Value, error) {
+		count++
+		if args[0].Int() == 0 {
+			return value.NewString("invalid result"), nil
+		}
+		return args[0], nil
+	})
+	factory := vibes.NewBuiltin("host.factory", func(_ *vibes.Execution, _ value.Value, _ []value.Value, _ map[string]value.Value, _ value.Value) (value.Value, error) {
+		return value.NewObject(map[string]value.Value{"checked": checked}), nil
+	})
+	echo := vibes.NewBuiltin("host.echo", func(_ *vibes.Execution, _ value.Value, args []value.Value, kwargs map[string]value.Value, _ value.Value) (value.Value, error) {
+		return value.NewArray([]value.Value{value.NewArray(args), value.NewHash(kwargs)}), nil
+	})
+	fail := vibes.NewBuiltin("host.fail", func(_ *vibes.Execution, _ value.Value, _ []value.Value, _ map[string]value.Value, _ value.Value) (value.Value, error) {
+		return value.NewNil(), fmt.Errorf("host failure")
+	})
+	return map[string]value.Value{"host": value.NewObject(map[string]value.Value{
+		"next": next, "checked": checked, "factory": factory, "echo": echo, "map": echo, "fail": fail,
+		"items": value.NewArray([]value.Value{value.NewInt(1)}),
+	})}, nil
+}
+
+// CapabilityContracts checks both sides of the comparison's typed host boundary.
+func (probeCapability) CapabilityContracts() map[string]vibes.CapabilityMethodContract {
+	return map[string]vibes.CapabilityMethodContract{
+		"host.checked": {
+			ValidateArgs: func(args []value.Value, kwargs map[string]value.Value, _ value.Value) error {
+				if len(args) != 1 || args[0].Kind() != value.KindInt || len(kwargs) != 0 {
+					return fmt.Errorf("host.checked expects one integer")
+				}
+				return nil
+			},
+			ValidateReturn: func(result value.Value) error {
+				if result.Kind() != value.KindInt {
+					return fmt.Errorf("host.checked must return an integer")
+				}
+				return nil
+			},
+		},
+	}
 }

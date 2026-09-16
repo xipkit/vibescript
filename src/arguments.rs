@@ -20,6 +20,7 @@ pub(crate) enum Target {
     Plain(Invocation),
     Function(std::sync::Arc<crate::vm::Program>, usize),
     Host(std::sync::Arc<crate::vm::Program>, usize),
+    Capability(std::sync::Arc<crate::capability::BoundMethod>),
     Export(std::sync::Arc<crate::exports::Function>),
     Offset(std::sync::Arc<crate::regex::matches::Offset>),
 }

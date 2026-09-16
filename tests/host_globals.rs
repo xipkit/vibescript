@@ -2,7 +2,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
 };
-use vibescript::{CallOptions, Engine, ErrorKind, Value, stringify_json};
+use vibescript::{CallOptions, Capability, Engine, ErrorKind, Value, stringify_json};
 
 fn options(entries: &[(&str, Value)]) -> CallOptions {
     CallOptions {
@@ -198,7 +198,7 @@ fn known_and_computed_calls_capture_global_targets_before_arguments() {
 }
 
 #[test]
-fn module_constants_take_precedence_over_host_globals_in_call_targets() {
+fn module_constants_take_precedence_over_host_bindings_in_call_targets() {
     let mut engine = Engine::new();
     engine.register("Host", |_, _| panic!("shadowed host ran"));
     for name in ["Parser", "Box", "Math", "Host"] {
@@ -212,12 +212,21 @@ fn module_constants_take_precedence_over_host_globals_in_call_targets() {
                 "class Box;end;module M;{name}=JSON[:parse];def self.run;{expression};end;end;M.run"
             );
             let script = engine.compile(&source).unwrap();
-            for opts in [CallOptions::default(), options(&[(name, Value::nil())])] {
-                let globals = !opts.globals.is_empty();
+            for (binding, opts) in [
+                ("none", CallOptions::default()),
+                ("global", options(&[(name, Value::nil())])),
+                (
+                    "capability",
+                    CallOptions {
+                        capabilities: vec![Capability::new(name, |_| Ok(Value::nil()))],
+                        ..CallOptions::default()
+                    },
+                ),
+            ] {
                 assert_eq!(
                     script
                         .run(opts)
-                        .unwrap_or_else(|error| panic!("{source}, globals={globals}: {error}"))
+                        .unwrap_or_else(|error| panic!("{source}, binding={binding}: {error}"))
                         .value
                         .as_int(),
                     Some(3),
@@ -261,16 +270,22 @@ fn block_assignments_update_existing_host_bindings() {
             .compile(&format!("def run;{body};end"))
             .unwrap();
         let opts = options(&[("count", Value::int(9))]);
-        for _ in 0..2 {
-            assert_eq!(
-                script
-                    .call("run", &[], opts.clone())
-                    .unwrap()
-                    .value
-                    .as_int(),
-                Some(10),
-                "{body}"
-            );
+        let granted = CallOptions {
+            capabilities: vec![Capability::new("count", |_| Ok(Value::int(9)))],
+            ..CallOptions::default()
+        };
+        for binding in [&opts, &granted] {
+            for _ in 0..2 {
+                assert_eq!(
+                    script
+                        .call("run", &[], binding.clone())
+                        .unwrap()
+                        .value
+                        .as_int(),
+                    Some(10),
+                    "{body}"
+                );
+            }
         }
         assert_eq!(opts.globals["count"].as_int(), Some(9));
     }

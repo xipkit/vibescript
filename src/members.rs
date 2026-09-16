@@ -448,6 +448,24 @@ pub(crate) fn exported(
     Ok(false)
 }
 
+pub(crate) fn prepare(
+    ctx: &mut CallContext,
+    site: CallSite,
+    name: &str,
+    receiver: &Value,
+) -> Result<Option<Value>> {
+    if let Kind::Hash(hash) = &receiver.0 {
+        if !site.scope
+            && (names::universal(name) || names::available(receiver, name))
+            && (!hash.object || hash.find(ctx, name.as_bytes())?.is_none())
+        {
+            return Ok(None);
+        }
+        return field(ctx, site, name, receiver);
+    }
+    Ok(None)
+}
+
 pub(crate) fn field(
     ctx: &mut CallContext,
     site: CallSite,
@@ -456,6 +474,9 @@ pub(crate) fn field(
 ) -> Result<Option<Value>> {
     if !site.scope && names::universal(name) && lifecycle::callable(receiver) {
         return Ok(None);
+    }
+    if let Kind::Host(method) = &receiver.0 {
+        return Err(method.value_error());
     }
     if let Kind::Offset(offset) = &receiver.0 {
         return Err(offset.value_error());
@@ -500,6 +521,9 @@ pub(crate) fn field_call(
     keywords: &[(Value, Value)],
     block: bool,
 ) -> Result<Value> {
+    if let Kind::Host(method) = &value.0 {
+        return Err(method.value_error());
+    }
     if site.auto {
         if let Kind::Offset(offset) = &value.0 {
             if !site.scope {

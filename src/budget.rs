@@ -79,6 +79,12 @@ pub struct CallOptions {
     /// Values are imported on first use, under this call's limits. Strict-effects
     /// scripts validate all globals as data-only before executing any script code.
     pub globals: BTreeMap<String, Value>,
+    /// Explicit host grants, bound in order before script initialization.
+    ///
+    /// Capability bindings may contain host methods in strict-effects mode.
+    /// Explicit [`Self::globals`] take precedence over same-named capability
+    /// bindings. Factories run once for each call, including shadowed bindings.
+    pub capabilities: Vec<crate::Capability>,
     pub limits: Limits,
     pub cancellation: CancellationToken,
     pub deadline: Option<Instant>,
@@ -143,6 +149,8 @@ pub struct CallContext {
     pub(crate) scoped_sources: bool,
     pub(crate) has_exports: bool,
     pub(crate) code_roots: Option<Buffer<Arc<crate::code::Code>>>,
+    pub(crate) host_roots: Option<Buffer<crate::capability::Root>>,
+    pub(crate) capability_names: Buffer<Value>,
     pub(crate) enum_rebind: crate::enums::Rebind,
     pub(crate) random_source: Option<crate::random::Source>,
     pub(crate) output_writer: Option<crate::output::Writer>,
@@ -165,6 +173,8 @@ impl CallContext {
             scoped_sources: false,
             has_exports: false,
             code_roots: None,
+            host_roots: None,
+            capability_names: Buffer::empty(),
             enum_rebind: crate::enums::Rebind::default(),
             random_source: None,
             output_writer: None,

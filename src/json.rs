@@ -478,6 +478,7 @@ fn write_value(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: us
     }
     match &value.0 {
         Kind::Regex(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a regex")),
+        Kind::Host(method) => return Err(method.value_error()),
         Kind::Function(function) => return Err(function.value_error()),
         Kind::Builtin(_) | Kind::Offset(_) => {
             return Err(Error::new(ErrorKind::Json, "cannot encode a builtin"));

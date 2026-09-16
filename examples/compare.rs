@@ -141,6 +141,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let metered = case["accounting"].as_bool().unwrap_or(true);
         let options = CallOptions {
             globals,
+            capabilities: if case["capability_probe"].as_bool().unwrap_or(false) {
+                vec![probe_capability()]
+            } else {
+                Vec::new()
+            },
             allow_require: case["allow_require"].as_bool().unwrap_or(false),
             limits: Limits {
                 steps: if metered { Some(5_000_000) } else { None },
@@ -203,6 +208,74 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{}", serde_json::to_string(&record)?);
     }
     Ok(())
+}
+
+fn probe_capability() -> vibescript::Capability {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use vibescript::{Capability, Error, ErrorKind, HostMethod, Value};
+    Capability::new("host", |_| {
+        let count = Arc::new(AtomicUsize::new(0));
+        let next_count = count.clone();
+        let next = HostMethod::new("host.next", move |_, _, _| {
+            Ok(Value::int(
+                next_count.fetch_add(1, Ordering::Relaxed) as i64 + 1,
+            ))
+        });
+        let checked = HostMethod::new("host.checked", move |_, args, _| {
+            count.fetch_add(1, Ordering::Relaxed);
+            Ok(if args[0].as_int() == Some(0) {
+                Value::bytes("invalid result")
+            } else {
+                args[0].clone()
+            })
+        })
+        .with_contract(
+            |_, args, keywords| {
+                if args.len() != 1 || args[0].as_int().is_none() || !keywords.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::Runtime,
+                        "host.checked expects one integer",
+                    ));
+                }
+                Ok(())
+            },
+            |_, value| {
+                if value.as_int().is_none() {
+                    return Err(Error::new(
+                        ErrorKind::Runtime,
+                        "host.checked must return an integer",
+                    ));
+                }
+                Ok(())
+            },
+        );
+        let nested = checked.clone();
+        let factory = HostMethod::new("host.factory", move |_, _, _| {
+            Ok(Value::object(vec![(b"checked".to_vec(), nested.value())]))
+        });
+        let echo = HostMethod::new("host.echo", |ctx, args, keywords| {
+            let options = Value::hash(
+                keywords
+                    .iter()
+                    .map(|(key, value)| (key.as_bytes().unwrap().to_vec(), value.clone()))
+                    .collect(),
+            );
+            let args = ctx.array(args)?;
+            ctx.array(&[args, options])
+        });
+        let fail = HostMethod::new("host.fail", |_, _, _| {
+            Err(Error::new(ErrorKind::Runtime, "host failure"))
+        });
+        Ok(Value::object(vec![
+            (b"next".to_vec(), next.value()),
+            (b"checked".to_vec(), checked.value()),
+            (b"factory".to_vec(), factory.value()),
+            (b"echo".to_vec(), echo.value()),
+            (b"map".to_vec(), echo.value()),
+            (b"fail".to_vec(), fail.value()),
+            (b"items".to_vec(), Value::array(vec![Value::int(1)])),
+        ]))
+    })
 }
 fn strings(case: &Json, name: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let Some(value) = case.get(name) else {

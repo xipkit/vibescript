@@ -1,5 +1,5 @@
 use super::*;
-use crate::{CallOptions, CancellationToken, Engine};
+use crate::{CallOptions, CancellationToken, Engine, HostMethod};
 
 struct RetiredCode {
     heap: Arc<Mutex<Weak<Heap>>>,
@@ -115,5 +115,74 @@ fn imported_host_callbacks_retire_after_object_collection_unlocks() {
                 "callback retired with a locked or expired heap: {ending}"
             );
         }
+    }
+}
+
+#[test]
+fn imported_capability_callbacks_retire_after_object_collection_unlocks() {
+    for ending in [
+        "keep",
+        "hold(keep); 1/0",
+        "hold(keep); stop()",
+        "hold(keep); keep",
+    ] {
+        let heap = Arc::new(Mutex::new(Weak::new()));
+        let observed = Arc::new(AtomicUsize::new(0));
+        let cancellation = CancellationToken::new();
+        let cancel_on_drop = ending == "hold(keep); keep";
+        let retirement_token = cancellation.clone();
+        let observation = observed.clone();
+        let retained = Arc::new(Mutex::new(None));
+        let held = retained.clone();
+        let mut receiver = Engine::new();
+        receiver.register("take_capability", move |ctx, _| {
+            *heap.lock().unwrap() = Arc::downgrade(ctx.objects.as_ref().unwrap());
+            let retired = RetiredCode {
+                heap: heap.clone(),
+                observed: observation.clone(),
+                cancellation: cancel_on_drop.then(|| retirement_token.clone()),
+            };
+            let method = HostMethod::new("temporary.run", move |_, _, _| {
+                let _ = &retired;
+                Ok(Value::nil())
+            });
+            Ok(Value::object(vec![(b"run".to_vec(), method.value())]))
+        });
+        receiver.register("hold", move |_, args| {
+            *held.lock().unwrap() = Some(args[0].clone());
+            Ok(Value::nil())
+        });
+        receiver.register("stop", |ctx, _| {
+            ctx.cancellation().cancel();
+            Ok(Value::nil())
+        });
+        let source = format!(
+            "class Box\n property value\nend\ndef run\n keep=Box.new\n discarded=Box.new\n discarded.value=take_capability()\n discarded=nil\n {ending}\nend"
+        );
+        let result = receiver.compile(&source).unwrap().call(
+            "run",
+            &[],
+            CallOptions {
+                cancellation,
+                ..CallOptions::default()
+            },
+        );
+        let error = result.as_ref().err().map(|error| error.kind);
+        let observation = observed.load(Ordering::SeqCst);
+        drop(retained.lock().unwrap().take());
+        drop(result);
+        drop(receiver);
+        let expected = if ending == "keep" {
+            None
+        } else if ending.ends_with("stop()") || cancel_on_drop {
+            Some(ErrorKind::Cancelled)
+        } else {
+            Some(ErrorKind::Arithmetic)
+        };
+        assert_eq!(error, expected, "{ending}");
+        assert_eq!(
+            observation, 2,
+            "capability retired with a locked or expired heap: {ending}"
+        );
     }
 }

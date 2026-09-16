@@ -37,6 +37,7 @@ fn data(
     }
     let identity = match &value.0 {
         Kind::Function(_)
+        | Kind::Host(_)
         | Kind::Instance(_)
         | Kind::Namespace(_)
         | Kind::Builtin(_)
@@ -74,6 +75,17 @@ fn data(
 }
 
 pub(super) fn contains(ctx: &mut CallContext, name: &str) -> Result<bool> {
+    for index in 0..ctx.capability_names.data.len() {
+        ctx.charge(1)?;
+        let candidate = ctx.capability_names.data[index].clone();
+        if crate::json::bytes_equal(ctx, candidate.as_bytes().unwrap(), name.as_bytes())? {
+            return Ok(true);
+        }
+    }
+    input_contains(ctx, name)
+}
+
+pub(super) fn input_contains(ctx: &mut CallContext, name: &str) -> Result<bool> {
     if ctx.options.globals.is_empty() {
         return Ok(false);
     }
@@ -83,15 +95,19 @@ pub(super) fn contains(ctx: &mut CallContext, name: &str) -> Result<bool> {
 }
 
 pub(super) fn import(ctx: &mut CallContext, name: &str) -> Result<Option<Value>> {
-    if !contains(ctx, name)? {
+    if !input_contains(ctx, name)? {
         return Ok(None);
     }
-    let value = ctx.options.globals[name].clone();
+    let Some(value) = ctx.options.globals.get(name).cloned() else {
+        return Ok(None);
+    };
     let active = std::mem::replace(&mut ctx.enum_rebind.active, true);
     let value = ctx.import(&value);
     ctx.enum_rebind.active = active;
     let value = value?;
-    crate::exports::check(ctx, &value)?;
+    if !matches!(value.0, Kind::Host(_)) {
+        crate::exports::check(ctx, &value)?;
+    }
     Ok(Some(value))
 }
 

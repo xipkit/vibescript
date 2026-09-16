@@ -35,7 +35,7 @@ pub(crate) enum Op {
     FileValue(usize, usize),
     FileAddress(usize, usize),
     RootAddress(usize, usize),
-    ExportReceiver(CallSite),
+    PrepareMember(CallSite, bool),
     StoreDeclaration(usize),
     Regex(usize, u8),
     TypeShadowed(usize, usize),
@@ -1557,8 +1557,8 @@ impl Compiler<'_> {
         });
         let mut site = self.call_site(name, form == CallForm::Auto);
         site.parenthesized = form == CallForm::Parenthesized;
-        if mutating && !forwarding {
-            self.emit(Op::ExportReceiver(site));
+        if !forwarding && name != "call" && (mutating || form != CallForm::Auto) {
+            self.emit(Op::PrepareMember(site, mutating));
         }
         if name == "call" && form != CallForm::Auto {
             self.emit(Op::Arguments);

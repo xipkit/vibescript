@@ -89,7 +89,7 @@ pub(crate) fn member(
 ) -> Result<Option<Arc<Function>>> {
     if ctx.has_exports && matches!(receiver.0, Kind::Hash(_)) {
         if let Some(Value(Kind::Function(function))) =
-            crate::members::field(ctx, site, name, receiver)?
+            crate::members::prepare(ctx, site, name, receiver)?
         {
             return Ok(Some(function));
         }
@@ -103,6 +103,7 @@ fn check_depth(ctx: &mut CallContext, value: &Value, depth: usize) -> Result<()>
         return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
     }
     match &value.0 {
+        Kind::Host(method) => return Err(method.value_error()),
         Kind::Function(function) => return Err(function.value_error()),
         Kind::Array(array) => {
             for value in &array.buffer.data {

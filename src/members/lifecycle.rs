@@ -7,7 +7,7 @@ pub(super) fn supported(name: &str) -> bool {
 pub(super) fn callable(value: &Value) -> bool {
     matches!(
         value.0,
-        Kind::Builtin(_) | Kind::Offset(_) | Kind::Function(_)
+        Kind::Builtin(_) | Kind::Offset(_) | Kind::Function(_) | Kind::Host(_)
     )
 }
 

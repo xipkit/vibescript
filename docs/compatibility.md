@@ -4,6 +4,8 @@ The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761f
 
 ## Host binding precedence
 
+Consistent lookup and assignment through the nearest existing binding was explicitly selected on 2026-09-16.
+
 Rust resolves named and computed calls through the nearest existing binding. Parameters, module constants and enclosing initializer locals take precedence over root data bindings, including host globals, classes and builtins. Named calls retain their existing declared script-function and module-method dispatch when a constant has the same name. In Go v0.70.0, a root data binding can win over a module constant when that constant is called. For example, `module M; Parser=JSON[:parse]; def self.apply; Parser("3"); end; end` returns `3` through `M.apply` in Rust even when a host global named `Parser` contains `nil`; Go tries to call that `nil`. A root class or builtin with the same name causes the same inconsistency.
 
 A block assignment also preserves an existing host binding unless a nearer local shadows it. With a host global `count=9`, `[1].each { count += 1 }; count` returns `10` in Rust. Go creates an uninitialized block local and raises an addition error, although a direct `count += 1` outside the block succeeds. Rust keeps the existing binding for both ordinary and compound assignments. Explicit block parameters retain their separate scope.
@@ -22,7 +24,7 @@ The selected contract isolates mutable class and module state at every `Script.c
 
 Existing same-script behavior remains the baseline: imported instance fields preserve their values, shared references and cycles within the receiving call, while class and source-module declarations initialize fresh invocation state. Mutations must not change the source value or another concurrent call. Foreign code must still use the receiving call's accounting, cancellation and module policy.
 
-Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. Required-file exports retain their private state, which is copied at each receiving call boundary. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty-three intentional and two resolved cases in the compatibility audit.
+Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. Required-file exports retain their private state, which is copied at each receiving call boundary. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty-three intentional and two resolved cases initially recorded by the compatibility audit.
 
 ## Documented value semantics take precedence
 
@@ -111,7 +113,7 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. These recorded copy-oracle results are historical; the current ordinary compatibility audit distinguishes thirty-three intentional cases and two resolved cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. These recorded copy-oracle results are historical; the ordinary compatibility audit at that milestone distinguished thirty-three intentional cases and two resolved cases.
 
 
 ## Builtin descriptors
@@ -119,6 +121,12 @@ The tool copies the pinned Go module into its output directory, injects a test t
 The reference permits a stateless builtin descriptor to be obtained through indexed or scoped namespace access, for example `f = Math::sqrt; f(9)` or `f = Math["sqrt"]; f(9)`. The Rust port currently preserves that observed behavior. Ordinary reads of non-auto-invoking builtin bindings are rejected, and JSON cannot encode a builtin descriptor. These descriptors contain no captured script frame; general script-function values and escaping blocks remain outside the implemented surface. The final ADR-006 boundary audit must account for this reference behavior alongside its stated restrictions on executable values. The collection value-semantics decision does not settle this separate boundary.
 
 The user selected ADR-006's restriction for required script functions: they remain callable through their module but cannot be extracted, stored, passed or returned as executable values. Go v0.70.0 permits this through indexed and scoped export reads such as `m[:fn]` and `m::fn`; Rust rejects those reads outside immediate call-target syntax. This decision applies to required script functions and preserves the existing stateless builtin-descriptor behavior. [Required file exports](require.md) are implemented, with integration tests covering direct calls and rejected extraction through collections, iteration and host transfers. Collections containing extracted functions are rejected before computed-call arguments can produce effects. Broader module conformance remains part of the unfinished language port.
+
+## Capability methods
+
+The user selected ADR-006's attached-method restriction for host capabilities on 2026-09-16. `sms.send(...)`, `sms::send(...)` and `sms[:send](...)` remain calls; reading, storing, passing or returning the method by itself is rejected. Capability namespaces can still be copied or aliased within their invocation. A saved namespace cannot grant its methods to a later invocation.
+
+Go v0.70.0 permits indexed and scoped extraction, including assigning a method to a local and calling it. Eight policy evaluations cover both forms, strict and ordinary effects, and enabled or disabled accounting. These intentional differences stay separate from matching conformance cases. Stateless core builtin descriptors retain their existing separate behavior. See [host capabilities](capabilities.md).
 
 ## Regex namespace anchors
 

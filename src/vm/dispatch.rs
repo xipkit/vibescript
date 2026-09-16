@@ -75,6 +75,33 @@ fn invoke(
             stack.data.last().unwrap()
         }
     });
+    let method = if mutating {
+        storage.addresses.data.last().unwrap().capability.clone()
+    } else {
+        None
+    };
+    let method = match method {
+        Some(method) => Some(method),
+        None => capabilities::member(ctx, site, name, receiver)?,
+    };
+    if let Some(method) = method {
+        let value = capabilities::call(
+            ctx,
+            storage,
+            &method,
+            &args.positional.data,
+            &args.keywords.buffer.data,
+            args.block.is_some(),
+            site.auto,
+        )?;
+        if mutating {
+            storage.addresses.data.pop();
+        } else {
+            stack.data.pop();
+        }
+        stack.push(ctx, value)?;
+        return Ok(());
+    }
     let retained = if mutating {
         storage.addresses.data.last().unwrap().exported.clone()
     } else {
@@ -126,8 +153,9 @@ fn invoke(
             return Ok(());
         }
         namespaces::Member::Value(value) => {
-            let value = members::field_call(
+            let value = capabilities::field(
                 ctx,
+                storage,
                 site,
                 value,
                 &args.positional.data,
@@ -350,8 +378,9 @@ pub(super) fn reduce(
                     parenthesized: false,
                     scope: false,
                 };
-                let value = members::field_call(
+                let value = capabilities::field(
                     ctx,
+                    storage,
                     site,
                     hash.buffer.data[index].1.clone(),
                     &args.positional.data,

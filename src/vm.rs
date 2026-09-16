@@ -14,6 +14,7 @@ use crate::{
 use std::sync::Arc;
 
 mod call_targets;
+mod capabilities;
 mod dispatch;
 mod file_bindings;
 #[cfg(test)]
@@ -190,6 +191,7 @@ pub(crate) fn execute(
         let (root, _) = programs::load(ctx, &mut storage, code, environment.as_ref())?;
         let program = &*root;
         let mut active = root.clone();
+        capabilities::bind(ctx, &mut storage)?;
         let mut input = Arguments::empty();
         input.options_hash = false;
         input.positional = Buffer::with_capacity(ctx, args.len())?;
@@ -362,7 +364,7 @@ pub(crate) fn execute(
                         }
                         op => op,
                     };
-                    if !ctx.options.globals.is_empty() {
+                    if !ctx.options.globals.is_empty() || !ctx.capability_names.data.is_empty() {
                         let count = match op {
                             Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) => {
                                 Some(count)
@@ -633,14 +635,34 @@ pub(crate) fn execute(
                                 frames.data[current].ip = next;
                             }
                         }
-                        Op::ExportReceiver(site) => {
-                            let address = storage.addresses.data.last_mut().unwrap();
-                            address.exported = crate::exports::member(
-                                ctx,
-                                site,
-                                &program.members[site.name],
-                                &address.value,
-                            )?;
+                        Op::PrepareMember(site, mutating) => {
+                            let receiver = if mutating {
+                                &storage.addresses.data.last().unwrap().value
+                            } else {
+                                stack.data.last().unwrap()
+                            };
+                            if matches!(receiver.0, Kind::Hash(_)) {
+                                let field = members::prepare(
+                                    ctx,
+                                    site,
+                                    &program.members[site.name],
+                                    receiver,
+                                )?;
+                                match field {
+                                    Some(Value(Kind::Host(method))) if mutating => {
+                                        storage.addresses.data.last_mut().unwrap().capability =
+                                            Some(method);
+                                    }
+                                    Some(value @ Value(Kind::Host(_))) => {
+                                        *stack.data.last_mut().unwrap() = value;
+                                    }
+                                    Some(Value(Kind::Function(function))) if mutating => {
+                                        storage.addresses.data.last_mut().unwrap().exported =
+                                            Some(function);
+                                    }
+                                    _ => (),
+                                }
+                            }
                         }
                         Op::NamespaceSelf(module) => {
                             let value = if let Some(value) = &self_value {
@@ -1755,8 +1777,15 @@ pub(crate) fn execute(
                                         continue;
                                     }
                                     namespaces::Member::Value(value) => {
-                                        let value =
-                                            members::field_call(ctx, site, value, &[], &[], false)?;
+                                        let value = capabilities::field(
+                                            ctx,
+                                            &mut storage,
+                                            site,
+                                            value,
+                                            &[],
+                                            &[],
+                                            false,
+                                        )?;
                                         storage.addresses.data.pop();
                                         storage.addresses.push(ctx, Address::new(None, value))?;
                                         continue;
@@ -1791,10 +1820,12 @@ pub(crate) fn execute(
                                     };
                                     let value = &hash.buffer.data[index].1;
                                     if members::introspection::callable(value) {
-                                        let value = members::field_call(
+                                        let value = value.clone();
+                                        let value = capabilities::field(
                                             ctx,
+                                            &mut storage,
                                             site,
-                                            value.clone(),
+                                            value,
                                             &[],
                                             &[],
                                             false,
@@ -2038,6 +2069,32 @@ pub(crate) fn execute(
                         }
                         Op::Mutate(site, n) => {
                             let address = storage.addresses.data.last().unwrap();
+                            let method = if let Some(method) = &address.capability {
+                                Some(method.clone())
+                            } else {
+                                capabilities::member(
+                                    ctx,
+                                    site,
+                                    &program.members[site.name],
+                                    &address.value,
+                                )?
+                            };
+                            if let Some(method) = method {
+                                let base = stack.data.len() - n;
+                                let value = capabilities::call(
+                                    ctx,
+                                    &mut storage,
+                                    &method,
+                                    &stack.data[base..],
+                                    &[],
+                                    false,
+                                    site.auto,
+                                )?;
+                                storage.addresses.data.pop();
+                                stack.data.truncate(base);
+                                stack.push(ctx, value)?;
+                                continue;
+                            }
                             let function = if let Some(function) = &address.exported {
                                 Some(function.clone())
                             } else {
@@ -2101,8 +2158,9 @@ pub(crate) fn execute(
                                         continue;
                                     }
                                     namespaces::Member::Value(value) => {
-                                        let value = members::field_call(
+                                        let value = capabilities::field(
                                             ctx,
+                                            &mut storage,
                                             site,
                                             value,
                                             &stack.data[base..],
@@ -2338,7 +2396,10 @@ pub(crate) fn execute(
                             return Err(callable_value_error(&program.hosts[host], "method"));
                         }
                         Op::RootCall(name, expanded) => {
-                            if expanded || !ctx.options.globals.is_empty() {
+                            if expanded
+                                || !ctx.options.globals.is_empty()
+                                || !ctx.capability_names.data.is_empty()
+                            {
                                 let mut args = Arguments::empty();
                                 if let Some(value) =
                                     globals::get(ctx, &mut storage, &program.members[name])?
@@ -2493,6 +2554,19 @@ pub(crate) fn execute(
                                 crate::arguments::Target::Plain(target)
                             };
                             let target = match target {
+                                crate::arguments::Target::Capability(method) => {
+                                    let value = capabilities::call(
+                                        ctx,
+                                        &mut storage,
+                                        &method,
+                                        &args.positional.data,
+                                        &args.keywords.buffer.data,
+                                        args.block.is_some(),
+                                        false,
+                                    )?;
+                                    stack.push(ctx, value)?;
+                                    continue;
+                                }
                                 crate::arguments::Target::Host(owner, host) => {
                                     ctx.checkpoint()?;
                                     let result = owner.code.hosts[host](
@@ -2758,6 +2832,22 @@ pub(crate) fn execute(
                         Op::Method(site, n) => {
                             let base = stack.data.len() - n - 1;
                             let root = std::mem::take(&mut stack.data[base]);
+                            if let Some(method) =
+                                capabilities::member(ctx, site, &program.members[site.name], &root)?
+                            {
+                                let value = capabilities::call(
+                                    ctx,
+                                    &mut storage,
+                                    &method,
+                                    &stack.data[base + 1..],
+                                    &[],
+                                    false,
+                                    site.auto,
+                                )?;
+                                stack.data.truncate(base);
+                                stack.push(ctx, value)?;
+                                continue;
+                            }
                             if matches!(root.0, Kind::Hash(_)) {
                                 if let Some(Value(Kind::Function(function))) =
                                     members::field(ctx, site, &program.members[site.name], &root)?
@@ -2812,8 +2902,9 @@ pub(crate) fn execute(
                                         continue;
                                     }
                                     namespaces::Member::Value(value) => {
-                                        let value = members::field_call(
+                                        let value = capabilities::field(
                                             ctx,
+                                            &mut storage,
                                             site,
                                             value,
                                             &stack.data[base + 1..],
@@ -2927,7 +3018,7 @@ pub(crate) fn execute(
                             Some(Op::CallValue)
                         );
                         if let Some(value) = stack.data.last() {
-                            if !target || !matches!(value.0, Kind::Function(_)) {
+                            if !target || !matches!(value.0, Kind::Function(_) | Kind::Host(_)) {
                                 crate::exports::check(ctx, value)?;
                             }
                         }
@@ -2981,6 +3072,7 @@ pub(crate) fn execute(
         }
     })();
     ctx.enum_rebind = crate::enums::Rebind::default();
+    ctx.capability_names = Buffer::empty();
     result.map_err(|error| diagnose(&code.program, &frames.data, function, error))
 }
 
@@ -3511,6 +3603,7 @@ fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
 
 fn value_invocation(value: &Value) -> crate::arguments::Target {
     match &value.0 {
+        Kind::Host(method) => crate::arguments::Target::Capability(method.clone()),
         Kind::Function(function) => crate::arguments::Target::Export(function.clone()),
         Kind::Builtin(builtin) => crate::arguments::Target::Plain(Invocation::Builtin(*builtin)),
         Kind::Offset(offset) => crate::arguments::Target::Offset(offset.clone()),

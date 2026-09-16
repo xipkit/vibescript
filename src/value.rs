@@ -97,6 +97,7 @@ impl Bytes {
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
+    Host(Arc<crate::capability::BoundMethod>),
     Function(Arc<crate::exports::Function>),
     Instance(Arc<crate::objects::Instance>),
     Namespace(Arc<crate::namespace::Namespace>),
@@ -242,6 +243,18 @@ impl Value {
         let depth = 1 + values.iter().map(|(_, v)| v.depth()).max().unwrap_or(0);
         Self(Kind::Hash(Hash::untracked(values, depth)))
     }
+    /// Creates a host namespace whose fields take precedence over hash methods.
+    ///
+    /// Objects support scoped member access and may contain [`crate::HostMethod`]
+    /// descriptors. Imports and script mutations follow ordinary value semantics.
+    pub fn object(entries: Vec<(Vec<u8>, Value)>) -> Self {
+        let mut value = Self::hash(entries);
+        let Kind::Hash(hash) = &mut value.0 else {
+            unreachable!()
+        };
+        Arc::get_mut(hash).unwrap().object = true;
+        value
+    }
     /// Returns an integer when this value fits the compact signed 64-bit representation.
     pub fn as_int(&self) -> Option<i64> {
         if let Kind::Int(n) = self.0 {
@@ -353,6 +366,7 @@ impl Value {
     /// Reports this value's language type.
     pub fn type_name(&self) -> &'static str {
         match self.0 {
+            Kind::Host(_) => "builtin",
             Kind::Function(_) => "function",
             Kind::Regex(_) => "regex",
             Kind::Namespace(_) => "class",
@@ -551,6 +565,9 @@ impl CallContext {
             return self.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         match &value.0 {
+            Kind::Host(method) => Ok(Value(Kind::Host(crate::capability::BoundMethod::import(
+                self, method,
+            )?))),
             Kind::Instance(instance) => crate::objects::import(self, instance)
                 .map(|instance| Value(Kind::Instance(instance))),
             Kind::Function(function) => Ok(Value(Kind::Function(
@@ -619,6 +636,7 @@ impl CallContext {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
+            Kind::Host(method) => write!(f, "<builtin {}>", method.name()),
             Kind::Regex(regex) => {
                 let text = regex
                     .text(&mut crate::integer::unlimited_context())
