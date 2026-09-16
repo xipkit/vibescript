@@ -8,6 +8,8 @@ use std::{
 };
 use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json};
 
+#[path = "support/blocks.rs"]
+mod blocks;
 mod support;
 
 #[cfg(feature = "allocation-stats")]
@@ -144,6 +146,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut capabilities = Vec::new();
         if case["capability_probe"].as_bool().unwrap_or(false) {
             capabilities.push(probe_capability());
+        }
+        if case["block_probe"].as_bool().unwrap_or(false) {
+            capabilities.push(blocks::capability());
         }
         for name in strings(&case, "notifications")? {
             capabilities.push(support::notification(&name)?);

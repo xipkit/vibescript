@@ -91,7 +91,7 @@ fn invoke(
             &method,
             &args.positional.data,
             &args.keywords.buffer.data,
-            args.block.is_some(),
+            args.block,
             site.auto,
         )?;
         if mutating {
@@ -99,7 +99,7 @@ fn invoke(
         } else {
             stack.data.pop();
         }
-        stack.push(ctx, value)?;
+        value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
         return Ok(());
     }
     let retained = if mutating {
@@ -160,14 +160,14 @@ fn invoke(
                 value,
                 &args.positional.data,
                 &args.keywords.buffer.data,
-                args.block.is_some(),
+                args.block,
             )?;
             if mutating {
                 storage.addresses.data.pop();
             } else {
                 stack.data.pop();
             }
-            stack.push(ctx, value)?;
+            value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
             return Ok(());
         }
         namespaces::Member::Helper(module, helper) => {
@@ -385,9 +385,9 @@ pub(super) fn reduce(
                     hash.buffer.data[index].1.clone(),
                     &args.positional.data,
                     &[],
-                    false,
+                    None,
                 )?;
-                return stack.push(ctx, value);
+                return value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack);
             }
         }
         return Err(Error::new(ErrorKind::Argument, "invalid reduce operation"));

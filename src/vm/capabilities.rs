@@ -1,5 +1,42 @@
 use super::*;
 
+pub(super) enum Call {
+    Value(Value),
+    Block(Arguments),
+}
+
+impl Call {
+    pub fn finish(
+        self,
+        program: &Program,
+        ctx: &mut CallContext,
+        frames: &mut Buffer<Frame>,
+        storage: &mut Storage,
+        stack: &mut Buffer<Value>,
+        return_to: ReturnTo,
+    ) -> Result<()> {
+        match self {
+            Self::Value(value) => match return_to {
+                ReturnTo::Stack => stack.push(ctx, value),
+                ReturnTo::Address => storage.addresses.push(ctx, Address::new(None, value)),
+                _ => unreachable!(),
+            },
+            Self::Block(args) => {
+                ctx.charge(1)?;
+                if frames.data.len() >= ctx.options.limits.recursion {
+                    return ctx.guard(ErrorKind::Recursion, "recursion limit exceeded");
+                }
+                let mut frame = new_frame(ctx, program, storage, None, stack.data.len())?;
+                frame.host = true;
+                frame.block = args.block;
+                frame.return_to = return_to;
+                frame.arguments.push(ctx, args)?;
+                frames.push(ctx, frame)
+            }
+        }
+    }
+}
+
 pub(super) fn bind(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
     let capabilities = std::mem::take(&mut ctx.options.capabilities);
     let result = (|| {
@@ -27,18 +64,27 @@ pub(super) fn bind(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
 pub(super) fn call(
     ctx: &mut CallContext,
     storage: &mut Storage,
-    method: &crate::capability::BoundMethod,
+    method: &Arc<crate::capability::BoundMethod>,
     args: &[Value],
     keywords: &[(Value, Value)],
-    block: bool,
+    block: Option<Block>,
     auto: bool,
-) -> Result<Value> {
+) -> Result<Call> {
     if auto {
         return Err(method.value_error());
     }
-    let value = method.call(ctx, args, keywords, block)?;
+    if method.supports_block() {
+        let mut saved = Arguments::from_values(ctx, args)?;
+        for (key, value) in keywords {
+            saved.keywords.insert(ctx, key.clone(), value.clone())?;
+        }
+        saved.block = block;
+        saved.target = Some(crate::arguments::Target::Capability(method.clone()));
+        return Ok(Call::Block(saved));
+    }
+    let value = method.call(ctx, args, keywords, block.is_some())?;
     programs::imported(ctx, storage, &value)?;
-    Ok(value)
+    Ok(Call::Value(value))
 }
 
 pub(super) fn member(
@@ -65,11 +111,11 @@ pub(super) fn field(
     value: Value,
     args: &[Value],
     keywords: &[(Value, Value)],
-    block: bool,
-) -> Result<Value> {
+    block: Option<Block>,
+) -> Result<Call> {
     if let Kind::Host(method) = &value.0 {
         call(ctx, storage, method, args, keywords, block, site.auto)
     } else {
-        members::field_call(ctx, site, value, args, keywords, block)
+        members::field_call(ctx, site, value, args, keywords, block.is_some()).map(Call::Value)
     }
 }

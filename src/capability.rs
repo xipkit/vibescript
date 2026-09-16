@@ -6,8 +6,17 @@ use std::{
 
 type Binder = Arc<dyn Fn(&mut CallContext) -> Result<Value> + Send + Sync>;
 type ArgumentContract =
-    Arc<dyn Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<()> + Send + Sync>;
+    Arc<dyn Fn(&mut CallContext, &[Value], &[(Value, Value)], bool) -> Result<()> + Send + Sync>;
 type ReturnContract = Arc<dyn Fn(&mut CallContext, &Value) -> Result<()> + Send + Sync>;
+type BlockCallback = Arc<
+    dyn Fn(&mut crate::HostCall<'_>, &[Value], &[(Value, Value)]) -> Result<Value> + Send + Sync,
+>;
+
+#[derive(Clone)]
+enum Callback {
+    Plain(crate::HostCallback),
+    Block(BlockCallback),
+}
 
 /// A host namespace granted explicitly to one script invocation.
 ///
@@ -70,7 +79,7 @@ impl fmt::Debug for Capability {
 /// A synchronous host method with optional argument and return validation.
 ///
 /// Methods accept positional and keyword arguments. They cannot be detached into
-/// script values and currently reject attached blocks. Callbacks and validators
+/// script values. Block-capable methods use [`Self::new_with_block`]. Callbacks and validators
 /// must cooperate with cancellation and account their work through the context.
 #[derive(Clone)]
 pub struct HostMethod {
@@ -89,7 +98,29 @@ impl HostMethod {
         Self {
             definition: Arc::new(Definition {
                 name: name.into(),
-                callback: Arc::new(callback),
+                callback: Callback::Plain(Arc::new(callback)),
+                arguments: None,
+                result: None,
+            }),
+        }
+    }
+
+    /// Creates a method that may synchronously invoke an attached script block.
+    ///
+    /// The scoped [`crate::HostCall`] supplies the original invocation's context
+    /// and enforces the block's lifetime. The callback also runs when no block is
+    /// attached; use its `block_given` method or a block contract to require one.
+    pub fn new_with_block(
+        name: impl Into<String>,
+        callback: impl Fn(&mut crate::HostCall<'_>, &[Value], &[(Value, Value)]) -> Result<Value>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self {
+            definition: Arc::new(Definition {
+                name: name.into(),
+                callback: Callback::Block(Arc::new(callback)),
                 arguments: None,
                 result: None,
             }),
@@ -103,8 +134,27 @@ impl HostMethod {
     /// has no result to validate. Cancellation and latched exhaustion take precedence
     /// over errors returned or ignored by either validator or the callback.
     pub fn with_contract(
-        mut self,
+        self,
         arguments: impl Fn(&mut CallContext, &[Value], &[(Value, Value)]) -> Result<()>
+        + Send
+        + Sync
+        + 'static,
+        result: impl Fn(&mut CallContext, &Value) -> Result<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.with_block_contract(
+            move |ctx, args, keywords, _| arguments(ctx, args, keywords),
+            result,
+        )
+    }
+
+    /// Installs contracts whose argument validator also receives block presence.
+    ///
+    /// Validation and exhaustion follow [`Self::with_contract`]. A `break` from
+    /// the attached block becomes the method's result and passes return validation;
+    /// a nonlocal `return` validates at its defining script method instead.
+    pub fn with_block_contract(
+        mut self,
+        arguments: impl Fn(&mut CallContext, &[Value], &[(Value, Value)], bool) -> Result<()>
         + Send
         + Sync
         + 'static,
@@ -140,7 +190,7 @@ impl fmt::Debug for HostMethod {
 #[derive(Clone)]
 pub(crate) struct Definition {
     name: String,
-    callback: crate::HostCallback,
+    callback: Callback,
     arguments: Option<ArgumentContract>,
     result: Option<ReturnContract>,
 }
@@ -218,6 +268,42 @@ impl BoundMethod {
         keywords: &[(Value, Value)],
         block: bool,
     ) -> Result<Value> {
+        self.begin(ctx, args, keywords, block)?;
+        let Callback::Plain(callback) = &self.definition.callback else {
+            unreachable!()
+        };
+        let result = callback(ctx, args, keywords);
+        ctx.checkpoint()?;
+        self.finish(ctx, result?)
+    }
+
+    pub fn supports_block(&self) -> bool {
+        matches!(self.definition.callback, Callback::Block(_))
+    }
+
+    pub fn invoke_block(
+        &self,
+        call: &mut crate::HostCall<'_>,
+        args: &[Value],
+        keywords: &[(Value, Value)],
+    ) -> Result<Value> {
+        let block = call.block_given();
+        self.begin(call.context(), args, keywords, block)?;
+        let Callback::Block(callback) = &self.definition.callback else {
+            unreachable!()
+        };
+        let result = callback(call, args, keywords);
+        call.context().checkpoint()?;
+        result
+    }
+
+    fn begin(
+        &self,
+        ctx: &mut CallContext,
+        args: &[Value],
+        keywords: &[(Value, Value)],
+        block: bool,
+    ) -> Result<()> {
         ctx.checkpoint()?;
         if !self
             .owner
@@ -229,21 +315,22 @@ impl BoundMethod {
                 format!("capability {} was not granted to this call", self.name()),
             ));
         }
-        if block {
+        if block && !self.supports_block() {
             return Err(Error::argument(format!(
                 "{} does not accept a block",
                 self.name()
             )));
         }
         if let Some(validate) = &self.definition.arguments {
-            let result = validate(ctx, args, keywords);
+            let result = validate(ctx, args, keywords, block);
             ctx.checkpoint()?;
             result?;
         }
-        ctx.checkpoint()?;
-        let result = (self.definition.callback)(ctx, args, keywords);
-        ctx.checkpoint()?;
-        let value = ctx.import(&result?)?;
+        ctx.checkpoint()
+    }
+
+    pub fn finish(&self, ctx: &mut CallContext, value: Value) -> Result<Value> {
+        let value = ctx.import(&value)?;
         if let Some(validate) = &self.definition.result {
             let result = validate(ctx, &value);
             ctx.checkpoint()?;

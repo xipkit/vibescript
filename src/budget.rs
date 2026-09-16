@@ -115,6 +115,16 @@ pub(crate) struct Charge {
 }
 
 impl Charge {
+    pub(crate) fn bytes(&self) -> usize {
+        self.bytes
+    }
+
+    pub(crate) fn release(&mut self, bytes: usize) {
+        assert!(bytes <= self.bytes);
+        self.bytes -= bytes;
+        self.memory.used.fetch_sub(bytes, Ordering::Relaxed);
+    }
+
     pub(crate) fn merge(into: &mut Option<Self>, other: Option<Self>) {
         if let Some(mut other) = other {
             if let Some(charge) = into {
@@ -277,6 +287,15 @@ impl CallContext {
 
     pub(crate) fn exhausted(&self) -> bool {
         self.exhausted.is_some()
+    }
+
+    pub(crate) fn remember_exhaustion(&mut self, error: &Error) {
+        if let Some(exhausted) = &mut self.exhausted {
+            if exhausted.diagnostic.is_none() {
+                exhausted.offset = error.offset;
+                exhausted.diagnostic = error.diagnostic.clone();
+            }
+        }
     }
 
     pub(crate) fn guard<T>(&mut self, kind: ErrorKind, message: &str) -> Result<T> {

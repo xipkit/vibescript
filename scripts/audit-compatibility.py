@@ -12,6 +12,7 @@ from compare import BINS, ENV, ROOT, VARIANTS, equal_json, invoke
 from fixtures import host_global_cases
 from module_fixtures import cases as module_cases, materialize
 from capability_fixtures import cases as capability_cases
+from block_fixtures import cases as block_cases
 
 
 def main():
@@ -24,10 +25,11 @@ def main():
     cases += [case for case in host_global_cases() if "policy" in case]
     cases += [case for case in module_cases() if "policy" in case]
     cases += [case for case in capability_cases() if "policy" in case]
+    cases += [case for case in block_cases() if "policy" in case]
     fixtures = []
     for case in cases:
         fixture = {"name": case["name"], "source": case.get("source") or "def run(input)\n" + case["body"] + "\nend", "args": case.get("args", [None]), "accounting": True}
-        for field in ("globals", "strict_effects", "files", "module_development", "module_allow", "module_deny", "allow_require", "capability_probe", "accounting"):
+        for field in ("globals", "strict_effects", "files", "module_development", "module_allow", "module_deny", "allow_require", "capability_probe", "block_probe", "accounting"):
             if field in case:
                 fixture[field] = case[field]
         fixtures.append(fixture)
@@ -59,7 +61,7 @@ def main():
         name = case["name"]
         values = {v: results[v][name] for v in VARIANTS}
         policy = case["policy"]
-        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "consistent_bindings", "catch_lookup_errors", "attached_capability_methods", "unresolved"}, (name, policy)
+        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "consistent_bindings", "catch_lookup_errors", "attached_capability_methods", "preserve_host_block_control", "unresolved"}, (name, policy)
         if any(not equal_json(values[v], case["go"]) for v in VARIANTS if v.startswith("go-")):
             status = "reference_changed"
         elif policy != "unresolved":

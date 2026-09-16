@@ -18,6 +18,7 @@ import (
 )
 
 type fixture struct {
+	BlockProbe        bool                       `json:"block_probe,omitempty"`
 	Function          string                     `json:"function"`
 	Name              string                     `json:"name"`
 	Source            string                     `json:"source"`
@@ -141,6 +142,9 @@ func run() error {
 		options := vibes.CallOptions{AllowRequire: fixture.AllowRequire}
 		if fixture.CapabilityProbe {
 			options.Capabilities = []vibes.CapabilityAdapter{probeCapability{}}
+		}
+		if fixture.BlockProbe {
+			options.Capabilities = append(options.Capabilities, blockCapability{})
 		}
 		for _, name := range fixture.Notifications {
 			options.Capabilities = append(options.Capabilities, notificationCapability{name: name})

@@ -2046,3 +2046,50 @@ fn configured_cache_source_limits_and_mid_initializer_cancellation_are_enforced(
     assert_eq!(error.kind, ErrorKind::Cancelled);
     assert_eq!(effects.load(Ordering::SeqCst), 0);
 }
+
+#[test]
+fn required_files_keep_host_block_control_and_error_source_locations() {
+    let files = Files::new();
+    files.write(
+        "worker.vibe",
+        "def work(n)\n visit(n) { |x| raise \"from block\" if x==0; return x+1 }\n 99\nend",
+    );
+    let captured = Arc::new(Mutex::new(None));
+    let seen = captured.clone();
+    let method = vibescript::HostMethod::new_with_block("visit", move |call, args, _| {
+        let result = call.call_block(args);
+        if let Err(error) = &result {
+            if error.kind != ErrorKind::ControlFlow {
+                *seen.lock().unwrap() = error.diagnostic.clone();
+            }
+        }
+        result
+    });
+    let opts = CallOptions {
+        allow_require: true,
+        capabilities: vec![vibescript::Capability::new("visit", move |_| {
+            Ok(method.value())
+        })],
+        ..CallOptions::default()
+    };
+    let script = files
+        .engine()
+        .compile("def run(n); require(:worker).work(n); end")
+        .unwrap();
+    assert_eq!(
+        script
+            .call("run", &[Value::int(3)], opts.clone())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(4)
+    );
+    let error = script.call("run", &[Value::int(0)], opts).unwrap_err();
+    let diagnostic = error.diagnostic.unwrap();
+    assert_eq!(
+        diagnostic.filename.as_deref(),
+        Some(b"worker.vibe".as_slice())
+    );
+    assert_eq!(diagnostic.position.line, 2);
+    assert_eq!(captured.lock().unwrap().as_ref(), Some(&diagnostic));
+}

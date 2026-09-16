@@ -46,6 +46,8 @@ pub enum ErrorKind {
     Cancelled,
     Deadline,
     Host,
+    /// An attached block transferred control outside the host callback.
+    ControlFlow,
 }
 
 /// A script-visible exception class, independent of the host error category.
@@ -120,7 +122,7 @@ impl ErrorClass {
 }
 
 /// An interpreter failure with optional source context and a byte offset.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct Error {
     pub kind: ErrorKind,
     pub message: String,
@@ -128,7 +130,37 @@ pub struct Error {
     pub diagnostic: Option<Arc<Diagnostic>>,
     class: ErrorClass,
     required_syntax: bool,
-    raw_message: Option<Arc<[u8]>>,
+    // A thin pointer leaves room for the reservation without enlarging Error.
+    raw_message: Option<Arc<Box<[u8]>>>,
+    pub(crate) retained_charge: Option<Arc<crate::budget::Charge>>,
+}
+
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.message == other.message
+            && self.offset == other.offset
+            && self.diagnostic == other.diagnostic
+            && self.class == other.class
+            && self.required_syntax == other.required_syntax
+            && self.raw_message == other.raw_message
+    }
+}
+
+impl Eq for Error {}
+
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Error")
+            .field("kind", &self.kind)
+            .field("message", &self.message)
+            .field("offset", &self.offset)
+            .field("diagnostic", &self.diagnostic)
+            .field("class", &self.class)
+            .field("required_syntax", &self.required_syntax)
+            .field("raw_message", &self.raw_message)
+            .finish()
+    }
 }
 
 impl Error {
@@ -141,6 +173,7 @@ impl Error {
             diagnostic: None,
             required_syntax: false,
             raw_message: None,
+            retained_charge: None,
             class: if matches!(
                 kind,
                 ErrorKind::OutputLimit
@@ -161,7 +194,7 @@ impl Error {
     /// syntax failures from host-side compilation have no script exception class.
     pub fn class(&self) -> Option<ErrorClass> {
         match self.kind {
-            ErrorKind::Cancelled | ErrorKind::Deadline => None,
+            ErrorKind::Cancelled | ErrorKind::Deadline | ErrorKind::ControlFlow => None,
             ErrorKind::Syntax if !self.required_syntax => None,
             _ => Some(self.class),
         }
@@ -183,15 +216,15 @@ impl Error {
     pub fn message_bytes(&self) -> &[u8] {
         self.raw_message
             .as_deref()
+            .map(Box::as_ref)
             .unwrap_or(self.message.as_bytes())
     }
 
     pub(crate) fn allocation_bytes(&self) -> usize {
         self.message.capacity()
-            + self
-                .raw_message
-                .as_ref()
-                .map_or(0, |bytes| bytes.len() + 2 * std::mem::size_of::<usize>())
+            + self.raw_message.as_ref().map_or(0, |bytes| {
+                bytes.len() + std::mem::size_of::<Box<[u8]>>() + 2 * std::mem::size_of::<usize>()
+            })
     }
 
     pub(crate) fn from_bytes(ctx: &mut crate::CallContext, bytes: &[u8]) -> Result<Self> {
@@ -218,8 +251,10 @@ impl Error {
         ctx.work_bytes(bytes.len())?;
         let (message, _charge) = crate::source::formatted(ctx, format_args!("{}", Lossy(bytes)))?;
         let raw_message = if std::str::from_utf8(bytes).is_err() {
-            let _charge = ctx.reserve(bytes.len() + 2 * std::mem::size_of::<usize>())?;
-            Some(Arc::from(bytes))
+            let _charge = ctx.reserve(
+                bytes.len() + std::mem::size_of::<Box<[u8]>>() + 2 * std::mem::size_of::<usize>(),
+            )?;
+            Some(Arc::new(bytes.into()))
         } else {
             None
         };

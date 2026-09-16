@@ -28,6 +28,7 @@ mod exports;
 mod format;
 mod hash;
 mod hash_blocks;
+mod host_call;
 mod integer;
 mod iteration;
 mod json;
@@ -63,6 +64,7 @@ mod vm;
 pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
 pub use capability::{Capability, HostMethod};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
+pub use host_call::HostCall;
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
 

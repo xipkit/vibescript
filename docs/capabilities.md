@@ -49,4 +49,27 @@ The selected ADR-006 policy keeps capability methods attached to their bindings 
 
 Imported containers, descriptor names and metadata, binding storage, traversal work and callback results count against the invocation's limits. Descriptors deferred for safe callback destruction retain their metadata charge until destruction; repeated references share that reservation. Returned or host-retained values retain their own charges. Callback closure captures and allocations made independently by trusted host code remain host-owned; callbacks must cooperate with cancellation and account their work. Rust's immutable values isolate arrays and hashes across the host boundary.
 
-Attached blocks are currently rejected before validation or host invocation. Host-driven block invocation and retirement, native async methods, published static signatures, and a live mutable capability-object publication API remain unfinished. Existing flat `Engine::register` callbacks and the optional Tokio runner remain available. This milestone does not complete the language port.
+Use `HostMethod::new_with_block` for a synchronous block driver. Its callback receives a scoped `HostCall` with `block_given()`, `call_block(args)` and `context()`. The handle borrows the active invocation and cannot escape the callback or move to another thread; this enforces retirement without an executable script value. Repeated calls within the callback are allowed. `HostMethod::new` and flat registered callbacks keep rejecting attached blocks.
+
+```rust
+use vibescript::{CallOptions, Capability, Engine, HostMethod};
+
+let visit = HostMethod::new_with_block("visit", |call, args, _| {
+    call.call_block(args)
+});
+let script = Engine::new().compile("visit(20) { |n| n+1 }")?;
+let result = script.run(CallOptions {
+    capabilities: vec![Capability::new("visit", move |_| Ok(visit.value()))],
+    ..CallOptions::default()
+})?;
+assert_eq!(result.value.as_int(), Some(21));
+# Ok::<(), vibescript::Error>(())
+```
+
+`with_block_contract` also gives the argument validator a block-presence flag. Missing blocks are permitted unless the contract or callback requires one. Calling a missing block raises `RuntimeError` with `block required`. Yielded values are imported into the receiving budget and keep their source program and type information. Block parameters, captured variables, repeated calls and returned values follow ordinary value semantics. Values and ordinary errors retained by the callback keep their accounting reservations; dropping them releases those reservations.
+
+A block's `next` returns to the driver. Its `break` terminates the receiving call and sends the break value through the host return contract. A nonlocal `return` validates at the defining script method. Inner rescue and ensure handlers run before ordinary failures reach the host; outer script handlers wait until the callback returns. The host may handle ordinary block errors and invoke the block again. Cancellation and exhausted step or memory quotas remain latched and prohibit later script effects, including rescue and ensure.
+
+The working control-flow policy preserves a pending `break` or `return` even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer. Go v0.70.0 permits swallowing these signals and running the block again. This default is recorded separately in the compatibility audit and has not been explicitly selected by the user.
+
+Native async methods, published static signatures, and a live mutable capability-object publication API remain unfinished. The optional Tokio runner remains available for bounded execution of synchronous callbacks. This milestone does not complete the language port.

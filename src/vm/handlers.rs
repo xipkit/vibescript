@@ -3,8 +3,21 @@ use crate::{ErrorClass, budget::Charge};
 use std::{mem::size_of, sync::Arc};
 
 pub(super) enum Event {
+    Host,
     Control(Control),
     Error(Arc<SavedError>),
+}
+
+impl Control {
+    pub fn exits(&self, storage: &Storage, floor: usize) -> bool {
+        match self {
+            Self::Return { target, .. }
+            | Self::Break { target, .. }
+            | Self::Next { target, .. } => *target < floor,
+            Self::Invalid { frame, .. } => *frame < floor,
+            Self::Retry { handler } => storage.handlers.data[*handler].frame < floor,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -65,6 +78,7 @@ impl SavedError {
         ctx.work_bytes(error.message_bytes().len())?;
         let mut charge =
             ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>() + error.allocation_bytes())?;
+        error.retained_charge = None;
         if let Some(diagnostic) = &error.diagnostic {
             Charge::merge(
                 &mut charge,
@@ -158,10 +172,28 @@ impl SavedError {
         }))
     }
 
-    pub fn into_error(self: Arc<Self>) -> Error {
+    pub fn into_error(self: Arc<Self>, ctx: &mut CallContext) -> Result<Error> {
+        let header = size_of::<Self>() - size_of::<Charge>();
         match Arc::try_unwrap(self) {
-            Ok(saved) => saved.error,
-            Err(saved) => saved.error.clone(),
+            Ok(mut saved) => {
+                if let Some(charge) = &mut saved._charge {
+                    charge.release(header);
+                }
+                saved.error.retained_charge = saved._charge.map(Arc::new);
+                Ok(saved.error)
+            }
+            Err(saved) => {
+                ctx.work_bytes(saved.error.message.len())?;
+                let charge = saved
+                    ._charge
+                    .as_ref()
+                    .map(|charge| ctx.reserve(charge.bytes() - header))
+                    .transpose()?
+                    .flatten();
+                let mut error = saved.error.clone();
+                error.retained_charge = charge.map(Arc::new);
+                Ok(error)
+            }
         }
     }
 
@@ -474,11 +506,15 @@ pub(super) fn error(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
     error: Arc<SavedError>,
+    floor: usize,
 ) -> Result<()> {
     ctx.checkpoint()?;
     while let Some(index) = storage.handlers.data.len().checked_sub(1) {
         ctx.charge(1)?;
         let h = &storage.handlers.data[index];
+        if h.frame < floor {
+            break;
+        }
         let program = frames.data[h.frame].program.clone();
         let (owner, spec, phase) = (h.frame, &program.handlers[h.spec], h.phase);
         if phase == Phase::Ensure {
@@ -527,7 +563,7 @@ pub(super) fn error(
             return Ok(());
         }
     }
-    Err(error.into_error())
+    Err(error.into_error(ctx)?)
 }
 
 pub(super) fn intercept(
@@ -536,11 +572,15 @@ pub(super) fn intercept(
     storage: &mut Storage,
     stack: &mut Buffer<Value>,
     mut control: Control,
+    floor: usize,
 ) -> Result<Option<Control>> {
     let current = frames.data.len() - 1;
     let cross_call_retry = matches!(&control, Control::Retry { handler } if storage.handlers.data[*handler].frame != current);
     while let Some(index) = storage.handlers.data.len().checked_sub(1) {
         let h = &storage.handlers.data[index];
+        if h.frame < floor {
+            break;
+        }
         if cross_call_retry && h.frame != current {
             break;
         }
