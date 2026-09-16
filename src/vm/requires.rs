@@ -259,13 +259,15 @@ pub(super) fn start(
         ));
     }
     let root = storage.programs.data[0].program.code.clone();
-    let code = loader.load(
-        ctx,
-        &mut storage.pins,
-        input.require_bytes()?,
-        program.code.origin.as_ref(),
-        &root,
-    )?;
+    let code = loader
+        .load(
+            ctx,
+            &mut storage.pins,
+            input.require_bytes()?,
+            program.code.origin.as_ref(),
+            &root,
+        )
+        .map_err(Error::in_required_file)?;
     for (index, module) in storage.modules.data.iter().enumerate() {
         ctx.charge(1)?;
         if module.code.origin == code.origin {

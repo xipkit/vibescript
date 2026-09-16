@@ -45,6 +45,8 @@ Production mode reuses cached compilation until `Engine::clear_module_cache`. De
 
 Syntax and execution diagnostics identify required source files by their root-relative filename. Each call frame identifies the file containing that frame's position, including calls between required files and unnamed host scripts. Rescued errors preserve the same named snippets and backtraces. Diagnostic filename storage does not retain the file's compiled code, callbacks or filesystem root; see [source diagnostics](diagnostics.md).
 
+A required file's syntax failure is a catchable `RuntimeError`. Hosts still see `ErrorKind::Syntax`, the original filename and the parse position. Rescue and ensure run normally, failed compilation is not cached, and a later call can retry a corrected file. Host-side `Engine::compile` syntax failures have no script exception class. Cancellation, deadlines and exhausted execution budgets remain uncatchable.
+
 Source reads, module state, exported descriptors, pending calls and imported environments use the receiving work and memory budgets. Exhaustion and cancellation remain uncatchable.
 
 Cold compilation also uses the receiving work budget, cancellation token and deadline while lexing, resolving ambiguous tokens, parsing, walking declarations and types, copying aliased method bodies, generating bytecode and building source diagnostics. Speculative parsing preserves termination errors. A stopped compile neither initializes the module nor publishes it to the cache. Cached code avoids those compilation charges; reloading changed files or clearing the cache requires a new compilation.

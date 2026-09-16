@@ -127,6 +127,7 @@ pub struct Error {
     pub offset: Option<usize>,
     pub diagnostic: Option<Arc<Diagnostic>>,
     class: ErrorClass,
+    required_syntax: bool,
     raw_message: Option<Arc<[u8]>>,
 }
 
@@ -138,6 +139,7 @@ impl Error {
             message: message.into(),
             offset: None,
             diagnostic: None,
+            required_syntax: false,
             raw_message: None,
             class: if matches!(
                 kind,
@@ -153,13 +155,21 @@ impl Error {
         }
     }
 
-    /// Returns the script exception class, or none for syntax and host control errors.
+    /// Returns the script exception class, or none for compile and host control errors.
+    ///
+    /// Syntax failures encountered by `require` are catchable runtime exceptions;
+    /// syntax failures from host-side compilation have no script exception class.
     pub fn class(&self) -> Option<ErrorClass> {
-        (!matches!(
-            self.kind,
-            ErrorKind::Syntax | ErrorKind::Cancelled | ErrorKind::Deadline
-        ))
-        .then_some(self.class)
+        match self.kind {
+            ErrorKind::Cancelled | ErrorKind::Deadline => None,
+            ErrorKind::Syntax if !self.required_syntax => None,
+            _ => Some(self.class),
+        }
+    }
+
+    pub(crate) fn in_required_file(mut self) -> Self {
+        self.required_syntax = self.kind == ErrorKind::Syntax;
+        self
     }
 
     /// Sets the script exception class without changing the execution's budget state.

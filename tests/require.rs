@@ -790,6 +790,84 @@ fn required_parse_and_initializer_failures_identify_the_failed_file() {
 }
 
 #[test]
+fn required_parse_errors_are_rescuable_without_caching_failed_sources() {
+    let files = Files::new();
+    files.write("broken.vibe", "def answer(");
+    let engine = files.engine();
+    let script = engine
+        .compile("def run;events=[];value=begin;require(:broken).answer;rescue=>e;events.push(e.type);7;ensure;events.push(\"ensure\");end;[value,events];end")
+        .unwrap();
+    for _ in 0..2 {
+        let output = script.call("run", &[], CallOptions::default()).unwrap();
+        assert_eq!(
+            json(&output.value),
+            serde_json::json!([7, ["RuntimeError", "ensure"]])
+        );
+    }
+    files.write("broken.vibe", "def answer;42;end");
+    assert_eq!(
+        json(
+            &script
+                .call("run", &[], CallOptions::default())
+                .unwrap()
+                .value
+        ),
+        serde_json::json!([42, ["ensure"]])
+    );
+}
+
+#[test]
+fn rescued_required_syntax_keeps_its_origin_and_obeys_receiving_limits() {
+    let files = Files::new();
+    files.write("broken.vibe", "def answer(");
+    let engine = files.engine();
+    assert_eq!(engine.compile("def answer(").err().unwrap().class(), None);
+    let error = engine
+        .compile("begin;require(:broken);rescue;raise;end")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    assert_eq!(error.class(), Some(ErrorClass::Runtime));
+    assert_eq!(
+        error.diagnostic.as_ref().unwrap().filename.as_deref(),
+        Some(b"broken.vibe".as_slice())
+    );
+    assert!(error.diagnostic.as_ref().unwrap().frames.is_empty());
+    let script = engine
+        .compile("begin;require(:broken);rescue RuntimeError=>e;[e.type,e.code_frame.include?(\"broken.vibe\"),e.backtrace.empty?];end")
+        .unwrap();
+    let baseline = script.run(CallOptions::default()).unwrap();
+    assert_eq!(
+        json(&baseline.value),
+        serde_json::json!(["RuntimeError", true, true])
+    );
+    for memory in [false, true] {
+        for shortage in [0, 1] {
+            let mut options = CallOptions::default();
+            if memory {
+                options.limits.memory_bytes = Some(baseline.stats.peak_memory_bytes - shortage);
+            } else {
+                options.limits.steps = Some(baseline.stats.steps - shortage as u64);
+            }
+            let result = script.run(options);
+            if shortage == 0 {
+                assert_eq!(json(&result.unwrap().value), json(&baseline.value));
+            } else {
+                assert_eq!(
+                    result.unwrap_err().kind,
+                    if memory {
+                        ErrorKind::Memory
+                    } else {
+                        ErrorKind::Steps
+                    }
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn required_binding_defaults_and_blocks_keep_their_expression_origins() {
     let files = Files::new();
     files.write(
