@@ -7,8 +7,8 @@ use std::{
     },
 };
 use vibescript::{
-    CallOptions, CancellationToken, Engine, ErrorKind, ModuleConfig, Position, Value,
-    stringify_json,
+    CallOptions, CancellationToken, Engine, Error, ErrorClass, ErrorKind, ModuleConfig, Position,
+    Value, stringify_json,
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -63,6 +63,501 @@ impl Drop for Files {
 fn json(value: &Value) -> serde_json::Value {
     let encoded = stringify_json(value, CallOptions::default()).unwrap();
     serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
+}
+
+fn require_denied(error: &Error) {
+    assert_eq!(error.kind, ErrorKind::Runtime, "{error}");
+    assert_eq!(error.class(), Some(ErrorClass::Runtime), "{error}");
+    assert!(
+        error
+            .message
+            .starts_with("strict effects: require is disabled"),
+        "{error}"
+    );
+}
+
+#[test]
+fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
+    let files = Files::new();
+    files.write("answer.vibe", "effect();def value;42;end");
+    let effects = Arc::new(AtomicUsize::new(0));
+    let captured = effects.clone();
+    let mut engine = files.engine();
+    engine.register("effect", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let source = "def run(add:0);require(:answer).value+add;end";
+    let permissive = engine.compile(source).unwrap();
+    assert_eq!(
+        permissive
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(42)
+    );
+    fs::remove_file(files.0.join("answer.vibe")).unwrap();
+    engine.set_strict_effects(true);
+    let restricted = engine.compile(source).unwrap();
+    engine.set_strict_effects(false);
+    let later = engine.compile(source).unwrap();
+    let mut expected = 1;
+    for (script, strict) in [(&permissive, false), (&restricted, true), (&later, false)] {
+        for allow in [false, true, false] {
+            let result = script.call_with_keywords(
+                "run",
+                &[],
+                &[("add".into(), Value::int(1))],
+                CallOptions {
+                    allow_require: allow,
+                    ..CallOptions::default()
+                },
+            );
+            if strict && !allow {
+                require_denied(&result.unwrap_err());
+            } else {
+                assert_eq!(result.unwrap().value.as_int(), Some(43));
+                expected += 1;
+            }
+            assert_eq!(effects.load(Ordering::SeqCst), expected);
+        }
+    }
+    std::thread::scope(|scope| {
+        let mut calls = Vec::new();
+        for allow in [false, true, true, false, false, true] {
+            let script = restricted.clone();
+            calls.push(scope.spawn(move || {
+                let result = script.call(
+                    "run",
+                    &[],
+                    CallOptions {
+                        allow_require: allow,
+                        ..CallOptions::default()
+                    },
+                );
+                if allow {
+                    assert_eq!(result.unwrap().value.as_int(), Some(42));
+                } else {
+                    require_denied(&result.unwrap_err());
+                }
+            }));
+        }
+        for call in calls {
+            call.join().unwrap();
+        }
+    });
+    assert_eq!(effects.load(Ordering::SeqCst), expected + 3);
+}
+
+#[test]
+fn denied_require_does_not_inspect_initialize_or_cache_modules() {
+    let files = Files::new();
+    files.write("blocked.vibe", "effect();def value;1;end");
+    files.write("allowed.vibe", "effect();def value;2;end");
+    files.write("invalid.vibe", "def");
+    fs::write(files.0.join("bytes.vibe"), [0xff]).unwrap();
+    fs::create_dir(files.0.join("directory.vibe")).unwrap();
+    for development in [false, true] {
+        let effects = Arc::new(AtomicUsize::new(0));
+        let captured = effects.clone();
+        let mut engine = Engine::new();
+        engine.set_strict_effects(true);
+        engine
+            .set_module_config(ModuleConfig {
+                paths: vec![files.0.clone()],
+                cache_limit: 1,
+                development,
+                ..ModuleConfig::default()
+            })
+            .unwrap();
+        engine.register("effect", move |_, _| {
+            captured.fetch_add(1, Ordering::SeqCst);
+            Ok(Value::nil())
+        });
+        for expression in [
+            "require(:blocked)",
+            "require(:invalid)",
+            "require(:bytes)",
+            "require(:directory)",
+            "require(:missing)",
+            "require(\"../escape\")",
+            "require()",
+            "require(1)",
+            "require(:blocked,:allowed)",
+            "require(:blocked,as:123)",
+            "require(:blocked,unknown:true)",
+            "require(:blocked){effect()}",
+        ] {
+            let error = engine
+                .compile(expression)
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap_err();
+            require_denied(&error);
+            assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
+        }
+        let result = engine
+            .compile("require(:allowed).value")
+            .unwrap()
+            .run(CallOptions {
+                allow_require: true,
+                ..CallOptions::default()
+            })
+            .unwrap();
+        assert_eq!(result.value.as_int(), Some(2));
+        assert_eq!(effects.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn require_permission_follows_argument_evaluation_and_precedes_builtin_validation() {
+    let files = Files::new();
+    files.write("answer.vibe", "effect();def value;42;end");
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut engine = files.engine();
+    engine.set_strict_effects(true);
+    for (name, label, result) in [
+        ("module_name", "name", b"answer".as_slice()),
+        ("alias_name", "alias", b"Answer".as_slice()),
+    ] {
+        let recorded = events.clone();
+        engine.register(name, move |ctx, _| {
+            recorded.lock().unwrap().push(label);
+            ctx.bytes(result)
+        });
+    }
+    for name in ["effect", "rescued", "ensured"] {
+        let recorded = events.clone();
+        engine.register(name, move |_, _| {
+            recorded.lock().unwrap().push(name);
+            Ok(Value::nil())
+        });
+    }
+    let script = engine.compile("def run\nbegin\nrequire(module_name(),as:alias_name()){effect()}\nrescue=>e\nrescued();[e.type,e.message]\nensure\nensured()\nend\nend").unwrap();
+    for allow in [false, true] {
+        events.lock().unwrap().clear();
+        let output = script
+            .call(
+                "run",
+                &[],
+                CallOptions {
+                    allow_require: allow,
+                    ..CallOptions::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            *events.lock().unwrap(),
+            ["name", "alias", "rescued", "ensured"]
+        );
+        assert_eq!(
+            json(&output.value),
+            serde_json::json!([
+                if allow {
+                    "ArgumentError"
+                } else {
+                    "RuntimeError"
+                },
+                if allow {
+                    "require does not accept blocks"
+                } else {
+                    "strict effects: require is disabled without CallOptions.allow_require"
+                },
+            ])
+        );
+    }
+}
+
+#[test]
+fn imported_code_uses_the_receivers_require_permission() {
+    let files = Files::new();
+    files.write(
+        "pkg/main.vibe",
+        r#"
+def child;require("./child").value;end
+def answer;7;end
+class Reader
+ def value;require("./child").value;end
+end
+def reader;Reader.new;end
+module Tools
+ def self.value;require("./child").value;end
+end
+def tools;Tools;end
+"#,
+    );
+    files.write("pkg/child.vibe", "visited();def value;42;end");
+    for producer_strict in [false, true] {
+        let mut producer = files.engine();
+        producer.set_strict_effects(producer_strict);
+        let module = producer
+            .compile("require(\"pkg/main\")")
+            .unwrap()
+            .run(CallOptions {
+                allow_require: true,
+                ..CallOptions::default()
+            })
+            .unwrap()
+            .value;
+        drop(producer);
+        for receiver_strict in [false, true] {
+            let mut engine = Engine::new();
+            engine.set_strict_effects(receiver_strict);
+            let visits = Arc::new(AtomicUsize::new(0));
+            let captured = visits.clone();
+            engine.register("visited", move |_, _| {
+                captured.fetch_add(1, Ordering::SeqCst);
+                Ok(Value::nil())
+            });
+            let supplied = module.clone();
+            engine.register("provide", move |_, _| Ok(supplied.clone()));
+            let read = engine.compile("def run(m);m.answer;end").unwrap();
+            assert_eq!(
+                read.call("run", std::slice::from_ref(&module), CallOptions::default())
+                    .unwrap()
+                    .value
+                    .as_int(),
+                Some(7)
+            );
+            for expression in [
+                "m.child",
+                "m.reader.value",
+                "m.tools.value",
+                "provide().child",
+            ] {
+                let host = expression.starts_with("provide");
+                let source = format!("def run{};{expression};end", if host { "" } else { "(m)" });
+                let script = engine.compile(&source).unwrap();
+                let args = if host {
+                    &[][..]
+                } else {
+                    std::slice::from_ref(&module)
+                };
+                for allow in [false, true, false] {
+                    let before = visits.load(Ordering::SeqCst);
+                    let result = script.call(
+                        "run",
+                        args,
+                        CallOptions {
+                            allow_require: allow,
+                            ..CallOptions::default()
+                        },
+                    );
+                    if receiver_strict && !allow {
+                        let error = result.unwrap_err();
+                        require_denied(&error);
+                        assert_eq!(
+                            error.diagnostic.unwrap().filename.as_deref(),
+                            Some(b"pkg/main.vibe".as_slice())
+                        );
+                        assert_eq!(visits.load(Ordering::SeqCst), before);
+                    } else {
+                        assert_eq!(result.unwrap().value.as_int(), Some(42), "{expression}");
+                        assert_eq!(visits.load(Ordering::SeqCst), before + 1);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn require_permission_does_not_override_module_roots_or_policy() {
+    let files = Files::new();
+    files.write("answer.vibe", "def value;42;end");
+    for (config, message) in [
+        (ModuleConfig::default(), "module paths not configured"),
+        (
+            ModuleConfig {
+                paths: vec![files.0.clone()],
+                deny: vec!["answer".into()],
+                ..ModuleConfig::default()
+            },
+            "denied by policy",
+        ),
+        (
+            ModuleConfig {
+                paths: vec![files.0.clone()],
+                allow: vec!["other".into()],
+                ..ModuleConfig::default()
+            },
+            "not allowed by policy",
+        ),
+        (
+            ModuleConfig {
+                paths: vec![files.0.clone()],
+                source_limit: 4,
+                ..ModuleConfig::default()
+            },
+            "source exceeds maximum size",
+        ),
+    ] {
+        let mut engine = Engine::new();
+        engine.set_strict_effects(true);
+        engine.set_module_config(config).unwrap();
+        let error = engine
+            .compile("require(:answer).value")
+            .unwrap()
+            .run(CallOptions {
+                allow_require: true,
+                ..CallOptions::default()
+            })
+            .unwrap_err();
+        assert!(error.message.contains(message), "{error}");
+    }
+}
+
+#[test]
+fn strict_effects_preserves_explicit_host_and_script_overrides() {
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    engine.register("require", |_, _| Ok(Value::int(77)));
+    let registered = engine.compile("require(:ignored)").unwrap();
+    for allow in [false, true] {
+        assert_eq!(
+            registered
+                .run(CallOptions {
+                    allow_require: allow,
+                    ..CallOptions::default()
+                })
+                .unwrap()
+                .value
+                .as_int(),
+            Some(77)
+        );
+    }
+    let script = engine
+        .compile("def require(n);n+1;end;require(41)")
+        .unwrap();
+    assert_eq!(
+        script.run(CallOptions::default()).unwrap().value.as_int(),
+        Some(42)
+    );
+}
+
+#[test]
+fn repeated_require_denials_release_memory_and_obey_execution_limits() {
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    let script = engine.compile("def run(n);i=0;while i<n;begin;require(:disabled);rescue=>e;raise \"wrong failure\" unless e.message.start_with?(\"strict effects:\");end;i+=1;end;42;end").unwrap();
+    let mut options = CallOptions::default();
+    options.limits.steps = None;
+    options.limits.memory_bytes = Some(64 << 10);
+    let first = script
+        .call("run", &[Value::int(1)], options.clone())
+        .unwrap();
+    let repeated = script
+        .call("run", &[Value::int(2048)], options.clone())
+        .unwrap();
+    assert_eq!(repeated.value.as_int(), Some(42));
+    assert_eq!(repeated.stats.retained_memory_bytes, 0);
+    assert!(repeated.stats.peak_memory_bytes <= first.stats.peak_memory_bytes + 2048);
+    let baseline = script
+        .call("run", &[Value::int(16)], options.clone())
+        .unwrap();
+    options.limits.steps = Some(baseline.stats.steps);
+    script
+        .call("run", &[Value::int(16)], options.clone())
+        .unwrap();
+    options.limits.steps = Some(baseline.stats.steps - 1);
+    assert_eq!(
+        script
+            .call("run", &[Value::int(16)], options.clone())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Steps
+    );
+    options.limits.steps = None;
+    options.limits.memory_bytes = Some(baseline.stats.peak_memory_bytes);
+    script
+        .call("run", &[Value::int(16)], options.clone())
+        .unwrap();
+    options.limits.memory_bytes = Some(baseline.stats.peak_memory_bytes - 1);
+    assert_eq!(
+        script
+            .call("run", &[Value::int(16)], options)
+            .unwrap_err()
+            .kind,
+        ErrorKind::Memory
+    );
+}
+
+#[test]
+fn require_permission_never_masks_cancellation_or_latched_exhaustion() {
+    for cancel in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_strict_effects(true);
+        let token = CancellationToken::new();
+        let signal = token.clone();
+        engine.register("stop", move |ctx, _| {
+            let name = ctx.bytes(b"disabled")?;
+            if cancel {
+                signal.cancel();
+            } else {
+                let _ = ctx.charge(u64::MAX);
+            }
+            Ok(name)
+        });
+        let effects = Arc::new(AtomicUsize::new(0));
+        let captured = effects.clone();
+        engine.register("effect", move |_, _| {
+            captured.fetch_add(1, Ordering::SeqCst);
+            Ok(Value::nil())
+        });
+        let script = engine
+            .compile("begin;require(stop());rescue;effect();ensure;effect();end;effect()")
+            .unwrap();
+        let error = script
+            .run(CallOptions {
+                cancellation: token,
+                ..CallOptions::default()
+            })
+            .unwrap_err();
+        assert_eq!(
+            error.kind,
+            if cancel {
+                ErrorKind::Cancelled
+            } else {
+                ErrorKind::Steps
+            }
+        );
+        assert_eq!(effects.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[cfg(feature = "tokio")]
+#[tokio::test]
+async fn tokio_calls_keep_require_permission_independent() {
+    use vibescript::asynchronous::Runner;
+    let files = Files::new();
+    files.write("answer.vibe", "def value;42;end");
+    let mut engine = files.engine();
+    engine.set_strict_effects(true);
+    let script = engine
+        .compile("def run(add:0);require(:answer).value+add;end")
+        .unwrap();
+    let runner = Runner::new(1).unwrap();
+    for allow in [false, true, false] {
+        let result = runner
+            .call_with_keywords(
+                script.clone(),
+                "run".into(),
+                vec![],
+                vec![("add".into(), Value::int(1))],
+                CallOptions {
+                    allow_require: allow,
+                    ..CallOptions::default()
+                },
+            )
+            .await;
+        if allow {
+            assert_eq!(result.unwrap().value.as_int(), Some(43));
+        } else {
+            require_denied(&result.unwrap_err());
+        }
+        assert_eq!(runner.available_slots(), 1);
+    }
 }
 
 #[test]

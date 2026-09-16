@@ -212,6 +212,13 @@ pub(super) fn start(
     stack: &mut Buffer<Value>,
     args: Arguments,
 ) -> Result<()> {
+    if ctx.strict_effects && !ctx.options.allow_require {
+        ctx.checkpoint()?;
+        return Err(Error::new(
+            ErrorKind::Runtime,
+            "strict effects: require is disabled without CallOptions.allow_require",
+        ));
+    }
     if args.positional.data.len() != 1 {
         return Err(Error::argument(
             "require expects a single module name argument",

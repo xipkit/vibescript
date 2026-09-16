@@ -3,17 +3,27 @@
 Configure file loading before compiling a script:
 
 ```rust,no_run
-use vibescript::{Engine, ModuleConfig};
+use vibescript::{CallOptions, Engine, ModuleConfig};
 
 let mut engine = Engine::new();
+engine.set_strict_effects(true);
 engine.set_module_config(ModuleConfig {
     paths: vec!["scripts".into()],
     ..ModuleConfig::default()
+})?;
+let script = engine.compile("require(\"counter\")")?;
+script.run(CallOptions {
+    allow_require: true,
+    ..CallOptions::default()
 })?;
 # Ok::<(), vibescript::Error>(())
 ```
 
 Roots are opened when configured. Non-relative requests search those roots in order. Relative requests such as `require("./helpers")` resolve from the executing required file's origin. The loader confines filesystem access through directory handles, validates filename spelling, applies allow/deny patterns and reads only bounded regular files. The default source limit is one MiB per file and the compilation cache holds at most 1,000 modules. Zero selects these defaults.
+
+Strict effects is disabled by default. Enable it with `Engine::set_strict_effects(true)` to require each invocation to set `CallOptions::allow_require`. Compiled scripts and their clones retain their engine mode; every call supplies its own permission, including concurrent calls and calls through the Tokio runner. The receiving script's mode and call permission also govern `require` inside imported functions, methods and host-returned modules. Permission applies to cached files as well as new loads, and operates within the configured roots, allow/deny rules and resource limits.
+
+Argument expressions run before the permission check. A denied `require` raises a catchable `RuntimeError` beginning with `strict effects: ` before validating the builtin's signature, inspecting a file, compiling, initializing or populating the cache. Cancellation and exhausted budgets still terminate execution. The permission governs the builtin `require`; registered host callbacks and ordinary script functions remain explicitly available through their normal bindings. Rust's separate host-global and namespaced capability contracts remain unfinished.
 
 `require` takes one string or symbol, an optional `as:` alias and no block. It returns an object containing the file's public top-level functions and enums. Ordinary `def` and `export def` are public; `private def`, classes and file variables stay private. Export names are also made available in the receiving execution root when they do not overwrite an existing binding. An alias must be an identifier and must not conflict with the root or current scope. Requiring the same file with the same alias is allowed.
 
@@ -35,4 +45,4 @@ Production mode reuses cached compilation until `Engine::clear_module_cache`. De
 
 Syntax and execution diagnostics identify required source files by their root-relative filename. Each call frame identifies the file containing that frame's position, including calls between required files and unnamed host scripts. Rescued errors preserve the same named snippets and backtraces. Diagnostic filename storage does not retain the file's compiled code, callbacks or filesystem root; see [source diagnostics](diagnostics.md).
 
-Source reads, module state, exported descriptors, pending calls and imported environments use the receiving work and memory budgets. Exhaustion and cancellation remain uncatchable. Cold compilation has source and cache bounds and checkpoints around compilation; the broader compiler accounting/cancellation audit, full module conformance and strict-effect host options remain part of the unfinished language port. Native Linux/Windows integration has not been verified for this change.
+Source reads, module state, exported descriptors, pending calls and imported environments use the receiving work and memory budgets. Exhaustion and cancellation remain uncatchable. Cold compilation has source and cache bounds and checkpoints around compilation; the broader compiler accounting/cancellation audit, full module conformance and remaining host capability contracts remain part of the unfinished language port. Native Linux/Windows integration has not been verified for this change.

@@ -74,6 +74,7 @@ type HostCallback =
 pub struct Engine {
     hosts: BTreeMap<String, HostCallback>,
     loader: Arc<loading::Loader>,
+    strict_effects: bool,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -82,6 +83,14 @@ impl Engine {
     /// Creates an engine with core builtins and no external capabilities.
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Requires per-call permission for `require` in subsequently compiled scripts.
+    ///
+    /// When enabled, callers must set [`CallOptions::allow_require`] before a script
+    /// may load a module, including a cached module. Registered host callbacks remain
+    /// available. Earlier scripts retain their previous mode. Disabled by default.
+    pub fn set_strict_effects(&mut self, enabled: bool) {
+        self.strict_effects = enabled;
     }
     /// Configures required files for subsequently compiled scripts.
     ///
@@ -166,6 +175,7 @@ impl Engine {
             inner: Arc::new(ScriptInner {
                 code,
                 loader: self.loader.clone(),
+                strict_effects: self.strict_effects,
                 random_source: self.random_source.clone(),
                 output_writer: self.output_writer.clone(),
                 error_writer: self.error_writer.clone(),
@@ -177,6 +187,7 @@ impl Engine {
 struct ScriptInner {
     code: Arc<code::Code>,
     loader: Arc<loading::Loader>,
+    strict_effects: bool,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -204,6 +215,7 @@ impl Script {
         options: CallOptions,
     ) -> Result<Outcome> {
         let mut ctx = CallContext::new(options);
+        ctx.strict_effects = self.inner.strict_effects;
         ctx.random_source = self.inner.random_source.clone();
         ctx.output_writer = self.inner.output_writer.clone();
         ctx.error_writer = self.inner.error_writer.clone();

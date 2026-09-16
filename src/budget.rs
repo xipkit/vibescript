@@ -76,6 +76,10 @@ pub struct CallOptions {
     pub limits: Limits,
     pub cancellation: CancellationToken,
     pub deadline: Option<Instant>,
+    /// Permits `require` when the receiving script was compiled with strict effects.
+    ///
+    /// Defaults to false. This does not bypass module roots, allow/deny rules or limits.
+    pub allow_require: bool,
 }
 
 /// Execution counters; memory measures tracked allocation capacity, not process RSS.
@@ -121,6 +125,7 @@ impl Drop for Charge {
 /// A host callback's access to cooperative work and allocation accounting.
 pub struct CallContext {
     pub(crate) options: CallOptions,
+    pub(crate) strict_effects: bool,
     memory: Arc<Memory>,
     steps: u64,
     exhausted: Option<Error>,
@@ -143,6 +148,7 @@ impl CallContext {
     pub(crate) fn new(options: CallOptions) -> Self {
         Self {
             options,
+            strict_effects: false,
             memory: Arc::new(Memory::default()),
             steps: 0,
             exhausted: None,
