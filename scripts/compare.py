@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 from fixtures import benchmark_cases, conformance_cases
+from module_fixtures import materialize
 
 ROOT=Path(__file__).resolve().parent.parent
 BINS=ROOT/"benchmarks/bin"
@@ -55,7 +56,7 @@ def equal_json(actual,expected):
 
 
 def validate(out):
-    expected=conformance_cases()+benchmark_cases()
+    expected=materialize(conformance_cases()+benchmark_cases(),out)
     path=out/"validation-inputs.json"
     path.write_text(json.dumps(expected,ensure_ascii=False,sort_keys=True)+"\n")
     reference={case["name"]:case["expected"] for case in expected}

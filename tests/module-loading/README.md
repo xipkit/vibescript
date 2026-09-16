@@ -24,4 +24,4 @@ Configured roots retain open directory handles. A component walk opens directori
 
 The compiled-entry cache preserves held versions through source changes and clearing. It bounds entry count, publishes the first concurrent compilation, invalidates only the observed stale entry, and prevents pre-clear work from refilling a cleared generation. Retired callback payloads are released outside its lock.
 
-The helpers are not yet connected to script `require` calls. Request-cache bounds, per-call version pinning, exports, and retained file environments still need runtime integration and coverage. Native filesystem tests currently run on macOS; Linux and Windows behavior remain pending native platform verification.
+These helpers are connected to script `require` calls, including request-cache bounds, per-call version pinning, attached exports and retained file environments. Native integration tests are in `tests/require.rs`; `scripts/module_fixtures.py` adds Go/Rust execution comparisons for required files. Native filesystem tests currently run on macOS; Linux and Windows behavior remain pending native platform verification.

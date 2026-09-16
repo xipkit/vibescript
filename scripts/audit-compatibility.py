@@ -10,6 +10,7 @@ from pathlib import Path
 
 from compare import BINS, ENV, ROOT, VARIANTS, equal_json, invoke
 from fixtures import host_global_cases
+from module_fixtures import cases as module_cases, materialize
 
 
 def main():
@@ -20,7 +21,15 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     cases = json.loads((ROOT / "docs/compatibility-cases.json").read_text())
     cases += [case for case in host_global_cases() if "policy" in case]
-    fixtures = [{"name": c["name"], "source": c.get("source") or "def run(input)\n" + c["body"] + "\nend", "args": c.get("args", [None]), "globals": c.get("globals", {}), "strict_effects": c.get("strict_effects", False), "accounting": True} for c in cases]
+    cases += [case for case in module_cases() if "policy" in case]
+    fixtures = []
+    for case in cases:
+        fixture = {"name": case["name"], "source": case.get("source") or "def run(input)\n" + case["body"] + "\nend", "args": case.get("args", [None]), "accounting": True}
+        for field in ("globals", "strict_effects", "files", "module_development", "module_allow", "module_deny", "allow_require"):
+            if field in case:
+                fixture[field] = case[field]
+        fixtures.append(fixture)
+    fixtures = materialize(fixtures, out)
     path = out / "inputs.json"
     errors = {c["name"] for c in cases if "expected_error" in c}
     path.write_text(json.dumps([f for f in fixtures if f["name"] not in errors]) + "\n")
@@ -48,7 +57,7 @@ def main():
         name = case["name"]
         values = {v: results[v][name] for v in VARIANTS}
         policy = case["policy"]
-        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "consistent_bindings", "unresolved"}, (name, policy)
+        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "consistent_bindings", "catch_lookup_errors", "unresolved"}, (name, policy)
         if any(not equal_json(values[v], case["go"]) for v in VARIANTS if v.startswith("go-")):
             status = "reference_changed"
         elif policy != "unresolved":

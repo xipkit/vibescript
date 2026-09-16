@@ -18,17 +18,22 @@ import (
 )
 
 type fixture struct {
-	Function      string                     `json:"function"`
-	Name          string                     `json:"name"`
-	Source        string                     `json:"source"`
-	Args          []json.RawMessage          `json:"args"`
-	Globals       map[string]json.RawMessage `json:"globals,omitempty"`
-	StrictEffects bool                       `json:"strict_effects,omitempty"`
-	Accounting    bool                       `json:"accounting"`
-	Iterations    int                        `json:"iterations"`
-	EntropyByte   *byte                      `json:"entropy_byte,omitempty"`
-	Stdout        bool                       `json:"stdout,omitempty"`
-	Stderr        bool                       `json:"stderr,omitempty"`
+	Function          string                     `json:"function"`
+	Name              string                     `json:"name"`
+	Source            string                     `json:"source"`
+	Args              []json.RawMessage          `json:"args"`
+	Globals           map[string]json.RawMessage `json:"globals,omitempty"`
+	StrictEffects     bool                       `json:"strict_effects,omitempty"`
+	AllowRequire      bool                       `json:"allow_require,omitempty"`
+	ModulePaths       []string                   `json:"module_paths,omitempty"`
+	ModuleAllow       []string                   `json:"module_allow,omitempty"`
+	ModuleDeny        []string                   `json:"module_deny,omitempty"`
+	ModuleDevelopment bool                       `json:"module_development,omitempty"`
+	Accounting        bool                       `json:"accounting"`
+	Iterations        int                        `json:"iterations"`
+	EntropyByte       *byte                      `json:"entropy_byte,omitempty"`
+	Stdout            bool                       `json:"stdout,omitempty"`
+	Stderr            bool                       `json:"stderr,omitempty"`
 }
 
 type repeatingByte byte
@@ -86,6 +91,10 @@ func run() error {
 			function = "run"
 		}
 		cfg := vibes.Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20, RecursionLimit: 256, StrictEffects: fixture.StrictEffects}
+		cfg.ModulePaths = fixture.ModulePaths
+		cfg.ModuleAllowList = fixture.ModuleAllow
+		cfg.ModuleDenyList = fixture.ModuleDeny
+		cfg.DevMode = fixture.ModuleDevelopment
 		if !fixture.Accounting {
 			cfg.StepQuota = vibes.Unlimited
 			cfg.MemoryQuotaBytes = vibes.Unlimited
@@ -126,7 +135,7 @@ func run() error {
 				return fmt.Errorf("%s argument: %w", fixture.Name, err)
 			}
 		}
-		var options vibes.CallOptions
+		options := vibes.CallOptions{AllowRequire: fixture.AllowRequire}
 		if len(fixture.Globals) > 0 {
 			options.Globals = make(map[string]value.Value, len(fixture.Globals))
 			for name, raw := range fixture.Globals {

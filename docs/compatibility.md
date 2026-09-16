@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The separate compatibility audit covers thirty-three collection, regex and control-flow differences, forty-two host-binding differences, and two previously different mutation cases that now agree. It retains the observed Go outputs and checks each Rust result against its port contract.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The separate compatibility audit covers thirty-three collection, regex and control-flow differences, forty-two host-binding differences, eight required-file differences, and two previously different mutation cases that now agree. It retains the observed Go outputs and checks each Rust result against its port contract.
 
 ## Host binding precedence
 
@@ -9,6 +9,12 @@ Rust resolves named and computed calls through the nearest existing binding. Par
 A block assignment also preserves an existing host binding unless a nearer local shadows it. With a host global `count=9`, `[1].each { count += 1 }; count` returns `10` in Rust. Go creates an uninitialized block local and raises an addition error, although a direct `count += 1` outside the block succeeds. Rust keeps the existing binding for both ordinary and compound assignments. Explicit block parameters retain their separate scope.
 
 The host-global generator in [fixtures.py](../scripts/fixtures.py) records these contracts across named, computed, splat and bare calls, with strict effects enabled and disabled. Thirty additional host-global cases belong to the shared success suite. Forty-two differing cases retain Go's rescued error result in the compatibility audit; they are not counted as matching evaluations.
+
+## Required-file values and lookup errors
+
+The [file-module fixture generator](../scripts/module_fixtures.py) separately records eight observations across production/development mode and ordinary/strict effects. Four preserve the selected collection value semantics: when a required file's private array is returned and later mutated by another call, the earlier result stays unchanged. Go exposes the later mutation through both results in this case.
+
+Four preserve the selected rule that a lookup error can be rescued at the expression that raised it. Accessing an unexported module member raises inside the nearest `rescue` in Rust. Go defers the error past that handler to a caller's handler. The audit records both results explicitly. These cases do not count toward the shared file-module successes.
 
 ## State isolation across host calls
 

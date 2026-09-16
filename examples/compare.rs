@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-use vibescript::{CallOptions, Engine, Limits, parse_json, stringify_json};
+use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json, stringify_json};
 
 #[cfg(feature = "allocation-stats")]
 mod allocations {
@@ -77,6 +77,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let source = case["source"].as_str().ok_or("missing source")?;
         let mut engine = Engine::new();
         engine.set_strict_effects(case["strict_effects"].as_bool().unwrap_or(false));
+        if case.get("module_paths").is_some() {
+            engine.set_module_config(ModuleConfig {
+                paths: strings(&case, "module_paths")?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                allow: strings(&case, "module_allow")?,
+                deny: strings(&case, "module_deny")?,
+                development: case["module_development"].as_bool().unwrap_or(false),
+                ..ModuleConfig::default()
+            })?;
+        }
         if let Some(byte) = case.get("entropy_byte") {
             let byte = u8::try_from(byte.as_u64().ok_or("invalid entropy byte")?)?;
             engine.set_random_source(move |_, output| {
@@ -129,6 +141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let metered = case["accounting"].as_bool().unwrap_or(true);
         let options = CallOptions {
             globals,
+            allow_require: case["allow_require"].as_bool().unwrap_or(false),
             limits: Limits {
                 steps: if metered { Some(5_000_000) } else { None },
                 memory_bytes: if metered { Some(64 << 20) } else { None },
@@ -191,6 +204,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+fn strings(case: &Json, name: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let Some(value) = case.get(name) else {
+        return Ok(Vec::new());
+    };
+    let values = value
+        .as_array()
+        .ok_or_else(|| format!("{name} must be an array"))?;
+    values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| format!("{name} entries must be strings").into())
+        })
+        .collect()
+}
+
 fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     bytes

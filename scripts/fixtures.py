@@ -5,6 +5,7 @@ import hashlib
 import random
 import sys
 from pathlib import Path
+from module_fixtures import cases as module_cases, materialize
 
 UPSTREAM=Path(__file__).resolve().parent.parent/"tests/upstream"
 SITE=UPSTREAM.parent/"site"
@@ -188,11 +189,12 @@ def conformance_cases():
                 cases[-1][field]=case[field]
         if case.get("function")=="__main__":
             cases[-1]["args"]=[]
-    return cases+upstream_cases()+site_cases()+[case for case in host_global_cases() if "policy" not in case]
+    return cases+upstream_cases()+site_cases()+[case for case in host_global_cases()+module_cases() if "policy" not in case]
 
 
 if __name__ == "__main__":
     directory=Path(sys.argv[1]);directory.mkdir(parents=True,exist_ok=True)
     for name,cases in [("benchmarks",benchmark_cases()),("conformance",conformance_cases())]:
+        cases=materialize(cases,directory/name)
         (directory/f"{name}.json").write_text(json.dumps(cases,ensure_ascii=False,sort_keys=True,indent=2)+"\n")
         print(f"{name}: {len(cases)} cases")
