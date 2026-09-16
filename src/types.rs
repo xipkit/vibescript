@@ -447,7 +447,7 @@ mod tests {
     }
 
     fn enum_type(ctx: &mut CallContext) -> Value {
-        ctx.import(&crate::enums::compile("Status".into(), vec!["Draft".into()]).unwrap())
+        ctx.import(&crate::enums::compile("Status".into(), vec!["Draft".into()], &()).unwrap())
             .unwrap()
     }
 
@@ -750,7 +750,7 @@ mod tests {
 
         let mut ctx = CallContext::new(CallOptions::default());
         let enumeration = ctx
-            .import(&crate::enums::compile("Status".into(), vec![name.clone()]).unwrap())
+            .import(&crate::enums::compile("Status".into(), vec![name.clone()], &()).unwrap())
             .unwrap();
         let before = ctx.stats();
         ctx.options.limits.steps = Some(before.steps + 20);

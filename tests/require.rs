@@ -77,6 +77,149 @@ fn require_denied(error: &Error) {
 }
 
 #[test]
+fn cold_compilation_obeys_work_limits_without_publishing_or_initializing() {
+    let files = Files::new();
+    let source = format!(
+        "initialized();def unused;{}end;def value;42;end",
+        "[1,2,3].map{|n|n+1};".repeat(256)
+    );
+    files.write("answer.vibe", &source);
+    let initialized = Arc::new(AtomicUsize::new(0));
+    let unwound = Arc::new(AtomicUsize::new(0));
+    let mut engine = files.engine();
+    let captured = initialized.clone();
+    engine.register("initialized", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let captured = unwound.clone();
+    engine.register("unwound", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile("begin;require(:answer).value;rescue;unwound();ensure;unwound();end")
+        .unwrap();
+    let probe = engine.compile("require(:answer).value").unwrap();
+    let mut unlimited = CallOptions::default();
+    unlimited.limits.steps = None;
+    let cold = script.run(unlimited.clone()).unwrap();
+    let warm = script.run(unlimited.clone()).unwrap();
+    assert_eq!(cold.value.as_int(), Some(42));
+    assert_eq!(warm.value.as_int(), Some(42));
+    assert!(cold.stats.steps > warm.stats.steps * 4);
+    engine.clear_module_cache();
+    initialized.store(0, Ordering::SeqCst);
+    unwound.store(0, Ordering::SeqCst);
+    let mut limited = unlimited.clone();
+    limited.limits.steps = Some(cold.stats.steps / 2);
+    assert_eq!(script.run(limited).unwrap_err().kind, ErrorKind::Steps);
+    assert_eq!(initialized.load(Ordering::SeqCst), 0);
+    assert_eq!(unwound.load(Ordering::SeqCst), 0);
+    fs::remove_file(files.0.join("answer.vibe")).unwrap();
+    assert_eq!(
+        probe.run(unlimited.clone()).unwrap_err().kind,
+        ErrorKind::Name
+    );
+    files.write("answer.vibe", &source);
+    let mut exact = unlimited.clone();
+    exact.limits.steps = Some(cold.stats.steps);
+    let retried = script.run(exact).unwrap();
+    assert_eq!(retried.value.as_int(), Some(42));
+    assert_eq!(retried.stats.steps, cold.stats.steps);
+    assert_eq!(initialized.load(Ordering::SeqCst), 1);
+    assert_eq!(unwound.load(Ordering::SeqCst), 1);
+    let mut cached = unlimited;
+    cached.limits.steps = Some(warm.stats.steps);
+    assert_eq!(script.run(cached).unwrap().value.as_int(), Some(42));
+}
+
+#[test]
+fn cold_module_type_and_percent_parsing_cannot_rescue_exhaustion() {
+    let files = Files::new();
+    let mut engine = files.engine();
+    let effects = Arc::new(AtomicUsize::new(0));
+    let captured = effects.clone();
+    engine.register("effect", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile("begin;require(:input);rescue;effect();ensure;effect();end")
+        .unwrap();
+    for source in [
+        format!("x=1;x %w[{}", "abc ".repeat(1024)),
+        format!("schema={{ {}", "field:array<int>,".repeat(512)),
+        format!("\"{}", "\\n".repeat(2048)),
+    ] {
+        files.write("input.vibe", &source);
+        engine.clear_module_cache();
+        let mut options = CallOptions::default();
+        options.limits.steps = Some(1000);
+        assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Steps);
+        assert_eq!(effects.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn required_compilation_accepts_deep_type_literals() {
+    let files = Files::new();
+    let literal = format!("{}int{}", "{x:".repeat(63), "}".repeat(63));
+    files.write(
+        "deep.vibe",
+        &format!("schema={literal};def value;schema;end"),
+    );
+    let script = files.engine().compile("require(:deep).value").unwrap();
+    let expected = format!("{}int{}", "{ x: ".repeat(63), " }".repeat(63));
+    for _ in 0..2 {
+        let result = script.run(CallOptions::default()).unwrap();
+        assert_eq!(result.value.as_type_literal(), Some(expected.as_bytes()));
+    }
+}
+
+#[test]
+fn required_compilation_rejects_excessive_nesting_without_initializing() {
+    let files = Files::new();
+    let effects = Arc::new(AtomicUsize::new(0));
+    let mut engine = files.engine();
+    let captured = effects.clone();
+    engine.register("effect", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let script = engine.compile("require(:deep)").unwrap();
+    for (prefix, suffix) in [
+        ("(", ")"),
+        ("[", "]"),
+        ("{a:", "}"),
+        ("!", ""),
+        ("1 ** ", ""),
+        ("if true then ", " end"),
+        ("case 1; when 1; ", "; end"),
+        ("zero {", "}"),
+        ("zero do\n", "\nend"),
+        ("plain(", ")"),
+        ("C.new.take(options:", ")"),
+        ("C.new&.take(options:", ")"),
+        ("true ? ", " : 0"),
+        ("true ? 0 : ", ""),
+    ] {
+        files.write(
+            "deep.vibe",
+            &format!("effect();{}1{}", prefix.repeat(300), suffix.repeat(300)),
+        );
+        let mut options = CallOptions::default();
+        options.limits.steps = None;
+        assert_eq!(
+            script.run(options).unwrap_err().kind,
+            ErrorKind::Syntax,
+            "{prefix}"
+        );
+        assert_eq!(effects.load(Ordering::SeqCst), 0, "{prefix}");
+    }
+}
+
+#[test]
 fn require_permission_is_per_call_and_engine_modes_are_snapshotted() {
     let files = Files::new();
     files.write("answer.vibe", "effect();def value;42;end");

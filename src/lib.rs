@@ -18,6 +18,7 @@ mod bytecode;
 mod casing;
 mod code;
 mod collections;
+mod compilation;
 mod conversion;
 mod duration;
 mod enums;

@@ -8,6 +8,7 @@ pub(crate) mod modules;
 mod tokens;
 mod types;
 pub(crate) mod unicode;
+mod work;
 use lexer::{Lexeme, Part, Token, lex};
 use tokens::Tokens;
 
@@ -70,6 +71,17 @@ pub(crate) enum CallForm {
     Auto,
     Bare,
     Parenthesized,
+}
+enum Suffix {
+    Rescue,
+    Command,
+    Block(bool),
+    Call,
+    Scope,
+    Member(bool),
+    Index(u32),
+    Ternary(u32),
+    Binary(&'static str, u8, u32),
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Try {
@@ -242,11 +254,12 @@ pub(crate) struct Declarations {
     pub modules: Vec<modules::Module>,
 }
 
-pub(crate) fn parse(source: &str) -> Result<Declarations> {
+pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
     let mut p = Parser {
+        work,
         source,
         lex_depth: 0,
-        tokens: Tokens::new(lex(source)?),
+        tokens: Tokens::new(lex(source, work)?, work)?,
         pos: 0,
         depth: 0,
         groups: 0,
@@ -263,7 +276,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
     let mut enums = Vec::new();
     let mut modules = Vec::new();
     let mut top = Vec::new();
-    p.lines();
+    p.lines()?;
     while !matches!(p.token(), Token::Eof) {
         let offset = p.tokens[p.pos].offset as u32;
         if p.word("class") {
@@ -285,6 +298,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             if name.starts_with('@') {
                 return p.err("expected function name");
             }
+            work.charge(defs.len())?;
             if defs.iter().any(|d: &Definition| d.name == name) || name == "__main__" {
                 return p.err("duplicate or reserved function name");
             }
@@ -292,11 +306,11 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
             definition.private = private;
             defs.push(definition);
         } else if p.word("enum") {
-            p.line_breaks();
+            p.line_breaks()?;
             let name = p.enum_name()?;
             let mut members = Vec::new();
             let mut seen = HashSet::new();
-            p.lines();
+            p.lines()?;
             while !matches!(p.token(), Token::Eof)
                 && !matches!(p.token(), Token::Word(w) if w == "end")
             {
@@ -309,7 +323,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
                     return p.err("duplicate enum member");
                 }
                 members.push(member);
-                p.lines();
+                p.lines()?;
             }
             if members.is_empty() {
                 return p.err("enum must define at least one member");
@@ -319,7 +333,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
         } else {
             top.push(p.statement()?);
         }
-        p.lines();
+        p.lines()?;
     }
     defs.insert(
         0,
@@ -341,6 +355,7 @@ pub(crate) fn parse(source: &str) -> Result<Declarations> {
 }
 
 struct Parser<'a> {
+    work: &'a dyn crate::compilation::Work,
     source: &'a str,
     lex_depth: usize,
     tokens: Tokens,
@@ -358,13 +373,14 @@ struct Parser<'a> {
 }
 impl Parser<'_> {
     fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
+        self.work.charge(1)?;
         let mut params = Vec::new();
         let mut rest = false;
         let mut keywords = false;
         let mut keyword_rest = false;
         if parenthesized {
             self.groups += 1;
-            self.lines();
+            self.lines()?;
         }
         if (parenthesized && self.take_p(')'))
             || (!parenthesized && matches!(self.token(), Token::EndLine | Token::Op("->")))
@@ -377,11 +393,11 @@ impl Parser<'_> {
         loop {
             let mut kind = match self.token() {
                 Token::Op("*") => {
-                    self.bump();
+                    self.bump()?;
                     ParamKind::Rest
                 }
                 Token::Op("**") => {
-                    self.bump();
+                    self.bump()?;
                     ParamKind::KeywordRest
                 }
                 _ => ParamKind::Positional,
@@ -398,7 +414,7 @@ impl Parser<'_> {
             let mut ty = None;
             let default = if self.take_p(':') {
                 if parenthesized {
-                    self.line_breaks();
+                    self.line_breaks()?;
                 }
                 if !instance
                     && kind == ParamKind::Positional
@@ -411,7 +427,7 @@ impl Parser<'_> {
                     None
                 } else if !instance
                     && kind == ParamKind::Positional
-                    && self.keyword_default(parenthesized)
+                    && self.keyword_default(parenthesized)?
                 {
                     kind = ParamKind::Keyword;
                     Some(if parenthesized {
@@ -441,9 +457,9 @@ impl Parser<'_> {
                         if kind != ParamKind::Positional {
                             return self.err("capture parameters cannot have defaults");
                         }
-                        self.bump();
+                        self.bump()?;
                         if parenthesized {
-                            self.line_breaks();
+                            self.line_breaks()?;
                         }
                         Some(if parenthesized {
                             self.expr(0)?
@@ -455,12 +471,12 @@ impl Parser<'_> {
                     }
                 }
             } else if self.token() == &Token::Op("=") {
-                self.bump();
+                self.bump()?;
                 if kind != ParamKind::Positional {
                     return self.err("capture parameters cannot have defaults");
                 }
                 if parenthesized {
-                    self.lines();
+                    self.lines()?;
                 }
                 Some(if parenthesized {
                     self.expr(0)?
@@ -505,7 +521,7 @@ impl Parser<'_> {
                 ty,
             });
             if parenthesized {
-                self.lines();
+                self.lines()?;
                 if self.take_p(')') {
                     self.groups -= 1;
                     break;
@@ -515,7 +531,7 @@ impl Parser<'_> {
             }
             self.expect_p(',')?;
             if parenthesized {
-                self.lines();
+                self.lines()?;
             }
         }
         Ok(params)
@@ -524,14 +540,17 @@ impl Parser<'_> {
         &self.tokens[self.pos].token
     }
     fn err<T>(&self, message: &str) -> Result<T> {
+        self.work.charge(1)?;
         Err(Error::syntax(self.tokens[self.pos].offset, message))
     }
-    fn bump(&mut self) -> Token {
+    fn bump(&mut self) -> Result<Token> {
+        self.work
+            .bytes(self.tokens[self.pos].end - self.tokens[self.pos].offset)?;
         let t = self.token().clone();
         if !matches!(t, Token::Eof) {
             self.pos += 1;
         }
-        t
+        Ok(t)
     }
     fn word(&mut self, w: &str) -> bool {
         if matches!(self.token(),Token::Word(s) if s==w) {
@@ -542,6 +561,7 @@ impl Parser<'_> {
         }
     }
     fn expect_word(&mut self, w: &str) -> Result<()> {
+        self.work.charge(1)?;
         if self.word(w) {
             Ok(())
         } else {
@@ -557,27 +577,33 @@ impl Parser<'_> {
         }
     }
     fn expect_p(&mut self, c: char) -> Result<()> {
+        self.work.charge(1)?;
         if self.take_p(c) {
             Ok(())
         } else {
             self.err(&format!("expected {c}"))
         }
     }
-    fn lines(&mut self) {
+    fn lines(&mut self) -> Result<()> {
         while matches!(self.token(), Token::EndLine) {
+            self.work.charge(1)?;
             self.pos += 1;
         }
+        Ok(())
     }
-    fn line_breaks(&mut self) {
+    fn line_breaks(&mut self) -> Result<()> {
         while self.token() == &Token::EndLine
             && self.tokens[self.pos].line != self.tokens[self.pos].end_line
         {
+            self.work.charge(1)?;
             self.pos += 1;
         }
+        Ok(())
     }
     fn name(&mut self) -> Result<String> {
+        self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
-        if let Token::Word(w) = self.bump() {
+        if let Token::Word(w) = self.bump()? {
             if reserved(&w) {
                 return Err(Error::syntax(offset, "reserved name"));
             }
@@ -587,8 +613,9 @@ impl Parser<'_> {
         }
     }
     fn enum_name(&mut self) -> Result<String> {
+        self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset;
-        match self.bump() {
+        match self.bump()? {
             Token::Word(name) if !keyword(&name) && !name.starts_with('@') => Ok(name),
             _ => Err(Error::syntax(offset, "expected enum identifier")),
         }
@@ -598,6 +625,7 @@ impl Parser<'_> {
             || matches!(self.token(),Token::Word(s) if matches!(s.as_str(),"end"|"else"|"elsif"|"when"|"rescue"|"ensure"))
     }
     fn enter(&mut self) -> Result<()> {
+        self.work.charge(1)?;
         self.depth += 1;
         if self.depth > MAX_DEPTH {
             self.err("syntax nesting too deep")
@@ -605,9 +633,10 @@ impl Parser<'_> {
             Ok(())
         }
     }
-    fn declare_target(&mut self, target: &Target) {
+    fn declare_target(&mut self, target: &Target) -> Result<()> {
+        self.work.charge(1)?;
         match target {
-            Target::Typed(target, _) => self.declare_target(target),
+            Target::Typed(target, _) => self.declare_target(target)?,
             Target::Value(Expr {
                 node: Node::Var(name),
                 ..
@@ -618,17 +647,19 @@ impl Parser<'_> {
             Target::Tuple(parts) => {
                 for (part, _) in parts {
                     if let Some(part) = part {
-                        self.declare_target(part);
+                        self.declare_target(part)?;
                     }
                 }
             }
             _ => (),
         }
+        Ok(())
     }
     fn block(&mut self, stop: &[&str]) -> Result<Vec<Stmt>> {
+        self.work.charge(1)?;
         self.enter()?;
         let mut body = Vec::new();
-        self.lines();
+        self.lines()?;
         while !matches!(self.token(),Token::Word(w) if stop.contains(&w.as_str()))
             && !(self.token() == &Token::P('}') && stop.contains(&"}"))
         {
@@ -636,16 +667,18 @@ impl Parser<'_> {
                 return self.err("unexpected end of source");
             }
             body.push(self.statement()?);
-            self.lines();
+            self.lines()?;
         }
         self.depth -= 1;
         Ok(body)
     }
     fn statement(&mut self) -> Result<Stmt> {
+        self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset as u32;
         Ok(self.modified_statement(offset)?.at(offset))
     }
     fn modified_statement(&mut self, offset: u32) -> Result<Statement> {
+        self.work.charge(1)?;
         let stmt = self.plain_statement()?;
         let modifier = match self.token() {
             Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until") => {
@@ -666,7 +699,7 @@ impl Parser<'_> {
             return self
                 .err("modifier requires an expression, assignment, or leaf control statement");
         }
-        self.bump();
+        self.bump()?;
         let mut condition = self.line_expr(0)?;
         if matches!(modifier.as_str(), "unless" | "until") {
             condition = self.negate(condition)?;
@@ -678,6 +711,7 @@ impl Parser<'_> {
         })
     }
     fn plain_statement(&mut self) -> Result<Statement> {
+        self.work.charge(1)?;
         if self.word("raise") {
             return self.raise_statement();
         }
@@ -715,78 +749,88 @@ impl Parser<'_> {
         }
         for flow in ["return", "break", "next"] {
             if self.word(flow) {
-                let modifier = matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
-                let value = if !modifier && self.starts_expression() {
-                    let first = self.line_expr(0)?;
-                    Some(if flow == "return" {
-                        self.return_values(first)?
-                    } else {
-                        first
-                    })
-                } else {
-                    None
-                };
-                return Ok(match flow {
-                    "return" => Statement::Return(value),
-                    "break" => Statement::Break(value),
-                    _ => Statement::Next(value),
-                });
+                return self.flow_statement(flow);
             }
         }
-        if self.assignment_ahead() {
-            let target = self.target(true, false)?;
-            self.lines();
-            let Token::Op(op) = self.bump() else {
-                return self.err("expected assignment operator");
-            };
-            if !assignment(op) {
-                return self.err("expected assignment operator");
-            }
-            if op != "=" && matches!(target, Target::Tuple(_)) {
-                return self.err("compound destructuring assignment is invalid");
-            }
-            self.lines();
-            let first = self.line_expr(0)?;
-            let rhs = if matches!(target, Target::Tuple(_)) && self.take_p(',') {
-                let mut items = vec![first];
-                loop {
-                    if self.at_end() || self.token() == &Token::EndLine {
-                        break;
-                    }
-                    items.push(self.line_expr(0)?);
-                    if !self.take_p(',') {
-                        break;
-                    }
-                }
-                let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
-                self.make(Node::Array(items), depth)?
-            } else {
-                first
-            };
-            self.declare_target(&target);
-            return Ok(Statement::Assign(target, op, rhs));
+        if self.assignment_ahead()? {
+            return self.assignment_statement();
         }
         Ok(Statement::Expr(self.line_expr(0)?))
     }
+    fn flow_statement(&mut self, flow: &str) -> Result<Statement> {
+        let modifier = matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if" | "unless" | "while" | "until"));
+        let value = if !modifier && self.starts_expression() {
+            let first = self.line_expr(0)?;
+            Some(if flow == "return" {
+                self.return_values(first)?
+            } else {
+                first
+            })
+        } else {
+            None
+        };
+        Ok(match flow {
+            "return" => Statement::Return(value),
+            "break" => Statement::Break(value),
+            _ => Statement::Next(value),
+        })
+    }
+    fn assignment_statement(&mut self) -> Result<Statement> {
+        let target = self.target(true, false)?;
+        self.lines()?;
+        let Token::Op(op) = self.bump()? else {
+            return self.err("expected assignment operator");
+        };
+        if !assignment(op) {
+            return self.err("expected assignment operator");
+        }
+        if op != "=" && matches!(target, Target::Tuple(_)) {
+            return self.err("compound destructuring assignment is invalid");
+        }
+        self.lines()?;
+        let first = self.line_expr(0)?;
+        let rhs = if matches!(target, Target::Tuple(_)) && self.take_p(',') {
+            let mut items = vec![first];
+            loop {
+                if self.at_end() || self.token() == &Token::EndLine {
+                    break;
+                }
+                items.push(self.line_expr(0)?);
+                if !self.take_p(',') {
+                    break;
+                }
+            }
+            let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
+            self.make(Node::Array(items), depth)?
+        } else {
+            first
+        };
+        self.declare_target(&target)?;
+        Ok(Statement::Assign(target, op, rhs))
+    }
     fn return_values(&mut self, first: Expr) -> Result<Expr> {
-        if self.token() != &Token::P(',') || self.tokens[self.pos].line != self.previous().line {
+        self.work.charge(1)?;
+        if self.token() != &Token::P(',') || self.tokens[self.pos].line != self.previous()?.line {
             return Ok(first);
         }
         let mut items = vec![first];
-        while self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous().line {
-            self.bump();
-            self.line_breaks();
+        while self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous()?.line
+        {
+            self.bump()?;
+            self.line_breaks()?;
             items.push(self.line_expr(0)?);
         }
         let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
         self.make(Node::Array(items), depth)
     }
     fn negate(&self, expr: Expr) -> Result<Expr> {
+        self.work.charge(1)?;
         let depth = expr.depth + 1;
         let offset = expr.offset;
         self.make_at(Node::Unary("!", Box::new(expr)), depth, offset)
     }
     fn while_stmt(&mut self, until: bool) -> Result<Statement> {
+        self.work.charge(1)?;
         let previous = self.loop_condition.replace(self.groups);
         let mut cond = self.line_expr(0)?;
         self.loop_condition = previous;
@@ -799,6 +843,7 @@ impl Parser<'_> {
         Ok(Statement::While(cond, body))
     }
     fn for_stmt(&mut self) -> Result<Statement> {
+        self.work.charge(1)?;
         let target = self.target(false, false)?;
         if !target.is_binding() {
             return self.err("invalid for loop target");
@@ -808,12 +853,13 @@ impl Parser<'_> {
         let iterable = self.line_expr(0)?;
         self.loop_condition = previous;
         self.word("do");
-        self.declare_target(&target);
+        self.declare_target(&target)?;
         let body = self.block(&["end"])?;
         self.expect_word("end")?;
         Ok(Statement::For(target, iterable, body))
     }
     fn target(&mut self, first_expression: bool, typed: bool) -> Result<Target> {
+        self.work.charge(1)?;
         self.enter()?;
         let mut parts = Vec::new();
         let mut tuple = false;
@@ -821,7 +867,7 @@ impl Parser<'_> {
         loop {
             let rest = self.token() == &Token::Op("*");
             if rest {
-                self.bump();
+                self.bump()?;
                 if has_rest {
                     return self.err("duplicate rest target");
                 }
@@ -843,9 +889,9 @@ impl Parser<'_> {
                     None
                 };
                 if let Some(close) = close {
-                    self.lines();
+                    self.lines()?;
                     let inner = self.target(false, typed)?;
-                    self.lines();
+                    self.lines()?;
                     self.expect_p(close)?;
                     Some(match inner {
                         Target::Tuple(_) => inner,
@@ -877,7 +923,7 @@ impl Parser<'_> {
                 break;
             }
             tuple = true;
-            self.lines();
+            self.lines()?;
         }
         self.depth -= 1;
         let target = if tuple {
@@ -890,16 +936,18 @@ impl Parser<'_> {
         }
         Ok(target)
     }
-    fn assignment_ahead(&self) -> bool {
+    fn assignment_ahead(&self) -> Result<bool> {
+        self.work.charge(1)?;
         let mut nesting = 0usize;
         let mut comma = false;
         let mut after_member_separator = false;
         for (i, lexeme) in self.tokens.from(self.pos).enumerate() {
+            self.work.charge(1)?;
             match &lexeme.token {
                 Token::P('(' | '[' | '{') => nesting += 1,
                 Token::P(')' | ']' | '}') => {
                     if nesting == 0 {
-                        return false;
+                        return Ok(false);
                     }
                     nesting -= 1;
                 }
@@ -910,31 +958,32 @@ impl Parser<'_> {
                         && self.tokens[self.pos + i - 2].token == Token::P('[')
                         && self.tokens[self.pos + i - 1].token == Token::P(']')
                         && self.tokens[self.pos + i - 1].end == lexeme.offset => {}
-                Token::Op(op) if nesting == 0 && assignment(op) => return true,
+                Token::Op(op) if nesting == 0 && assignment(op) => return Ok(true),
                 Token::EndLine if nesting == 0 => {
                     if lexeme.line == lexeme.end_line {
-                        return false;
+                        return Ok(false);
                     }
                     if after_member_separator {
                         continue;
                     }
-                    let next = self
-                        .tokens
-                        .from(self.pos + i + 1)
-                        .find(|l| !matches!(l.token, Token::EndLine));
+                    let next =
+                        self.tokens
+                            .find(self.pos + i + 1..self.tokens.len(), self.work, |l| {
+                                !matches!(l.token, Token::EndLine)
+                            })?;
                     if !comma
                         && !next.is_some_and(|l| {
                             matches!(l.token, Token::P('.') | Token::Op("&."))
                                 || matches!(l.token, Token::Op(op) if assignment(op))
                         })
                     {
-                        return false;
+                        return Ok(false);
                     }
                 }
                 Token::Word(w) if nesting == 0 && reserved(w) && !after_member_separator => {
-                    return false;
+                    return Ok(false);
                 }
-                Token::Eof => return false,
+                Token::Eof => return Ok(false),
                 _ => (),
             }
             if !matches!(lexeme.token, Token::EndLine) {
@@ -942,25 +991,26 @@ impl Parser<'_> {
                 after_member_separator = matches!(lexeme.token, Token::P('.') | Token::Op("&."));
             }
         }
-        false
+        Ok(false)
     }
     fn if_stmt(&mut self, unless: bool) -> Result<Statement> {
+        self.work.charge(1)?;
         self.enter()?;
         let mut cond = self.line_expr(0)?;
         if unless {
             cond = self.negate(cond)?;
         }
         self.word("then");
-        self.lines();
+        self.lines()?;
         let yes = self.block(&["else", "elsif", "end"])?;
         let no = if self.word("elsif") {
             if unless {
                 return self.err("unless does not support elsif");
             }
-            let offset = self.previous().offset as u32;
+            let offset = self.previous()?.offset as u32;
             vec![self.if_stmt(false)?.at(offset)]
         } else if self.word("else") {
-            self.lines();
+            self.lines()?;
             let no = self.block(&["end"])?;
             self.expect_word("end")?;
             no
@@ -972,24 +1022,25 @@ impl Parser<'_> {
         Ok(Statement::If(cond, yes, no))
     }
     fn if_expr(&mut self, unless: bool) -> Result<Expr> {
+        self.work.charge(1)?;
         self.enter()?;
         let mut cond = self.line_expr(0)?;
         if unless {
             cond = self.negate(cond)?;
         }
         self.word("then");
-        self.lines();
+        self.lines()?;
         let yes = self.expr(0)?;
-        self.lines();
+        self.lines()?;
         let no = if self.word("elsif") {
             if unless {
                 return self.err("unless does not support elsif");
             }
             self.if_expr(false)?
         } else if self.word("else") {
-            self.lines();
+            self.lines()?;
             let no = self.expr(0)?;
-            self.lines();
+            self.lines()?;
             self.expect_word("end")?;
             no
         } else {
@@ -1004,43 +1055,44 @@ impl Parser<'_> {
         )
     }
     fn case_expr(&mut self) -> Result<Expr> {
-        self.lines();
+        self.work.charge(1)?;
+        self.lines()?;
         let target = if matches!(self.token(), Token::Word(w) if w=="when") {
             None
         } else {
             Some(Box::new(self.line_expr(0)?))
         };
-        self.lines();
+        self.lines()?;
         let mut clauses = Vec::new();
         while self.word("when") {
             let mut values = Vec::new();
             loop {
                 let splat = self.token() == &Token::Op("*");
                 if splat {
-                    self.bump();
+                    self.bump()?;
                 }
                 values.push((self.line_expr(0)?, splat));
                 if !self.take_p(',') {
                     break;
                 }
-                self.lines();
+                self.lines()?;
             }
             self.word("then");
-            self.lines();
+            self.lines()?;
             let result = self.expr(0)?;
             clauses.push(When { values, result });
-            self.lines();
+            self.lines()?;
         }
         if clauses.is_empty() {
             return self.err("case requires a when clause");
         }
         let alternate = if self.word("else") {
-            self.lines();
+            self.lines()?;
             Some(Box::new(self.expr(0)?))
         } else {
             None
         };
-        self.lines();
+        self.lines()?;
         self.expect_word("end")?;
         let depth = 1 + target
             .as_ref()
@@ -1060,6 +1112,7 @@ impl Parser<'_> {
         self.make(Node::Case(target, clauses, alternate), depth)
     }
     fn make(&self, node: Node, depth: u32) -> Result<Expr> {
+        self.work.charge(1)?;
         if depth > MAX_DEPTH as u32 {
             self.err("expression nesting too deep")
         } else {
@@ -1071,11 +1124,13 @@ impl Parser<'_> {
         }
     }
     fn make_at(&self, node: Node, depth: u32, offset: u32) -> Result<Expr> {
+        self.work.charge(1)?;
         let mut expr = self.make(node, depth)?;
         expr.offset = offset;
         Ok(expr)
     }
     fn expr(&mut self, min: u8) -> Result<Expr> {
+        self.work.charge(1)?;
         self.enter()?;
         let lhs = self.prefix()?;
         let result = self.expr_tail(lhs, min);
@@ -1083,6 +1138,7 @@ impl Parser<'_> {
         result
     }
     fn line_expr(&mut self, min: u8) -> Result<Expr> {
+        self.work.charge(1)?;
         self.line_exprs += 1;
         let result = self.expr(min);
         self.line_exprs -= 1;
@@ -1090,6 +1146,7 @@ impl Parser<'_> {
     }
     // Keep the prefix and tail frames separate so debug builds reach the nesting guard.
     fn prefix(&mut self) -> Result<Expr> {
+        self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset as u32;
         let grouped = self.token() == &Token::P('(');
         let mut expr = self.prefix_node()?;
@@ -1099,8 +1156,9 @@ impl Parser<'_> {
         Ok(expr)
     }
     fn prefix_node(&mut self) -> Result<Expr> {
+        self.work.charge(1)?;
         let offset = self.tokens[self.pos].offset as u32;
-        match self.bump() {
+        match self.bump()? {
             Token::Int(n) => self.make(Node::Integer(n), 1),
             Token::BigInt(text, radix) => self.make(Node::BigInteger(text, radix), 1),
             Token::Float(n) => self.make(Node::Literal(Value::float(n)), 1),
@@ -1111,34 +1169,38 @@ impl Parser<'_> {
             Token::Invalid(error) => Err(Error::syntax(error.0, error.1)),
             Token::Word(w) => self.word_expression(w, offset),
             Token::P(':') => self.symbol(),
-            Token::P('(') => {
-                self.groups += 1;
-                self.lines();
-                let e = self.expr(0)?;
-                self.lines();
-                self.expect_p(')')?;
-                self.groups -= 1;
-                Ok(e)
-            }
-            Token::P('[') => {
-                let a = self.arguments(']')?;
-                let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
-                self.make(Node::Array(a), d)
-            }
+            Token::P('(') => self.group_expression(),
+            Token::P('[') => self.array_expression(),
             Token::P('{') => self.hash_expr(),
-            Token::Op(op @ (".." | "...")) => {
-                if self.groups > 0 {
-                    self.lines();
-                }
-                let end = self.expr(8)?;
-                let depth = end.depth + 1;
-                self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)
-            }
+            Token::Op(op @ (".." | "...")) => self.open_range_expression(op),
             Token::Op(op @ ("-" | "+" | "!")) => self.unary_prefix(op),
             _ => Err(Error::syntax(offset as usize, "expected expression")),
         }
     }
+    fn group_expression(&mut self) -> Result<Expr> {
+        self.groups += 1;
+        self.lines()?;
+        let e = self.expr(0)?;
+        self.lines()?;
+        self.expect_p(')')?;
+        self.groups -= 1;
+        Ok(e)
+    }
+    fn array_expression(&mut self) -> Result<Expr> {
+        let a = self.arguments(']')?;
+        let d = 1 + a.iter().map(|e| e.depth).max().unwrap_or(0);
+        self.make(Node::Array(a), d)
+    }
+    fn open_range_expression(&mut self, op: &str) -> Result<Expr> {
+        if self.groups > 0 {
+            self.lines()?;
+        }
+        let end = self.expr(8)?;
+        let depth = end.depth + 1;
+        self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)
+    }
     fn word_expression(&mut self, w: String, offset: u32) -> Result<Expr> {
+        self.work.charge(1)?;
         match w.as_str() {
             "nil" => self.make(Node::Literal(Value::nil()), 1),
             "true" => self.make(Node::Literal(Value::boolean(true)), 1),
@@ -1146,40 +1208,43 @@ impl Parser<'_> {
             "if" | "unless" => self.if_expr(w == "unless"),
             "case" => self.case_expr(),
             "yield" => self.yield_expr(),
-            "begin" => {
-                let body = self.block(&["rescue", "else", "ensure", "end"])?;
-                let attempt = self.rescue_tail(body, false)?;
-                let depth = attempt.depth();
-                self.make(Node::Try(Box::new(attempt)), depth)
-            }
-            "while" | "until" | "for" => {
-                let stmt = if w == "for" {
-                    self.for_stmt()?
-                } else {
-                    self.while_stmt(w == "until")?
-                };
-                let stmt = stmt.at(offset);
-                let depth = stmt.depth();
-                self.make(Node::Loop(Box::new(stmt)), depth)
-            }
+            "begin" => self.begin_expression(),
+            "while" | "until" | "for" => self.loop_expression(&w, offset),
             _ if reserved(&w) => Err(Error::syntax(offset as usize, "expected expression")),
             _ => self.make(Node::Var(w), 1),
         }
     }
+    fn begin_expression(&mut self) -> Result<Expr> {
+        let body = self.block(&["rescue", "else", "ensure", "end"])?;
+        let attempt = self.rescue_tail(body, false)?;
+        let depth = attempt.depth();
+        self.make(Node::Try(Box::new(attempt)), depth)
+    }
+    fn loop_expression(&mut self, word: &str, offset: u32) -> Result<Expr> {
+        let stmt = if word == "for" {
+            self.for_stmt()?
+        } else {
+            self.while_stmt(word == "until")?
+        };
+        let stmt = stmt.at(offset);
+        let depth = stmt.depth();
+        self.make(Node::Loop(Box::new(stmt)), depth)
+    }
     fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
-        let value = if self.negative_literal(op) {
+        self.work.charge(1)?;
+        let value = if self.negative_literal(op)? {
             self.prefix()?
         } else {
-            self.line_breaks();
+            self.line_breaks()?;
             self.expr(13)?
         };
         let depth = value.depth + 1;
         self.make(Node::Unary(op, Box::new(value)), depth)
     }
-    fn negative_literal(&self, op: &str) -> bool {
+    fn negative_literal(&self, op: &str) -> Result<bool> {
         // An adjacent minus belongs to the numeric receiver; power keeps the
         // outer sign. Keep lookahead off the recursive prefix stack frame.
-        op == "-"
+        Ok(op == "-"
             && self.tokens[self.pos - 1].end == self.tokens[self.pos].offset
             && matches!(
                 self.token(),
@@ -1187,40 +1252,30 @@ impl Parser<'_> {
             )
             && !self
                 .tokens
-                .from(self.pos + 1)
-                .find(|next| next.token != Token::EndLine || next.line == next.end_line)
-                .is_some_and(|next| next.token == Token::Op("**"))
+                .find(self.pos + 1..self.tokens.len(), self.work, |next| {
+                    next.token != Token::EndLine || next.line == next.end_line
+                })?
+                .is_some_and(|next| next.token == Token::Op("**")))
     }
     fn hash_group(&mut self) -> Result<Expr> {
+        self.work.charge(1)?;
         self.groups += 1;
         let mut entries = Vec::new();
-        self.line_breaks();
+        self.line_breaks()?;
         if !self.take_p('}') {
             loop {
-                let offset = self.tokens[self.pos].offset as u32;
-                let (key, label) = match self.bump() {
-                    Token::Word(w) => (w.as_bytes().to_vec(), Some(w)),
-                    Token::Bytes(b) => (b, None),
-                    _ => return self.err("expected hash label"),
-                };
-                self.line_breaks();
-                self.expect_p(':')?;
-                self.line_breaks();
-                let value = if matches!(self.token(), Token::P(',' | '}') | Token::Eof) {
-                    let Some(name) = label else {
-                        return self.err("missing value for hash key");
-                    };
-                    self.make_at(Node::Var(name), 1, offset)?
-                } else {
-                    self.expr(0)?
+                let (key, shorthand) = self.hash_label()?;
+                let value = match shorthand {
+                    Some(value) => value,
+                    None => self.expr(0)?,
                 };
                 entries.push((key, value));
-                self.line_breaks();
+                self.line_breaks()?;
                 if self.take_p('}') {
                     break;
                 }
                 self.expect_p(',')?;
-                self.line_breaks();
+                self.line_breaks()?;
                 if self.take_p('}') {
                     break;
                 }
@@ -1231,7 +1286,30 @@ impl Parser<'_> {
         self.make(Node::Hash(entries), d)
     }
 
+    // Keep label temporaries off the recursive value stack.
+    fn hash_label(&mut self) -> Result<(Vec<u8>, Option<Expr>)> {
+        let offset = self.tokens[self.pos].offset as u32;
+        let (key, label) = match self.bump()? {
+            Token::Word(w) => (w.as_bytes().to_vec(), Some(w)),
+            Token::Bytes(b) => (b, None),
+            _ => return self.err("expected hash label"),
+        };
+        self.line_breaks()?;
+        self.expect_p(':')?;
+        self.line_breaks()?;
+        let shorthand = if matches!(self.token(), Token::P(',' | '}') | Token::Eof) {
+            let Some(name) = label else {
+                return self.err("missing value for hash key");
+            };
+            Some(self.make_at(Node::Var(name), 1, offset)?)
+        } else {
+            None
+        };
+        Ok((key, shorthand))
+    }
+
     fn words(&mut self, words: lexer::Words) -> Result<Expr> {
+        self.work.charge(1)?;
         let mut values = Vec::with_capacity(words.entries.len());
         for word in words.entries {
             values.push(self.template(word, words.symbol)?);
@@ -1241,8 +1319,9 @@ impl Parser<'_> {
     }
 
     fn template(&mut self, parts: Vec<Part>, symbol: bool) -> Result<Expr> {
+        self.work.charge(1)?;
         if !parts.iter().any(|part| matches!(part, Part::Expr(_))) {
-            let bytes = lexer::plain(parts);
+            let bytes = lexer::plain(parts, self.work)?;
             let value = if symbol {
                 Value::symbol(bytes)
             } else {
@@ -1262,7 +1341,9 @@ impl Parser<'_> {
     }
 
     fn interpolation(&mut self, mut tokens: Vec<Lexeme>) -> Result<Expr> {
+        self.work.charge(1)?;
         while tokens.len() >= 2 {
+            self.work.charge(1)?;
             let tail = &tokens[tokens.len() - 2];
             if tail.token != Token::EndLine || tail.line == tail.end_line {
                 break;
@@ -1270,9 +1351,10 @@ impl Parser<'_> {
             tokens.remove(tokens.len() - 2);
         }
         let mut parser = Parser {
+            work: self.work,
             source: self.source,
             lex_depth: self.lex_depth + 1,
-            tokens: Tokens::new(tokens),
+            tokens: Tokens::new(tokens, self.work)?,
             pos: 0,
             depth: self.depth,
             groups: 0,
@@ -1288,6 +1370,7 @@ impl Parser<'_> {
         while parser.token() == &Token::EndLine
             && parser.tokens[parser.pos].line != parser.tokens[parser.pos].end_line
         {
+            self.work.charge(1)?;
             parser.pos += 1;
         }
         let result = (|| {
@@ -1303,24 +1386,40 @@ impl Parser<'_> {
     }
 
     fn expand_modulo(&mut self) -> Result<()> {
+        self.work.charge(1)?;
         // A quoted index can extend past a tentative percent-literal delimiter.
         // Re-lex its suffix through the next intact token boundary.
         let limit = self.tokens.last().unwrap().offset;
-        let tokens = lexer::modulo(self.source, &self.tokens[self.pos], limit, self.lex_depth)?;
+        let tokens = lexer::modulo(
+            self.source,
+            &self.tokens[self.pos],
+            limit,
+            self.lex_depth,
+            self.work,
+        )?;
         self.replace_lexed(tokens, limit)
     }
 
     fn expand_regex(&mut self) -> Result<()> {
+        self.work.charge(1)?;
         let limit = self.tokens.last().unwrap().offset;
-        let tokens = lexer::regex(self.source, &self.tokens[self.pos], limit, self.lex_depth)?;
+        let tokens = lexer::regex(
+            self.source,
+            &self.tokens[self.pos],
+            limit,
+            self.lex_depth,
+            self.work,
+        )?;
         self.replace_lexed(tokens, limit)
     }
 
     fn replace_lexed(&mut self, mut tokens: Vec<Lexeme>, limit: usize) -> Result<()> {
+        self.work.charge(1)?;
         let mut cursor = tokens.pop().unwrap();
         let mut finish = self.pos + 1;
         loop {
             while self.tokens[finish].offset < cursor.offset {
+                self.work.charge(1)?;
                 finish += 1;
             }
             let end = self.tokens[finish - 1].end.max(self.tokens[finish].offset);
@@ -1334,28 +1433,30 @@ impl Parser<'_> {
                 limit,
                 self.lex_depth,
                 tokens.last(),
+                self.work,
             )?;
             cursor = suffix.pop().unwrap();
             tokens.extend(suffix);
         }
-        self.tokens.replace(self.pos..finish, tokens);
+        self.tokens.replace(self.pos..finish, tokens, self.work)?;
         Ok(())
     }
 
     fn symbol(&mut self) -> Result<Expr> {
+        self.work.charge(1)?;
         if !self.symbol_start(self.pos - 1) {
             return self.err("expected symbol");
         }
-        let bytes = match self.bump() {
+        let bytes = match self.bump()? {
             Token::Word(w) => w.into_bytes(),
             Token::Bytes(b) => b,
             Token::Op(op) => op.as_bytes().to_vec(),
             Token::P('[') => {
                 self.expect_p(']')?;
                 if self.token() == &Token::Op("=")
-                    && self.previous().end == self.tokens[self.pos].offset
+                    && self.previous()?.end == self.tokens[self.pos].offset
                 {
-                    self.bump();
+                    self.bump()?;
                     b"[]=".to_vec()
                 } else {
                     b"[]".to_vec()
@@ -1366,6 +1467,7 @@ impl Parser<'_> {
         self.make(Node::Literal(Value::symbol(bytes)), 1)
     }
     fn parenthesized_call(&mut self, lhs: Expr, args: Vec<Argument>) -> Result<Expr> {
+        self.work.charge(1)?;
         let origin = lhs.offset;
         let argument_depth = args.iter().map(|a| a.value.depth).max().unwrap_or(0);
         let d = 1 + match &lhs.node {
@@ -1389,111 +1491,128 @@ impl Parser<'_> {
         self.make_at(node, d, origin)
     }
     fn expr_tail(&mut self, mut lhs: Expr, min: u8) -> Result<Expr> {
-        loop {
-            if let Some(next) = self.continuation_position(min) {
-                self.pos = next;
-            }
-            if min == 0
-                && (self.command_depth == 0 || self.groups > self.command_group)
-                && self.tokens[self.pos].line == self.previous().end_line
-                && self.word("rescue")
-            {
-                lhs = self.rescue_modifier(lhs)?;
-                continue;
-            }
-            let offset = self.tokens[self.pos].offset as u32;
-            if self.command_start(&lhs, min) {
-                lhs = self.command_expression(lhs)?;
-                continue;
-            }
-            let brace = self.token() == &Token::P('{');
-            let do_block =
-                matches!(self.token(), Token::Word(w) if w == "do") && self.can_attach_do();
-            if (brace || do_block)
-                && (do_block || self.tokens[self.pos].line == self.previous().end_line)
-            {
-                lhs = self.block_expression(lhs, brace)?;
-                continue;
-            }
-            if self.take_p('(') {
-                let args = self.call_arguments()?;
-                lhs = self.parenthesized_call(lhs, args)?;
-                continue;
-            }
-            if self.token() == &Token::Op("::") {
-                lhs = self.scoped_expression(lhs)?;
-                continue;
-            }
-            let safe = self.token() == &Token::Op("&.");
-            if safe || self.token() == &Token::P('.') {
-                lhs = self.member_expression(lhs, safe)?;
-                continue;
-            }
-            if self.take_p('[') {
-                let indexes = self.arguments(']')?;
-                if indexes.is_empty() {
-                    return self.err("expected index");
+        self.work.charge(1)?;
+        while let Some(suffix) = self.expression_suffix(&lhs, min)? {
+            lhs = match suffix {
+                Suffix::Rescue => self.rescue_modifier(lhs),
+                Suffix::Command => self.command_expression(lhs),
+                Suffix::Block(brace) => self.block_expression(lhs, brace),
+                Suffix::Call => {
+                    let args = self.call_arguments()?;
+                    self.parenthesized_call(lhs, args)
                 }
-                let d = 1 + lhs
-                    .depth
-                    .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
-                lhs = self.make_at(Node::Index(Box::new(lhs), indexes), d, offset)?;
-                continue;
-            }
-            if min <= 2 && self.take_p('?') {
-                lhs = self.ternary_expression(lhs, offset)?;
-                continue;
-            }
-            if matches!(self.token(), Token::Words(words) if words.ambiguous) {
-                self.expand_modulo()?;
-            }
-            let Token::Op(op) = self.token() else {
-                break;
-            };
-            let op = *op;
-            let Some((left, right)) = binding_power(op) else {
-                break;
-            };
-            if left < min {
-                break;
-            }
-            self.bump();
-            if matches!(op, ".." | "...") {
-                if self.groups > 0 {
-                    self.lines();
-                }
-                let end = if self.starts_expression() {
-                    Some(Box::new(self.expr(right)?))
-                } else {
-                    None
-                };
-                let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
-                lhs = self.make_at(
-                    Node::Range(Some(Box::new(lhs)), end, op == "..."),
-                    depth,
-                    offset,
-                )?;
-                continue;
-            }
-            self.line_breaks();
-            let rhs = self.expr(right)?;
-            let depth = 1 + lhs.depth.max(rhs.depth);
-            lhs = self.make_at(
-                Node::Binary(op, Box::new(lhs), Box::new(rhs)),
-                depth,
-                offset,
-            )?;
+                Suffix::Scope => self.scoped_expression(lhs),
+                Suffix::Member(safe) => self.member_expression(lhs, safe),
+                Suffix::Index(offset) => self.index_expression(lhs, offset),
+                Suffix::Ternary(offset) => self.ternary_expression(lhs, offset),
+                Suffix::Binary(op, right, offset) => self.binary_expression(lhs, op, right, offset),
+            }?;
         }
         Ok(lhs)
     }
+    // Finish lookahead before entering another recursive expression frame.
+    fn expression_suffix(&mut self, lhs: &Expr, min: u8) -> Result<Option<Suffix>> {
+        if let Some(next) = self.continuation_position(min)? {
+            self.pos = next;
+        }
+        if min == 0
+            && (self.command_depth == 0 || self.groups > self.command_group)
+            && self.tokens[self.pos].line == self.previous()?.end_line
+            && self.word("rescue")
+        {
+            return Ok(Some(Suffix::Rescue));
+        }
+        let offset = self.tokens[self.pos].offset as u32;
+        if self.command_start(lhs, min)? {
+            return Ok(Some(Suffix::Command));
+        }
+        let brace = self.token() == &Token::P('{');
+        let do_block = matches!(self.token(), Token::Word(w) if w == "do") && self.can_attach_do();
+        if (brace || do_block)
+            && (do_block || self.tokens[self.pos].line == self.previous()?.end_line)
+        {
+            return Ok(Some(Suffix::Block(brace)));
+        }
+        if self.take_p('(') {
+            return Ok(Some(Suffix::Call));
+        }
+        if self.token() == &Token::Op("::") {
+            return Ok(Some(Suffix::Scope));
+        }
+        let safe = self.token() == &Token::Op("&.");
+        if safe || self.token() == &Token::P('.') {
+            return Ok(Some(Suffix::Member(safe)));
+        }
+        if self.take_p('[') {
+            return Ok(Some(Suffix::Index(offset)));
+        }
+        if min <= 2 && self.take_p('?') {
+            return Ok(Some(Suffix::Ternary(offset)));
+        }
+        if matches!(self.token(), Token::Words(words) if words.ambiguous) {
+            self.expand_modulo()?;
+        }
+        let Token::Op(op) = self.token() else {
+            return Ok(None);
+        };
+        let op = *op;
+        let Some((left, right)) = binding_power(op) else {
+            return Ok(None);
+        };
+        Ok((left >= min).then_some(Suffix::Binary(op, right, offset)))
+    }
+    fn index_expression(&mut self, lhs: Expr, offset: u32) -> Result<Expr> {
+        let indexes = self.arguments(']')?;
+        if indexes.is_empty() {
+            return self.err("expected index");
+        }
+        let d = 1 + lhs
+            .depth
+            .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
+        self.make_at(Node::Index(Box::new(lhs), indexes), d, offset)
+    }
+    fn binary_expression(
+        &mut self,
+        lhs: Expr,
+        op: &'static str,
+        right: u8,
+        offset: u32,
+    ) -> Result<Expr> {
+        self.bump()?;
+        if matches!(op, ".." | "...") {
+            if self.groups > 0 {
+                self.lines()?;
+            }
+            let end = if self.starts_expression() {
+                Some(Box::new(self.expr(right)?))
+            } else {
+                None
+            };
+            let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
+            return self.make_at(
+                Node::Range(Some(Box::new(lhs)), end, op == "..."),
+                depth,
+                offset,
+            );
+        }
+        self.line_breaks()?;
+        let rhs = self.expr(right)?;
+        let depth = 1 + lhs.depth.max(rhs.depth);
+        self.make_at(
+            Node::Binary(op, Box::new(lhs), Box::new(rhs)),
+            depth,
+            offset,
+        )
+    }
     // Keep branch-specific temporaries off recursive expression frames.
     fn ternary_expression(&mut self, condition: Expr, offset: u32) -> Result<Expr> {
-        self.lines();
+        self.work.charge(1)?;
+        self.lines()?;
         self.ternaries.push(self.groups);
         let yes = self.expr(0)?;
         self.ternaries.pop();
         self.expect_p(':')?;
-        self.lines();
+        self.lines()?;
         let no = self.expr(2)?;
         let depth = 1 + condition.depth.max(yes.depth).max(no.depth);
         self.make_at(
@@ -1503,6 +1622,7 @@ impl Parser<'_> {
         )
     }
     fn command_expression(&mut self, lhs: Expr) -> Result<Expr> {
+        self.work.charge(1)?;
         self.command_depth += 1;
         if self.command_depth > 64 {
             return self.err("parenless call nesting too deep");
@@ -1528,6 +1648,7 @@ impl Parser<'_> {
         self.make_at(node, depth, lhs.offset)
     }
     fn block_expression(&mut self, mut lhs: Expr, brace: bool) -> Result<Expr> {
+        self.work.charge(1)?;
         let offset = lhs.offset;
         let block = self.attached_block(brace)?;
         if let Node::BlockCall(call, _) = lhs.node {
@@ -1539,11 +1660,12 @@ impl Parser<'_> {
         self.make_at(Node::BlockCall(Box::new(lhs), block), depth, offset)
     }
     fn scoped_expression(&mut self, lhs: Expr) -> Result<Expr> {
+        self.work.charge(1)?;
         let offset = lhs.offset;
-        self.bump();
-        self.line_breaks();
+        self.bump()?;
+        self.line_breaks()?;
         let name_offset = self.tokens[self.pos].offset;
-        let Token::Word(name) = self.bump() else {
+        let Token::Word(name) = self.bump()? else {
             return Err(Error::syntax(name_offset, "expected scoped member name"));
         };
         if name.starts_with('@') || (keyword(&name) && name != "enum") {
@@ -1560,11 +1682,12 @@ impl Parser<'_> {
         self.make_at(Node::Scope(Box::new(lhs), name, args), depth, offset)
     }
     fn member_expression(&mut self, lhs: Expr, safe: bool) -> Result<Expr> {
+        self.work.charge(1)?;
         let offset = lhs.offset;
-        self.bump();
-        self.line_breaks();
+        self.bump()?;
+        self.line_breaks()?;
         let name_offset = self.tokens[self.pos].offset;
-        let name = match self.bump() {
+        let name = match self.bump()? {
             Token::Word(name) if !name.starts_with('@') => name,
             Token::Op("<=>") => "<=>".to_owned(),
             _ => return Err(Error::syntax(name_offset, "expected member name")),
@@ -1586,75 +1709,25 @@ impl Parser<'_> {
             self.make_at(member(Box::new(lhs), name), depth, offset)
         }
     }
-    fn previous(&self) -> &Lexeme {
-        self.tokens
-            .range(0..self.pos)
-            .rev()
-            .find(|t| t.token != Token::EndLine)
-            .unwrap()
+    fn previous(&self) -> Result<&Lexeme> {
+        Ok(self
+            .tokens
+            .find((0..self.pos).rev(), self.work, |t| {
+                t.token != Token::EndLine
+            })?
+            .unwrap())
     }
     fn attached_block(&mut self, brace: bool) -> Result<Block> {
-        self.bump();
-        self.lines();
+        self.work.charge(1)?;
+        self.bump()?;
+        self.lines()?;
+        for name in &self.locals {
+            self.work.bytes(name.len())?;
+        }
         let outer = self.locals.clone();
         let outer_it = self.declared_it;
         let infer_it = !outer_it;
-        let mut params = Vec::new();
-        let explicit = if self.token() == &Token::Op("||") {
-            self.bump();
-            true
-        } else if self.take_p('|') {
-            self.lines();
-            if !self.take_p('|') {
-                loop {
-                    let target = if self.take_p('(') {
-                        let target = self.target(false, true)?;
-                        self.lines();
-                        self.expect_p(')')?;
-                        match target {
-                            Target::Tuple(_) => target,
-                            _ => Target::Tuple(vec![(Some(target), false)]),
-                        }
-                    } else if self.take_p('[') {
-                        let target = self.target(false, true)?;
-                        self.lines();
-                        self.expect_p(']')?;
-                        match target {
-                            Target::Tuple(_) => target,
-                            _ => Target::Tuple(vec![(Some(target), false)]),
-                        }
-                    } else {
-                        let name = self.name()?;
-                        let target = Target::Value(self.make(Node::Var(name), 1)?);
-                        if self.take_p(':') {
-                            Target::Typed(Box::new(target), self.type_expr(0, true)?)
-                        } else {
-                            target
-                        }
-                    };
-                    if !target.is_binding() {
-                        return self.err("invalid block parameter");
-                    }
-                    self.declare_target(&target);
-                    params.push(target);
-                    self.lines();
-                    if self.take_p('|') {
-                        break;
-                    }
-                    self.expect_p(',')?;
-                    self.lines();
-                }
-            }
-            true
-        } else {
-            false
-        };
-        if !explicit {
-            self.locals.insert("it".into());
-            for n in 1..=9 {
-                self.locals.insert(format!("_{n}"));
-            }
-        }
+        let (params, explicit) = self.block_parameters()?;
         let previous_loop = self.loop_condition.take();
         let command_depth = std::mem::replace(&mut self.command_depth, 0);
         let body = self.block(if brace { &["}"] } else { &["end"] })?;
@@ -1674,16 +1747,78 @@ impl Parser<'_> {
             infer_it,
         })
     }
+    // Parameter temporaries must be gone before the block body recurses.
+    fn block_parameters(&mut self) -> Result<(Vec<Target>, bool)> {
+        let mut params = Vec::new();
+        let explicit = if self.token() == &Token::Op("||") {
+            self.bump()?;
+            true
+        } else if self.take_p('|') {
+            self.lines()?;
+            if !self.take_p('|') {
+                loop {
+                    let target = if self.take_p('(') {
+                        let target = self.target(false, true)?;
+                        self.lines()?;
+                        self.expect_p(')')?;
+                        match target {
+                            Target::Tuple(_) => target,
+                            _ => Target::Tuple(vec![(Some(target), false)]),
+                        }
+                    } else if self.take_p('[') {
+                        let target = self.target(false, true)?;
+                        self.lines()?;
+                        self.expect_p(']')?;
+                        match target {
+                            Target::Tuple(_) => target,
+                            _ => Target::Tuple(vec![(Some(target), false)]),
+                        }
+                    } else {
+                        let name = self.name()?;
+                        let target = Target::Value(self.make(Node::Var(name), 1)?);
+                        if self.take_p(':') {
+                            Target::Typed(Box::new(target), self.type_expr(0, true)?)
+                        } else {
+                            target
+                        }
+                    };
+                    if !target.is_binding() {
+                        return self.err("invalid block parameter");
+                    }
+                    self.declare_target(&target)?;
+                    params.push(target);
+                    self.lines()?;
+                    if self.take_p('|') {
+                        break;
+                    }
+                    self.expect_p(',')?;
+                    self.lines()?;
+                }
+            }
+            true
+        } else {
+            false
+        };
+        if !explicit {
+            self.locals.insert("it".into());
+            for n in 1..=9 {
+                self.locals.insert(format!("_{n}"));
+            }
+        }
+        Ok((params, explicit))
+    }
     fn can_attach_do(&self) -> bool {
         (self.command_depth == 0 || self.groups > self.command_group)
             && self.loop_condition.is_none_or(|group| self.groups > group)
     }
     fn yield_expr(&mut self) -> Result<Expr> {
-        let line = self.previous().line;
+        self.work.charge(1)?;
+        let line = self.previous()?.line;
         let mut next = self.pos;
         while self.tokens[next].token == Token::EndLine
             && self.tokens[next].line != self.tokens[next].end_line
         {
+            self.work.charge(1)?;
             next += 1;
         }
         if self.tokens[next].token == Token::P('(') {
@@ -1699,7 +1834,7 @@ impl Parser<'_> {
                     && self.tokens[self.pos].line == line
                     && self.tokens[self.pos + 1].line == line
                 {
-                    self.bump();
+                    self.bump()?;
                     args.push(self.line_expr(0)?);
                 }
             }
@@ -1708,14 +1843,15 @@ impl Parser<'_> {
         let depth = 1 + args.iter().map(|arg| arg.depth).max().unwrap_or(0);
         self.make(Node::Yield(args), depth)
     }
-    fn continuation_position(&self, min: u8) -> Option<usize> {
+    fn continuation_position(&self, min: u8) -> Result<Option<usize>> {
         if self.token() != &Token::EndLine {
-            return None;
+            return Ok(None);
         }
         let mut next = self.pos;
         while self.tokens[next].token == Token::EndLine {
+            self.work.charge(1)?;
             if self.tokens[next].line == self.tokens[next].end_line {
-                return None;
+                return Ok(None);
             }
             next += 1;
         }
@@ -1726,35 +1862,39 @@ impl Parser<'_> {
             Token::P('?') => min <= 2,
             Token::P('(' | '[') => self.line_exprs == 0 && self.groups > 0,
             Token::Op(op) => {
-                let (left, _) = binding_power(op)?;
+                let Some((left, _)) = binding_power(op) else {
+                    return Ok(None);
+                };
                 if left < min {
-                    return None;
+                    return Ok(None);
                 }
                 if self.line_exprs == 0 {
                     if op == "/" {
-                        return None;
+                        return Ok(None);
                     }
-                    return (self.groups > 0).then_some(next);
+                    return Ok((self.groups > 0).then_some(next));
                 }
                 match op {
                     "+" | "-" => self
                         .tokens
-                        .from(next + 1)
-                        .find(|t| t.token != Token::EndLine || t.line == t.end_line)
+                        .find(next + 1..self.tokens.len(), self.work, |t| {
+                            t.token != Token::EndLine || t.line == t.end_line
+                        })?
                         .is_some_and(|operand| {
                             !matches!(operand.token, Token::Eof | Token::EndLine)
                                 && (operand.line > lexeme.end_line || operand.offset > lexeme.end)
                         }),
-                    "*" => !self.splat_assignment_ahead(next),
+                    "*" => !self.splat_assignment_ahead(next)?,
                     "/" => false,
                     _ => true,
                 }
             }
             _ => false,
         };
-        continues.then_some(next)
+        Ok(continues.then_some(next))
     }
-    fn splat_assignment_ahead(&self, start: usize) -> bool {
+    fn splat_assignment_ahead(&self, start: usize) -> Result<bool> {
+        self.work.charge(1)?;
         let mut groups = 0usize;
         let mut previous = &self.tokens[start];
         let operand = &self.tokens[start + 1];
@@ -1762,12 +1902,13 @@ impl Parser<'_> {
             || operand.offset == previous.end;
         let mut comma = false;
         for token in self.tokens.from(start + 1) {
+            self.work.charge(1)?;
             if token.line > self.tokens[start].line + 64 {
-                return false;
+                return Ok(false);
             }
             if token.token == Token::EndLine {
                 if token.line == token.end_line {
-                    return false;
+                    return Ok(false);
                 }
                 continue;
             }
@@ -1779,7 +1920,7 @@ impl Parser<'_> {
                         || (matches!(token.token, Token::P('.') | Token::Op("&."))
                             && matches!(previous.token, Token::Word(_) | Token::P(')' | ']')))))
             {
-                return false;
+                return Ok(false);
             }
             if groups == 0 && token.token != Token::Op("=") {
                 let allowed = if matches!(previous.token, Token::P('.') | Token::Op("&.")) {
@@ -1792,25 +1933,25 @@ impl Parser<'_> {
                     }
                 };
                 if !allowed {
-                    return false;
+                    return Ok(false);
                 }
             }
             match token.token {
                 Token::P('(' | '[') => groups += 1,
                 Token::P(')' | ']') => {
                     let Some(next) = groups.checked_sub(1) else {
-                        return false;
+                        return Ok(false);
                     };
                     groups = next;
                 }
-                Token::Op("=") if groups == 0 => return true,
+                Token::Op("=") if groups == 0 => return Ok(true),
                 Token::P(',') if groups == 0 => comma = true,
-                Token::Eof => return false,
+                Token::Eof => return Ok(false),
                 _ => (),
             }
             previous = token;
         }
-        false
+        Ok(false)
     }
     fn keyword_label(&self, pos: usize) -> bool {
         matches!(self.tokens[pos].token, Token::Word(_))
@@ -1819,7 +1960,8 @@ impl Parser<'_> {
                 .get(pos + 1)
                 .is_some_and(|t| t.token == Token::P(':'))
     }
-    fn command_start(&self, lhs: &Expr, min: u8) -> bool {
+    fn command_start(&self, lhs: &Expr, min: u8) -> Result<bool> {
+        self.work.charge(1)?;
         if self.line_exprs == 0
             || min > 14
             || !matches!(
@@ -1827,22 +1969,22 @@ impl Parser<'_> {
                 Node::Var(_) | Node::Member(..) | Node::SafeMember(..)
             )
         {
-            return false;
+            return Ok(false);
         }
         let local = match &lhs.node {
-            Node::Var(name) if name == "self" => return false,
+            Node::Var(name) if name == "self" => return Ok(false),
             Node::Var(name) => self.locals.contains(name),
             _ => false,
         };
-        let previous = self.previous();
+        let previous = self.previous()?;
         let next = &self.tokens[self.pos];
         if next.line != previous.end_line {
-            return false;
+            return Ok(false);
         }
         if self.keyword_label(self.pos) {
-            return true;
+            return Ok(true);
         }
-        match next.token {
+        Ok(match next.token {
             Token::P(':')
                 if self.ternaries.last() == Some(&self.groups)
                     && matches!(self.tokens[self.pos + 1].token, Token::Bytes(_)) =>
@@ -1872,7 +2014,7 @@ impl Parser<'_> {
                     })
             }
             _ => self.command_argument_start(self.pos, false),
-        }
+        })
     }
     fn command_argument_start(&self, pos: usize, after_comma: bool) -> bool {
         if self.keyword_label(pos) {
@@ -1939,6 +2081,7 @@ impl Parser<'_> {
         })
     }
     fn command_arguments(&mut self) -> Result<Vec<Argument>> {
+        self.work.charge(1)?;
         let mut args = Vec::new();
         let mut keywords = false;
         loop {
@@ -1952,7 +2095,7 @@ impl Parser<'_> {
             }
             keywords |= keyword;
             args.push(argument);
-            let last = self.previous();
+            let last = self.previous()?;
             if self.token() != &Token::P(',')
                 || self.tokens[self.pos].line != last.line
                 || self.tokens[self.pos + 1].line != last.line
@@ -1960,26 +2103,27 @@ impl Parser<'_> {
             {
                 break;
             }
-            self.bump();
+            self.bump()?;
         }
         Ok(args)
     }
     fn arguments(&mut self, close: char) -> Result<Vec<Expr>> {
+        self.work.charge(1)?;
         self.groups += 1;
         let mut args = Vec::new();
-        self.lines();
+        self.lines()?;
         if self.take_p(close) {
             self.groups -= 1;
             return Ok(args);
         }
         loop {
             args.push(self.expr(0)?);
-            self.lines();
+            self.lines()?;
             if self.take_p(close) {
                 break;
             }
             self.expect_p(',')?;
-            self.lines();
+            self.lines()?;
             if self.take_p(close) {
                 break;
             }
@@ -1988,10 +2132,11 @@ impl Parser<'_> {
         Ok(args)
     }
     fn call_arguments(&mut self) -> Result<Vec<Argument>> {
+        self.work.charge(1)?;
         self.groups += 1;
         let mut args = Vec::new();
         let mut keywords = false;
-        self.line_breaks();
+        self.line_breaks()?;
         if self.take_p(')') {
             self.groups -= 1;
             return Ok(args);
@@ -2007,12 +2152,12 @@ impl Parser<'_> {
             }
             keywords |= keyword;
             args.push(argument);
-            self.line_breaks();
+            self.line_breaks()?;
             if self.take_p(')') {
                 break;
             }
             self.expect_p(',')?;
-            self.line_breaks();
+            self.line_breaks()?;
             if self.take_p(')') {
                 break;
             }
@@ -2021,9 +2166,10 @@ impl Parser<'_> {
         Ok(args)
     }
     fn call_argument(&mut self, parenthesized: bool) -> Result<Argument> {
-        let kind = self.argument_kind();
+        self.work.charge(1)?;
+        let kind = self.argument_kind()?;
         if parenthesized || matches!(kind, ArgumentKind::Splat | ArgumentKind::KeywordSplat) {
-            self.line_breaks();
+            self.line_breaks()?;
         }
         let value = match self.literal_argument(&kind, parenthesized)? {
             Some(value) => value,
@@ -2032,28 +2178,29 @@ impl Parser<'_> {
         Ok(Argument { kind, value })
     }
     // Keep lookahead temporaries out of the recursive argument frame.
-    fn argument_kind(&mut self) -> ArgumentKind {
-        if self.token() == &Token::Op("**") {
-            self.bump();
+    fn argument_kind(&mut self) -> Result<ArgumentKind> {
+        Ok(if self.token() == &Token::Op("**") {
+            self.bump()?;
             ArgumentKind::KeywordSplat
         } else if self.keyword_label(self.pos) {
-            let Token::Word(name) = self.bump() else {
+            let Token::Word(name) = self.bump()? else {
                 unreachable!()
             };
-            self.bump();
+            self.bump()?;
             ArgumentKind::Keyword(name)
         } else if self.token() == &Token::Op("*") {
-            self.bump();
+            self.bump()?;
             ArgumentKind::Splat
         } else {
             ArgumentKind::Positional
-        }
+        })
     }
     fn literal_argument(
         &mut self,
         kind: &ArgumentKind,
         parenthesized: bool,
     ) -> Result<Option<Expr>> {
+        self.work.charge(1)?;
         if let ArgumentKind::Keyword(name) = kind {
             let shorthand = self.token() == &Token::P(',')
                 || (parenthesized && self.token() == &Token::P(')'))

@@ -30,6 +30,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn definition(&mut self, name: String, offset: u32) -> Result<Definition> {
+        self.work.charge(1)?;
         self.definition_with_constants(name, false, offset)
     }
 
@@ -39,6 +40,7 @@ impl Parser<'_> {
         module: bool,
         offset: u32,
     ) -> Result<Definition> {
+        self.work.charge(1)?;
         let outer_locals = std::mem::take(&mut self.locals);
         if module {
             self.locals.extend(
@@ -51,14 +53,14 @@ impl Parser<'_> {
         let outer_it = std::mem::replace(&mut self.declared_it, false);
         let parenthesized = self.take_p('(');
         let params = self.parameters(parenthesized)?;
-        self.line_breaks();
+        self.line_breaks()?;
         let return_type = if self.token() == &Token::Op("->") {
-            self.bump();
+            self.bump()?;
             Some(self.type_expr(1, false)?)
         } else {
             None
         };
-        self.lines();
+        self.lines()?;
         let body = self.block(&["rescue", "else", "ensure", "end"])?;
         let body = if matches!(self.token(), Token::Word(w) if w != "end") {
             let attempt = self.rescue_tail(body, true)?;
@@ -89,6 +91,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn module(&mut self) -> Result<Module> {
+        self.work.charge(1)?;
         self.enter()?;
         let offset = self.tokens[self.pos].offset as u32;
         self.expect_word("module")?;
@@ -109,7 +112,7 @@ impl Parser<'_> {
             directives: HashSet::new(),
         };
         let mut visibility = Visibility::Public;
-        self.lines();
+        self.lines()?;
         while !matches!(self.token(), Token::Word(w) if w == "end") {
             if self.token() == &Token::Eof {
                 return self.err("unexpected end of module");
@@ -121,7 +124,7 @@ impl Parser<'_> {
                 return self.err("private visibility directives do not take parentheses");
             }
             if let Some((word, level)) = self.visibility() {
-                self.bump();
+                self.bump()?;
                 module.directives.insert(word);
                 if self.token() == &Token::P(':') {
                     loop {
@@ -139,16 +142,16 @@ impl Parser<'_> {
                         if !self.take_p(',') {
                             break;
                         }
-                        self.line_breaks();
+                        self.line_breaks()?;
                     }
-                    self.lines();
+                    self.lines()?;
                     continue;
                 }
                 if self.token() == &Token::EndLine
                     || matches!(self.token(), Token::Word(w) if w == "end")
                 {
                     visibility = level;
-                    self.lines();
+                    self.lines()?;
                     continue;
                 }
                 method_visibility = level;
@@ -156,7 +159,7 @@ impl Parser<'_> {
             if self.module_ahead() {
                 module.modules.push(self.module()?);
             } else if self.word("def") {
-                let offset = self.previous().offset as u32;
+                let offset = self.previous()?.offset as u32;
                 self.expect_word("self")?;
                 self.expect_p('.')?;
                 let mut name = self.name()?;
@@ -164,7 +167,7 @@ impl Parser<'_> {
                     return self.err("expected module method name");
                 }
                 if self.token() == &Token::Op("=") {
-                    self.bump();
+                    self.bump()?;
                     name.push('=');
                 }
                 let definition = self.definition_with_constants(name, true, offset)?;
@@ -175,7 +178,7 @@ impl Parser<'_> {
             } else {
                 module.body.push(self.statement()?);
             }
-            self.lines();
+            self.lines()?;
         }
         self.expect_word("end")?;
         self.locals = outer_locals;

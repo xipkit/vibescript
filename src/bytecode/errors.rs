@@ -22,12 +22,13 @@ pub(crate) struct RescueSpec {
 
 impl Compiler<'_> {
     pub(super) fn attempt(&mut self, attempt: &syntax::Try, target: bool) -> Result<()> {
+        self.work.charge(1)?;
         let index = self.program.handlers.len();
         self.program.handlers.push(TrySpec::default());
         self.emit(Op::TryBegin(index));
         let mut spec = TrySpec {
             body: self.code.len(),
-            body_locals: self.statement_bindings(&attempt.body),
+            body_locals: self.statement_bindings(&attempt.body)?,
             ..TrySpec::default()
         };
         self.attempt_block(&attempt.body, target)?;
@@ -49,7 +50,7 @@ impl Compiler<'_> {
                 slot
             });
             let locals = self
-                .statement_bindings(&clause.body)
+                .statement_bindings(&clause.body)?
                 .into_iter()
                 .filter(|slot| Some(*slot) != binding)
                 .collect();
@@ -75,7 +76,7 @@ impl Compiler<'_> {
                 empty: clause.body.is_empty(),
             });
         }
-        spec.alternate_locals = self.statement_bindings(&attempt.alternate);
+        spec.alternate_locals = self.statement_bindings(&attempt.alternate)?;
         if !attempt.alternate.is_empty() {
             spec.alternate = Some(self.code.len());
             self.block(&attempt.alternate)?;
@@ -93,6 +94,7 @@ impl Compiler<'_> {
     }
 
     fn attempt_block(&mut self, body: &[Stmt], target: bool) -> Result<()> {
+        self.work.charge(1)?;
         if target {
             let [
                 Stmt {
@@ -112,6 +114,7 @@ impl Compiler<'_> {
     }
 
     pub(super) fn raise(&mut self, value: Option<&Expr>, message: Option<&Expr>) -> Result<()> {
+        self.work.charge(1)?;
         if let Some(message) = message {
             let value = value.unwrap();
             let named = if let Node::Var(name) = &value.node {

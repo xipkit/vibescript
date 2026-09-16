@@ -370,33 +370,50 @@ pub(crate) struct Program {
     pub members: Vec<String>,
 }
 
-pub(crate) fn compile(source: &str, hosts: Vec<String>) -> Result<Program> {
-    compile_mode(source, hosts, false)
+pub(crate) fn compile(
+    source: &str,
+    hosts: Vec<String>,
+    work: &dyn crate::compilation::Work,
+) -> Result<Program> {
+    compile_mode(source, hosts, false, work)
 }
 
-pub(crate) fn compile_file(source: &str, hosts: Vec<String>) -> Result<Program> {
-    compile_mode(source, hosts, true)
+pub(crate) fn compile_file(
+    source: &str,
+    hosts: Vec<String>,
+    work: &dyn crate::compilation::Work,
+) -> Result<Program> {
+    compile_mode(source, hosts, true, work)
 }
 
-fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program> {
-    let parsed = syntax::parse(source)?;
+fn compile_mode(
+    source: &str,
+    hosts: Vec<String>,
+    file: bool,
+    work: &dyn crate::compilation::Work,
+) -> Result<Program> {
+    let parsed = syntax::parse(source, work)?;
     let mut defs = parsed.functions;
     let mut contexts = vec![(None, false, false); defs.len()];
-    let names: HashMap<_, _> = defs
-        .iter()
-        .enumerate()
-        .map(|(i, d)| (d.name.clone(), i))
-        .collect();
+    let mut names = HashMap::new();
+    for (i, definition) in defs.iter().enumerate() {
+        work.bytes(definition.name.len())?;
+        names.insert(definition.name.clone(), i);
+    }
     let mut declarations = Vec::new();
     let mut declaration_names = HashMap::new();
     for (name, members) in parsed.enums {
+        work.bytes(name.len())?;
+        for member in &members {
+            work.bytes(member.len())?;
+        }
         if declaration_names.contains_key(&name)
             || names.get(&name).is_some_and(|&index| index != 0)
         {
             return Err(syntax::unsupported("duplicate top-level declaration"));
         }
         declaration_names.insert(name.clone(), declarations.len());
-        declarations.push(crate::enums::compile(name, members)?);
+        declarations.push(crate::enums::compile(name, members, work)?);
     }
     let enum_definitions = declarations
         .iter()
@@ -409,7 +426,7 @@ fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program>
         file,
         owner: std::sync::Weak::new(),
         handlers: Vec::new(),
-        source: crate::source::Source::new(source),
+        source: crate::source::Source::compile(source, work)?,
         namespaces: Vec::new(),
         type_guards: Vec::new(),
         types: Vec::new(),
@@ -424,11 +441,13 @@ fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program>
         members: Vec::new(),
     };
     for module in parsed.modules {
-        program.register_module(module, "", &mut defs, &mut contexts)?;
+        program.register_module(module, "", &mut defs, &mut contexts, work)?;
     }
     program.functions = (0..defs.len()).map(|_| Function::default()).collect();
     for (index, def) in defs.into_iter().enumerate() {
+        work.bytes(def.name.len())?;
         let mut c = Compiler {
+            work,
             namespace: contexts[index].0,
             instance: contexts[index].2,
             program: &mut program,
@@ -450,10 +469,11 @@ fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program>
         let plain = !binds_parameters && def.params.iter().all(|p| p.kind == ParamKind::Positional);
         let mut params = Vec::new();
         for (i, param) in def.params.iter().enumerate() {
-            let ty = param.ty.as_ref().map(|ty| c.annotation(ty));
+            work.bytes(param.name.len())?;
+            let ty = param.ty.as_ref().map(|ty| c.annotation(ty)).transpose()?;
             let bind = binds_parameters.then(|| c.emit(Op::Bind(i, 0)));
             if let Some(value) = &param.default {
-                c.declare_expr(value);
+                c.declare_expr(value)?;
                 c.expr(value)?;
                 if let Some(ty) = ty {
                     let label = c.program.constants.len();
@@ -489,10 +509,14 @@ fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program>
         if binds_parameters {
             c.emit(Op::BindEnd);
         }
-        c.declare(&def.body);
+        c.declare(&def.body)?;
         c.block(&def.body)?;
         c.emit(Op::Finish);
-        let return_type = def.return_type.as_ref().map(|ty| c.annotation(ty));
+        let return_type = def
+            .return_type
+            .as_ref()
+            .map(|ty| c.annotation(ty))
+            .transpose()?;
         debug_assert_eq!(c.code.len(), c.locations.len());
         let function = Function {
             offset: def.offset,
@@ -508,7 +532,7 @@ fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program>
             binds_parameters,
             plain,
             locals: c.slots,
-            local_names: local_names(&c.locals, c.slots),
+            local_names: local_names(&c.locals, c.slots, work)?,
             code: c.code,
             captures: Vec::new(),
             block_arity: 0,
@@ -516,15 +540,22 @@ fn compile_mode(source: &str, hosts: Vec<String>, file: bool) -> Result<Program>
         };
         program.functions[index] = function;
     }
+    work.checkpoint()?;
     Ok(program)
 }
 
-fn local_names(locals: &HashMap<String, usize>, slots: usize) -> Vec<String> {
+fn local_names(
+    locals: &HashMap<String, usize>,
+    slots: usize,
+    work: &dyn crate::compilation::Work,
+) -> Result<Vec<String>> {
+    work.charge(slots)?;
     let mut names = vec![String::new(); slots];
     for (name, &index) in locals {
+        work.bytes(name.len())?;
         names[index] = name.clone();
     }
-    names
+    Ok(names)
 }
 
 fn expanded(args: &[Argument]) -> bool {
@@ -533,6 +564,7 @@ fn expanded(args: &[Argument]) -> bool {
 }
 
 struct Compiler<'a> {
+    work: &'a dyn crate::compilation::Work,
     instance: bool,
     namespace: Option<usize>,
     program: &'a mut Program,
@@ -562,80 +594,86 @@ impl Compiler<'_> {
             self.slot(name);
         }
     }
-    fn declare(&mut self, body: &[Stmt]) {
+    fn declare(&mut self, body: &[Stmt]) -> Result<()> {
+        self.work.charge(1)?;
         for stmt in body {
+            self.work.charge(1)?;
             match &stmt.node {
                 Statement::Raise(value, message) => {
                     for value in value.iter().chain(message) {
-                        self.declare_expr(value);
+                        self.declare_expr(value)?;
                     }
                 }
                 Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => (),
-                Statement::Expr(e) => self.declare_expr(e),
+                Statement::Expr(e) => self.declare_expr(e)?,
                 Statement::Assign(target, _, value) => {
-                    self.declare_target(target);
-                    self.declare_expr(value);
+                    self.declare_target(target)?;
+                    self.declare_expr(value)?;
                 }
                 Statement::If(cond, yes, no) => {
-                    self.declare_expr(cond);
-                    self.declare(yes);
-                    self.declare(no);
+                    self.declare_expr(cond)?;
+                    self.declare(yes)?;
+                    self.declare(no)?;
                 }
                 Statement::While(cond, body) => {
-                    self.declare_expr(cond);
-                    self.declare(body);
+                    self.declare_expr(cond)?;
+                    self.declare(body)?;
                 }
                 Statement::For(target, iterable, body) => {
-                    self.declare_target(target);
-                    self.declare_expr(iterable);
-                    self.declare(body);
+                    self.declare_target(target)?;
+                    self.declare_expr(iterable)?;
+                    self.declare(body)?;
                 }
                 Statement::Return(e) | Statement::Break(e) | Statement::Next(e) => {
                     if let Some(e) = e {
-                        self.declare_expr(e);
+                        self.declare_expr(e)?;
                     }
                 }
             }
         }
+        Ok(())
     }
-    fn declare_target(&mut self, target: &Target) {
+    fn declare_target(&mut self, target: &Target) -> Result<()> {
+        self.work.charge(1)?;
         match target {
-            Target::Typed(target, _) => self.declare_target(target),
+            Target::Typed(target, _) => self.declare_target(target)?,
             Target::Value(Expr {
                 node: Node::Var(name),
                 ..
             }) => {
                 if !self.namespace_binding(name)
-                    && (!self.outer.is_empty() || self.global_binding(name).is_none())
+                    && (!self.outer.is_empty() || self.global_binding(name)?.is_none())
                 {
                     self.slot(name);
                 }
                 self.assigned.insert(name.clone());
             }
-            Target::Value(e) => self.declare_expr(e),
+            Target::Value(e) => self.declare_expr(e)?,
             Target::Tuple(parts) => {
                 for (part, _) in parts {
                     if let Some(part) = part {
-                        self.declare_target(part);
+                        self.declare_target(part)?;
                     }
                 }
             }
         }
+        Ok(())
     }
-    fn declare_expr(&mut self, e: &Expr) {
+    fn declare_expr(&mut self, e: &Expr) -> Result<()> {
+        self.work.charge(1)?;
         match &e.node {
             Node::Try(attempt) => {
-                self.declare(&attempt.body);
+                self.declare(&attempt.body)?;
                 for rescue in &attempt.rescues {
-                    self.declare(&rescue.body);
+                    self.declare(&rescue.body)?;
                 }
-                self.declare(&attempt.alternate);
-                self.declare(&attempt.ensure);
+                self.declare(&attempt.alternate)?;
+                self.declare(&attempt.ensure)?;
             }
             Node::Regex(..) => (),
             Node::Shape(_, fallback, _) => {
                 if let Some(fallback) = fallback {
-                    self.declare_expr(fallback);
+                    self.declare_expr(fallback)?;
                 }
             }
             Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) => (),
@@ -645,7 +683,7 @@ impl Compiler<'_> {
             }
             Node::Array(values) | Node::Yield(values) | Node::Template(values, _) => {
                 for value in values {
-                    self.declare_expr(value);
+                    self.declare_expr(value)?;
                 }
             }
             Node::Call(name, args, _) => {
@@ -654,71 +692,72 @@ impl Compiler<'_> {
                 }
                 self.capture_name(name);
                 for arg in args {
-                    self.declare_expr(&arg.value);
+                    self.declare_expr(&arg.value)?;
                 }
             }
-            Node::BlockCall(call, _) => self.declare_expr(call),
+            Node::BlockCall(call, _) => self.declare_expr(call)?,
             Node::Hash(entries) => {
                 for (_, value) in entries {
-                    self.declare_expr(value);
+                    self.declare_expr(value)?;
                 }
             }
             Node::Unary(_, value) | Node::Member(value, _) | Node::SafeMember(value, _) => {
-                self.declare_expr(value)
+                self.declare_expr(value)?
             }
             Node::Binary(_, a, b) => {
-                self.declare_expr(a);
-                self.declare_expr(b);
+                self.declare_expr(a)?;
+                self.declare_expr(b)?;
             }
             Node::Range(a, b, _) => {
                 if let Some(e) = a {
-                    self.declare_expr(e);
+                    self.declare_expr(e)?;
                 }
                 if let Some(e) = b {
-                    self.declare_expr(e);
+                    self.declare_expr(e)?;
                 }
             }
             Node::Conditional(a, b, c) => {
-                self.declare_expr(a);
-                self.declare_expr(b);
-                self.declare_expr(c);
+                self.declare_expr(a)?;
+                self.declare_expr(b)?;
+                self.declare_expr(c)?;
             }
             Node::Case(target, clauses, alternate) => {
                 if let Some(e) = target {
-                    self.declare_expr(e);
+                    self.declare_expr(e)?;
                 }
                 for clause in clauses {
                     for (e, _) in &clause.values {
-                        self.declare_expr(e);
+                        self.declare_expr(e)?;
                     }
-                    self.declare_expr(&clause.result);
+                    self.declare_expr(&clause.result)?;
                 }
                 if let Some(e) = alternate {
-                    self.declare_expr(e);
+                    self.declare_expr(e)?;
                 }
             }
-            Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref())),
+            Node::Loop(stmt) => self.declare(std::slice::from_ref(stmt.as_ref()))?,
             Node::Method(recv, _, args, _)
             | Node::SafeMethod(recv, _, args, _)
             | Node::ComputedCall(recv, args) => {
-                self.declare_expr(recv);
+                self.declare_expr(recv)?;
                 for arg in args {
-                    self.declare_expr(&arg.value);
+                    self.declare_expr(&arg.value)?;
                 }
             }
             Node::Scope(recv, _, args) => {
-                self.declare_expr(recv);
+                self.declare_expr(recv)?;
                 for arg in args.iter().flatten() {
-                    self.declare_expr(&arg.value);
+                    self.declare_expr(&arg.value)?;
                 }
             }
             Node::Index(recv, args) => {
-                self.declare_expr(recv);
+                self.declare_expr(recv)?;
                 for arg in args {
-                    self.declare_expr(arg);
+                    self.declare_expr(arg)?;
                 }
             }
         }
+        Ok(())
     }
     fn emit(&mut self, op: Op) -> usize {
         let pos = self.code.len();
@@ -758,6 +797,7 @@ impl Compiler<'_> {
         self.emit(Op::Integer(n, radix));
     }
     fn block(&mut self, body: &[Stmt]) -> Result<()> {
+        self.work.charge(1)?;
         if body.is_empty() {
             self.emit(Op::Nil);
         }
@@ -770,15 +810,17 @@ impl Compiler<'_> {
         Ok(())
     }
     fn stmt(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
+        self.work.charge(1)?;
         let previous = std::mem::replace(&mut self.offset, stmt.offset);
         let result = self.statement_at(stmt, expression);
         self.offset = previous;
         result
     }
     fn statement_at(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
+        self.work.charge(1)?;
         if let Statement::Assign(target, _, _) = &stmt.node {
             let mut names = Vec::new();
-            target_names(target, &mut names);
+            target_names(target, &mut names, self.work)?;
             for name in names {
                 if self.program.declaration_names.contains_key(name) {
                     continue;
@@ -795,18 +837,19 @@ impl Compiler<'_> {
                 Statement::If(..) | Statement::While(..) | Statement::For(..)
             )
         {
-            for slot in self.statement_bindings(std::slice::from_ref(stmt)) {
+            for slot in self.statement_bindings(std::slice::from_ref(stmt))? {
                 self.emit(Op::Declare(slot));
             }
         }
         Ok(())
     }
     fn assignment_rhs(&mut self, target: &Target, values: &[&Expr]) -> Result<()> {
+        self.work.charge(1)?;
         let mut names = Vec::new();
-        target_names(target, &mut names);
+        target_names(target, &mut names, self.work)?;
         let mut calls = HashSet::new();
         for value in values {
-            call_names(value, &mut calls);
+            call_names(value, &mut calls, self.work)?;
         }
         let mut seen = HashSet::new();
         let names: Vec<_> = names
@@ -826,35 +869,54 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn declaration_slot(&self, name: &str) -> Option<usize> {
-        if self.namespace_binding(name)
-            || self.program.declaration_names.contains_key(name)
-            || (Global::parse(name).is_some()
-                && !self.program.names.contains_key(name)
-                && !self.program.hosts.iter().any(|host| host == name))
-        {
-            None
-        } else {
-            self.locals.get(name).copied()
+    fn host_position(&self, name: &str) -> Result<Option<usize>> {
+        for (index, host) in self.program.hosts.iter().enumerate() {
+            self.work
+                .bytes(name.len().min(host.len()).saturating_add(1))?;
+            if host == name {
+                return Ok(Some(index));
+            }
         }
+        Ok(None)
     }
-    fn statement_bindings(&self, body: &[Stmt]) -> Vec<usize> {
+    fn declaration_slot(&self, name: &str) -> Result<Option<usize>> {
+        Ok(
+            if self.namespace_binding(name)
+                || self.program.declaration_names.contains_key(name)
+                || (Global::parse(name).is_some()
+                    && !self.program.names.contains_key(name)
+                    && self.host_position(name)?.is_none())
+            {
+                None
+            } else {
+                self.locals.get(name).copied()
+            },
+        )
+    }
+    fn statement_bindings(&self, body: &[Stmt]) -> Result<Vec<usize>> {
         let mut names = Vec::new();
-        statement_names(body, &mut names);
+        statement_names(body, &mut names, self.work)?;
         let mut seen = HashSet::new();
-        names
-            .into_iter()
-            .filter(|name| seen.insert(*name))
-            .filter_map(|name| self.declaration_slot(name))
-            .collect()
+        let mut slots = Vec::new();
+        for name in names {
+            self.work.bytes(name.len())?;
+            if seen.insert(name) {
+                if let Some(slot) = self.declaration_slot(name)? {
+                    slots.push(slot);
+                }
+            }
+        }
+        Ok(slots)
     }
     fn loop_body(&mut self, body: &[Stmt]) -> Result<()> {
-        self.loop_bindings.push(self.statement_bindings(body));
+        self.work.charge(1)?;
+        self.loop_bindings.push(self.statement_bindings(body)?);
         self.block(body)?;
         self.loop_bindings.pop();
         Ok(())
     }
     fn statement(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
+        self.work.charge(1)?;
         match &stmt.node {
             Statement::Raise(value, message) => self.raise(value.as_deref(), message.as_deref())?,
             Statement::Retry => {
@@ -903,7 +965,7 @@ impl Compiler<'_> {
                             self.namespace_assignment(name, binding_target, target, op, rhs)?;
                             return Ok(());
                         }
-                        if let Some(global) = self.global_binding(name) {
+                        if let Some(global) = self.global_binding(name)? {
                             if matches!(*op, "||=" | "&&=") {
                                 self.emit(Op::Global(global));
                                 self.emit(Op::Dup);
@@ -1027,7 +1089,7 @@ impl Compiler<'_> {
             Statement::For(target, iterable, body) => {
                 self.expr(iterable)?;
                 let mut names = Vec::new();
-                target_names(target, &mut names);
+                target_names(target, &mut names, self.work)?;
                 for name in names {
                     if let Some(&slot) = self.locals.get(name) {
                         self.emit(Op::Declare(slot));
@@ -1088,6 +1150,7 @@ impl Compiler<'_> {
         Ok(())
     }
     fn assign_value(&mut self, target: &Target) -> Result<()> {
+        self.work.charge(1)?;
         let offset = target.offset().unwrap_or(self.offset);
         let previous = std::mem::replace(&mut self.offset, offset);
         let result = self.assign_value_at(target);
@@ -1095,11 +1158,12 @@ impl Compiler<'_> {
         result
     }
     fn assign_value_at(&mut self, target: &Target) -> Result<()> {
+        self.work.charge(1)?;
         match target {
             Target::Typed(target, ty) => {
-                let ty = self.annotation(ty);
+                let ty = self.annotation(ty)?;
                 let mut text = Vec::new();
-                target_label(target, &mut text);
+                target_label(target, &mut text, self.work)?;
                 if text.is_empty() {
                     text.extend_from_slice(b"destructured value");
                 }
@@ -1114,7 +1178,7 @@ impl Compiler<'_> {
             }) => {
                 if self.namespace_binding(name) {
                     self.store_namespace_name(name);
-                } else if let Some(global) = self.global_binding(name) {
+                } else if let Some(global) = self.global_binding(name)? {
                     self.emit(Op::StoreGlobal(global));
                 } else {
                     let slot = self.slot(name);
@@ -1158,32 +1222,24 @@ impl Compiler<'_> {
         Ok(())
     }
     fn expr(&mut self, e: &Expr) -> Result<()> {
+        self.work.charge(1)?;
         let previous = std::mem::replace(&mut self.offset, e.offset);
         let result = self.expression(e);
         self.offset = previous;
         result
     }
     fn expression(&mut self, e: &Expr) -> Result<()> {
+        self.work.charge(1)?;
         match &e.node {
             Node::Try(attempt) => self.attempt(attempt, false)?,
             Node::Regex(pattern, flags) => {
+                self.work.bytes(pattern.len())?;
                 let index = self.program.constants.len();
                 self.program.constants.push(Value::bytes(pattern.clone()));
                 self.emit(Op::Regex(index, *flags));
             }
             Node::Shape(ty, fallback, names) => {
-                let guard = fallback.as_ref().map(|_| {
-                    let index = self.program.type_guards.len();
-                    self.program.type_guards.push(names.clone());
-                    self.emit(Op::TypeShadowed(index, 0))
-                });
-                self.constant(crate::shapes::compile((**ty).clone()));
-                if let Some(fallback) = fallback {
-                    let done = self.emit(Op::Jump(0));
-                    self.patch(guard.unwrap(), self.code.len());
-                    self.expr(fallback)?;
-                    self.patch(done, self.code.len());
-                }
+                return self.shape_expression(ty, fallback.as_deref(), names);
             }
             Node::Integer(n) => {
                 if let Ok(n) = i64::try_from(*n) {
@@ -1209,51 +1265,7 @@ impl Compiler<'_> {
                 self.emit(Op::BlockGiven(false, false));
             }
             Node::Var(name) => {
-                let global = self.global(name);
-                let constant = (self.namespace.is_some()
-                    && name.chars().next().is_some_and(syntax::unicode::upper)
-                    && !self.locals.contains_key(name))
-                .then(|| {
-                    let name = self.call_site(name, false).name;
-                    self.emit(Op::NamespaceConstant(name, 0))
-                });
-                let ambient =
-                    (self.namespace.is_some() && !self.locals.contains_key(name)).then(|| {
-                        let name = self.call_site(name, false).name;
-                        self.emit(Op::AmbientValue(name, 0))
-                    });
-                let file = (self.program.file && !self.locals.contains_key(name)).then(|| {
-                    let name = self.call_site(name, false).name;
-                    self.emit(Op::FileValue(name, 0))
-                });
-                if let Some(&slot) = self.locals.get(name) {
-                    if !self.parameters.contains(name) {
-                        let name = self.call_site(name, false).name;
-                        self.emit(Op::LoadOptional(slot, name));
-                    } else {
-                        self.emit(Op::Load(slot));
-                    }
-                } else if let Some(&index) = self.program.declaration_names.get(name) {
-                    self.emit(Op::Declaration(index));
-                } else if let Some(&fun) = self.program.names.get(name) {
-                    self.emit(Op::AutoCall(fun));
-                } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
-                    self.emit(Op::HostValue(host));
-                } else if let Some(global) = global {
-                    self.emit(Op::Global(global));
-                } else {
-                    let site = self.call_site(name, false);
-                    self.emit(Op::Unbound(site.name));
-                }
-                if let Some(constant) = constant {
-                    self.patch(constant, self.code.len());
-                }
-                if let Some(ambient) = ambient {
-                    self.patch(ambient, self.code.len());
-                }
-                if let Some(file) = file {
-                    self.patch(file, self.code.len());
-                }
+                return self.variable_expression(name);
             }
             Node::Array(values) => {
                 for v in values {
@@ -1301,42 +1313,7 @@ impl Compiler<'_> {
             }
             Node::Loop(stmt) => self.stmt(stmt, true)?,
             Node::Case(target, clauses, alternate) => {
-                if let Some(target) = target {
-                    self.expr(target)?;
-                }
-                let mut completed = Vec::new();
-                for clause in clauses {
-                    let mut matches = Vec::new();
-                    for (value, splat) in &clause.values {
-                        if target.is_some() {
-                            self.emit(Op::Dup);
-                        }
-                        self.expr(value)?;
-                        self.emit(Op::CaseCompare(target.is_some(), *splat));
-                        matches.push(self.emit(Op::JumpTrue(0)));
-                    }
-                    let next = self.emit(Op::Jump(0));
-                    for matched in matches {
-                        self.patch(matched, self.code.len());
-                    }
-                    if target.is_some() {
-                        self.emit(Op::Pop);
-                    }
-                    self.expr(&clause.result)?;
-                    completed.push(self.emit(Op::Jump(0)));
-                    self.patch(next, self.code.len());
-                }
-                if target.is_some() {
-                    self.emit(Op::Pop);
-                }
-                if let Some(alternate) = alternate {
-                    self.expr(alternate)?;
-                } else {
-                    self.emit(Op::Nil);
-                }
-                for completed in completed {
-                    self.patch(completed, self.code.len());
-                }
+                return self.case_expression(target.as_deref(), clauses, alternate.as_deref());
             }
             Node::Binary("<<", a, b) => {
                 self.address(a)?;
@@ -1405,6 +1382,119 @@ impl Compiler<'_> {
         }
         Ok(())
     }
+    fn shape_expression(
+        &mut self,
+        ty: &crate::types::Type,
+        fallback: Option<&Expr>,
+        names: &[String],
+    ) -> Result<()> {
+        self.work.ty(ty)?;
+        self.work.names(names)?;
+        let guard = fallback.map(|_| {
+            let index = self.program.type_guards.len();
+            self.program.type_guards.push(names.to_vec());
+            self.emit(Op::TypeShadowed(index, 0))
+        });
+        self.constant(crate::shapes::compile(ty.clone()));
+        if let Some(fallback) = fallback {
+            let done = self.emit(Op::Jump(0));
+            self.patch(guard.unwrap(), self.code.len());
+            self.expr(fallback)?;
+            self.patch(done, self.code.len());
+        }
+        Ok(())
+    }
+    fn variable_expression(&mut self, name: &str) -> Result<()> {
+        let global = self.global(name);
+        let constant = (self.namespace.is_some()
+            && name.chars().next().is_some_and(syntax::unicode::upper)
+            && !self.locals.contains_key(name))
+        .then(|| {
+            let name = self.call_site(name, false).name;
+            self.emit(Op::NamespaceConstant(name, 0))
+        });
+        let ambient = (self.namespace.is_some() && !self.locals.contains_key(name)).then(|| {
+            let name = self.call_site(name, false).name;
+            self.emit(Op::AmbientValue(name, 0))
+        });
+        let file = (self.program.file && !self.locals.contains_key(name)).then(|| {
+            let name = self.call_site(name, false).name;
+            self.emit(Op::FileValue(name, 0))
+        });
+        if let Some(&slot) = self.locals.get(name) {
+            if !self.parameters.contains(name) {
+                let name = self.call_site(name, false).name;
+                self.emit(Op::LoadOptional(slot, name));
+            } else {
+                self.emit(Op::Load(slot));
+            }
+        } else if let Some(&index) = self.program.declaration_names.get(name) {
+            self.emit(Op::Declaration(index));
+        } else if let Some(&fun) = self.program.names.get(name) {
+            self.emit(Op::AutoCall(fun));
+        } else if let Some(host) = self.host_position(name)? {
+            self.emit(Op::HostValue(host));
+        } else if let Some(global) = global {
+            self.emit(Op::Global(global));
+        } else {
+            let site = self.call_site(name, false);
+            self.emit(Op::Unbound(site.name));
+        }
+        if let Some(constant) = constant {
+            self.patch(constant, self.code.len());
+        }
+        if let Some(ambient) = ambient {
+            self.patch(ambient, self.code.len());
+        }
+        if let Some(file) = file {
+            self.patch(file, self.code.len());
+        }
+        Ok(())
+    }
+    fn case_expression(
+        &mut self,
+        target: Option<&Expr>,
+        clauses: &[syntax::When],
+        alternate: Option<&Expr>,
+    ) -> Result<()> {
+        if let Some(target) = target {
+            self.expr(target)?;
+        }
+        let mut completed = Vec::new();
+        for clause in clauses {
+            let mut matches = Vec::new();
+            for (value, splat) in &clause.values {
+                if target.is_some() {
+                    self.emit(Op::Dup);
+                }
+                self.expr(value)?;
+                self.emit(Op::CaseCompare(target.is_some(), *splat));
+                matches.push(self.emit(Op::JumpTrue(0)));
+            }
+            let next = self.emit(Op::Jump(0));
+            for matched in matches {
+                self.patch(matched, self.code.len());
+            }
+            if target.is_some() {
+                self.emit(Op::Pop);
+            }
+            self.expr(&clause.result)?;
+            completed.push(self.emit(Op::Jump(0)));
+            self.patch(next, self.code.len());
+        }
+        if target.is_some() {
+            self.emit(Op::Pop);
+        }
+        if let Some(alternate) = alternate {
+            self.expr(alternate)?;
+        } else {
+            self.emit(Op::Nil);
+        }
+        for completed in completed {
+            self.patch(completed, self.code.len());
+        }
+        Ok(())
+    }
     fn call_site(&mut self, name: &str, auto: bool) -> CallSite {
         let index = self.program.members.len();
         self.program.members.push(name.to_owned());
@@ -1416,10 +1506,11 @@ impl Compiler<'_> {
             scope: false,
         }
     }
-    fn annotation(&mut self, ty: &crate::types::Type) -> usize {
+    fn annotation(&mut self, ty: &crate::types::Type) -> Result<usize> {
+        self.work.ty(ty)?;
         let index = self.program.types.len();
         self.program.types.push(ty.clone());
-        index
+        Ok(index)
     }
     fn global(&mut self, name: &str) -> Option<usize> {
         if self.program.declaration_names.contains_key(name) {
@@ -1447,6 +1538,7 @@ impl Compiler<'_> {
         block: Option<usize>,
         safe: bool,
     ) -> Result<()> {
+        self.work.charge(1)?;
         let forwarding = crate::members::forwarding::supported(name);
         let mutating = mutating_member(name) || forwarding;
         if mutating {
@@ -1511,6 +1603,7 @@ impl Compiler<'_> {
         Ok(())
     }
     fn member_receiver(&mut self, receiver: &Expr, auto: bool) -> Result<()> {
+        self.work.charge(1)?;
         if let Node::Var(name) = &receiver.node {
             if let Some(&slot) = self.locals.get(name) {
                 let bound = self.emit(Op::ReceiverBound(slot, 0));
@@ -1518,7 +1611,7 @@ impl Compiler<'_> {
                 self.patch(bound, self.code.len());
                 return Ok(());
             }
-            if let Some(global) = self.global_fallback(name) {
+            if let Some(global) = self.global_fallback(name)? {
                 self.emit(Op::GlobalReceiver(global, auto));
                 return Ok(());
             }
@@ -1532,6 +1625,7 @@ impl Compiler<'_> {
         args: Option<&[Argument]>,
         block: Option<usize>,
     ) -> Result<()> {
+        self.work.charge(1)?;
         self.expr(receiver)?;
         let mut site = self.call_site(name, args.is_none() && block.is_none());
         site.scope = true;
@@ -1551,6 +1645,7 @@ impl Compiler<'_> {
         Ok(())
     }
     fn block_call(&mut self, call: &Expr, block: &Block) -> Result<()> {
+        self.work.charge(1)?;
         let function = self.compile_block(block)?;
         let (name, args, form) = match &call.node {
             Node::Var(name) => (name.as_str(), &[][..], CallForm::Bare),
@@ -1604,7 +1699,7 @@ impl Compiler<'_> {
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             Invocation::Resolved
-        } else if let Some(global) = self.global_binding(name) {
+        } else if let Some(global) = self.global_binding(name)? {
             self.emit(Op::ResolveGlobalCall(global));
             Invocation::Resolved
         } else {
@@ -1612,7 +1707,7 @@ impl Compiler<'_> {
                 Invocation::NonCallable
             } else if let Some(&function) = self.program.names.get(name) {
                 Invocation::Function(function)
-            } else if let Some(host) = self.program.hosts.iter().position(|host| host == name) {
+            } else if let Some(host) = self.host_position(name)? {
                 Invocation::Host(host)
             } else {
                 let site = self.call_site(name, false);
@@ -1635,10 +1730,19 @@ impl Compiler<'_> {
         Ok(())
     }
     fn compile_block(&mut self, block: &Block) -> Result<usize> {
+        self.work.charge(1)?;
         let mut block_arity = block.params.len();
-        let mut outer = vec![self.locals.clone()];
-        outer.extend(self.outer.iter().cloned());
+        let mut outer = Vec::new();
+        for scope in std::iter::once(&self.locals).chain(&self.outer) {
+            let mut copied = HashMap::new();
+            for (name, &slot) in scope {
+                self.work.bytes(name.len())?;
+                copied.insert(name.clone(), slot);
+            }
+            outer.push(copied);
+        }
         let mut child = Compiler {
+            work: self.work,
             instance: self.instance,
             namespace: self.namespace,
             program: self.program,
@@ -1653,11 +1757,11 @@ impl Compiler<'_> {
             reads: HashSet::new(),
             assigned: HashSet::new(),
         };
-        child.declare(&block.body);
+        child.declare(&block.body)?;
         for target in &block.params {
-            child.declare_target(target);
+            child.declare_target(target)?;
             let mut names = Vec::new();
-            target_names(target, &mut names);
+            target_names(target, &mut names, self.work)?;
             for name in names {
                 let slot = child.slot(name);
                 child.parameters.insert(name.to_owned());
@@ -1690,6 +1794,8 @@ impl Compiler<'_> {
         debug_assert_eq!(child.code.len(), child.locations.len());
         let mut captures = vec![None; child.slots];
         for (name, &slot) in &child.locals {
+            self.work.bytes(name.len())?;
+            self.work.charge(child.outer.len())?;
             if name.starts_with('\0') {
                 continue;
             }
@@ -1706,7 +1812,7 @@ impl Compiler<'_> {
             namespace: self.namespace,
             name: "<block>".into(),
             locals: child.slots,
-            local_names: local_names(&child.locals, child.slots),
+            local_names: local_names(&child.locals, child.slots, self.work)?,
             code: child.code,
             captures,
             block_arity,
@@ -1717,10 +1823,12 @@ impl Compiler<'_> {
         Ok(index)
     }
     fn call_arguments(&mut self, args: &[Argument]) -> Result<()> {
+        self.work.charge(1)?;
         self.emit(Op::Arguments);
         self.argument_values(args)
     }
     fn argument_values(&mut self, args: &[Argument]) -> Result<()> {
+        self.work.charge(1)?;
         for arg in args {
             self.expr(&arg.value)?;
             let kind = match &arg.kind {
@@ -1736,12 +1844,14 @@ impl Compiler<'_> {
         Ok(())
     }
     fn address_target(&mut self, target: &Expr, read: bool) -> Result<()> {
+        self.work.charge(1)?;
         let previous = std::mem::replace(&mut self.offset, target.offset);
         let result = self.address_target_at(target, read);
         self.offset = previous;
         result
     }
     fn address_target_at(&mut self, target: &Expr, read: bool) -> Result<()> {
+        self.work.charge(1)?;
         match &target.node {
             Node::Index(receiver, indices) => {
                 self.assignment_address(receiver)?;
@@ -1759,30 +1869,35 @@ impl Compiler<'_> {
         }
         Ok(())
     }
-    fn global_binding(&mut self, name: &str) -> Option<usize> {
-        if self.locals.contains_key(name) || self.outer.iter().any(|scope| scope.contains_key(name))
-        {
-            None
-        } else {
-            self.global_fallback(name)
-        }
+    fn global_binding(&mut self, name: &str) -> Result<Option<usize>> {
+        Ok(
+            if self.locals.contains_key(name)
+                || self.outer.iter().any(|scope| scope.contains_key(name))
+            {
+                None
+            } else {
+                self.global_fallback(name)?
+            },
+        )
     }
-    fn global_fallback(&mut self, name: &str) -> Option<usize> {
-        if self.program.names.contains_key(name)
-            || self.program.hosts.iter().any(|host| host == name)
-        {
-            None
-        } else {
-            self.global(name)
-        }
+    fn global_fallback(&mut self, name: &str) -> Result<Option<usize>> {
+        Ok(
+            if self.program.names.contains_key(name) || self.host_position(name)?.is_some() {
+                None
+            } else {
+                self.global(name)
+            },
+        )
     }
     fn address(&mut self, receiver: &Expr) -> Result<()> {
+        self.work.charge(1)?;
         let previous = std::mem::replace(&mut self.offset, receiver.offset);
         let result = self.address_at(receiver);
         self.offset = previous;
         result
     }
     fn address_at(&mut self, receiver: &Expr) -> Result<()> {
+        self.work.charge(1)?;
         let root = if let Node::Var(name) = &receiver.node {
             if !name.starts_with('@') && !self.locals.contains_key(name) {
                 let name = self.call_site(name, false).name;
@@ -1822,7 +1937,7 @@ impl Compiler<'_> {
                         let name = self.call_site(name, false).name;
                         self.emit(Op::AmbientAddress(name, 0))
                     });
-                    if let Some(global) = self.global_fallback(name) {
+                    if let Some(global) = self.global_fallback(name)? {
                         self.emit(Op::AddressGlobal(global));
                     } else {
                         self.expr(receiver)?;
@@ -1837,7 +1952,7 @@ impl Compiler<'_> {
             Node::Var(name) if self.namespace.is_some() => {
                 let index = self.call_site(name, false).name;
                 let ambient = self.emit(Op::AmbientAddress(index, 0));
-                if self.global_fallback(name).is_some() {
+                if self.global_fallback(name)?.is_some() {
                     self.emit(Op::NamespaceAddress(index, false));
                 } else {
                     self.expr(receiver)?;
@@ -1845,8 +1960,8 @@ impl Compiler<'_> {
                 }
                 self.patch(ambient, self.code.len());
             }
-            Node::Var(name) if self.global_fallback(name).is_some() => {
-                let global = self.global_fallback(name).unwrap();
+            Node::Var(name) if self.global_fallback(name)?.is_some() => {
+                let global = self.global_fallback(name)?.unwrap();
                 self.emit(Op::AddressGlobal(global));
             }
             Node::Member(root, name) | Node::SafeMember(root, name) => {
@@ -1881,19 +1996,24 @@ impl Compiler<'_> {
     }
 }
 
-fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
+fn call_names<'a>(
+    expr: &'a Expr,
+    names: &mut HashSet<&'a str>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
+    work.charge(1)?;
     match &expr.node {
         Node::Try(attempt) => {
-            block_call_names(&attempt.body, names);
+            block_call_names(&attempt.body, names, work)?;
             for rescue in &attempt.rescues {
-                block_call_names(&rescue.body, names);
+                block_call_names(&rescue.body, names, work)?;
             }
-            block_call_names(&attempt.alternate, names);
-            block_call_names(&attempt.ensure, names);
+            block_call_names(&attempt.alternate, names, work)?;
+            block_call_names(&attempt.ensure, names, work)?;
         }
         Node::Shape(_, fallback, _) => {
             if let Some(fallback) = fallback {
-                call_names(fallback, names);
+                call_names(fallback, names, work)?;
             }
         }
         Node::Regex(..)
@@ -1904,137 +2024,157 @@ fn call_names<'a>(expr: &'a Expr, names: &mut HashSet<&'a str>) {
         Node::Call(name, args, _) => {
             names.insert(name);
             for arg in args {
-                call_names(&arg.value, names);
+                call_names(&arg.value, names, work)?;
             }
         }
         Node::BlockCall(call, block) => {
             if let Node::Var(name) = &call.node {
                 names.insert(name);
             }
-            call_names(call, names);
-            block_call_names(&block.body, names);
+            call_names(call, names, work)?;
+            block_call_names(&block.body, names, work)?;
         }
         Node::Array(items) | Node::Yield(items) | Node::Template(items, _) => {
             for item in items {
-                call_names(item, names);
+                call_names(item, names, work)?;
             }
         }
         Node::Hash(entries) => {
             for (_, item) in entries {
-                call_names(item, names);
+                call_names(item, names, work)?;
             }
         }
         Node::Unary(_, value) | Node::Member(value, _) | Node::SafeMember(value, _) => {
-            call_names(value, names)
+            call_names(value, names, work)?
         }
         Node::Binary(_, a, b) => {
-            call_names(a, names);
-            call_names(b, names);
+            call_names(a, names, work)?;
+            call_names(b, names, work)?;
         }
         Node::Conditional(a, b, c) => {
-            call_names(a, names);
-            call_names(b, names);
-            call_names(c, names);
+            call_names(a, names, work)?;
+            call_names(b, names, work)?;
+            call_names(c, names, work)?;
         }
         Node::Range(a, b, _) => {
             for item in a.iter().chain(b) {
-                call_names(item, names);
+                call_names(item, names, work)?;
             }
         }
         Node::Case(target, clauses, alternate) => {
             for item in target.iter().chain(alternate) {
-                call_names(item, names);
+                call_names(item, names, work)?;
             }
             for clause in clauses {
                 for (item, _) in &clause.values {
-                    call_names(item, names);
+                    call_names(item, names, work)?;
                 }
-                call_names(&clause.result, names);
+                call_names(&clause.result, names, work)?;
             }
         }
-        Node::Loop(stmt) => block_call_names(std::slice::from_ref(stmt), names),
+        Node::Loop(stmt) => block_call_names(std::slice::from_ref(stmt), names, work)?,
         Node::Method(receiver, _, args, _)
         | Node::SafeMethod(receiver, _, args, _)
         | Node::ComputedCall(receiver, args) => {
-            call_names(receiver, names);
+            call_names(receiver, names, work)?;
             for arg in args {
-                call_names(&arg.value, names);
+                call_names(&arg.value, names, work)?;
             }
         }
         Node::Scope(receiver, _, args) => {
-            call_names(receiver, names);
+            call_names(receiver, names, work)?;
             for arg in args.iter().flatten() {
-                call_names(&arg.value, names);
+                call_names(&arg.value, names, work)?;
             }
         }
         Node::Index(receiver, args) => {
-            call_names(receiver, names);
+            call_names(receiver, names, work)?;
             for arg in args {
-                call_names(arg, names);
+                call_names(arg, names, work)?;
             }
         }
     }
+    Ok(())
 }
 
-fn target_call_names<'a>(target: &'a Target, names: &mut HashSet<&'a str>) {
+fn target_call_names<'a>(
+    target: &'a Target,
+    names: &mut HashSet<&'a str>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
+    work.charge(1)?;
     match target {
-        Target::Typed(target, _) => target_call_names(target, names),
-        Target::Value(expr) => call_names(expr, names),
+        Target::Typed(target, _) => target_call_names(target, names, work)?,
+        Target::Value(expr) => call_names(expr, names, work)?,
         Target::Tuple(parts) => {
             for (part, _) in parts {
+                work.charge(1)?;
                 if let Some(part) = part {
-                    target_call_names(part, names);
+                    target_call_names(part, names, work)?;
                 }
             }
         }
     }
+    Ok(())
 }
 
-fn block_call_names<'a>(body: &'a [Stmt], names: &mut HashSet<&'a str>) {
+fn block_call_names<'a>(
+    body: &'a [Stmt],
+    names: &mut HashSet<&'a str>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
+    work.charge(1)?;
     for stmt in body {
+        work.charge(1)?;
         match &stmt.node {
             Statement::Module(_) | Statement::UnboundClass(_) | Statement::Retry => (),
             Statement::Raise(value, message) => {
                 for value in value.iter().chain(message) {
-                    call_names(value, names);
+                    call_names(value, names, work)?;
                 }
             }
-            Statement::Expr(expr) => call_names(expr, names),
+            Statement::Expr(expr) => call_names(expr, names, work)?,
             Statement::Assign(target, _, value) => {
-                target_call_names(target, names);
-                call_names(value, names);
+                target_call_names(target, names, work)?;
+                call_names(value, names, work)?;
             }
             Statement::If(condition, yes, no) => {
-                call_names(condition, names);
-                block_call_names(yes, names);
-                block_call_names(no, names);
+                call_names(condition, names, work)?;
+                block_call_names(yes, names, work)?;
+                block_call_names(no, names, work)?;
             }
             Statement::While(condition, body) => {
-                call_names(condition, names);
-                block_call_names(body, names);
+                call_names(condition, names, work)?;
+                block_call_names(body, names, work)?;
             }
             Statement::For(target, source, body) => {
-                target_call_names(target, names);
-                call_names(source, names);
-                block_call_names(body, names);
+                target_call_names(target, names, work)?;
+                call_names(source, names, work)?;
+                block_call_names(body, names, work)?;
             }
             Statement::Return(value) | Statement::Break(value) | Statement::Next(value) => {
                 if let Some(value) = value {
-                    call_names(value, names);
+                    call_names(value, names, work)?;
                 }
             }
         }
     }
+    Ok(())
 }
 
-fn target_label(target: &Target, text: &mut Vec<u8>) {
+fn target_label(
+    target: &Target,
+    text: &mut Vec<u8>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
+    work.charge(1)?;
     match target {
         Target::Value(Expr {
             node: Node::Var(name),
             ..
         }) => text.extend_from_slice(name.as_bytes()),
         Target::Typed(target, ty) => {
-            target_label(target, text);
+            target_label(target, text, work)?;
             text.extend_from_slice(b": ");
             crate::shapes::format(ty, text).unwrap();
         }
@@ -2048,66 +2188,81 @@ fn target_label(target: &Target, text: &mut Vec<u8>) {
                     text.push(b'*');
                 }
                 if let Some(target) = target {
-                    target_label(target, text);
+                    target_label(target, text, work)?;
                 }
             }
             text.push(b')');
         }
         _ => (),
     }
+    Ok(())
 }
 
-fn target_names<'a>(target: &'a Target, names: &mut Vec<&'a str>) {
+fn target_names<'a>(
+    target: &'a Target,
+    names: &mut Vec<&'a str>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
+    work.charge(1)?;
     match target {
-        Target::Typed(target, _) => target_names(target, names),
+        Target::Typed(target, _) => target_names(target, names, work)?,
         Target::Value(Expr {
             node: Node::Var(name),
             ..
         }) => names.push(name),
         Target::Tuple(parts) => {
             for (part, _) in parts {
+                work.charge(1)?;
                 if let Some(part) = part {
-                    target_names(part, names);
+                    target_names(part, names, work)?;
                 }
             }
         }
         _ => (),
     }
+    Ok(())
 }
 
-fn statement_names<'a>(body: &'a [Stmt], names: &mut Vec<&'a str>) {
+fn statement_names<'a>(
+    body: &'a [Stmt],
+    names: &mut Vec<&'a str>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
+    work.charge(1)?;
     for stmt in body {
+        work.charge(1)?;
         match &stmt.node {
             Statement::Expr(Expr {
                 node: Node::Try(attempt),
                 ..
             }) => {
-                statement_names(&attempt.body, names);
+                statement_names(&attempt.body, names, work)?;
                 for rescue in &attempt.rescues {
                     let mut scoped = Vec::new();
-                    statement_names(&rescue.body, &mut scoped);
+                    statement_names(&rescue.body, &mut scoped, work)?;
                     names.extend(
                         scoped
                             .into_iter()
                             .filter(|name| Some(*name) != rescue.binding.as_deref()),
                     );
                 }
-                statement_names(&attempt.alternate, names);
-                statement_names(&attempt.ensure, names);
+                statement_names(&attempt.alternate, names, work)?;
+                statement_names(&attempt.ensure, names, work)?;
             }
-            Statement::Assign(target, _, _) => target_names(target, names),
+            Statement::Assign(target, _, _) => target_names(target, names, work)?,
             Statement::If(_, yes, no) => {
-                statement_names(yes, names);
-                statement_names(no, names);
+                statement_names(yes, names, work)?;
+                statement_names(no, names, work)?;
             }
-            Statement::While(_, body) => statement_names(body, names),
+            Statement::While(_, body) => statement_names(body, names, work)?,
             Statement::For(target, _, body) => {
-                target_names(target, names);
-                statement_names(body, names);
+                target_names(target, names, work)?;
+                statement_names(body, names, work)?;
             }
             _ => (),
         }
     }
+    Ok(())
 }
 
 pub(crate) fn mutating_member(name: &str) -> bool {

@@ -37,7 +37,12 @@ pub(crate) struct Member {
     header: Option<Charge>,
 }
 
-pub(crate) fn compile(name: String, members: Vec<String>) -> Result<Value> {
+pub(crate) fn compile(
+    name: String,
+    members: Vec<String>,
+    work: &dyn crate::compilation::Work,
+) -> Result<Value> {
+    work.bytes(name.len())?;
     let lower: String = name.chars().map(|c| crate::casing::map(c, false)).collect();
     if name.ends_with('?')
         || matches!(
@@ -66,6 +71,7 @@ pub(crate) fn compile(name: String, members: Vec<String>) -> Result<Value> {
     let mut symbols = HashSet::new();
     let mut values = Vec::with_capacity(members.len());
     for name in members {
+        work.bytes(name.len())?;
         let symbol = symbol(&name);
         if !symbols.insert(symbol.clone()) {
             return Err(crate::syntax::unsupported(
@@ -75,6 +81,11 @@ pub(crate) fn compile(name: String, members: Vec<String>) -> Result<Value> {
         values.push(MemberDefinition { name, symbol });
     }
     let mut lookup: Vec<_> = (0..values.len()).collect();
+    work.charge(
+        lookup
+            .len()
+            .saturating_mul(lookup.len().max(1).ilog2() as usize + 1),
+    )?;
     lookup.sort_unstable_by(|&a, &b| values[a].name.cmp(&values[b].name));
     let bytes = size_of::<Definition>()
         + 2 * size_of::<usize>()
@@ -417,7 +428,7 @@ mod tests {
 
     #[test]
     fn imports_charge_each_call_and_release_metadata_independently() {
-        let original = compile("State".into(), vec!["LongMember".repeat(1024)]).unwrap();
+        let original = compile("State".into(), vec!["LongMember".repeat(1024)], &()).unwrap();
         let mut first = CallContext::new(CallOptions::default());
         let imported = first.import(&original).unwrap();
         let retained = first.stats().retained_memory_bytes;
@@ -438,7 +449,7 @@ mod tests {
     #[test]
     fn long_names_are_metered_and_output_capacity_is_reserved_before_writing() {
         let name = "A".repeat(16384);
-        let original = compile(name.clone(), vec![name.clone()]).unwrap();
+        let original = compile(name.clone(), vec![name.clone()], &()).unwrap();
         let Kind::Enum(enumeration) = &original.0 else {
             unreachable!()
         };

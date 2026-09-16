@@ -23,7 +23,12 @@ pub(crate) struct Source {
 }
 
 impl Source {
+    #[cfg(test)]
     pub fn new(text: &str) -> Self {
+        Self::compile(text, &()).expect("unmetered source indexing cannot fail")
+    }
+
+    pub fn compile(text: &str, work: &dyn crate::compilation::Work) -> Result<Self> {
         let mut checkpoints = vec![Checkpoint {
             offset: 0,
             line: 1,
@@ -31,6 +36,7 @@ impl Source {
         }];
         let mut position = Position { line: 1, column: 1 };
         for (offset, ch) in text.char_indices() {
+            work.charge(1)?;
             if offset - checkpoints.last().unwrap().offset as usize >= STRIDE {
                 checkpoints.push(Checkpoint {
                     offset: offset as u32,
@@ -40,11 +46,12 @@ impl Source {
             }
             advance(&mut position, ch);
         }
-        Self {
+        work.bytes(text.len())?;
+        Ok(Self {
             filename: None,
             text: text.into(),
             checkpoints,
-        }
+        })
     }
 
     fn location(&self, offset: u32) -> (&str, Position) {
@@ -266,7 +273,15 @@ pub(crate) fn formatted(
     Ok((String::from_utf8(bytes).unwrap(), charge))
 }
 
-pub(crate) fn parse_error(source: &str, filename: Option<&Arc<[u8]>>, mut error: Error) -> Error {
+pub(crate) fn parse_error(
+    source: &str,
+    filename: Option<&Arc<[u8]>>,
+    mut error: Error,
+    work: &dyn crate::compilation::Work,
+) -> Error {
+    if let Err(error) = work.checkpoint() {
+        return error;
+    }
     if let Some(offset) = error
         .offset
         .filter(|_| source.len() <= crate::syntax::MAX_SOURCE)
@@ -274,6 +289,9 @@ pub(crate) fn parse_error(source: &str, filename: Option<&Arc<[u8]>>, mut error:
         let offset = boundary(source, offset);
         let mut position = Position { line: 1, column: 1 };
         for ch in source[..offset].chars() {
+            if let Err(error) = work.charge(1) {
+                return error;
+            }
             advance(&mut position, ch);
         }
         error.diagnostic = Some(Arc::new(Diagnostic {

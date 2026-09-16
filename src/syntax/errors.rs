@@ -2,13 +2,14 @@ use super::*;
 
 impl Parser<'_> {
     pub(super) fn raise_statement(&mut self) -> Result<Statement> {
+        self.work.charge(1)?;
         if !self.starts_expression()
             || matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "if"|"unless"|"while"|"until"))
         {
             return Ok(Statement::Raise(None, None));
         }
         let value = self.line_expr(0)?;
-        let message = if self.tokens[self.pos].line == self.previous().end_line && self.take_p(',')
+        let message = if self.tokens[self.pos].line == self.previous()?.end_line && self.take_p(',')
         {
             Some(Box::new(self.line_expr(0)?))
         } else {
@@ -18,6 +19,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn rescue_tail(&mut self, body: Vec<Stmt>, function: bool) -> Result<Try> {
+        self.work.charge(1)?;
         let mut rescues = Vec::new();
         while self.word("rescue") {
             let token = &self.tokens[self.pos - 1];
@@ -40,7 +42,7 @@ impl Parser<'_> {
                     })?;
                 }
                 if self.tokens[self.pos].line == line && self.token() == &Token::Op("=>") {
-                    self.bump();
+                    self.bump()?;
                     if self.tokens[self.pos].line != line {
                         return self.err("rescue binding must be an identifier");
                     }
@@ -108,6 +110,7 @@ impl Parser<'_> {
     }
 
     pub(super) fn rescue_modifier(&mut self, body: Expr) -> Result<Expr> {
+        self.work.charge(1)?;
         let offset = body.offset;
         let rescue_offset = self.tokens[self.pos - 1].offset as u32;
         let fallback = self.line_expr(0)?;

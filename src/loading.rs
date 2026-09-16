@@ -165,16 +165,18 @@ impl Loader {
                 let source_text = std::str::from_utf8(source.contents.as_bytes().unwrap())
                     .map_err(|_| Error::new(ErrorKind::Syntax, "required source must be UTF-8"))?;
                 ctx.work_bytes(source_text.len())?;
-                let registered = receiving
-                    .program
-                    .hosts
-                    .iter()
-                    .cloned()
-                    .zip(receiving.hosts.iter().cloned())
-                    .collect();
+                let mut registered = std::collections::BTreeMap::new();
+                for (name, host) in receiving.program.hosts.iter().zip(&receiving.hosts) {
+                    ctx.work_bytes(name.len())?;
+                    registered.insert(name.clone(), host.clone());
+                }
                 let origin = candidate.origin();
-                let compiled =
-                    crate::code::Code::compile_module(source_text, &registered, origin.clone());
+                let compiled = crate::code::Code::compile_module(
+                    ctx,
+                    source_text,
+                    &registered,
+                    origin.clone(),
+                );
                 ctx.checkpoint()?;
                 let code = compiled?;
                 self.cache

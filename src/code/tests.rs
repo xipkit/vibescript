@@ -28,6 +28,42 @@ end
 def host_value; host(); end
 "#;
 
+#[test]
+fn compiler_diagnostics_preserve_latched_control_errors() {
+    let source = format!("{}def", "# text\n".repeat(256));
+    let registered = std::collections::BTreeMap::new();
+    let mut unlimited = CallOptions::default();
+    unlimited.limits.steps = None;
+    let mut context = CallContext::new(unlimited.clone());
+    let error = super::Code::compile_mode(
+        &source,
+        &registered,
+        true,
+        None,
+        &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind, ErrorKind::Syntax);
+    assert!(error.diagnostic.is_some());
+    let total = context.stats().steps;
+    for steps in [1, total / 2, total - 1] {
+        let mut options = unlimited.clone();
+        options.limits.steps = Some(steps);
+        let mut context = CallContext::new(options);
+        let error = super::Code::compile_mode(
+            &source,
+            &registered,
+            true,
+            None,
+            &crate::compilation::Meter(std::cell::RefCell::new(&mut context)),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert!(error.diagnostic.is_none());
+        assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Steps);
+    }
+}
+
 struct Retired(Arc<AtomicUsize>);
 
 impl Drop for Retired {

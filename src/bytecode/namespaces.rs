@@ -8,7 +8,9 @@ impl Program {
         qualifier: &str,
         functions: &mut Vec<syntax::Definition>,
         contexts: &mut Vec<(Option<usize>, bool, bool)>,
+        work: &dyn crate::compilation::Work,
     ) -> Result<usize> {
+        work.bytes(qualifier.len() + module.name.len())?;
         let name = if qualifier.is_empty() {
             module.name
         } else {
@@ -30,12 +32,14 @@ impl Program {
         let mut nested = Vec::new();
         for child in module.modules {
             let short = child.name.clone();
-            let index = self.register_module(child, &name, functions, contexts)?;
+            let index = self.register_module(child, &name, functions, contexts, work)?;
             nested.push((short, index));
         }
         let index = self.namespaces.len();
         let mut methods = Vec::<namespace::Method>::new();
         for (mut method, visibility) in module.methods {
+            work.bytes(name.len() + method.name.len())?;
+            work.charge(methods.len())?;
             let short = method.name.clone();
             method.name = format!("{name}.{}", method.name);
             let function = functions.len();
@@ -54,6 +58,8 @@ impl Program {
         }
         let mut instance_methods = Vec::<namespace::Method>::new();
         for (mut method, visibility) in module.instance_methods {
+            work.bytes(name.len() + method.name.len())?;
+            work.charge(instance_methods.len())?;
             let short = method.name.clone();
             method.name = format!("{name}#{}", method.name);
             let function = functions.len();
@@ -127,6 +133,7 @@ impl Program {
 
 impl Compiler<'_> {
     pub(super) fn assignment_address(&mut self, receiver: &syntax::Expr) -> Result<()> {
+        self.work.charge(1)?;
         match &receiver.node {
             syntax::Node::Var(name)
                 if self.namespace.is_some()
@@ -197,6 +204,7 @@ impl Compiler<'_> {
         op: &str,
         rhs: &syntax::Expr,
     ) -> Result<()> {
+        self.work.charge(1)?;
         if matches!(op, "||=" | "&&=") {
             if name.starts_with('@') || (self.namespace.is_some() && !self.instance) {
                 let name = self.call_site(name, false).name;

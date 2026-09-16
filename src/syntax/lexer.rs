@@ -40,6 +40,7 @@ pub(super) struct Lexeme {
 }
 
 struct Lexer<'a> {
+    work: &'a dyn crate::compilation::Work,
     source: &'a str,
     pos: usize,
     limit: usize,
@@ -47,11 +48,12 @@ struct Lexer<'a> {
     speculative: usize,
 }
 
-pub(super) fn lex(source: &str) -> Result<Vec<Lexeme>> {
+pub(super) fn lex(source: &str, work: &dyn crate::compilation::Work) -> Result<Vec<Lexeme>> {
     if source.len() > super::MAX_SOURCE {
         return Err(Error::syntax(0, "source exceeds 8 MiB"));
     }
     Lexer {
+        work,
         source,
         pos: 0,
         limit: source.len(),
@@ -66,8 +68,10 @@ pub(super) fn modulo(
     start: &Lexeme,
     limit: usize,
     depth: usize,
+    work: &dyn crate::compilation::Work,
 ) -> Result<Vec<Lexeme>> {
     Lexer {
+        work,
         source,
         pos: start.offset,
         limit,
@@ -84,8 +88,10 @@ pub(super) fn resume(
     limit: usize,
     depth: usize,
     previous: Option<&Lexeme>,
+    work: &dyn crate::compilation::Work,
 ) -> Result<Vec<Lexeme>> {
     Lexer {
+        work,
         source,
         pos: start.offset,
         limit,
@@ -100,8 +106,10 @@ pub(super) fn regex(
     start: &Lexeme,
     limit: usize,
     depth: usize,
+    work: &dyn crate::compilation::Work,
 ) -> Result<Vec<Lexeme>> {
     Lexer {
+        work,
         source,
         pos: start.offset,
         limit,
@@ -126,6 +134,7 @@ impl Lexer<'_> {
         let mut braces = 0usize;
         let first = self.pos;
         while self.pos < until {
+            self.work.charge(1)?;
             let start = self.pos;
             let mut i = start;
             if interpolation && s[i] == b'}' && braces == 0 {
@@ -146,6 +155,7 @@ impl Lexer<'_> {
                 }
                 b'#' => {
                     while self.pos < self.limit && s[self.pos] != b'\n' {
+                        self.work.charge(1)?;
                         self.pos += 1;
                     }
                     continue;
@@ -167,6 +177,7 @@ impl Lexer<'_> {
                     }
                     i += first.len_utf8();
                     while let Some(c) = source[i..self.limit].chars().next() {
+                        self.work.charge(1)?;
                         if c != '_' && !super::unicode::letter_or_digit(c) {
                             break;
                         }
@@ -177,6 +188,7 @@ impl Lexer<'_> {
                 if initial == '_' || super::unicode::letter(initial) {
                     i += initial.len_utf8();
                     while let Some(c) = source[i..self.limit].chars().next() {
+                        self.work.charge(1)?;
                         if !matches!(c, '_' | '?' | '!') && !super::unicode::letter_or_digit(c) {
                             break;
                         }
@@ -218,7 +230,7 @@ impl Lexer<'_> {
                         if parts.iter().any(|p| matches!(p, Part::Expr(_))) {
                             Token::Template(parts)
                         } else {
-                            Token::Bytes(plain(parts))
+                            Token::Bytes(plain(parts, self.work)?)
                         }
                     }
                     b'%' if !(skip_first_percent && i == first)
@@ -246,7 +258,11 @@ impl Lexer<'_> {
                                         token
                                     }
                                 }
-                                Err(error) if ambiguous && !error.message.contains("nesting") => {
+                                Err(error)
+                                    if error.kind == crate::ErrorKind::Syntax
+                                        && ambiguous
+                                        && !error.message.contains("nesting") =>
+                                {
                                     self.speculative =
                                         self.speculative.saturating_sub(self.pos - start);
                                     self.pos = start;
@@ -273,6 +289,7 @@ impl Lexer<'_> {
                             i += 1;
                             let digits = i;
                             while i < self.limit && (s[i].is_ascii_alphanumeric() || s[i] == b'_') {
+                                self.work.charge(1)?;
                                 i += 1;
                             }
                             if source[i..self.limit]
@@ -293,6 +310,7 @@ impl Lexer<'_> {
                             integer(text.replace('_', ""), radix, start, 2)?
                         } else {
                             while i < self.limit && (s[i].is_ascii_digit() || s[i] == b'_') {
+                                self.work.charge(1)?;
                                 i += 1;
                             }
                             let mut float = false;
@@ -302,6 +320,7 @@ impl Lexer<'_> {
                                 float = true;
                                 i += 1;
                                 while i < self.limit && (s[i].is_ascii_digit() || s[i] == b'_') {
+                                    self.work.charge(1)?;
                                     i += 1;
                                 }
                             }
@@ -312,6 +331,7 @@ impl Lexer<'_> {
                                     i += 1;
                                 }
                                 while i < self.limit && (s[i].is_ascii_digit() || s[i] == b'_') {
+                                    self.work.charge(1)?;
                                     i += 1;
                                 }
                             }
@@ -324,6 +344,7 @@ impl Lexer<'_> {
                             }
                             let raw = &source[start..i];
                             for (j, b) in raw.bytes().enumerate() {
+                                self.work.charge(1)?;
                                 if b == b'_'
                                     && (j == 0
                                         || j + 1 == raw.len()
@@ -390,13 +411,14 @@ impl Lexer<'_> {
             })();
             let token = match scanned {
                 Ok(token) => token,
-                Err(error) if !interpolation => {
+                Err(error) if error.kind == crate::ErrorKind::Syntax && !interpolation => {
                     // Resolving an earlier percent token may require re-lexing this suffix.
                     i = self.limit;
                     Token::Invalid(Box::new((error.offset.unwrap_or(start), error.message)))
                 }
                 Err(error) => return Err(error),
             };
+            self.work.bytes(i - start)?;
             let start_line = line;
             line += s[start..i].iter().filter(|&&b| b == b'\n').count();
             match token {
@@ -432,6 +454,7 @@ impl Lexer<'_> {
         let mut parts = Vec::new();
         let mut text = Vec::new();
         while self.pos < self.limit {
+            self.work.charge(1)?;
             let before = self.pos;
             match self.source.as_bytes()[self.pos] {
                 b if b == quote => {
@@ -479,6 +502,7 @@ impl Lexer<'_> {
         let mut class = false;
         let mut members = 0;
         while self.pos < self.limit {
+            self.work.charge(1)?;
             match bytes[self.pos] {
                 0 | b'\n' => break,
                 b'\\' => {
@@ -508,6 +532,7 @@ impl Lexer<'_> {
                     }
                     let name = end;
                     while bytes.get(end).is_some_and(u8::is_ascii_alphabetic) {
+                        self.work.charge(1)?;
                         end += 1;
                     }
                     if end > name && bytes.get(end..end + 2) == Some(b":]") {
@@ -529,6 +554,7 @@ impl Lexer<'_> {
                     self.pos += 1;
                     let mut flags = 0;
                     while bytes.get(self.pos).is_some_and(u8::is_ascii_alphabetic) {
+                        self.work.charge(1)?;
                         let bit = match bytes[self.pos] {
                             b'i' => 1,
                             b'm' => 2,
@@ -602,6 +628,7 @@ impl Lexer<'_> {
         let mut in_word = false;
         let interpolating = kind.is_ascii_uppercase();
         while self.pos < self.limit {
+            self.work.charge(1)?;
             let before = self.pos;
             let c = self.source[self.pos..self.limit].chars().next().unwrap();
             if c == '\0' {
@@ -692,6 +719,7 @@ impl Lexer<'_> {
                 let mut value = 0;
                 let max = if c == 'x' { 2 } else { 4 };
                 while self.pos < self.limit && self.pos - start < max {
+                    self.work.charge(1)?;
                     let Some(digit) = (self.source.as_bytes()[self.pos] as char).to_digit(16)
                     else {
                         break;
@@ -734,15 +762,16 @@ fn flush(parts: &mut Vec<Part>, text: &mut Vec<u8>) {
     }
 }
 
-pub(super) fn plain(parts: Vec<Part>) -> Vec<u8> {
+pub(super) fn plain(parts: Vec<Part>, work: &dyn crate::compilation::Work) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     for part in parts {
         let Part::Text(text) = part else {
             unreachable!()
         };
+        work.bytes(text.len())?;
         bytes.extend(text);
     }
-    bytes
+    Ok(bytes)
 }
 
 fn ends_expression(token: &Token) -> bool {

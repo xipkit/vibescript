@@ -9,12 +9,19 @@ pub(super) struct Tokens {
 }
 
 impl Tokens {
-    pub fn new(mut tokens: Vec<Lexeme>) -> Self {
-        tokens.reverse();
-        Self {
+    pub fn new(
+        mut tokens: Vec<Lexeme>,
+        work: &dyn crate::compilation::Work,
+    ) -> crate::Result<Self> {
+        for index in 0..tokens.len() / 2 {
+            work.charge(1)?;
+            let end = tokens.len() - 1 - index;
+            tokens.swap(index, end);
+        }
+        Ok(Self {
             before: Vec::new(),
             after: tokens,
-        }
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -37,15 +44,42 @@ impl Tokens {
         self.range(start..self.len())
     }
 
-    pub fn replace(&mut self, range: Range<usize>, replacement: Vec<Lexeme>) {
+    pub fn find(
+        &self,
+        positions: impl Iterator<Item = usize>,
+        work: &dyn crate::compilation::Work,
+        predicate: impl Fn(&Lexeme) -> bool,
+    ) -> crate::Result<Option<&Lexeme>> {
+        for index in positions {
+            work.charge(1)?;
+            let token = &self[index];
+            if predicate(token) {
+                return Ok(Some(token));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn replace(
+        &mut self,
+        range: Range<usize>,
+        replacement: Vec<Lexeme>,
+        work: &dyn crate::compilation::Work,
+    ) -> crate::Result<()> {
         while self.before.len() < range.start {
+            work.charge(1)?;
             self.before.push(self.after.pop().unwrap());
         }
         while self.before.len() > range.start {
+            work.charge(1)?;
             self.after.push(self.before.pop().unwrap());
         }
         self.after.truncate(self.after.len() - range.len());
-        self.before.extend(replacement);
+        for token in replacement {
+            work.charge(1)?;
+            self.before.push(token);
+        }
+        Ok(())
     }
 }
 

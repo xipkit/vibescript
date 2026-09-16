@@ -7,6 +7,7 @@ impl Compiler<'_> {
         args: &[Argument],
         form: CallForm,
     ) -> Result<()> {
+        self.work.charge(1)?;
         self.global(name);
         if self.program.file {
             let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
@@ -27,7 +28,7 @@ impl Compiler<'_> {
             Invocation::NonCallable
         } else if let Some(&fun) = self.program.names.get(name) {
             Invocation::Function(fun)
-        } else if let Some(host) = self.program.hosts.iter().position(|h| h == name) {
+        } else if let Some(host) = self.host_position(name)? {
             Invocation::Host(host)
         } else if let Some(global) = self.global(name) {
             self.emit(Op::ResolveGlobalCall(global));
@@ -68,6 +69,7 @@ impl Compiler<'_> {
         args: &[Argument],
         block: Option<usize>,
     ) -> Result<()> {
+        self.work.charge(1)?;
         self.emit(Op::Arguments);
         self.call_target(call)?;
         self.argument_values(args)?;
@@ -79,6 +81,7 @@ impl Compiler<'_> {
     }
 
     pub(super) fn call_target(&mut self, expr: &Expr) -> Result<()> {
+        self.work.charge(1)?;
         let previous = std::mem::replace(&mut self.offset, expr.offset);
         match &expr.node {
             Node::Try(attempt) if attempt.modifier => {
@@ -113,6 +116,8 @@ impl Compiler<'_> {
                 self.emit(Op::CallMember(site));
             }
             Node::Shape(ty, Some(fallback), names) => {
+                self.work.ty(ty)?;
+                self.work.names(names)?;
                 let index = self.program.type_guards.len();
                 self.program.type_guards.push(names.clone());
                 let guard = self.emit(Op::TypeShadowed(index, 0));

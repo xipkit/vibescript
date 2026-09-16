@@ -7,8 +7,9 @@ use std::collections::HashSet;
 
 impl Parser<'_> {
     pub(super) fn class(&mut self) -> Result<Module> {
+        self.work.charge(1)?;
         self.enter()?;
-        let offset = self.previous().offset as u32;
+        let offset = self.previous()?.offset as u32;
         let name = self.name()?;
         if keyword(&name) || name.starts_with('@') {
             return self.err("expected class name");
@@ -29,11 +30,12 @@ impl Parser<'_> {
             directives: HashSet::new(),
         };
         let mut visibility = Visibility::Public;
-        self.lines();
+        self.lines()?;
         while !matches!(self.token(), Token::Word(w) if w == "end") {
             if self.token() == &Token::Eof {
                 return self.err("unexpected end of class");
             }
+            self.work.charge(1)?;
             let mut method_visibility = visibility;
             if matches!(self.token(), Token::Word(w) if w == "private")
                 && self.tokens[self.pos + 1].token == Token::P('(')
@@ -41,11 +43,13 @@ impl Parser<'_> {
                 return self.err("private visibility directives do not take parentheses");
             }
             if let Some((word, level)) = self.visibility() {
-                self.bump();
+                self.bump()?;
                 class.directives.insert(word);
                 if self.token() == &Token::P(':') {
                     loop {
                         let name = self.class_alias_name(true)?;
+                        self.work
+                            .charge(class.instance_methods.len() + class.methods.len())?;
                         let instance = class
                             .instance_methods
                             .iter_mut()
@@ -62,20 +66,20 @@ impl Parser<'_> {
                             break;
                         }
                     }
-                    self.lines();
+                    self.lines()?;
                     continue;
                 }
                 if self.token() == &Token::EndLine
                     || matches!(self.token(), Token::Word(w) if w == "end")
                 {
                     visibility = level;
-                    self.lines();
+                    self.lines()?;
                     continue;
                 }
                 method_visibility = level;
             }
             if self.word("def") {
-                let offset = self.previous().offset as u32;
+                let offset = self.previous()?.offset as u32;
                 let class_method = self.word("self");
                 if class_method {
                     self.expect_p('.')?;
@@ -93,7 +97,7 @@ impl Parser<'_> {
                 methods.push((definition, method_visibility));
             } else if matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "property" | "getter" | "setter"))
             {
-                let Token::Word(kind) = self.bump() else {
+                let Token::Word(kind) = self.bump()? else {
                     unreachable!()
                 };
                 self.class_properties(&mut class, &kind, method_visibility)?;
@@ -112,8 +116,8 @@ impl Parser<'_> {
                 || matches!(self.token(), Token::Word(w) if w == "alias")
                     && self.tokens[self.pos + 1].token == Token::P(':')
             {
-                self.bump();
-                let line = self.previous().line;
+                self.bump()?;
+                let line = self.previous()?.line;
                 let new = self.class_alias_name(false)?;
                 if self.tokens[self.pos].line != line {
                     return self.err("alias names must be on the same line");
@@ -126,7 +130,7 @@ impl Parser<'_> {
             } else {
                 class.body.push(self.statement()?);
             }
-            self.lines();
+            self.lines()?;
         }
         self.expect_word("end")?;
         self.locals = outer_locals;
@@ -154,6 +158,7 @@ impl Parser<'_> {
     }
 
     fn class_method_name(&mut self, class: bool) -> Result<String> {
+        self.work.charge(1)?;
         let (mut name, operator) = if !class && self.take_p('[') {
             self.expect_p(']')?;
             ("[]".to_owned(), true)
@@ -178,7 +183,7 @@ impl Parser<'_> {
                 )
             )
         {
-            let Token::Op(op) = self.bump() else {
+            let Token::Op(op) = self.bump()? else {
                 unreachable!()
             };
             (op.to_owned(), true)
@@ -190,13 +195,14 @@ impl Parser<'_> {
             (name, false)
         };
         if (!operator || name == "[]") && self.token() == &Token::Op("=") {
-            self.bump();
+            self.bump()?;
             name.push('=');
         }
         Ok(name)
     }
 
     fn class_alias_name(&mut self, symbol: bool) -> Result<String> {
+        self.work.charge(1)?;
         if self.take_p(':') {
             let Expr {
                 node: Node::Literal(value),
@@ -219,6 +225,8 @@ impl Parser<'_> {
     }
 
     fn class_alias(&self, class: &mut Module, new: String, old: String) -> Result<()> {
+        self.work.charge(1)?;
+        self.work.charge(class.instance_methods.len())?;
         let Some((target, visibility)) = class
             .instance_methods
             .iter()
@@ -227,7 +235,9 @@ impl Parser<'_> {
         else {
             return self.err("alias target method is not defined on class");
         };
+        super::work::definition(self.work, target)?;
         let mut definition = target.clone();
+        self.work.checkpoint()?;
         let visibility = *visibility;
         definition.name = new;
         class.instance_methods.push((definition, visibility));
@@ -240,6 +250,7 @@ impl Parser<'_> {
         kind: &str,
         visibility: Visibility,
     ) -> Result<()> {
+        self.work.charge(1)?;
         loop {
             let offset = self.tokens[self.pos].offset as u32;
             let name = self.name()?;
