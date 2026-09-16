@@ -162,6 +162,8 @@ fn exported_functions_cannot_be_extracted_stored_passed_or_returned() {
         "m.fetch(:fn)",
         "m.dig(:fn)",
         "m.values",
+        "(m.values())(effect())",
+        "(m.fetch_values(:fn))(effect())",
         "m.values_at(:fn)",
         "m.fetch_values(:fn)",
         "x=m[:fn];x(1)",
@@ -183,11 +185,11 @@ fn exported_functions_cannot_be_extracted_stored_passed_or_returned() {
             .run(CallOptions::default())
             .expect_err(expression);
         assert_eq!(error.kind, ErrorKind::Type, "{expression}: {error:?}");
+        assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}: {error:?}");
         assert!(
             error.message.contains("cannot be used as a value"),
             "{expression}: {error:?}"
         );
-        assert_eq!(effects.load(Ordering::SeqCst), 0, "{expression}");
     }
 }
 

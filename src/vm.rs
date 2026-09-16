@@ -2815,8 +2815,8 @@ pub(crate) fn execute(
                                 .get(frame.ip),
                             Some(Op::CallValue)
                         );
-                        if !target {
-                            if let Some(value) = stack.data.last() {
+                        if let Some(value) = stack.data.last() {
+                            if !target || !matches!(value.0, Kind::Function(_)) {
                                 crate::exports::check(ctx, value)?;
                             }
                         }
