@@ -125,6 +125,22 @@ fn local(ctx: &mut CallContext) -> Result<Arc<Heap>> {
     Ok(heap)
 }
 
+pub(crate) fn environment(ctx: &mut CallContext) -> Result<Arc<Instance>> {
+    static TEMPLATE: std::sync::OnceLock<Arc<Namespace>> = std::sync::OnceLock::new();
+    let template = TEMPLATE.get_or_init(|| {
+        Namespace::untracked(crate::namespace::Definition::new(
+            usize::MAX,
+            "<environment>".into(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            Vec::new(),
+            None,
+        ))
+    });
+    new(ctx, template)
+}
+
 pub(crate) fn new(ctx: &mut CallContext, class: &Arc<Namespace>) -> Result<Arc<Instance>> {
     let heap = local(ctx)?;
     if heap.data.lock().unwrap().allocations >= 32 {

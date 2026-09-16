@@ -4,6 +4,7 @@ use std::{ops::Deref, sync::Arc};
 
 pub(super) struct Program {
     pub code: Arc<Code>,
+    pub environment: Option<Arc<crate::objects::Instance>>,
     pub index: usize,
     pub global_base: usize,
     _charge: Option<Charge>,
@@ -28,12 +29,38 @@ impl Deref for Program {
     }
 }
 
+impl Program {
+    fn matches(
+        &self,
+        code: &Arc<Code>,
+        environment: Option<&Arc<crate::objects::Instance>>,
+    ) -> bool {
+        Arc::ptr_eq(&self.code, code)
+            && crate::namespace::same_environment(self.environment.as_ref(), environment)
+    }
+
+    pub(super) fn namespace_matches(
+        &self,
+        index: usize,
+        namespace: &crate::namespace::Namespace,
+    ) -> bool {
+        self.namespaces
+            .get(index)
+            .is_some_and(|definition| Arc::ptr_eq(definition, &namespace.definition))
+            && crate::namespace::same_environment(
+                self.environment.as_ref(),
+                namespace.environment.as_ref(),
+            )
+    }
+}
+
 pub(super) fn load(
     ctx: &mut CallContext,
     storage: &mut Storage,
     code: &Arc<Code>,
+    environment: Option<&Arc<crate::objects::Instance>>,
 ) -> Result<Arc<Program>> {
-    if let Some(index) = registered(ctx, storage, code)? {
+    if let Some(index) = registered(ctx, storage, code, environment)? {
         return Ok(storage.programs.data[index].program.clone());
     }
     let global_base = storage.globals.data.len();
@@ -46,8 +73,12 @@ pub(super) fn load(
     storage.globals.ensure(ctx, end)?;
     let charge = ctx.reserve(size_of::<Program>() + 2 * size_of::<usize>())?;
     Code::retain(ctx, code)?;
+    let environment = environment
+        .map(|environment| crate::objects::import(ctx, environment))
+        .transpose()?;
     let program = Arc::new(Program {
         code: code.clone(),
+        environment,
         index: storage.programs.data.len(),
         global_base,
         _charge: charge,
@@ -60,30 +91,49 @@ pub(super) fn load(
     Ok(program)
 }
 
-fn registered(ctx: &mut CallContext, storage: &Storage, code: &Arc<Code>) -> Result<Option<usize>> {
+fn registered(
+    ctx: &mut CallContext,
+    storage: &Storage,
+    code: &Arc<Code>,
+    environment: Option<&Arc<crate::objects::Instance>>,
+) -> Result<Option<usize>> {
     // The entry program has a fixed lookup covered by the executing operation.
     if let Some(entry) = storage.programs.data.first() {
-        if Arc::ptr_eq(&entry.program.code, code) {
+        if entry.program.matches(code, environment) {
             return Ok(Some(0));
         }
     }
     for entry in storage.programs.data.iter().skip(1) {
         ctx.charge(1)?;
         let program = &entry.program;
-        if Arc::ptr_eq(&program.code, code) {
+        if program.matches(code, environment) {
             return Ok(Some(program.index));
         }
     }
     Ok(None)
 }
 
-pub(super) fn arguments(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
+pub(super) fn arguments(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    input: &Arguments,
+) -> Result<()> {
+    if ctx.scoped_sources {
+        let mut values = Buffer::empty();
+        for (_, value) in input.keywords.buffer.data.iter().rev() {
+            values.push(ctx, value.clone())?;
+        }
+        for value in input.positional.data.iter().rev() {
+            values.push(ctx, value.clone())?;
+        }
+        return admit(ctx, storage, values, 0);
+    }
     let count = ctx.code_roots.as_ref().unwrap().data.len();
     // No callbacks have run yet; all retained sources belong to the accepted arguments.
     for index in (0..count).rev() {
         ctx.charge(1)?;
         let code = ctx.code_roots.as_ref().unwrap().data[index].clone();
-        let program = load(ctx, storage, &code)?;
+        let program = load(ctx, storage, &code, None)?;
         if program.index != 0 {
             activate(ctx, storage, program.index)?;
         }
@@ -112,7 +162,7 @@ fn discovered(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
         .get(storage.discovered)
         .cloned()
     {
-        if registered(ctx, storage, &code)?.is_none() {
+        if registered(ctx, storage, &code, None)?.is_none() {
             break;
         }
         storage.discovered += 1;
@@ -129,7 +179,7 @@ pub(super) fn namespace(
         .owner
         .as_ref()
         .ok_or_else(|| Error::new(ErrorKind::Type, "namespace has no executable source"))?;
-    let program = load(ctx, storage, owner)?;
+    let program = load(ctx, storage, owner, namespace.environment.as_ref())?;
     if storage.programs.data[program.index].failed {
         return Err(Error::new(
             ErrorKind::Runtime,
@@ -164,21 +214,35 @@ pub(super) fn address(
 
 pub(super) fn imported(ctx: &mut CallContext, storage: &mut Storage, value: &Value) -> Result<()> {
     // Failed or discarded host imports retain code for cleanup without admitting it.
-    discovered(ctx, storage)?;
+    if !ctx.scoped_sources {
+        discovered(ctx, storage)?;
+    }
     ctx.charge(storage.activations.data.len() as u64)?;
-    let mut pending = storage
+    let pending = storage
         .activations
         .data
         .iter()
         .filter(|a| a.waiting.is_none())
         .count();
-    if pending == 0 && storage.discovered == ctx.code_roots.as_ref().unwrap().data.len() {
+    if !ctx.scoped_sources
+        && pending == 0
+        && storage.discovered == ctx.code_roots.as_ref().unwrap().data.len()
+    {
         return Ok(());
     }
     let mut values = Buffer::empty();
+    values.push(ctx, value.clone())?;
+    admit(ctx, storage, values, pending)
+}
+
+fn admit(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    mut values: Buffer<Value>,
+    mut pending: usize,
+) -> Result<()> {
     let mut instances: Buffer<Arc<crate::objects::Instance>> = Buffer::empty();
     let mut needed = Buffer::empty();
-    values.push(ctx, value.clone())?;
     while let Some(value) = values.data.pop() {
         ctx.charge(1)?;
         let namespace = match &value.0 {
@@ -221,15 +285,20 @@ pub(super) fn imported(ctx: &mut CallContext, storage: &mut Storage, value: &Val
             }
             _ => None,
         };
-        let Some(owner) = namespace.and_then(|namespace| namespace.owner.as_ref()) else {
+        let Some(namespace) = namespace else {
+            continue;
+        };
+        let Some(owner) = namespace.owner.as_ref() else {
             continue;
         };
         let next_program = storage.programs.data.len();
-        let program = load(ctx, storage, owner)?;
+        let program = load(ctx, storage, owner, namespace.environment.as_ref())?;
         if program.index == next_program {
             activate(ctx, storage, program.index)?;
             pending += 1;
-            discovered(ctx, storage)?;
+            if !ctx.scoped_sources {
+                discovered(ctx, storage)?;
+            }
         }
         for activation in &storage.activations.data {
             ctx.charge(1)?;
@@ -241,7 +310,8 @@ pub(super) fn imported(ctx: &mut CallContext, storage: &mut Storage, value: &Val
                 break;
             }
         }
-        if needed.data.len() == pending
+        if !ctx.scoped_sources
+            && needed.data.len() == pending
             && storage.discovered == ctx.code_roots.as_ref().unwrap().data.len()
         {
             break;

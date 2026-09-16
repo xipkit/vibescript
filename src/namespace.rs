@@ -96,6 +96,7 @@ impl Namespace {
         } else {
             None
         };
+        ctx.scoped_sources |= environment.is_some();
         if ctx.owns(&value.header)
             && value
                 ._metadata
@@ -135,6 +136,7 @@ impl Namespace {
         environment: Arc<crate::objects::Instance>,
     ) -> Result<Arc<Self>> {
         let header = ctx.reserve(size_of::<Self>() + 2 * size_of::<usize>())?;
+        ctx.scoped_sources = true;
         Ok(Arc::new(Self {
             definition: value.definition.clone(),
             owner: value.owner.clone(),
@@ -146,11 +148,18 @@ impl Namespace {
 
     pub fn same_binding(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.definition, &other.definition)
-            && match (&self.environment, &other.environment) {
-                (Some(a), Some(b)) => a.same(b),
-                (None, None) => true,
-                _ => false,
-            }
+            && same_environment(self.environment.as_ref(), other.environment.as_ref())
+    }
+}
+
+pub(crate) fn same_environment(
+    left: Option<&Arc<crate::objects::Instance>>,
+    right: Option<&Arc<crate::objects::Instance>>,
+) -> bool {
+    match (left, right) {
+        (Some(a), Some(b)) => a.same(b),
+        (None, None) => true,
+        _ => false,
     }
 }
 
@@ -158,6 +167,7 @@ pub(crate) struct State {
     pub program: usize,
     pub namespace: Arc<Namespace>,
     pub fields: Hash,
+    pub backing: Option<Arc<crate::objects::Instance>>,
     pub initialized: bool,
 }
 #[derive(Clone, Copy, Debug)]

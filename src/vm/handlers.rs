@@ -773,7 +773,7 @@ pub(super) fn apply_control(
             if let Some(module) = initialized {
                 let program = frames.data[target].program.clone();
                 let state = namespaces::state(&program, ctx, storage, module)?;
-                storage.namespaces.data[state].initialized = true;
+                namespaces::initialized(ctx, storage, state)?;
             }
             unwind(frames, storage, stack, target);
             if frames.data.is_empty() {

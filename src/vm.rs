@@ -21,6 +21,9 @@ mod namespaces;
 mod operators;
 mod output;
 mod programs;
+mod scopes;
+#[cfg(test)]
+mod scopes_tests;
 use handlers::{Control, Event};
 use programs::Program;
 
@@ -159,7 +162,7 @@ pub(crate) fn execute(
     ctx.enum_rebind.definitions = Some(code.program.enum_definitions.clone());
     ctx.enum_rebind.active = true;
     let result = (|| -> Result<Value> {
-        let root = programs::load(ctx, &mut storage, code)?;
+        let root = programs::load(ctx, &mut storage, code, None)?;
         let program = &*root;
         let mut active = root.clone();
         let mut input = Arguments::empty();
@@ -174,7 +177,7 @@ pub(crate) fn execute(
             input.keywords.insert(ctx, key, value)?;
         }
         ctx.enum_rebind.active = false;
-        programs::arguments(ctx, &mut storage)?;
+        programs::arguments(ctx, &mut storage, &input)?;
         let mut pending_entry = Some((function, input));
         let mut initializer = if function == 0 {
             program.namespaces.len()
@@ -2802,9 +2805,7 @@ fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
     if let Some(previous) = found {
         let same = match (&previous.0, &value.0) {
             (Kind::Enum(a), Kind::Enum(b)) => std::sync::Arc::ptr_eq(&a.definition, &b.definition),
-            (Kind::Namespace(a), Kind::Namespace(b)) => {
-                std::sync::Arc::ptr_eq(&a.definition, &b.definition)
-            }
+            (Kind::Namespace(a), Kind::Namespace(b)) => a.same_binding(b),
             _ => false,
         };
         if !same {
@@ -2963,7 +2964,7 @@ fn enter_arguments(
     }
     let fun = &program.functions[function];
     if fun.instance
-        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if fun.namespace.is_some_and(|namespace| Arc::ptr_eq(&program.namespaces[namespace], &instance.class().definition)))
+        && !matches!(&call.receiver, Some(Value(Kind::Instance(instance))) if fun.namespace.is_some_and(|namespace| program.namespace_matches(namespace, instance.class())))
     {
         return Err(Error::new(
             ErrorKind::Type,

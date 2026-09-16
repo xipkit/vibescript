@@ -1,6 +1,5 @@
 use super::*;
 use crate::{namespace::Call, syntax::modules::Visibility};
-use std::sync::Arc;
 
 pub(super) struct Resolved {
     pub call: Call,
@@ -53,13 +52,10 @@ pub(super) fn resolve(
         Visibility::Private => false,
         Visibility::Protected => {
             caller.1
-                && caller
-                    .0
-                    .and_then(|index| program.namespaces.get(index))
-                    .is_some_and(|definition| {
-                        matches!(&receiver.0, Kind::Instance(instance)
-                if Arc::ptr_eq(definition, &instance.class().definition))
-                    })
+                && caller.0.is_some_and(|index| {
+                    matches!(&receiver.0, Kind::Instance(instance)
+                if program.namespace_matches(index, instance.class()))
+                })
         }
     };
     if !allowed {

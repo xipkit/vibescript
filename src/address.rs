@@ -11,6 +11,7 @@ pub(crate) enum Root {
     Global(usize),
     Field(usize, usize),
     Object(std::sync::Arc<crate::objects::Instance>, usize),
+    Environment(std::sync::Arc<crate::objects::Instance>, usize),
 }
 
 impl From<usize> for Root {
@@ -35,7 +36,7 @@ impl Bindings<'_> {
             Root::Field(module, field) => {
                 self.namespaces[*module].fields.buffer.data[*field].1 = value.unwrap_or_default()
             }
-            Root::Object(instance, field) => {
+            Root::Object(instance, field) | Root::Environment(instance, field) => {
                 crate::objects::set_slot(ctx, instance, *field, value.unwrap_or_default())?
             }
         }
@@ -94,6 +95,14 @@ impl Address {
         let mut address = Self::new(None, value);
         address.root = Some(Root::Object(instance, field));
         address
+    }
+
+    pub fn in_environment(mut self) -> Self {
+        let Some(Root::Object(instance, field)) = self.root.take() else {
+            unreachable!()
+        };
+        self.root = Some(Root::Environment(instance, field));
+        self
     }
 
     pub fn index(&mut self, ctx: &mut CallContext, args: &[Value]) -> Result<()> {

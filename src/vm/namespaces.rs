@@ -120,7 +120,16 @@ pub(super) fn state(
             return Ok(index);
         }
     }
-    let namespace = Namespace::import(ctx, &Namespace::untracked(definition.clone()))?;
+    let mut namespace = Namespace::import(ctx, &Namespace::untracked(definition.clone()))?;
+    let captured = if let Some(environment) = &program.environment {
+        namespace = Namespace::with_environment(ctx, &namespace, environment.clone())?;
+        Some(scopes::namespace(ctx, environment, module)?)
+    } else {
+        None
+    };
+    let fresh = captured.as_ref().is_none_or(|state| state.fresh);
+    let initialized =
+        definition.body.is_none() || captured.as_ref().is_some_and(|state| state.initialized);
     let index = storage.namespaces.data.len();
     storage.namespaces.push(
         ctx,
@@ -128,20 +137,40 @@ pub(super) fn state(
             program: program.index,
             namespace,
             fields: Hash::empty(),
-            initialized: definition.body.is_none(),
+            backing: captured.map(|state| state.fields),
+            initialized,
         },
     )?;
-    for (name, nested) in &definition.nested {
-        let nested = state(program, ctx, storage, *nested)?;
-        let value = Value(Kind::Namespace(
-            storage.namespaces.data[nested].namespace.clone(),
-        ));
-        let key = ctx.bytes(name.as_bytes())?;
-        storage.namespaces.data[index]
-            .fields
-            .insert(ctx, key, value)?;
+    if fresh {
+        for (name, nested) in &definition.nested {
+            let nested = state(program, ctx, storage, *nested)?;
+            let value = Value(Kind::Namespace(
+                storage.namespaces.data[nested].namespace.clone(),
+            ));
+            if let Some(backing) = &storage.namespaces.data[index].backing {
+                crate::objects::set(ctx, backing, name, &value)?;
+            } else {
+                let key = ctx.bytes(name.as_bytes())?;
+                storage.namespaces.data[index]
+                    .fields
+                    .insert(ctx, key, value)?;
+            }
+        }
     }
     Ok(index)
+}
+
+pub(super) fn initialized(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    index: usize,
+) -> Result<()> {
+    let state = &mut storage.namespaces.data[index];
+    if let Some(environment) = &state.namespace.environment {
+        scopes::initialized(ctx, environment, state.namespace.definition.index)?;
+    }
+    state.initialized = true;
+    Ok(())
 }
 
 pub(super) fn value(
@@ -164,6 +193,9 @@ pub(super) fn field(
     name: &str,
 ) -> Result<Option<Value>> {
     let index = state(program, ctx, storage, module)?;
+    if let Some(backing) = &storage.namespaces.data[index].backing {
+        return crate::objects::field(ctx, backing, name);
+    }
     let fields = &storage.namespaces.data[index].fields;
     Ok(fields
         .find(ctx, name.as_bytes())?
@@ -179,6 +211,18 @@ pub(super) fn set(
     value: Value,
 ) -> Result<()> {
     let index = state(program, ctx, storage, module)?;
+    if let Some(backing) = &storage.namespaces.data[index].backing {
+        if let Some(field) = crate::objects::field_slot(ctx, backing, name)? {
+            address::refresh(
+                ctx,
+                address::Root::Environment(backing.clone(), field),
+                &value,
+                &mut storage.addresses.data,
+                &[],
+            )?;
+        }
+        return crate::objects::set(ctx, backing, name, &value);
+    }
     let key = ctx.bytes(name.as_bytes())?;
     if let Some(field) = storage.namespaces.data[index]
         .fields
@@ -206,6 +250,12 @@ pub(super) fn address(
     optional: bool,
 ) -> Result<Address> {
     let index = state(program, ctx, storage, module)?;
+    if let Some(backing) = &storage.namespaces.data[index].backing {
+        if !optional && crate::objects::field_slot(ctx, backing, name)?.is_none() {
+            return Err(Error::new(ErrorKind::Name, "undefined class constant"));
+        }
+        return crate::objects::address(ctx, backing, name).map(Address::in_environment);
+    }
     let field = if let Some(field) = storage.namespaces.data[index]
         .fields
         .find(ctx, name.as_bytes())?
@@ -417,9 +467,7 @@ pub(super) fn setter(
         if method.name.strip_suffix('=') == Some(name) {
             if method.visibility == Visibility::Private
                 || (method.visibility == Visibility::Protected
-                    && (!caller
-                        .and_then(|index| program.namespaces.get(index))
-                        .is_some_and(|definition| Arc::ptr_eq(definition, &namespace.definition))
+                    && (!caller.is_some_and(|index| program.namespace_matches(index, namespace))
                         || caller_instance != instance))
             {
                 return Err(Error::new(
