@@ -26,7 +26,12 @@ def site_cases():
     manifest=json.loads((SITE/"sources.json").read_text())
     for entry in manifest["files"]:
         assert hashlib.sha256((SITE/entry["path"]).read_bytes()).hexdigest()==entry["sha256"],entry["path"]
-    return [{**case,"name":"site/"+case["path"],"source":(SITE/case["path"]).read_text(),"accounting":True} for case in json.loads((SITE/"cases.json").read_text())]
+    settings=json.loads((SITE/"harness.json").read_text())
+    return [{**case,**settings.get(case["path"],{}),"name":"site/"+case["path"],"source":(SITE/case["path"]).read_text(),"accounting":True} for case in json.loads((SITE/"cases.json").read_text())]
+
+
+def encoding_cases():
+    return [{"name":"encoding/"+case["name"],"source":function(case["body"]),"args":[None],"expected":case["expected"],"accounting":True,"result_encoding":"typed"} for case in json.loads((UPSTREAM.parent/"encoding-cases.json").read_text())]
 
 
 def function(body):
@@ -190,7 +195,7 @@ def conformance_cases():
                 cases[-1][field]=case[field]
         if case.get("function")=="__main__":
             cases[-1]["args"]=[]
-    return cases+upstream_cases()+site_cases()+[case for case in host_global_cases()+module_cases()+capability_cases() if "policy" not in case]
+    return cases+upstream_cases()+site_cases()+encoding_cases()+[case for case in host_global_cases()+module_cases()+capability_cases() if "policy" not in case]
 
 
 if __name__ == "__main__":

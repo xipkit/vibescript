@@ -1,14 +1,13 @@
 {
   "site_revision": "5ca06f3b643e56f6b14caeec6cd4671268c55dbb",
-  "source_revision": "c2754627b899172a7f6a7c44ec2b673ede544abb",
-  "dirty": " M README.md\n M docs/language-port.md\n M src/builtin.rs\n M src/iteration.rs\n M src/vm.rs\n M src/vm/dispatch.rs\n M tests/language-errors.json\n M tests/language.json\n M tests/syntax-errors.json\n?? docs/loop-differences.json\n?? docs/loop.md\n?? tests/kernel_loop.rs\n",
+  "source_revision": "1ebdfd11d75077f59aa087c9acf6078597d81212",
+  "dirty": " M README.md\n M benchmarks/go/go.mod\n M benchmarks/go/main.go\n M docs/language-port.md\n M examples/compare.rs\n M scripts/audit-site.py\n M scripts/check\n M scripts/fixtures.py\n M tests/site.rs\n M tests/site/README.md\n M tests/site/cases.json\n?? benchmarks/go/encoding.go\n?? benchmarks/go/encoding_test.go\n?? benchmarks/go/notifications.go\n?? examples/support/\n?? tests/encoding-cases.json\n?? tests/site/harness.json\n?? tests/site_harness.rs\n",
   "binary_sha256": {
-    "go-simd": "627a799a61ee05cadf608e82b835683cada2b9fe8885dfcae2b37e108e5e66cb",
-    "rust-simd": "dadb2717e71d29a57e2ae54a36481ca585a9e9d68d08b211ceca80e7ed5e1ce0"
+    "go-simd": "6412773fe8263c9b4747aba846bf0721436ec191391ccbcc3e70755c2111b15e",
+    "rust-simd": "2a2c0e3a4ac185712f94c12af7b9d5a2f3f2605ca7baa8c702490fbcf43bbb1d"
   },
   "counts": {
-    "match": 188,
-    "harness_gap": 15
+    "match": 203
   },
   "examples": [
     {
@@ -7694,86 +7693,1428 @@
     {
       "path": "showcase/commerce/quote_approval.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"self_serve\": JSON.stringify key \"total\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "73656c665f7365727665",
+                [
+                  "hash",
+                  [
+                    [
+                      "71756f74655f6964",
+                      [
+                        "string",
+                        "71756f74655f343130"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "180000"
+                      ]
+                    ],
+                    [
+                      "6d617267696e5f706f696e7473",
+                      [
+                        "int",
+                        "48"
+                      ]
+                    ],
+                    [
+                      "617070726f76616c5f6c616e65",
+                      [
+                        "string",
+                        "4175746f417070726f7665"
+                      ]
+                    ],
+                    [
+                      "6e6f7465",
+                      [
+                        "string",
+                        "71756f74655f34313020726f7574657320746f204175746f417070726f7665"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "656e7465727072697365",
+                [
+                  "hash",
+                  [
+                    [
+                      "71756f74655f6964",
+                      [
+                        "string",
+                        "71756f74655f343131"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "4800000"
+                      ]
+                    ],
+                    [
+                      "6d617267696e5f706f696e7473",
+                      [
+                        "int",
+                        "18"
+                      ]
+                    ],
+                    [
+                      "617070726f76616c5f6c616e65",
+                      [
+                        "string",
+                        "46696e616e6365"
+                      ]
+                    ],
+                    [
+                      "6e6f7465",
+                      [
+                        "string",
+                        "71756f74655f34313120726f7574657320746f2046696e616e6365"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "73656c665f7365727665",
+                [
+                  "hash",
+                  [
+                    [
+                      "71756f74655f6964",
+                      [
+                        "string",
+                        "71756f74655f343130"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "180000"
+                      ]
+                    ],
+                    [
+                      "6d617267696e5f706f696e7473",
+                      [
+                        "int",
+                        "48"
+                      ]
+                    ],
+                    [
+                      "617070726f76616c5f6c616e65",
+                      [
+                        "string",
+                        "4175746f417070726f7665"
+                      ]
+                    ],
+                    [
+                      "6e6f7465",
+                      [
+                        "string",
+                        "71756f74655f34313020726f7574657320746f204175746f417070726f7665"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "656e7465727072697365",
+                [
+                  "hash",
+                  [
+                    [
+                      "71756f74655f6964",
+                      [
+                        "string",
+                        "71756f74655f343131"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "4800000"
+                      ]
+                    ],
+                    [
+                      "6d617267696e5f706f696e7473",
+                      [
+                        "int",
+                        "18"
+                      ]
+                    ],
+                    [
+                      "617070726f76616c5f6c616e65",
+                      [
+                        "string",
+                        "46696e616e6365"
+                      ]
+                    ],
+                    [
+                      "6e6f7465",
+                      [
+                        "string",
+                        "71756f74655f34313120726f7574657320746f2046696e616e6365"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/commerce/shipping_quote.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"economy\": JSON.stringify key \"subtotal\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "65636f6e6f6d79",
+                [
+                  "hash",
+                  [
+                    [
+                      "7370656564",
+                      [
+                        "string",
+                        "45636f6e6f6d79"
+                      ]
+                    ],
+                    [
+                      "737562746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "12500"
+                      ]
+                    ],
+                    [
+                      "666565",
+                      [
+                        "money",
+                        "USD",
+                        "0"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "12500"
+                      ]
+                    ],
+                    [
+                      "7472616e736974",
+                      [
+                        "string",
+                        "503544"
+                      ]
+                    ],
+                    [
+                      "657461",
+                      [
+                        "string",
+                        "323032332d31312d31395432323a31333a32305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "73616d655f646179",
+                [
+                  "hash",
+                  [
+                    [
+                      "7370656564",
+                      [
+                        "string",
+                        "53616d65446179"
+                      ]
+                    ],
+                    [
+                      "737562746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "4800"
+                      ]
+                    ],
+                    [
+                      "666565",
+                      [
+                        "money",
+                        "USD",
+                        "3500"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "8300"
+                      ]
+                    ],
+                    [
+                      "7472616e736974",
+                      [
+                        "string",
+                        "50543648"
+                      ]
+                    ],
+                    [
+                      "657461",
+                      [
+                        "string",
+                        "323032332d31312d31355430343a31333a32305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "65636f6e6f6d79",
+                [
+                  "hash",
+                  [
+                    [
+                      "7370656564",
+                      [
+                        "string",
+                        "45636f6e6f6d79"
+                      ]
+                    ],
+                    [
+                      "737562746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "12500"
+                      ]
+                    ],
+                    [
+                      "666565",
+                      [
+                        "money",
+                        "USD",
+                        "0"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "12500"
+                      ]
+                    ],
+                    [
+                      "7472616e736974",
+                      [
+                        "string",
+                        "503544"
+                      ]
+                    ],
+                    [
+                      "657461",
+                      [
+                        "string",
+                        "323032332d31312d31395432323a31333a32305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "73616d655f646179",
+                [
+                  "hash",
+                  [
+                    [
+                      "7370656564",
+                      [
+                        "string",
+                        "53616d65446179"
+                      ]
+                    ],
+                    [
+                      "737562746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "4800"
+                      ]
+                    ],
+                    [
+                      "666565",
+                      [
+                        "money",
+                        "USD",
+                        "3500"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "8300"
+                      ]
+                    ],
+                    [
+                      "7472616e736974",
+                      [
+                        "string",
+                        "50543648"
+                      ]
+                    ],
+                    [
+                      "657461",
+                      [
+                        "string",
+                        "323032332d31312d31355430343a31333a32305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/finance/late_fee.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"on_time\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6f6e5f74696d65",
+                [
+                  "money",
+                  "USD",
+                  "0"
+                ]
+              ],
+              [
+                "6772616365",
+                [
+                  "money",
+                  "USD",
+                  "500"
+                ]
+              ],
+              [
+                "6f766572647565",
+                [
+                  "money",
+                  "USD",
+                  "1500"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6f6e5f74696d65",
+                [
+                  "money",
+                  "USD",
+                  "0"
+                ]
+              ],
+              [
+                "6772616365",
+                [
+                  "money",
+                  "USD",
+                  "500"
+                ]
+              ],
+              [
+                "6f766572647565",
+                [
+                  "money",
+                  "USD",
+                  "1500"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/finance/late_fee_policy.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"grace\": JSON.stringify key \"balance\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6772616365",
+                [
+                  "hash",
+                  [
+                    [
+                      "696e766f6963655f6964",
+                      [
+                        "string",
+                        "696e765f333130"
+                      ]
+                    ],
+                    [
+                      "7374616e64696e67",
+                      [
+                        "string",
+                        "4772616365"
+                      ]
+                    ],
+                    [
+                      "6f766572647565",
+                      [
+                        "string",
+                        "503744"
+                      ]
+                    ],
+                    [
+                      "62616c616e6365",
+                      [
+                        "money",
+                        "USD",
+                        "24000"
+                      ]
+                    ],
+                    [
+                      "6c6174655f666565",
+                      [
+                        "money",
+                        "USD",
+                        "1200"
+                      ]
+                    ],
+                    [
+                      "746f74616c5f647565",
+                      [
+                        "money",
+                        "USD",
+                        "25200"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "64656c696e7175656e74",
+                [
+                  "hash",
+                  [
+                    [
+                      "696e766f6963655f6964",
+                      [
+                        "string",
+                        "696e765f333131"
+                      ]
+                    ],
+                    [
+                      "7374616e64696e67",
+                      [
+                        "string",
+                        "44656c696e7175656e74"
+                      ]
+                    ],
+                    [
+                      "6f766572647565",
+                      [
+                        "string",
+                        "50323844"
+                      ]
+                    ],
+                    [
+                      "62616c616e6365",
+                      [
+                        "money",
+                        "USD",
+                        "24000"
+                      ]
+                    ],
+                    [
+                      "6c6174655f666565",
+                      [
+                        "money",
+                        "USD",
+                        "3500"
+                      ]
+                    ],
+                    [
+                      "746f74616c5f647565",
+                      [
+                        "money",
+                        "USD",
+                        "27500"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6772616365",
+                [
+                  "hash",
+                  [
+                    [
+                      "696e766f6963655f6964",
+                      [
+                        "string",
+                        "696e765f333130"
+                      ]
+                    ],
+                    [
+                      "7374616e64696e67",
+                      [
+                        "string",
+                        "4772616365"
+                      ]
+                    ],
+                    [
+                      "6f766572647565",
+                      [
+                        "string",
+                        "503744"
+                      ]
+                    ],
+                    [
+                      "62616c616e6365",
+                      [
+                        "money",
+                        "USD",
+                        "24000"
+                      ]
+                    ],
+                    [
+                      "6c6174655f666565",
+                      [
+                        "money",
+                        "USD",
+                        "1200"
+                      ]
+                    ],
+                    [
+                      "746f74616c5f647565",
+                      [
+                        "money",
+                        "USD",
+                        "25200"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "64656c696e7175656e74",
+                [
+                  "hash",
+                  [
+                    [
+                      "696e766f6963655f6964",
+                      [
+                        "string",
+                        "696e765f333131"
+                      ]
+                    ],
+                    [
+                      "7374616e64696e67",
+                      [
+                        "string",
+                        "44656c696e7175656e74"
+                      ]
+                    ],
+                    [
+                      "6f766572647565",
+                      [
+                        "string",
+                        "50323844"
+                      ]
+                    ],
+                    [
+                      "62616c616e6365",
+                      [
+                        "money",
+                        "USD",
+                        "24000"
+                      ]
+                    ],
+                    [
+                      "6c6174655f666565",
+                      [
+                        "money",
+                        "USD",
+                        "3500"
+                      ]
+                    ],
+                    [
+                      "746f74616c5f647565",
+                      [
+                        "money",
+                        "USD",
+                        "27500"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/finance/payout_schedule.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"daily\": JSON.stringify key \"total\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6461696c79",
+                [
+                  "hash",
+                  [
+                    [
+                      "62617463685f6964",
+                      [
+                        "string",
+                        "62617463685f6461696c795f3139"
+                      ]
+                    ],
+                    [
+                      "636164656e6365",
+                      [
+                        "string",
+                        "4461696c79"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "182044"
+                      ]
+                    ],
+                    [
+                      "736574746c656d656e745f64656c6179",
+                      [
+                        "string",
+                        "503144"
+                      ]
+                    ],
+                    [
+                      "7061796f75745f6174",
+                      [
+                        "string",
+                        "323032332d31312d32305431333a32303a30305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "6d6f6e74686c79",
+                [
+                  "hash",
+                  [
+                    [
+                      "62617463685f6964",
+                      [
+                        "string",
+                        "62617463685f6d6f6e74686c795f3037"
+                      ]
+                    ],
+                    [
+                      "636164656e6365",
+                      [
+                        "string",
+                        "4d6f6e74686c79"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "9821017"
+                      ]
+                    ],
+                    [
+                      "736574746c656d656e745f64656c6179",
+                      [
+                        "string",
+                        "50333044"
+                      ]
+                    ],
+                    [
+                      "7061796f75745f6174",
+                      [
+                        "string",
+                        "323032332d31322d31395431333a32303a30305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6461696c79",
+                [
+                  "hash",
+                  [
+                    [
+                      "62617463685f6964",
+                      [
+                        "string",
+                        "62617463685f6461696c795f3139"
+                      ]
+                    ],
+                    [
+                      "636164656e6365",
+                      [
+                        "string",
+                        "4461696c79"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "182044"
+                      ]
+                    ],
+                    [
+                      "736574746c656d656e745f64656c6179",
+                      [
+                        "string",
+                        "503144"
+                      ]
+                    ],
+                    [
+                      "7061796f75745f6174",
+                      [
+                        "string",
+                        "323032332d31312d32305431333a32303a30305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "6d6f6e74686c79",
+                [
+                  "hash",
+                  [
+                    [
+                      "62617463685f6964",
+                      [
+                        "string",
+                        "62617463685f6d6f6e74686c795f3037"
+                      ]
+                    ],
+                    [
+                      "636164656e6365",
+                      [
+                        "string",
+                        "4d6f6e74686c79"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "9821017"
+                      ]
+                    ],
+                    [
+                      "736574746c656d656e745f64656c6179",
+                      [
+                        "string",
+                        "50333044"
+                      ]
+                    ],
+                    [
+                      "7061796f75745f6174",
+                      [
+                        "string",
+                        "323032332d31322d31395431333a32303a30305a"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/finance/statement_grid.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"by_category\": JSON.stringify array index 0: JSON.stringify array index 1: JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "62795f63617465676f7279",
+                [
+                  "array",
+                  [
+                    [
+                      "array",
+                      [
+                        [
+                          "string",
+                          "737562736372697074696f6e73"
+                        ],
+                        [
+                          "money",
+                          "USD",
+                          "363000"
+                        ]
+                      ]
+                    ],
+                    [
+                      "array",
+                      [
+                        [
+                          "string",
+                          "7573616765"
+                        ],
+                        [
+                          "money",
+                          "USD",
+                          "125500"
+                        ]
+                      ]
+                    ],
+                    [
+                      "array",
+                      [
+                        [
+                          "string",
+                          "737570706f7274"
+                        ],
+                        [
+                          "money",
+                          "USD",
+                          "28500"
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "7765656b6c795f746f74616c73",
+                [
+                  "array",
+                  [
+                    [
+                      "money",
+                      "USD",
+                      "163000"
+                    ],
+                    [
+                      "money",
+                      "USD",
+                      "173500"
+                    ],
+                    [
+                      "money",
+                      "USD",
+                      "180500"
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "6772616e645f746f74616c",
+                [
+                  "money",
+                  "USD",
+                  "517000"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "62795f63617465676f7279",
+                [
+                  "array",
+                  [
+                    [
+                      "array",
+                      [
+                        [
+                          "string",
+                          "737562736372697074696f6e73"
+                        ],
+                        [
+                          "money",
+                          "USD",
+                          "363000"
+                        ]
+                      ]
+                    ],
+                    [
+                      "array",
+                      [
+                        [
+                          "string",
+                          "7573616765"
+                        ],
+                        [
+                          "money",
+                          "USD",
+                          "125500"
+                        ]
+                      ]
+                    ],
+                    [
+                      "array",
+                      [
+                        [
+                          "string",
+                          "737570706f7274"
+                        ],
+                        [
+                          "money",
+                          "USD",
+                          "28500"
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "7765656b6c795f746f74616c73",
+                [
+                  "array",
+                  [
+                    [
+                      "money",
+                      "USD",
+                      "163000"
+                    ],
+                    [
+                      "money",
+                      "USD",
+                      "173500"
+                    ],
+                    [
+                      "money",
+                      "USD",
+                      "180500"
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "6772616e645f746f74616c",
+                [
+                  "money",
+                  "USD",
+                  "517000"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/finance/subscription_billing.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"growth\": JSON.stringify key \"base\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "67726f777468",
+                [
+                  "hash",
+                  [
+                    [
+                      "706c616e",
+                      [
+                        "string",
+                        "47726f777468"
+                      ]
+                    ],
+                    [
+                      "62617365",
+                      [
+                        "money",
+                        "USD",
+                        "7900"
+                      ]
+                    ],
+                    [
+                      "7365617473",
+                      [
+                        "int",
+                        "4"
+                      ]
+                    ],
+                    [
+                      "73656174735f666565",
+                      [
+                        "money",
+                        "USD",
+                        "7600"
+                      ]
+                    ],
+                    [
+                      "646973636f756e74",
+                      [
+                        "money",
+                        "USD",
+                        "1000"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "14500"
+                      ]
+                    ],
+                    [
+                      "63757272656e6379",
+                      [
+                        "string",
+                        "555344"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "7363616c65",
+                [
+                  "hash",
+                  [
+                    [
+                      "706c616e",
+                      [
+                        "string",
+                        "5363616c65"
+                      ]
+                    ],
+                    [
+                      "62617365",
+                      [
+                        "money",
+                        "USD",
+                        "19900"
+                      ]
+                    ],
+                    [
+                      "7365617473",
+                      [
+                        "int",
+                        "12"
+                      ]
+                    ],
+                    [
+                      "73656174735f666565",
+                      [
+                        "money",
+                        "USD",
+                        "34800"
+                      ]
+                    ],
+                    [
+                      "646973636f756e74",
+                      [
+                        "money",
+                        "USD",
+                        "0"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "54700"
+                      ]
+                    ],
+                    [
+                      "63757272656e6379",
+                      [
+                        "string",
+                        "555344"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "67726f777468",
+                [
+                  "hash",
+                  [
+                    [
+                      "706c616e",
+                      [
+                        "string",
+                        "47726f777468"
+                      ]
+                    ],
+                    [
+                      "62617365",
+                      [
+                        "money",
+                        "USD",
+                        "7900"
+                      ]
+                    ],
+                    [
+                      "7365617473",
+                      [
+                        "int",
+                        "4"
+                      ]
+                    ],
+                    [
+                      "73656174735f666565",
+                      [
+                        "money",
+                        "USD",
+                        "7600"
+                      ]
+                    ],
+                    [
+                      "646973636f756e74",
+                      [
+                        "money",
+                        "USD",
+                        "1000"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "14500"
+                      ]
+                    ],
+                    [
+                      "63757272656e6379",
+                      [
+                        "string",
+                        "555344"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "7363616c65",
+                [
+                  "hash",
+                  [
+                    [
+                      "706c616e",
+                      [
+                        "string",
+                        "5363616c65"
+                      ]
+                    ],
+                    [
+                      "62617365",
+                      [
+                        "money",
+                        "USD",
+                        "19900"
+                      ]
+                    ],
+                    [
+                      "7365617473",
+                      [
+                        "int",
+                        "12"
+                      ]
+                    ],
+                    [
+                      "73656174735f666565",
+                      [
+                        "money",
+                        "USD",
+                        "34800"
+                      ]
+                    ],
+                    [
+                      "646973636f756e74",
+                      [
+                        "money",
+                        "USD",
+                        "0"
+                      ]
+                    ],
+                    [
+                      "746f74616c",
+                      [
+                        "money",
+                        "USD",
+                        "54700"
+                      ]
+                    ],
+                    [
+                      "63757272656e6379",
+                      [
+                        "string",
+                        "555344"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/language/synchronous_blocks.vibe",
@@ -7928,14 +9269,26 @@
     {
       "path": "showcase/notifications/email.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "showcase/notifications/email.vibe: undefined variable email\n  --> line 14, column 3\n 14 |   email.send(address, subject, body)\n    |   ^\n  at welcome (14:3)\n  at welcome (18:3)\n  at run (17:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "body": "Hi Alex,\n\nYour account is ready. Thanks for joining us.",
+          "status": "preview",
+          "subject": "Welcome, Alex!",
+          "to": "alex@example.com"
+        }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"unknown class member email\", offset: Some(492), diagnostic: Some(Diagnostic { position: Position { line: 14, column: 3 }, code_frame: \"  --> line 14, column 3\\n 14 |   email.send(address, subject, body)\\n    |   ^\", frames: [StackFrame { function: \"welcome\", position: Position { line: 14, column: 3 } }, StackFrame { function: \"welcome\", position: Position { line: 18, column: 3 } }, StackFrame { function: \"run\", position: Position { line: 17, column: 1 } }] }), class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "status": "preview",
+          "to": "alex@example.com",
+          "subject": "Welcome, Alex!",
+          "body": "Hi Alex,\n\nYour account is ready. Thanks for joining us."
+        }
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/notifications/reminder_schedule.vibe",
@@ -7998,14 +9351,24 @@
     {
       "path": "showcase/notifications/sms.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "showcase/notifications/sms.vibe: undefined variable sms\n  --> line 13, column 3\n 13 |   sms.send(phone, body)\n    |   ^\n  at delivery_update (13:3)\n  at delivery_update (17:3)\n  at run (16:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "body": "Order 1042 is on its way.",
+          "status": "preview",
+          "to": "+12025550123"
+        }
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Name, message: \"unknown class member sms\", offset: Some(410), diagnostic: Some(Diagnostic { position: Position { line: 13, column: 3 }, code_frame: \"  --> line 13, column 3\\n 13 |   sms.send(phone, body)\\n    |   ^\", frames: [StackFrame { function: \"delivery_update\", position: Position { line: 13, column: 3 } }, StackFrame { function: \"delivery_update\", position: Position { line: 17, column: 3 } }, StackFrame { function: \"run\", position: Position { line: 16, column: 1 } }] }), class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": {
+          "status": "preview",
+          "to": "+12025550123",
+          "body": "Order 1042 is on its way."
+        }
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/numbers/big_integers.vibe",
@@ -8180,14 +9543,252 @@
     {
       "path": "showcase/policies/refund_decision.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"full\": JSON.stringify key \"refund\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "66756c6c",
+                [
+                  "hash",
+                  [
+                    [
+                      "6465636973696f6e",
+                      [
+                        "string",
+                        "46756c6c"
+                      ]
+                    ],
+                    [
+                      "616765",
+                      [
+                        "string",
+                        "503344"
+                      ]
+                    ],
+                    [
+                      "75736564",
+                      [
+                        "bool",
+                        false
+                      ]
+                    ],
+                    [
+                      "726566756e64",
+                      [
+                        "money",
+                        "USD",
+                        "8900"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "7061727469616c",
+                [
+                  "hash",
+                  [
+                    [
+                      "6465636973696f6e",
+                      [
+                        "string",
+                        "5061727469616c"
+                      ]
+                    ],
+                    [
+                      "616765",
+                      [
+                        "string",
+                        "50313444"
+                      ]
+                    ],
+                    [
+                      "75736564",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "726566756e64",
+                      [
+                        "money",
+                        "USD",
+                        "7400"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "64656e696564",
+                [
+                  "hash",
+                  [
+                    [
+                      "6465636973696f6e",
+                      [
+                        "string",
+                        "44656e696564"
+                      ]
+                    ],
+                    [
+                      "616765",
+                      [
+                        "string",
+                        "50343544"
+                      ]
+                    ],
+                    [
+                      "75736564",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "726566756e64",
+                      [
+                        "money",
+                        "USD",
+                        "0"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "66756c6c",
+                [
+                  "hash",
+                  [
+                    [
+                      "6465636973696f6e",
+                      [
+                        "string",
+                        "46756c6c"
+                      ]
+                    ],
+                    [
+                      "616765",
+                      [
+                        "string",
+                        "503344"
+                      ]
+                    ],
+                    [
+                      "75736564",
+                      [
+                        "bool",
+                        false
+                      ]
+                    ],
+                    [
+                      "726566756e64",
+                      [
+                        "money",
+                        "USD",
+                        "8900"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "7061727469616c",
+                [
+                  "hash",
+                  [
+                    [
+                      "6465636973696f6e",
+                      [
+                        "string",
+                        "5061727469616c"
+                      ]
+                    ],
+                    [
+                      "616765",
+                      [
+                        "string",
+                        "50313444"
+                      ]
+                    ],
+                    [
+                      "75736564",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "726566756e64",
+                      [
+                        "money",
+                        "USD",
+                        "7400"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "64656e696564",
+                [
+                  "hash",
+                  [
+                    [
+                      "6465636973696f6e",
+                      [
+                        "string",
+                        "44656e696564"
+                      ]
+                    ],
+                    [
+                      "616765",
+                      [
+                        "string",
+                        "50343544"
+                      ]
+                    ],
+                    [
+                      "75736564",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "726566756e64",
+                      [
+                        "money",
+                        "USD",
+                        "0"
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "showcase/policies/trial_offer.vibe",
@@ -9140,14 +10741,46 @@
     {
       "path": "upstream/blocks/enumerable_reports.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"USD\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "555344",
+                [
+                  "money",
+                  "USD",
+                  "8500"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "555344",
+                [
+                  "money",
+                  "USD",
+                  "8500"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "upstream/blocks/transformations.vibe",
@@ -9586,14 +11219,72 @@
     {
       "path": "upstream/durations/durations.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"event_window\": JSON.stringify unsupported value type duration\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "72656d696e6465725f64656c6179",
+                [
+                  "int",
+                  "300"
+                ]
+              ],
+              [
+                "6576656e745f77696e646f77",
+                [
+                  "duration",
+                  "7200"
+                ]
+              ],
+              [
+                "636f6d62696e6564",
+                [
+                  "int",
+                  "900"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode a duration\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "72656d696e6465725f64656c6179",
+                [
+                  "int",
+                  "300"
+                ]
+              ],
+              [
+                "6576656e745f77696e646f77",
+                [
+                  "duration",
+                  "7200"
+                ]
+              ],
+              [
+                "636f6d62696e6564",
+                [
+                  "int",
+                  "900"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "upstream/enums/operations.vibe",
@@ -9644,26 +11335,366 @@
     {
       "path": "upstream/errors/assertions.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"currency\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "706f736974697665",
+                [
+                  "int",
+                  "42"
+                ]
+              ],
+              [
+                "63757272656e6379",
+                [
+                  "money",
+                  "USD",
+                  "2500"
+                ]
+              ],
+              [
+                "70726573656e74",
+                [
+                  "string",
+                  "68656c6c6f"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "706f736974697665",
+                [
+                  "int",
+                  "42"
+                ]
+              ],
+              [
+                "63757272656e6379",
+                [
+                  "money",
+                  "USD",
+                  "2500"
+                ]
+              ],
+              [
+                "70726573656e74",
+                [
+                  "string",
+                  "68656c6c6f"
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "upstream/hashes/operations.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"merged\": JSON.stringify key \"raised\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6d6572676564",
+                [
+                  "hash",
+                  [
+                    [
+                      "737461747573",
+                      [
+                        "string",
+                        "616374697665"
+                      ]
+                    ],
+                    [
+                      "726169736564",
+                      [
+                        "money",
+                        "USD",
+                        "7500"
+                      ]
+                    ],
+                    [
+                      "676f616c",
+                      [
+                        "money",
+                        "USD",
+                        "10000"
+                      ]
+                    ],
+                    [
+                      "6e616d65",
+                      [
+                        "string",
+                        "416c696365"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "6f76657272696464656e",
+                [
+                  "hash",
+                  [
+                    [
+                      "61",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "62",
+                      [
+                        "int",
+                        "3"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "74616c6c79",
+                [
+                  "hash",
+                  [
+                    [
+                      "616374697665",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "636f6d706c657465",
+                      [
+                        "int",
+                        "1"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "666c616773",
+                [
+                  "hash",
+                  [
+                    [
+                      "73697a65",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "6c656e677468",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "656d707479",
+                      [
+                        "bool",
+                        false
+                      ]
+                    ],
+                    [
+                      "6861735f6e616d65",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "6861735f676f616c",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "696e636c756465735f726169736564",
+                      [
+                        "bool",
+                        false
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6d6572676564",
+                [
+                  "hash",
+                  [
+                    [
+                      "737461747573",
+                      [
+                        "string",
+                        "616374697665"
+                      ]
+                    ],
+                    [
+                      "726169736564",
+                      [
+                        "money",
+                        "USD",
+                        "7500"
+                      ]
+                    ],
+                    [
+                      "676f616c",
+                      [
+                        "money",
+                        "USD",
+                        "10000"
+                      ]
+                    ],
+                    [
+                      "6e616d65",
+                      [
+                        "string",
+                        "416c696365"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "6f76657272696464656e",
+                [
+                  "hash",
+                  [
+                    [
+                      "61",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "62",
+                      [
+                        "int",
+                        "3"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "74616c6c79",
+                [
+                  "hash",
+                  [
+                    [
+                      "616374697665",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "636f6d706c657465",
+                      [
+                        "int",
+                        "1"
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              [
+                "666c616773",
+                [
+                  "hash",
+                  [
+                    [
+                      "73697a65",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "6c656e677468",
+                      [
+                        "int",
+                        "2"
+                      ]
+                    ],
+                    [
+                      "656d707479",
+                      [
+                        "bool",
+                        false
+                      ]
+                    ],
+                    [
+                      "6861735f6e616d65",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "6861735f676f616c",
+                      [
+                        "bool",
+                        true
+                      ]
+                    ],
+                    [
+                      "696e636c756465735f726169736564",
+                      [
+                        "bool",
+                        false
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "upstream/hashes/transformations.vibe",
@@ -9850,14 +11881,76 @@
     {
       "path": "upstream/money/operations.vibe",
       "go-simd": {
-        "exit_code": 1,
-        "stderr": "JSON.stringify key \"added\": JSON.stringify unsupported value type money\n  --> line 5, column 2\n 5 |  JSON.stringify(v)\n   |  ^\n  at encode (5:2)\n  at encode (4:1)\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6164646564",
+                [
+                  "money",
+                  "USD",
+                  "6250"
+                ]
+              ],
+              [
+                "6e6574",
+                [
+                  "money",
+                  "USD",
+                  "4825"
+                ]
+              ],
+              [
+                "65786365656473",
+                [
+                  "bool",
+                  true
+                ]
+              ]
+            ]
+          ]
+        ]
       },
       "rust-simd": {
-        "exit_code": 1,
-        "stderr": "Error: Error { kind: Json, message: \"cannot encode money\", offset: None, diagnostic: None, class: Runtime, raw_message: None }\n"
+        "exit_code": 0,
+        "stderr": "",
+        "output": [
+          "typed-v1",
+          [
+            "hash",
+            [
+              [
+                "6164646564",
+                [
+                  "money",
+                  "USD",
+                  "6250"
+                ]
+              ],
+              [
+                "6e6574",
+                [
+                  "money",
+                  "USD",
+                  "4825"
+                ]
+              ],
+              [
+                "65786365656473",
+                [
+                  "bool",
+                  true
+                ]
+              ]
+            ]
+          ]
+        ]
       },
-      "status": "harness_gap"
+      "status": "match"
     },
     {
       "path": "upstream/policies/access_control.vibe",

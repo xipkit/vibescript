@@ -1,0 +1,83 @@
+use serde_json::{Value as Json, json};
+use vibescript::{CallOptions, Engine, ErrorKind, HostMethod, Value};
+
+#[path = "../examples/support/mod.rs"]
+mod support;
+
+#[test]
+fn typed_results_preserve_exact_data_and_type_distinctions() {
+    let cases: Vec<Json> = serde_json::from_str(include_str!("encoding-cases.json")).unwrap();
+    for case in cases {
+        let body = case["body"].as_str().unwrap();
+        let result = Engine::new()
+            .compile(body)
+            .unwrap_or_else(|error| panic!("{body}: {error}"))
+            .run(CallOptions::default())
+            .unwrap_or_else(|error| panic!("{body}: {error}"));
+        let encoded = support::encode(&result.value, "typed", CallOptions::default()).unwrap();
+        let actual: Json = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(actual, case["expected"], "{body}");
+    }
+    let nan = Value::float(f64::from_bits(0x7ff8000000000001));
+    let encoded = support::encode(&nan, "typed", CallOptions::default()).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Json>(&encoded).unwrap(),
+        json!(["typed-v1", ["float", "7ff8000000000001"]])
+    );
+}
+
+#[test]
+fn typed_results_bound_traversal_and_reject_executable_values() {
+    let method = HostMethod::new("hidden", |_, _, _| panic!("encoder invoked a method"));
+    assert!(support::encode(&method.value(), "typed", CallOptions::default()).is_err());
+    let mut value = Value::nil();
+    for _ in 0..258 {
+        value = Value::array(vec![value]);
+    }
+    assert!(support::encode(&value, "typed", CallOptions::default()).is_err());
+    assert!(support::encode(&Value::nil(), "unknown", CallOptions::default()).is_err());
+}
+
+#[test]
+fn notification_previews_use_explicit_grants_and_validate_inputs() {
+    for (name, args, expected) in [
+        (
+            "sms",
+            r#""number", "body""#,
+            json!({"status":"preview", "to":"number", "body":"body"}),
+        ),
+        (
+            "email",
+            r#""address", "subject", "body""#,
+            json!({"status":"preview", "to":"address", "subject":"subject", "body":"body"}),
+        ),
+    ] {
+        let mut engine = Engine::new();
+        engine.set_strict_effects(true);
+        let script = engine.compile(&format!("{name}.send({args})")).unwrap();
+        let options = CallOptions {
+            capabilities: vec![support::notification(name).unwrap()],
+            ..CallOptions::default()
+        };
+        let output = script.run(options.clone()).unwrap();
+        let encoded = support::encode(&output.value, "json", CallOptions::default()).unwrap();
+        assert_eq!(serde_json::from_slice::<Json>(&encoded).unwrap(), expected);
+        assert_eq!(
+            script.run(CallOptions::default()).unwrap_err().kind,
+            ErrorKind::Name
+        );
+        options.cancellation.cancel();
+        assert_eq!(script.run(options).unwrap_err().kind, ErrorKind::Cancelled);
+        for invalid in ["", "1", "false, false", "a: 1"] {
+            let script = engine.compile(&format!("{name}.send({invalid})")).unwrap();
+            assert!(
+                script
+                    .run(CallOptions {
+                        capabilities: vec![support::notification(name).unwrap()],
+                        ..CallOptions::default()
+                    })
+                    .is_err()
+            );
+        }
+    }
+}

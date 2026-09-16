@@ -25,6 +25,8 @@ type fixture struct {
 	Globals           map[string]json.RawMessage `json:"globals,omitempty"`
 	StrictEffects     bool                       `json:"strict_effects,omitempty"`
 	CapabilityProbe   bool                       `json:"capability_probe,omitempty"`
+	Notifications     []string                   `json:"notifications,omitempty"`
+	ResultEncoding    string                     `json:"result_encoding,omitempty"`
 	AllowRequire      bool                       `json:"allow_require,omitempty"`
 	ModulePaths       []string                   `json:"module_paths,omitempty"`
 	ModuleAllow       []string                   `json:"module_allow,omitempty"`
@@ -140,6 +142,9 @@ func run() error {
 		if fixture.CapabilityProbe {
 			options.Capabilities = []vibes.CapabilityAdapter{probeCapability{}}
 		}
+		for _, name := range fixture.Notifications {
+			options.Capabilities = append(options.Capabilities, notificationCapability{name: name})
+		}
 		if len(fixture.Globals) > 0 {
 			options.Globals = make(map[string]value.Value, len(fixture.Globals))
 			for name, raw := range fixture.Globals {
@@ -154,11 +159,10 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", fixture.Name, err)
 		}
-		encoded, err := converter.Call(ctx, "encode", []value.Value{result}, vibes.CallOptions{})
+		output, err := encodeResult(ctx, converter, result, fixture.ResultEncoding)
 		if err != nil {
 			return err
 		}
-		output := encoded.String()
 		digest := fnv.New64a()
 		if _, err := digest.Write([]byte(output)); err != nil {
 			return err
@@ -205,11 +209,11 @@ func run() error {
 				record["alloc_bytes"] = float64(after.TotalAlloc-before.TotalAlloc) / float64(iterations)
 				record["allocations"] = float64(after.Mallocs-before.Mallocs) / float64(iterations)
 			}
-			finalOutput, err := converter.Call(ctx, "encode", []value.Value{sink}, vibes.CallOptions{})
+			finalOutput, err := encodeResult(ctx, converter, sink, fixture.ResultEncoding)
 			if err != nil {
 				return err
 			}
-			if finalOutput.String() != output {
+			if finalOutput != output {
 				return fmt.Errorf("%s: timed output differs from validation", fixture.Name)
 			}
 			record["iterations"] = iterations

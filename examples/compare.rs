@@ -6,7 +6,9 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json, stringify_json};
+use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json};
+
+mod support;
 
 #[cfg(feature = "allocation-stats")]
 mod allocations {
@@ -139,13 +141,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         let metered = case["accounting"].as_bool().unwrap_or(true);
+        let mut capabilities = Vec::new();
+        if case["capability_probe"].as_bool().unwrap_or(false) {
+            capabilities.push(probe_capability());
+        }
+        for name in strings(&case, "notifications")? {
+            capabilities.push(support::notification(&name)?);
+        }
         let options = CallOptions {
             globals,
-            capabilities: if case["capability_probe"].as_bool().unwrap_or(false) {
-                vec![probe_capability()]
-            } else {
-                Vec::new()
-            },
+            capabilities,
             allow_require: case["allow_require"].as_bool().unwrap_or(false),
             limits: Limits {
                 steps: if metered { Some(5_000_000) } else { None },
@@ -155,8 +160,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..CallOptions::default()
         };
         let result = script.call(function, &input, options.clone())?;
-        let encoded = stringify_json(&result.value, codec_options())?;
-        let output = encoded.value.as_bytes().unwrap();
+        let encoding = case["result_encoding"].as_str().unwrap_or("");
+        let output = support::encode(&result.value, encoding, codec_options())?;
         let hash = output.iter().fold(0xcbf29ce484222325u64, |h, b| {
             (h ^ *b as u64).wrapping_mul(0x100000001b3)
         });
@@ -198,8 +203,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 record["alloc_bytes"] = json!((after.0 - before.0) as f64 / n as f64);
                 record["allocations"] = json!((after.1 - before.1) as f64 / n as f64);
             }
-            let final_output = stringify_json(&last.unwrap().value, codec_options())?;
-            if final_output.value.as_bytes() != Some(output) {
+            let final_output = support::encode(&last.unwrap().value, encoding, codec_options())?;
+            if final_output != output {
                 return Err(format!("{name}: timed output differs from validation").into());
             }
             record["iterations"] = json!(n);

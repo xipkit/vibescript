@@ -17,12 +17,13 @@ def main():
     args = parser.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    known = {c["name"].removeprefix("site/"): c["expected"] for c in site_cases()}
+    known = {c["name"].removeprefix("site/"): c for c in site_cases()}
     manifest = json.loads((SITE / "sources.json").read_text())
+    settings = json.loads((SITE / "harness.json").read_text())
     results = []
     for entry in manifest["files"]:
         name = entry["path"]
-        case = {"name": name, "source": (SITE / name).read_text(), "function": "run", "args": [], "accounting": True}
+        case = {**known.get(name, {}), "name": name, "source": (SITE / name).read_text(), "function": "run", "args": [], "accounting": True, **settings.get(name, {})}
         fixture = out / "input.json"
         fixture.write_text(json.dumps([case]) + "\n")
         record = {"path": name}
@@ -44,7 +45,7 @@ def main():
             record["status"] = "match"
         else:
             record["status"] = "mismatch"
-        if name in known and (record["status"] != "match" or not equal_json(rust["output"], known[name])):
+        if name in known and (record["status"] != "match" or not equal_json(rust["output"], known[name]["expected"])):
             record["status"] = "regression"
         results.append(record)
     report = {
