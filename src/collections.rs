@@ -236,14 +236,15 @@ fn values_at_range(
     if count == 0 {
         return Ok(());
     }
-    if let Some(length) = out.data.len().checked_add(count)
-        && let Some(bytes) = length.checked_mul(size_of::<Value>())
-    {
-        if length > out.data.capacity() {
-            ctx.check_memory(bytes)?;
-        }
-    } else {
+    let Some((length, bytes)) = out.data.len().checked_add(count).and_then(|length| {
+        length
+            .checked_mul(size_of::<Value>())
+            .map(|bytes| (length, bytes))
+    }) else {
         return ctx.fail(ErrorKind::Memory, "array.values_at output size overflow");
+    };
+    if length > out.data.capacity() {
+        ctx.check_memory(bytes)?;
     }
     for offset in 0..count {
         ctx.charge(1)?;

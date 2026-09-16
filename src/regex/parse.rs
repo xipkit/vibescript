@@ -247,16 +247,18 @@ impl Parser<'_> {
                 return self.node(Kind::Class(class));
             }
         }
-        if let Kind::Class(class) = kind
-            && !class.negated
-            && class.count == 1
-            && let Part {
-                set: Set::Range(low, high),
-                negated: false,
-            } = self.parsed.parts.data[class.start]
-            && low == high
-        {
-            return self.node(Kind::Rune(low, class.fold));
+        if let Kind::Class(class) = kind {
+            if !class.negated && class.count == 1 {
+                if let Part {
+                    set: Set::Range(low, high),
+                    negated: false,
+                } = self.parsed.parts.data[class.start]
+                {
+                    if low == high {
+                        return self.node(Kind::Rune(low, class.fold));
+                    }
+                }
+            }
         }
         let node = |id: usize| self.parsed.nodes.data[id];
         let literal = match kind {
@@ -471,18 +473,17 @@ impl Parser<'_> {
         if af != bf {
             return Ok(None);
         }
-        if let (Some(a), Some(b)) = (a, b)
-            && a.start + a.count == b.start
-        {
-            return Ok(Some(Class {
-                start: a.start,
-                count: a.count + b.count,
-                negated: false,
-                fold: af,
-            }));
+        if let (Some(a), Some(b)) = (a, b) {
+            if a.start + a.count == b.start {
+                return Ok(Some(Class {
+                    start: a.start,
+                    count: a.count + b.count,
+                    negated: false,
+                    fold: af,
+                }));
+            }
         }
-        let start = if let Some(a) = a
-            && a.start + a.count == self.parsed.parts.data.len()
+        let start = if let Some(a) = a.filter(|a| a.start + a.count == self.parsed.parts.data.len())
         {
             a.start
         } else {

@@ -54,23 +54,22 @@ impl<'a> Split<'a> {
             }
         };
         let mut table = Buffer::empty();
-        if let Mode::Literal(needle) = mode
-            && needle.len() <= text.len()
-            && limit != 1
-        {
-            table.ensure(ctx, needle.len())?;
-            table.data.push(0);
-            let mut matched = 0;
-            for i in 1..needle.len() {
-                ctx.charge(1)?;
-                while matched > 0 && needle[i] != needle[matched] {
+        if let Mode::Literal(needle) = mode {
+            if needle.len() <= text.len() && limit != 1 {
+                table.ensure(ctx, needle.len())?;
+                table.data.push(0);
+                let mut matched = 0;
+                for i in 1..needle.len() {
                     ctx.charge(1)?;
-                    matched = table.data[matched - 1];
+                    while matched > 0 && needle[i] != needle[matched] {
+                        ctx.charge(1)?;
+                        matched = table.data[matched - 1];
+                    }
+                    if needle[i] == needle[matched] {
+                        matched += 1;
+                    }
+                    table.data.push(matched);
                 }
-                if needle[i] == needle[matched] {
-                    matched += 1;
-                }
-                table.data.push(matched);
             }
         }
         Ok(Self { mode, limit, table })

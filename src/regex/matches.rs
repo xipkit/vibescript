@@ -204,13 +204,15 @@ pub(crate) fn index(ctx: &mut CallContext, hash: &Hash, index: &Value) -> Result
         if hash.find(ctx, key)?.is_some() {
             return Ok(None);
         }
-        if let Some(named) = hash.find(ctx, b"named_captures")?
-            && let Kind::Hash(named) = &hash.buffer.data[named].1.0
-            && let Some(found) = named.find(ctx, key)?
-        {
-            return Ok(Some(named.buffer.data[found].1.clone()));
-        }
-        return Ok(None);
+        let Some(named) = hash.find(ctx, b"named_captures")? else {
+            return Ok(None);
+        };
+        let Kind::Hash(named) = &hash.buffer.data[named].1.0 else {
+            return Ok(None);
+        };
+        return Ok(named
+            .find(ctx, key)?
+            .map(|found| named.buffer.data[found].1.clone()));
     }
     if !matches!(index.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)) {
         return Ok(None);

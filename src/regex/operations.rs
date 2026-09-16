@@ -55,9 +55,7 @@ fn arguments(
         ));
     }
     super::text_limit(ctx, receiver.require_bytes()?)?;
-    if let Kind::Bytes(bytes) = &args[0].0
-        && bytes.data.len() > super::MAX_PATTERN
-    {
+    if matches!(&args[0].0, Kind::Bytes(bytes) if bytes.data.len() > super::MAX_PATTERN) {
         return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
     }
     let offset = if args.len() == 2 {

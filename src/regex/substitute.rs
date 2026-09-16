@@ -67,9 +67,7 @@ fn arguments(
         return Err(Error::new(ErrorKind::Type, "replacement must be a string"));
     }
     if regex {
-        if let Kind::Bytes(bytes) = &pattern.0
-            && bytes.data.len() > super::MAX_PATTERN
-        {
+        if matches!(&pattern.0, Kind::Bytes(bytes) if bytes.data.len() > super::MAX_PATTERN) {
             return ctx.guard(ErrorKind::Memory, "regex pattern exceeds 16 KiB");
         }
         super::text_limit(ctx, receiver.require_bytes()?)?;
