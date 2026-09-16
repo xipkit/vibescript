@@ -4,7 +4,7 @@ An experimental Rust implementation of the Vibescript core, with a bytecode VM, 
 
 ## Try it
 
-This checkout lives on `/Volumes/m2/Work/xipkit/vibescript.rs`. The original sibling path links here. Use the wrapper so Cargo downloads, build artifacts, and temporary files stay on the external drive:
+This checkout lives on `/Volumes/AI/Work/xipkit/vibescript.rs`. The original sibling path links here. Use the wrapper so Cargo downloads, build artifacts, and temporary files stay on the external drive:
 
 ```sh
 ./scripts/cargo run --release -- examples/total.vibe --function total --arg '[10,20,30]' --stats
