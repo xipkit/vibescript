@@ -7,12 +7,14 @@ pub(crate) struct Program {
     pub environment: Option<Arc<crate::objects::Instance>>,
     pub index: usize,
     pub global_base: usize,
+    global_len: usize,
     _charge: Option<Charge>,
 }
 
 pub(super) struct Entry {
     pub program: Arc<Program>,
     failed: bool,
+    release: bool,
 }
 
 pub(super) struct Activation {
@@ -59,17 +61,37 @@ pub(super) fn load(
     storage: &mut Storage,
     code: &Arc<Code>,
     environment: Option<&Arc<crate::objects::Instance>>,
-) -> Result<Arc<Program>> {
+) -> Result<(Arc<Program>, bool)> {
     if let Some(index) = registered(ctx, storage, code, environment)? {
-        return Ok(storage.programs.data[index].program.clone());
+        return pin(ctx, storage, index).map(|program| (program, false));
     }
-    let global_base = storage.globals.data.len();
-    let Some(end) = global_base.checked_add(code.program.globals.len()) else {
+    let mut vacant = None;
+    for entry in storage.programs.data.iter().skip(1) {
+        ctx.charge(1)?;
+        if Arc::strong_count(&entry.program) == 1
+            && entry
+                .program
+                .environment
+                .as_ref()
+                .is_some_and(|environment| !environment.alive())
+        {
+            vacant = Some(entry.program.index);
+            break;
+        }
+    }
+    let previous = vacant.map(|index| &storage.programs.data[index].program);
+    let (global_base, global_len) = previous
+        .filter(|previous| previous.global_len >= code.program.globals.len())
+        .map(|previous| (previous.global_base, previous.global_len))
+        .unwrap_or((storage.globals.data.len(), code.program.globals.len()));
+    let Some(end) = global_base.checked_add(global_len) else {
         return ctx.fail(ErrorKind::Memory, "allocation size overflow");
     };
-    storage
-        .programs
-        .ensure(ctx, storage.programs.data.len() + 1)?;
+    if vacant.is_none() {
+        storage
+            .programs
+            .ensure(ctx, storage.programs.data.len() + 1)?;
+    }
     storage.globals.ensure(ctx, end)?;
     let charge = ctx.reserve(size_of::<Program>() + 2 * size_of::<usize>())?;
     Code::retain(ctx, code)?;
@@ -79,16 +101,123 @@ pub(super) fn load(
     let program = Arc::new(Program {
         code: code.clone(),
         environment,
-        index: storage.programs.data.len(),
+        index: vacant.unwrap_or(storage.programs.data.len()),
         global_base,
+        global_len,
         _charge: charge,
     });
-    storage.globals.data.resize(end, None);
-    storage.programs.data.push(Entry {
+    if let Some(index) = vacant {
+        let previous = &storage.programs.data[index].program;
+        ctx.charge(previous.global_len as u64)?;
+        storage.globals.data[previous.global_base..previous.global_base + previous.global_len]
+            .fill(None);
+        // Reuse vacant slots without moving indices held by active frames and writes.
+        for state in &mut storage.namespaces.data {
+            ctx.charge(1)?;
+            if state.program == index {
+                state.program = usize::MAX;
+                state.namespace = previous.environment.as_ref().unwrap().class().clone();
+                state.backing = None;
+            }
+        }
+    }
+    storage
+        .globals
+        .data
+        .resize(storage.globals.data.len().max(end), None);
+    let release = program.index != 0 && program.file && program.environment.is_some();
+    storage.releasing |= release;
+    let entry = Entry {
         program: program.clone(),
         failed: false,
-    });
-    Ok(program)
+        release,
+    };
+    if let Some(index) = vacant {
+        storage.programs.data[index] = entry;
+    } else {
+        storage.programs.data.push(entry);
+    }
+    Ok((program, true))
+}
+
+pub(super) fn pin(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    index: usize,
+) -> Result<Arc<Program>> {
+    let entry = &mut storage.programs.data[index];
+    if let Some(environment) = &entry.program.environment {
+        if !environment.rooted() {
+            let environment = crate::objects::import(ctx, environment)?;
+            if let Some(program) = Arc::get_mut(&mut entry.program) {
+                program.environment = Some(environment);
+            } else {
+                let charge = ctx.reserve(size_of::<Program>() + 2 * size_of::<usize>())?;
+                let previous = &entry.program;
+                entry.program = Arc::new(Program {
+                    code: previous.code.clone(),
+                    environment: Some(environment),
+                    index,
+                    global_base: previous.global_base,
+                    global_len: previous.global_len,
+                    _charge: charge,
+                });
+            }
+            entry.release = true;
+            storage.releasing = true;
+        }
+    }
+    Ok(entry.program.clone())
+}
+
+pub(super) fn defer_release(storage: &mut Storage, index: usize) {
+    let entry = &mut storage.programs.data[index];
+    if index != 0 && entry.program.file && entry.program.environment.is_some() {
+        entry.release = true;
+        storage.releasing = true;
+    }
+}
+
+pub(super) fn release(ctx: &mut CallContext, storage: &mut Storage) -> Result<()> {
+    storage.releasing = false;
+    for entry in &mut storage.programs.data {
+        ctx.charge(1)?;
+        if !entry.release {
+            continue;
+        }
+        let Some(program) = Arc::get_mut(&mut entry.program) else {
+            storage.releasing = true;
+            continue;
+        };
+        // File bindings live in the heap; these caches must not root abandoned scopes.
+        let environment = program.environment.as_ref().unwrap();
+        if environment.alive() {
+            program.environment = Some(crate::objects::unroot(environment)?);
+            for state in &mut storage.namespaces.data {
+                ctx.charge(1)?;
+                if state.program != program.index {
+                    continue;
+                }
+                state.namespace = crate::namespace::Namespace::with_environment(
+                    ctx,
+                    &state.namespace,
+                    program.environment.as_ref().unwrap().clone(),
+                )?;
+                state.backing = state
+                    .backing
+                    .as_ref()
+                    .map(crate::objects::unroot)
+                    .transpose()?;
+            }
+        }
+        ctx.charge(storage.declarations.data.len() as u64)?;
+        storage
+            .declarations
+            .data
+            .retain(|((index, _), _)| *index != program.index);
+        entry.release = false;
+    }
+    Ok(())
 }
 
 fn registered(
@@ -133,7 +262,7 @@ pub(super) fn arguments(
     for index in (0..count).rev() {
         ctx.charge(1)?;
         let code = ctx.code_roots.as_ref().unwrap().data[index].clone();
-        let program = load(ctx, storage, &code, None)?;
+        let (program, _) = load(ctx, storage, &code, None)?;
         if program.index != 0 {
             activate(ctx, storage, program.index)?;
         }
@@ -179,7 +308,7 @@ pub(super) fn namespace(
         .owner
         .as_ref()
         .ok_or_else(|| Error::new(ErrorKind::Type, "namespace has no executable source"))?;
-    let program = load(ctx, storage, owner, namespace.environment.as_ref())?;
+    let (program, _) = load(ctx, storage, owner, namespace.environment.as_ref())?;
     if storage.programs.data[program.index].failed {
         return Err(Error::new(
             ErrorKind::Runtime,
@@ -299,9 +428,8 @@ fn admit(
         let Some((owner, environment)) = source else {
             continue;
         };
-        let next_program = storage.programs.data.len();
-        let program = load(ctx, storage, owner, environment)?;
-        if program.index == next_program {
+        let (program, fresh) = load(ctx, storage, owner, environment)?;
+        if fresh {
             activate(ctx, storage, program.index)?;
             pending += 1;
             if !ctx.scoped_sources {

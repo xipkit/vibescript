@@ -2,7 +2,7 @@ use std::{
     fs,
     path::PathBuf,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -324,6 +324,122 @@ fn host_transfers_cannot_admit_detached_exported_functions() {
 }
 
 #[test]
+fn failed_initialization_releases_unreachable_private_values() {
+    let files = Files::new();
+    for (name, source) in [
+        ("locals", "payload=\"x\"*16384;raise \"failed\""),
+        (
+            "namespaces",
+            "enum State;Ready;end;module Outer;PAYLOAD=\"x\"*16384;module Inner;VALUES=[1,2,3];end;end;raise \"failed\"",
+        ),
+        (
+            "instances",
+            "class Box;def initialize;@payload=\"x\"*16384;end;end;item=Box.new;raise \"failed\"",
+        ),
+    ] {
+        files.write("failure.vibe", source);
+        let script = files
+            .engine()
+            .compile("def run(n);n.times{begin;require(:failure);rescue;nil;end};nil;end")
+            .unwrap();
+        let counts: &[i64] = if name == "instances" {
+            &[100, 1000, 5000]
+        } else {
+            &[100, 1000]
+        };
+        for &count in counts {
+            let mut options = CallOptions::default();
+            options.limits.steps = None;
+            options.limits.memory_bytes = Some(1 << 20);
+            let output = script
+                .call("run", &[Value::int(count)], options)
+                .unwrap_or_else(|error| panic!("{name}/{count}: {error:?}"));
+            assert_eq!(output.stats.retained_memory_bytes, 0, "{name}/{count}");
+        }
+    }
+}
+
+#[test]
+fn escaped_failed_file_state_survives_collection_and_remains_isolated() {
+    let files = Files::new();
+    files.write("failure.vibe", "payload=\"x\"*256;raise \"failed\"");
+    files.write(
+        "retained.vibe",
+        r#"items=[7]
+module Counter
+  VALUES=[2]
+  module Nested
+    def self.read;[3];end
+  end
+  def self.values;items;end
+  def self.add(n);items.push(n);items;end
+  def self.identity;Counter;end
+end
+save(Counter)
+raise "failed""#,
+    );
+    let saved = Arc::new(Mutex::new(None));
+    let mut engine = files.engine();
+    let captured = saved.clone();
+    engine.register("save", move |_, args| {
+        *captured.lock().unwrap() = Some(args[0].clone());
+        Ok(Value::nil())
+    });
+    let captured = saved.clone();
+    engine.register("take", move |_, _| {
+        Ok(captured.lock().unwrap().take().unwrap())
+    });
+    let collect = "100.times{begin;require(:failure);rescue;nil;end}";
+    let source = format!("begin;require(:retained);rescue;nil;end;{collect};m=take();m.add(8);m");
+    let module = engine
+        .compile(&source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    assert!(saved.lock().unwrap().is_none());
+    let receiver = Engine::new()
+        .compile("def run(m);[m.values,m.add(9),m::Nested.read,m.identity==m];end;def identity(m);m.identity;end")
+        .unwrap();
+    let module = receiver
+        .call("identity", &[module], CallOptions::default())
+        .unwrap()
+        .value;
+    for _ in 0..2 {
+        let output = receiver
+            .call("run", std::slice::from_ref(&module), CallOptions::default())
+            .unwrap();
+        assert_eq!(
+            json(&output.value),
+            serde_json::json!([[7, 8], [7, 8, 9], [3], true])
+        );
+    }
+    let mut consumer = files.engine();
+    consumer.register("provide", move |_, _| Ok(module.clone()));
+    for (expression, expected) in [
+        (
+            format!("provide().add(begin;{collect};9;end)"),
+            serde_json::json!([7, 8, 9]),
+        ),
+        (
+            format!("provide().VALUES[0]+=begin;{collect};5;end"),
+            serde_json::json!(7),
+        ),
+        (
+            format!("provide().VALUES.push(begin;{collect};9;end)"),
+            serde_json::json!([2, 9]),
+        ),
+    ] {
+        let output = consumer
+            .compile(&expression)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
+        assert_eq!(json(&output.value), expected);
+    }
+}
+
+#[test]
 fn cached_compilation_preserves_each_scripts_registered_callbacks() {
     let files = Files::new();
     files.write("host.vibe", "def value;host_value();end");
@@ -355,6 +471,58 @@ fn cached_compilation_preserves_each_scripts_registered_callbacks() {
             .as_int(),
         Some(2)
     );
+}
+
+#[test]
+fn alias_rejections_release_unpublished_scopes_without_running_initializers() {
+    let files = Files::new();
+    files.write(
+        "rejected.vibe",
+        "enum State;Ready;end;def value;1;end;effect()",
+    );
+    let effects = Arc::new(AtomicUsize::new(0));
+    let captured = effects.clone();
+    let mut engine = files.engine();
+    engine.register("effect", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile("def taken;7;end;def run(n);n.times{begin;require(:rejected,as: :taken);rescue;nil;end};taken;end")
+        .unwrap();
+    for count in [100, 1000] {
+        let mut options = CallOptions::default();
+        options.limits.steps = None;
+        options.limits.memory_bytes = Some(64 << 10);
+        let output = script.call("run", &[Value::int(count)], options).unwrap();
+        assert_eq!(output.value.as_int(), Some(7));
+        assert_eq!(output.stats.retained_memory_bytes, 0);
+    }
+    assert_eq!(effects.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn failed_parents_preserve_completed_dependencies_when_scope_slots_are_reused() {
+    let files = Files::new();
+    files.write("stable.vibe", "effect();count=0;def add;count+=1;count;end");
+    files.write("a.vibe", "require(:stable);payload=\"x\"*256;require(:b)");
+    files.write("b.vibe", "require(:a)");
+    let effects = Arc::new(AtomicUsize::new(0));
+    let captured = effects.clone();
+    let mut engine = files.engine();
+    engine.register("effect", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile("200.times{begin;require(:a);rescue;nil;end};m=require(:stable);[m.add,m.add]")
+        .unwrap();
+    let mut options = CallOptions::default();
+    options.limits.steps = None;
+    options.limits.memory_bytes = Some(256 << 10);
+    let output = script.run(options).unwrap();
+    assert_eq!(json(&output.value), serde_json::json!([1, 2]));
+    assert_eq!(effects.load(Ordering::SeqCst), 1);
 }
 
 #[test]

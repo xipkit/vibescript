@@ -75,6 +75,7 @@ struct Storage {
     modules: Buffer<requires::Module>,
     bindings: Option<Arc<crate::objects::Instance>>,
     programs: Buffer<programs::Entry>,
+    releasing: bool,
     activations: Buffer<programs::Activation>,
     discovered: usize,
     handlers: Buffer<handlers::Handler>,
@@ -161,6 +162,7 @@ pub(crate) fn execute(
         modules: Buffer::empty(),
         bindings: None,
         programs: Buffer::empty(),
+        releasing: false,
         activations: Buffer::empty(),
         discovered: 0,
         handlers: Buffer::empty(),
@@ -183,7 +185,7 @@ pub(crate) fn execute(
             .file
             .then(|| crate::objects::environment(ctx))
             .transpose()?;
-        let root = programs::load(ctx, &mut storage, code, environment.as_ref())?;
+        let (root, _) = programs::load(ctx, &mut storage, code, environment.as_ref())?;
         let program = &*root;
         let mut active = root.clone();
         let mut input = Arguments::empty();
@@ -248,6 +250,9 @@ pub(crate) fn execute(
                     let current = frames.data.len() - 1;
                     if !Arc::ptr_eq(&active, &frames.data[current].program) {
                         active = frames.data[current].program.clone();
+                        if storage.releasing {
+                            programs::release(ctx, &mut storage)?;
+                        }
                     }
                     let program = &*active;
                     let hosts = &program.code.hosts;
@@ -2864,6 +2869,9 @@ pub(crate) fn execute(
                     handlers::error(ctx, &mut frames, &mut storage, &mut stack, error)?;
                 }
             }
+            if storage.releasing {
+                programs::release(ctx, &mut storage)?;
+            }
         }
     })();
     ctx.enum_rebind = crate::enums::Rebind::default();
@@ -3630,7 +3638,7 @@ fn new_frame(
         storage.locals.data.push(None);
     }
     Ok(Frame {
-        program: storage.programs.data[program.index].program.clone(),
+        program: programs::pin(ctx, storage, program.index)?,
         activation: false,
         receiver: None,
         constructor: false,
@@ -3728,9 +3736,9 @@ fn unwind(
 ) {
     for frame in &frames.data[target..] {
         if let ReturnTo::Require(index) = frame.return_to {
-            storage.modules.data[index].loading = false;
-            storage.modules.data[index].exports = Value::nil();
+            requires::abandon(storage, index);
         }
+        programs::defer_release(storage, frame.program.index);
     }
     let frame = &frames.data[target];
     stack.data.truncate(frame.base);

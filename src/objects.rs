@@ -76,6 +76,14 @@ impl Instance {
         Arc::ptr_eq(&self.identity, &other.identity)
     }
 
+    pub(crate) fn alive(&self) -> bool {
+        self.identity.slot.load(Ordering::Relaxed) != usize::MAX
+    }
+
+    pub(crate) fn rooted(&self) -> bool {
+        matches!(self.owner, Owner::External(_))
+    }
+
     fn heap(&self) -> Result<Arc<Heap>> {
         match &self.owner {
             Owner::External(heap) => Ok(heap.clone()),
@@ -95,6 +103,17 @@ impl Instance {
         }
         Ok(heap)
     }
+}
+
+pub(crate) fn unroot(instance: &Arc<Instance>) -> Result<Arc<Instance>> {
+    let heap = instance.heap()?;
+    let data = heap.data.lock().unwrap();
+    data.entries
+        .data
+        .get(instance.identity.slot.load(Ordering::Relaxed))
+        .filter(|entry| entry.internal.same(instance))
+        .map(|entry| entry.internal.clone())
+        .ok_or_else(|| Error::new(ErrorKind::Type, "expired instance reference"))
 }
 
 impl PartialEq for Instance {
@@ -421,6 +440,9 @@ pub(crate) fn address(
 ) -> Result<crate::address::Address> {
     let heap = instance.writable_heap(ctx)?;
     let mut data = heap.data.lock().unwrap();
+    let instance = data
+        .instance(ctx, &heap, instance, false)?
+        .unwrap_or_else(|| instance.clone());
     let object = instance.identity.slot.load(Ordering::Relaxed);
     let field = if let Some(field) = data.entries.data[object]
         .fields
@@ -599,28 +621,29 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
 fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> {
     let mut data = heap.data.lock().unwrap();
     reclaim(&mut data, &mut || ctx.charge(1))?;
-    if shrink {
-        data.imports = Buffer::empty();
-        let mut slot = 0;
-        while slot < data.classes.data.len() {
-            let mut used = false;
-            for entry in &data.entries.data {
-                ctx.charge(1)?;
-                if entry
-                    .internal
-                    .class()
-                    .same_binding(&data.classes.data[slot])
-                {
-                    used = true;
-                    break;
-                }
-            }
-            if used {
-                slot += 1;
-            } else {
-                data.classes.data.swap_remove(slot);
+    let mut slot = 0;
+    while slot < data.classes.data.len() {
+        ctx.charge(1)?;
+        let mut used = false;
+        for entry in &data.entries.data {
+            ctx.charge(1)?;
+            if entry
+                .internal
+                .class()
+                .same_binding(&data.classes.data[slot])
+            {
+                used = true;
+                break;
             }
         }
+        if used {
+            slot += 1;
+        } else {
+            data.classes.data.swap_remove(slot);
+        }
+    }
+    if shrink {
+        data.imports = Buffer::empty();
         data.classes.shrink(ctx)?;
         data.entries.shrink(ctx)?;
         data.pending.shrink(ctx)?;

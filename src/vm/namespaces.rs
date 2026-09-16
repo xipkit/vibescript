@@ -114,8 +114,12 @@ pub(super) fn state(
     module: usize,
 ) -> Result<usize> {
     let definition = &program.namespaces[module];
+    let mut vacant = None;
     for (index, state) in storage.namespaces.data.iter().enumerate() {
         ctx.charge(1)?;
+        if state.program == usize::MAX {
+            vacant.get_or_insert(index);
+        }
         if state.program == program.index && Arc::ptr_eq(&state.namespace.definition, definition) {
             return Ok(index);
         }
@@ -130,17 +134,21 @@ pub(super) fn state(
     let fresh = captured.as_ref().is_none_or(|state| state.fresh);
     let initialized =
         definition.body.is_none() || captured.as_ref().is_some_and(|state| state.initialized);
-    let index = storage.namespaces.data.len();
-    storage.namespaces.push(
-        ctx,
-        State {
-            program: program.index,
-            namespace,
-            fields: Hash::empty(),
-            backing: captured.map(|state| state.fields),
-            initialized,
-        },
-    )?;
+    let value = State {
+        program: program.index,
+        namespace,
+        fields: Hash::empty(),
+        backing: captured.map(|state| state.fields),
+        initialized,
+    };
+    let index = if let Some(index) = vacant {
+        storage.namespaces.data[index] = value;
+        index
+    } else {
+        let index = storage.namespaces.data.len();
+        storage.namespaces.push(ctx, value)?;
+        index
+    };
     if fresh {
         for (name, nested) in &definition.nested {
             let nested = state(program, ctx, storage, *nested)?;
@@ -180,9 +188,8 @@ pub(super) fn value(
     module: usize,
 ) -> Result<Value> {
     let index = state(program, ctx, storage, module)?;
-    Ok(Value(Kind::Namespace(
-        storage.namespaces.data[index].namespace.clone(),
-    )))
+    Namespace::import(ctx, &storage.namespaces.data[index].namespace)
+        .map(|namespace| Value(Kind::Namespace(namespace)))
 }
 
 pub(super) fn field(

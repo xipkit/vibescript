@@ -8,6 +8,21 @@ pub(super) struct Module {
     alias: Option<Value>,
 }
 
+pub(super) fn abandon(storage: &mut Storage, index: usize) {
+    let module = &mut storage.modules.data[index];
+    module.loading = false;
+    module.exports = Value::nil();
+    module.alias = None;
+    while storage
+        .modules
+        .data
+        .last()
+        .is_some_and(|module| !module.loading && matches!(module.exports.0, Kind::Nil))
+    {
+        storage.modules.data.pop();
+    }
+}
+
 pub(super) fn get(ctx: &mut CallContext, storage: &Storage, name: &str) -> Result<Option<Value>> {
     storage
         .bindings
@@ -257,7 +272,7 @@ pub(super) fn start(
     }
     let environment = crate::objects::environment(ctx)?;
     ctx.scoped_sources = true;
-    let owner = programs::load(ctx, storage, &code, Some(&environment))?;
+    let (owner, _) = programs::load(ctx, storage, &code, Some(&environment))?;
     let mut exports = Hash::empty();
     exports.object = true;
     for (name, target) in &code.exports {
@@ -338,7 +353,7 @@ pub(super) fn invoke(
     auto: bool,
     base: usize,
 ) -> Result<()> {
-    let owner = programs::load(ctx, storage, &function.code, Some(&function.environment))?;
+    let (owner, _) = programs::load(ctx, storage, &function.code, Some(&function.environment))?;
     if auto {
         enter_auto(&owner, ctx, frames, storage, function.index, base)
     } else {
