@@ -1597,6 +1597,31 @@ end
 }
 
 #[test]
+fn required_environments_and_root_aliases_preserve_captured_negative_indices() {
+    let files = Files::new();
+    files.write("empty.vibe", "nil");
+    files.write(
+        "rows.vibe",
+        "rows=[[1]];def change;before=rows;x=rows[-1].push((while true;rows.push([9]);break 2;end));[x,rows,before];end",
+    );
+    let engine = files.engine();
+    for source in [
+        "require(:rows).change",
+        "require(:empty,as: :Rows);Rows=[[1]];def change;before=Rows;x=Rows[-1].push((while true;Rows.push([9]);break 2;end));[x,Rows,before];end;change",
+    ] {
+        let script = engine.compile(source).unwrap();
+        for _ in 0..2 {
+            let result = script.run(CallOptions::default()).unwrap();
+            assert_eq!(
+                json(&result.value),
+                serde_json::json!([[1, 2], [[1, 2], [9]], [[1]]]),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
 fn dynamic_root_aliases_support_assignment_nested_writes_and_parameter_shadowing() {
     let files = Files::new();
     files.write("empty.vibe", "1");

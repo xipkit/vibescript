@@ -122,11 +122,12 @@ impl Address {
             && args.len() == 1
             && stored_child(ctx, &self.value, &args[0])?.is_some();
         if addressed {
+            let key = captured_key(&self.value, &args[0])?;
             self.path.push(
                 ctx,
                 Hop {
                     container: self.value.clone(),
-                    key: args[0].clone(),
+                    key,
                 },
             )?;
         } else {
@@ -137,9 +138,11 @@ impl Address {
         Ok(())
     }
 
-    pub fn read_target(&self, ctx: &mut CallContext) -> Result<Value> {
+    pub fn read_target(&mut self, ctx: &mut CallContext) -> Result<Value> {
         if let [key] = self.selectors.data.as_slice() {
-            ops::index(ctx, &self.value, key)
+            let value = ops::index(ctx, &self.value, key)?;
+            self.selectors.data[0] = captured_key(&self.value, key)?;
+            Ok(value)
         } else {
             crate::sequence::slice(ctx, &self.value, &self.selectors.data, false)
         }
@@ -234,20 +237,29 @@ impl Address {
     }
 }
 
+// A selected array element keeps its position while arguments or blocks grow its parent.
+fn captured_key(value: &Value, key: &Value) -> Result<Value> {
+    if let Kind::Array(array) = &value.0 {
+        if !matches!(key.0, Kind::Range(_)) {
+            let length = array.buffer.data.len();
+            if let Some(index) = ops::normalized(crate::sequence::integer(key)?, length)
+                .filter(|&index| index < length)
+            {
+                return Ok(Value::int(index as i64));
+            }
+        }
+    }
+    Ok(key.clone())
+}
+
 fn stored_child(ctx: &mut CallContext, value: &Value, key: &Value) -> Result<Option<Value>> {
     match &value.0 {
-        Kind::Array(h) if !matches!(key.0, Kind::Range(_)) => {
-            let index = crate::sequence::integer(key)?;
-            let index = if index < 0 {
-                h.buffer.data.len() as i128 + i128::from(index)
-            } else {
-                i128::from(index)
-            };
-            Ok(usize::try_from(index)
-                .ok()
-                .and_then(|i| h.buffer.data.get(i))
-                .cloned())
-        }
+        Kind::Array(h) if !matches!(key.0, Kind::Range(_)) => Ok(ops::normalized(
+            crate::sequence::integer(key)?,
+            h.buffer.data.len(),
+        )
+        .and_then(|i| h.buffer.data.get(i))
+        .cloned()),
         Kind::Hash(h) => Ok(h
             .find(ctx, key.require_bytes()?)?
             .map(|i| h.buffer.data[i].1.clone())),

@@ -414,7 +414,7 @@ pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Resu
     }
 }
 
-fn normalized(index: i64, len: usize) -> Option<usize> {
+pub(crate) fn normalized(index: i64, len: usize) -> Option<usize> {
     if index < 0 {
         len.checked_sub(usize::try_from(index.unsigned_abs()).ok()?)
     } else {

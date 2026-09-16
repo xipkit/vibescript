@@ -320,6 +320,44 @@ end
 }
 
 #[test]
+fn negative_property_paths_preserve_parent_growth_and_enforce_nested_types() {
+    for (value, expected) in [
+        ("2", serde_json::json!(["accepted", [[1, 2], [9]], [[1]]])),
+        (
+            "\"bad\"",
+            serde_json::json!(["rejected", [[1], [9]], [[1]]]),
+        ),
+    ] {
+        let source = format!(
+            "class C;getter rows:array<array<int>>;def initialize;@rows=[[1]];end;\
+             def run;before=@rows;status=begin;\
+             @rows[-1].push((while true;@rows.push([9]);break {value};end));\
+             :accepted;rescue;:rejected;end;[status,@rows,before];end;end;C.new.run"
+        );
+        let result = Engine::new()
+            .compile(&source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap();
+        assert_eq!(json(&result.value), expected, "{source}");
+        if value == "\"bad\"" {
+            let unhandled = source.replace("rescue;:rejected", "rescue;raise");
+            let error = Engine::new()
+                .compile(&unhandled)
+                .unwrap()
+                .run(CallOptions::default())
+                .unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Type);
+            assert!(
+                error
+                    .message
+                    .starts_with("instance variable @rows expected")
+            );
+        }
+    }
+}
+
+#[test]
 fn rejected_nested_property_mutations_preserve_the_previous_field() {
     use std::sync::{Arc, Mutex};
     let captured = Arc::new(Mutex::new(None));
