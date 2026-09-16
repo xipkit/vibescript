@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 
 from compare import BINS, ENV, ROOT, VARIANTS, equal_json, invoke
+from fixtures import host_global_cases
 
 
 def main():
@@ -18,7 +19,8 @@ def main():
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cases = json.loads((ROOT / "docs/compatibility-cases.json").read_text())
-    fixtures = [{"name": c["name"], "source": c.get("source") or "def run(input)\n" + c["body"] + "\nend", "args": [None], "accounting": True} for c in cases]
+    cases += [case for case in host_global_cases() if "policy" in case]
+    fixtures = [{"name": c["name"], "source": c.get("source") or "def run(input)\n" + c["body"] + "\nend", "args": c.get("args", [None]), "globals": c.get("globals", {}), "strict_effects": c.get("strict_effects", False), "accounting": True} for c in cases]
     path = out / "inputs.json"
     errors = {c["name"] for c in cases if "expected_error" in c}
     path.write_text(json.dumps([f for f in fixtures if f["name"] not in errors]) + "\n")
@@ -46,7 +48,7 @@ def main():
         name = case["name"]
         values = {v: results[v][name] for v in VARIANTS}
         policy = case["policy"]
-        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "unresolved"}, (name, policy)
+        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "consistent_bindings", "unresolved"}, (name, policy)
         if any(not equal_json(values[v], case["go"]) for v in VARIANTS if v.startswith("go-")):
             status = "reference_changed"
         elif policy != "unresolved":

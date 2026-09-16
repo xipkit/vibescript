@@ -23,13 +23,35 @@ pub(super) fn abandon(storage: &mut Storage, index: usize) {
     }
 }
 
-pub(super) fn get(ctx: &mut CallContext, storage: &Storage, name: &str) -> Result<Option<Value>> {
-    storage
+pub(super) fn get(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    name: &str,
+) -> Result<Option<Value>> {
+    if let Some(value) = storage
         .bindings
         .as_ref()
         .map(|bindings| crate::objects::field(ctx, bindings, name))
         .transpose()
-        .map(Option::flatten)
+        .map(Option::flatten)?
+    {
+        return Ok(Some(value));
+    }
+    let Some(value) = globals::import(ctx, name)? else {
+        return Ok(None);
+    };
+    programs::imported(ctx, storage, &value)?;
+    set(ctx, storage, name, &value)?;
+    Ok(Some(value))
+}
+
+pub(super) fn contains(ctx: &mut CallContext, storage: &Storage, name: &str) -> Result<bool> {
+    if let Some(bindings) = &storage.bindings {
+        if crate::objects::field_slot(ctx, bindings, name)?.is_some() {
+            return Ok(true);
+        }
+    }
+    globals::contains(ctx, name)
 }
 
 pub(super) fn set(
@@ -60,7 +82,7 @@ pub(super) fn root_bound(ctx: &mut CallContext, storage: &Storage, name: &str) -
         || root.declaration_names.contains_key(name)
         || root.hosts.iter().any(|n| n == name)
         || Global::parse(name).is_some()
-        || get(ctx, storage, name)?.is_some())
+        || contains(ctx, storage, name)?)
 }
 
 pub(super) fn local(
@@ -72,7 +94,10 @@ pub(super) fn local(
     absolute: usize,
 ) -> Result<bool> {
     let frame = &frames.data[current];
-    if frame.program.file || storage.bindings.is_none() || storage.locals.data[absolute].is_some() {
+    if frame.program.file
+        || (storage.bindings.is_none() && ctx.options.globals.is_empty())
+        || storage.locals.data[absolute].is_some()
+    {
         return Ok(false);
     }
     let function = &frame.program.functions[frame.function.unwrap()];
@@ -82,7 +107,7 @@ pub(super) fn local(
             return Ok(false);
         }
     }
-    Ok(get(ctx, storage, &function.local_names[relative])?.is_some())
+    contains(ctx, storage, &function.local_names[relative])
 }
 
 pub(super) fn address(
@@ -93,10 +118,7 @@ pub(super) fn address(
     current: usize,
     name: &str,
 ) -> Result<Option<Address>> {
-    let Some(bindings) = storage.bindings.clone() else {
-        return Ok(None);
-    };
-    if get(ctx, storage, name)?.is_none() || file_bindings::get(program, ctx, name)?.is_some() {
+    if !contains(ctx, storage, name)? || file_bindings::get(program, ctx, name)?.is_some() {
         return Ok(None);
     }
     let function = &program.functions[frames.data[current].function.unwrap()];
@@ -105,7 +127,9 @@ pub(super) fn address(
     {
         return Ok(None);
     }
-    crate::objects::address(ctx, &bindings, name)
+    get(ctx, storage, name)?;
+    let bindings = storage.bindings.as_ref().unwrap();
+    crate::objects::address(ctx, bindings, name)
         .map(Address::in_environment)
         .map(Some)
 }

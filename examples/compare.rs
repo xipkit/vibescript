@@ -1,5 +1,6 @@
 use serde_json::{Value as Json, json};
 use std::{
+    collections::BTreeMap,
     fs,
     hint::black_box,
     sync::{Arc, Mutex},
@@ -75,6 +76,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let name = case["name"].as_str().ok_or("missing name")?;
         let source = case["source"].as_str().ok_or("missing source")?;
         let mut engine = Engine::new();
+        engine.set_strict_effects(case["strict_effects"].as_bool().unwrap_or(false));
         if let Some(byte) = case.get("entropy_byte") {
             let byte = u8::try_from(byte.as_u64().ok_or("invalid entropy byte")?)?;
             engine.set_random_source(move |_, output| {
@@ -115,8 +117,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for arg in case["args"].as_array().ok_or("missing args")? {
             input.push(parse_json(&serde_json::to_vec(arg)?, codec_options())?.value);
         }
+        let mut globals = BTreeMap::new();
+        if let Some(values) = case.get("globals") {
+            for (name, value) in values.as_object().ok_or("globals must be an object")? {
+                globals.insert(
+                    name.clone(),
+                    parse_json(&serde_json::to_vec(value)?, codec_options())?.value,
+                );
+            }
+        }
         let metered = case["accounting"].as_bool().unwrap_or(true);
         let options = CallOptions {
+            globals,
             limits: Limits {
                 steps: if metered { Some(5_000_000) } else { None },
                 memory_bytes: if metered { Some(64 << 20) } else { None },

@@ -85,11 +85,12 @@ impl Engine {
     pub fn new() -> Self {
         Self::default()
     }
-    /// Requires per-call permission for `require` in subsequently compiled scripts.
+    /// Requires data-only globals and per-call permission for `require` in new scripts.
     ///
     /// When enabled, callers must set [`CallOptions::allow_require`] before a script
     /// may load a module, including a cached module. Registered host callbacks remain
-    /// available. Earlier scripts retain their previous mode. Disabled by default.
+    /// available. All host globals are validated before script execution, including
+    /// unused values. Earlier scripts retain their previous mode. Disabled by default.
     pub fn set_strict_effects(&mut self, enabled: bool) {
         self.strict_effects = enabled;
     }

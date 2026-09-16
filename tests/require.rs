@@ -1622,6 +1622,61 @@ fn required_environments_and_root_aliases_preserve_captured_negative_indices() {
 }
 
 #[test]
+fn required_files_read_receiving_globals_and_keep_private_assignments() {
+    let files = Files::new();
+    files.write(
+        "read.vibe",
+        "def read;[payload,helper,Box,Math];end;def change;payload.push(2);payload;end",
+    );
+    files.write(
+        "private.vibe",
+        "payload=[7];def read;payload;end;def change;payload.push(8);end",
+    );
+    let script = files.engine().compile("def helper;99;end;class Box;end;m=require(:read);p=require(:private);before=m.read;m.change;p.change;[before,m.read,p.read,payload]").unwrap();
+    let input = Value::array(vec![Value::int(1)]);
+    let opts = CallOptions {
+        globals: [
+            ("payload", input.clone()),
+            ("helper", Value::int(2)),
+            ("Box", Value::int(3)),
+            ("Math", Value::int(4)),
+        ]
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value))
+        .collect(),
+        ..CallOptions::default()
+    };
+    for _ in 0..2 {
+        let result = script.run(opts.clone()).unwrap();
+        assert_eq!(
+            json(&result.value),
+            serde_json::json!([[[1], 2, 3, 4], [[1, 2], 2, 3, 4], [7, 8], [1, 2]])
+        );
+        assert_eq!(json(&input), serde_json::json!([1]));
+    }
+}
+
+#[test]
+fn receiving_module_aliases_do_not_replace_foreign_static_call_targets() {
+    let files = Files::new();
+    files.write("empty.vibe", "nil");
+    let original = Engine::new().compile("def helper;7;end;class C;def run;[helper,helper(),helper(*[]),helper{1},(helper)()];end;end;C.new").unwrap().run(CallOptions::default()).unwrap().value;
+    let receiver = files
+        .engine()
+        .compile("def run(value);require(:empty,as: :helper);value.run;end")
+        .unwrap();
+    assert_eq!(
+        json(
+            &receiver
+                .call("run", &[original], CallOptions::default())
+                .unwrap()
+                .value
+        ),
+        serde_json::json!([7, 7, 7, 7, 7])
+    );
+}
+
+#[test]
 fn dynamic_root_aliases_support_assignment_nested_writes_and_parameter_shadowing() {
     let files = Files::new();
     files.write("empty.vibe", "1");

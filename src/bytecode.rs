@@ -53,7 +53,7 @@ pub(crate) enum Op {
     LoadOptional(usize, usize),
     ReceiverBound(usize, usize),
     Unbound(usize),
-    NonCallable,
+    NonCallable(usize),
     Bind(usize, usize),
     BindEnd,
     Declare(usize),
@@ -109,6 +109,7 @@ pub(crate) enum Op {
     HostValue(usize),
     Method(CallSite, usize),
     Arguments,
+    RootCall(usize, bool),
     ForwardArguments,
     ResolveCall(usize, usize, bool),
     CallName(usize, usize),
@@ -118,6 +119,7 @@ pub(crate) enum Op {
     BypassEnd(usize),
     Argument(ArgumentOp),
     Invoke(Invocation),
+    InvokeRoot(Invocation),
     Jump(usize),
     JumpFalse(usize),
     JumpTrue(usize),
@@ -1685,7 +1687,7 @@ impl Compiler<'_> {
             self.emit(Op::BlockGiven(!args.is_empty(), true));
             return Ok(());
         }
-        if self.program.file {
+        if self.program.file || self.namespace.is_some() {
             self.global(name);
             let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
             let name = self.call_site(name, false).name;
@@ -1721,12 +1723,13 @@ impl Compiler<'_> {
                 self.emit(Op::Invoke(Invocation::Resolved));
                 return Ok(());
             };
-            self.emit(Op::Arguments);
+            let name = self.call_site(name, false).name;
+            self.emit(Op::RootCall(name, true));
             target
         };
         self.argument_values(args)?;
         self.emit(Op::Attach(function));
-        self.emit(Op::Invoke(target));
+        self.emit(Op::InvokeRoot(target));
         Ok(())
     }
     fn compile_block(&mut self, block: &Block) -> Result<usize> {

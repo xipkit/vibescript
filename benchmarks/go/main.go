@@ -18,15 +18,17 @@ import (
 )
 
 type fixture struct {
-	Function    string            `json:"function"`
-	Name        string            `json:"name"`
-	Source      string            `json:"source"`
-	Args        []json.RawMessage `json:"args"`
-	Accounting  bool              `json:"accounting"`
-	Iterations  int               `json:"iterations"`
-	EntropyByte *byte             `json:"entropy_byte,omitempty"`
-	Stdout      bool              `json:"stdout,omitempty"`
-	Stderr      bool              `json:"stderr,omitempty"`
+	Function      string                     `json:"function"`
+	Name          string                     `json:"name"`
+	Source        string                     `json:"source"`
+	Args          []json.RawMessage          `json:"args"`
+	Globals       map[string]json.RawMessage `json:"globals,omitempty"`
+	StrictEffects bool                       `json:"strict_effects,omitempty"`
+	Accounting    bool                       `json:"accounting"`
+	Iterations    int                        `json:"iterations"`
+	EntropyByte   *byte                      `json:"entropy_byte,omitempty"`
+	Stdout        bool                       `json:"stdout,omitempty"`
+	Stderr        bool                       `json:"stderr,omitempty"`
 }
 
 type repeatingByte byte
@@ -83,7 +85,7 @@ func run() error {
 		if function == "" {
 			function = "run"
 		}
-		cfg := vibes.Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20, RecursionLimit: 256}
+		cfg := vibes.Config{StepQuota: 5_000_000, MemoryQuotaBytes: 64 << 20, RecursionLimit: 256, StrictEffects: fixture.StrictEffects}
 		if !fixture.Accounting {
 			cfg.StepQuota = vibes.Unlimited
 			cfg.MemoryQuotaBytes = vibes.Unlimited
@@ -124,7 +126,18 @@ func run() error {
 				return fmt.Errorf("%s argument: %w", fixture.Name, err)
 			}
 		}
-		result, err := script.Call(ctx, function, args, vibes.CallOptions{})
+		var options vibes.CallOptions
+		if len(fixture.Globals) > 0 {
+			options.Globals = make(map[string]value.Value, len(fixture.Globals))
+			for name, raw := range fixture.Globals {
+				global, err := converter.Call(ctx, "parse", []value.Value{value.NewString(string(raw))}, vibes.CallOptions{})
+				if err != nil {
+					return fmt.Errorf("%s global %q: %w", fixture.Name, name, err)
+				}
+				options.Globals[name] = global
+			}
+		}
+		result, err := script.Call(ctx, function, args, options)
 		if err != nil {
 			return fmt.Errorf("%s: %w", fixture.Name, err)
 		}
@@ -155,7 +168,7 @@ func run() error {
 				return fmt.Errorf("missing iterations for %s", fixture.Name)
 			}
 			for range min(32, iterations) {
-				sink, err = script.Call(ctx, function, args, vibes.CallOptions{})
+				sink, err = script.Call(ctx, function, args, options)
 				if err != nil {
 					return err
 				}
@@ -168,7 +181,7 @@ func run() error {
 			}
 			start := time.Now()
 			for range iterations {
-				sink, err = script.Call(ctx, function, args, vibes.CallOptions{})
+				sink, err = script.Call(ctx, function, args, options)
 				if err != nil {
 					return err
 				}

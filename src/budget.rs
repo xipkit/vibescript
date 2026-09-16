@@ -1,5 +1,6 @@
 use crate::{Error, ErrorKind, Result, Value};
 use std::{
+    collections::BTreeMap,
     mem::size_of,
     sync::{
         Arc,
@@ -73,6 +74,11 @@ impl CancellationToken {
 /// Controls one invocation. Deadlines use a monotonic clock.
 #[derive(Clone, Default, Debug)]
 pub struct CallOptions {
+    /// Per-call root bindings. Script mutations are isolated from these source values.
+    ///
+    /// Values are imported on first use, under this call's limits. Strict-effects
+    /// scripts validate all globals as data-only before executing any script code.
+    pub globals: BTreeMap<String, Value>,
     pub limits: Limits,
     pub cancellation: CancellationToken,
     pub deadline: Option<Instant>,

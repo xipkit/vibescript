@@ -197,6 +197,10 @@ pub(super) fn global_address(
         }
         return Ok(Address::global(slot, value));
     }
+    if requires::get(ctx, storage, name)?.is_some() {
+        return crate::objects::address(ctx, storage.bindings.as_ref().unwrap(), name)
+            .map(Address::in_environment);
+    }
     let mut value = global_value(program, ctx, storage, index)?;
     if read {
         if let (Kind::Builtin(current), Kind::Builtin(original)) =
@@ -241,6 +245,9 @@ pub(super) fn root_binding(
     storage: &mut Storage,
     name: &str,
 ) -> Result<Option<RootBinding>> {
+    if let Some(value) = requires::get(ctx, storage, name)? {
+        return Ok(Some(RootBinding::Value(value)));
+    }
     if program.file && program.index != 0 {
         let root = storage.programs.data[0].program.clone();
         if let Some(&index) = root.declaration_names.get(name) {
@@ -255,7 +262,7 @@ pub(super) fn root_binding(
             return Ok(Some(RootBinding::Host(root, host)));
         }
     }
-    requires::get(ctx, storage, name).map(|value| value.map(RootBinding::Value))
+    Ok(None)
 }
 
 pub(super) fn read_root(

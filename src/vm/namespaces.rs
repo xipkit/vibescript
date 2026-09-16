@@ -39,6 +39,39 @@ pub(super) fn constant(
     Ok(None)
 }
 
+pub(super) fn call_constant(
+    program: &Program,
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    module: Option<usize>,
+    instance: bool,
+    name: &str,
+) -> Result<Option<Value>> {
+    // Explicit calls retain declared script-function dispatch, even when a
+    // namespace constant has the same name as that function.
+    if program.names.contains_key(name) {
+        return Ok(None);
+    }
+    let value = constant(program, ctx, storage, module, name)?;
+    if value.is_some() {
+        let definition = &program.namespaces[module.unwrap()];
+        let methods = if instance {
+            &definition.instance_methods
+        } else {
+            &definition.methods
+        };
+        for method in methods {
+            ctx.charge(1)?;
+            ctx.work_bytes(name.len().max(method.name.len()))?;
+            // Named calls keep method dispatch when a constant shares its name.
+            if method.name == name {
+                return Ok(None);
+            }
+        }
+    }
+    Ok(value)
+}
+
 pub(super) fn implicit(
     program: &Program,
     ctx: &mut CallContext,

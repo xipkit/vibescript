@@ -19,6 +19,7 @@ mod file_bindings;
 #[cfg(test)]
 mod file_bindings_tests;
 mod format;
+mod globals;
 mod handlers;
 mod namespaces;
 mod operators;
@@ -180,6 +181,7 @@ pub(crate) fn execute(
         (!code.program.file).then(|| code.program.enum_definitions.clone());
     ctx.enum_rebind.active = true;
     let result = (|| -> Result<Value> {
+        globals::validate(ctx)?;
         let environment = code
             .program
             .file
@@ -340,7 +342,7 @@ pub(crate) fn execute(
                     } else {
                         None
                     };
-                    let op = match op {
+                    let mut op = match op {
                         Op::Load(n) => Op::Load(slot(n, false)?),
                         Op::Bypass(n) => Op::Bypass(slot(n, false)?),
                         Op::LoadOptional(n, name) => Op::LoadOptional(slot(n, false)?, name),
@@ -360,6 +362,25 @@ pub(crate) fn execute(
                         }
                         op => op,
                     };
+                    if !ctx.options.globals.is_empty() {
+                        let count = match op {
+                            Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) => {
+                                Some(count)
+                            }
+                            _ => None,
+                        };
+                        if let Some(count) = count {
+                            let target = frames.data[current].arguments.data.pop().unwrap().target;
+                            if let Some(target) = target {
+                                let base = stack.data.len() - count;
+                                let mut args = Arguments::from_values(ctx, &stack.data[base..])?;
+                                args.target = Some(target);
+                                stack.data.truncate(base);
+                                frames.data[current].arguments.push(ctx, args)?;
+                                op = Op::Invoke(Invocation::Resolved);
+                            }
+                        }
+                    }
                     let file_local = if let Some(relative) = file_local {
                         let absolute = file_bindings::local_name(op).unwrap();
                         file_bindings::local(
@@ -758,6 +779,21 @@ pub(crate) fn execute(
                             )?;
                         }
                         Op::StoreDeclaration(index) => {
+                            if !program.file
+                                && requires::contains(
+                                    ctx,
+                                    &storage,
+                                    file_bindings::declaration_name(program, index),
+                                )?
+                            {
+                                requires::set(
+                                    ctx,
+                                    &mut storage,
+                                    file_bindings::declaration_name(program, index),
+                                    stack.data.last().unwrap(),
+                                )?;
+                                continue;
+                            }
                             if file_bindings::environment(program).is_some() {
                                 file_bindings::set(
                                     program,
@@ -847,7 +883,7 @@ pub(crate) fn execute(
                             let mut v = if let Some(name) = file_local {
                                 file_bindings::get(program, ctx, name)?.unwrap_or_default()
                             } else if let Some(name) = root_local {
-                                requires::get(ctx, &storage, name)?.unwrap()
+                                requires::get(ctx, &mut storage, name)?.unwrap()
                             } else {
                                 storage.locals.data[n].clone().unwrap_or_default()
                             };
@@ -863,7 +899,7 @@ pub(crate) fn execute(
                             let scoped = if let Some(name) = file_local {
                                 file_bindings::get(program, ctx, name)?
                             } else if let Some(name) = root_local {
-                                requires::get(ctx, &storage, name)?
+                                requires::get(ctx, &mut storage, name)?
                             } else {
                                 None
                             };
@@ -955,7 +991,7 @@ pub(crate) fn execute(
                             let scoped = if let Some(name) = file_local {
                                 file_bindings::get(program, ctx, name)?
                             } else if let Some(name) = root_local {
-                                requires::get(ctx, &storage, name)?
+                                requires::get(ctx, &mut storage, name)?
                             } else {
                                 None
                             };
@@ -1118,6 +1154,21 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::StoreGlobal(index) => {
+                            if !program.file
+                                && requires::contains(
+                                    ctx,
+                                    &storage,
+                                    program.globals[index].0.name(),
+                                )?
+                            {
+                                requires::set(
+                                    ctx,
+                                    &mut storage,
+                                    program.globals[index].0.name(),
+                                    stack.data.last().unwrap(),
+                                )?;
+                                continue;
+                            }
                             if file_bindings::environment(program).is_some() {
                                 file_bindings::set(
                                     program,
@@ -1195,7 +1246,7 @@ pub(crate) fn execute(
                             )?;
                             storage.addresses.push(ctx, address)?;
                         }
-                        Op::NonCallable => {
+                        Op::NonCallable(_) => {
                             return Err(Error::new(
                                 ErrorKind::Type,
                                 "attempted to call non-callable value",
@@ -2250,6 +2301,18 @@ pub(crate) fn execute(
                             stack.data.truncate(base);
                         }
                         Op::AutoCall(function) => {
+                            if let Some(value) =
+                                globals::get(ctx, &mut storage, &program.functions[function].name)?
+                            {
+                                file_bindings::read_root(
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    &mut stack,
+                                    file_bindings::RootBinding::Value(value),
+                                )?;
+                                continue;
+                            }
                             enter_auto(
                                 program,
                                 ctx,
@@ -2260,7 +2323,30 @@ pub(crate) fn execute(
                             )?;
                         }
                         Op::HostValue(host) => {
+                            if let Some(value) =
+                                globals::get(ctx, &mut storage, &program.hosts[host])?
+                            {
+                                file_bindings::read_root(
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    &mut stack,
+                                    file_bindings::RootBinding::Value(value),
+                                )?;
+                                continue;
+                            }
                             return Err(callable_value_error(&program.hosts[host], "method"));
+                        }
+                        Op::RootCall(name, expanded) => {
+                            if expanded || !ctx.options.globals.is_empty() {
+                                let mut args = Arguments::empty();
+                                if let Some(value) =
+                                    globals::get(ctx, &mut storage, &program.members[name])?
+                                {
+                                    args.target = Some(value_invocation(&value));
+                                }
+                                frame.arguments.push(ctx, args)?;
+                            }
                         }
                         Op::Arguments => frame.arguments.push(ctx, Arguments::empty())?,
                         Op::ForwardArguments => {
@@ -2320,8 +2406,23 @@ pub(crate) fn execute(
                             let name = &program.members[name];
                             let target = if let Some(Some(value)) = storage.locals.data.get(slot) {
                                 value_invocation(value)
+                            } else if let Some(value) = namespaces::call_constant(
+                                program,
+                                ctx,
+                                &mut storage,
+                                namespace,
+                                caller_instance,
+                                name,
+                            )? {
+                                value_invocation(&value)
+                            } else if let Some(slot) =
+                                namespaces::ambient_slot(ctx, &frames, &storage, current, name)?
+                            {
+                                value_invocation(storage.locals.data[slot].as_ref().unwrap())
                             } else if let Some(value) = file_bindings::get(program, ctx, name)? {
                                 value_invocation(&value)
+                            } else if !program.file && globals::contains(ctx, name)? {
+                                value_invocation(&requires::get(ctx, &mut storage, name)?.unwrap())
                             } else if program.declaration_names.contains_key(name) {
                                 crate::arguments::Target::Plain(Invocation::NonCallable)
                             } else if let Some(&function) = program.names.get(name) {
@@ -2364,7 +2465,7 @@ pub(crate) fn execute(
                             };
                             let mut arguments = Arguments::empty();
                             arguments.resolve(target, parenthesized);
-                            frame.arguments.push(ctx, arguments)?;
+                            frames.data[current].arguments.push(ctx, arguments)?;
                         }
                         Op::Argument(op) => {
                             let value = stack.data.pop().unwrap();
@@ -2380,10 +2481,14 @@ pub(crate) fn execute(
                                 .unwrap()
                                 .push(ctx, op, name, value)?;
                         }
-                        Op::Invoke(target) => {
+                        Op::Invoke(target) | Op::InvokeRoot(target) => {
                             let mut args = frame.arguments.data.pop().unwrap();
-                            let target = if matches!(target, Invocation::Resolved) {
-                                args.target.take().unwrap()
+                            let target = if matches!(op, Op::InvokeRoot(_))
+                                || matches!(target, Invocation::Resolved)
+                            {
+                                args.target
+                                    .take()
+                                    .unwrap_or(crate::arguments::Target::Plain(target))
                             } else {
                                 crate::arguments::Target::Plain(target)
                             };
@@ -2808,6 +2913,7 @@ pub(crate) fn execute(
                                 | Op::Method(..)
                                 | Op::Mutate(..)
                                 | Op::Invoke(_)
+                                | Op::InvokeRoot(_)
                                 | Op::Host(..)
                                 | Op::Extract(_)
                                 | Op::BlockArg(..)
@@ -3248,6 +3354,7 @@ fn resolve_type(
                 return Ok(value);
             }
         }
+        globals::types(ctx, storage, binding, fold)?;
         if let Some(bindings) = &storage.bindings {
             for (key, value) in crate::objects::bindings(ctx, bindings)?.data {
                 let candidate = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
@@ -3263,6 +3370,9 @@ fn resolve_type(
         }
         for (index, (global, original)) in program.globals.iter().enumerate() {
             ctx.charge(1)?;
+            if !type_name_matches(ctx, global.name(), binding, fold)? {
+                continue;
+            }
             let scoped = if file_bindings::environment(program).is_some() {
                 Some(global_value(program, ctx, storage, index)?)
             } else {
@@ -3286,7 +3396,14 @@ fn resolve_type(
                 Kind::Namespace(namespace) => &namespace.definition.name,
                 _ => continue,
             };
-            let scoped = file_bindings::get(program, ctx, name)?;
+            if !type_name_matches(ctx, name, binding, fold)? {
+                continue;
+            }
+            let scoped = if program.file {
+                file_bindings::get(program, ctx, name)?
+            } else {
+                requires::get(ctx, storage, name)?
+            };
             let value = scoped.as_ref().unwrap_or_else(|| {
                 storage
                     .declarations
@@ -3318,6 +3435,22 @@ fn resolve_type(
     Err(Error::new(ErrorKind::Type, "unknown named type"))
 }
 
+fn type_name_matches(
+    ctx: &mut CallContext,
+    candidate: &str,
+    binding: &str,
+    fold: bool,
+) -> Result<bool> {
+    if fold {
+        crate::text::case::equal(ctx, candidate.as_bytes(), binding.as_bytes())
+    } else {
+        Ok(
+            crate::enums::compare_names(ctx, candidate.as_bytes(), binding.as_bytes())?
+                == std::cmp::Ordering::Equal,
+        )
+    }
+}
+
 fn type_candidate(
     ctx: &mut CallContext,
     candidate: &str,
@@ -3327,13 +3460,7 @@ fn type_candidate(
     fold: bool,
     enum_only: bool,
 ) -> Result<Option<Value>> {
-    let same = if fold {
-        crate::text::case::equal(ctx, candidate.as_bytes(), binding.as_bytes())?
-    } else {
-        crate::enums::compare_names(ctx, candidate.as_bytes(), binding.as_bytes())?
-            == std::cmp::Ordering::Equal
-    };
-    if !same {
+    if !type_name_matches(ctx, candidate, binding, fold)? {
         return Ok(None);
     }
     let Some(member) = member else {
@@ -3409,6 +3536,15 @@ fn declaration_value(
     index: usize,
 ) -> Result<Value> {
     let scoped = file_bindings::environment(program).is_some();
+    if !scoped {
+        if let Some(value) = globals::get(
+            ctx,
+            storage,
+            file_bindings::declaration_name(program, index),
+        )? {
+            return Ok(value);
+        }
+    }
     if scoped {
         if let Some(value) = file_bindings::get(
             program,
@@ -3463,6 +3599,9 @@ fn global_value(
         }
         let slot = file_bindings::global_slot(program, ctx, storage, index)?;
         return Ok(storage.globals.data[slot].as_ref().unwrap().clone());
+    }
+    if let Some(value) = requires::get(ctx, storage, program.globals[index].0.name())? {
+        return Ok(value);
     }
     let slot = program.global_base + index;
     if storage.globals.data[slot].is_none() {

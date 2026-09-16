@@ -9,7 +9,7 @@ impl Compiler<'_> {
     ) -> Result<()> {
         self.work.charge(1)?;
         self.global(name);
-        if self.program.file {
+        if self.program.file || self.namespace.is_some() {
             let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
@@ -46,9 +46,11 @@ impl Compiler<'_> {
             self.emit(Op::Invoke(Invocation::Resolved));
             return Ok(());
         };
+        let name = self.call_site(name, false).name;
+        self.emit(Op::RootCall(name, expanded(args)));
         if expanded(args) {
-            self.call_arguments(args)?;
-            self.emit(Op::Invoke(target));
+            self.argument_values(args)?;
+            self.emit(Op::InvokeRoot(target));
         } else {
             for arg in args {
                 self.expr(&arg.value)?;
@@ -56,7 +58,7 @@ impl Compiler<'_> {
             self.emit(match target {
                 Invocation::Function(fun) => Op::Call(fun, args.len()),
                 Invocation::Host(host) => Op::Host(host, args.len()),
-                Invocation::NonCallable => Op::NonCallable,
+                Invocation::NonCallable => Op::NonCallable(args.len()),
                 _ => unreachable!(),
             });
         }

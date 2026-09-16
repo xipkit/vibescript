@@ -207,7 +207,7 @@ impl Enumeration {
     }
 }
 
-// Only incoming arguments rebind to this script's enums. Callback results keep
+// Incoming arguments and globals rebind to this script's enums. Callback results keep
 // their source identity; declarations use the same invocation token as arguments.
 pub(crate) struct Rebind {
     pub definitions: Option<Arc<[Arc<Definition>]>>,

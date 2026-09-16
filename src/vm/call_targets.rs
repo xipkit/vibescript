@@ -33,6 +33,11 @@ pub(super) fn identifier(
     if let Some(value) = file_bindings::get(program, ctx, name)? {
         return Ok(value_invocation(&value));
     }
+    if !program.file {
+        if let Some(value) = globals::get(ctx, storage, name)? {
+            return Ok(value_invocation(&value));
+        }
+    }
     if program.declaration_names.contains_key(name) {
         return Ok(Target::Plain(Invocation::NonCallable));
     }

@@ -1,0 +1,655 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+use vibescript::{CallOptions, Engine, ErrorKind, Value, stringify_json};
+
+fn options(entries: &[(&str, Value)]) -> CallOptions {
+    CallOptions {
+        globals: entries
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), value.clone()))
+            .collect(),
+        ..CallOptions::default()
+    }
+}
+
+fn json(value: &Value) -> serde_json::Value {
+    let encoded = stringify_json(value, CallOptions::default()).unwrap();
+    serde_json::from_slice(encoded.value.as_bytes().unwrap()).unwrap()
+}
+
+fn value(source: &str) -> Value {
+    Engine::new()
+        .compile(source)
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value
+}
+
+#[test]
+fn globals_are_isolated_and_mutations_remain_visible_within_each_call() {
+    let input = Value::hash(vec![(b"items".to_vec(), Value::array(vec![Value::int(1)]))]);
+    let script = Engine::new()
+        .compile("def update;before=settings;settings.items.push(2);[before,settings];end")
+        .unwrap();
+    let opts = options(&[("settings", input.clone())]);
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                scope.spawn(|| {
+                    for _ in 0..3 {
+                        let output = script.call("update", &[], opts.clone()).unwrap();
+                        assert_eq!(
+                            json(&output.value),
+                            serde_json::json!([{ "items": [1] }, { "items": [1,2] }])
+                        );
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().unwrap();
+        }
+    });
+    assert_eq!(json(&input), serde_json::json!({ "items": [1] }));
+}
+
+#[test]
+fn host_globals_override_functions_declarations_hosts_and_builtins() {
+    let mut engine = Engine::new();
+    engine.register("host", |_, _| panic!("shadowed host ran"));
+    for composite in [false, true] {
+        let read = if composite {
+            "helper[0]+Box[0]+Status[0]+Math[0]+host[0]"
+        } else {
+            "helper+Box+Status+Math+host"
+        };
+        let script = engine
+            .compile(&format!(
+                "def helper;99;end;class Box;end;enum Status;Ready;end;def run;{read};end"
+            ))
+            .unwrap();
+        let entries: Vec<_> = ["helper", "Box", "Status", "Math", "host"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, name)| {
+                let value = Value::int(index as i64 + 1);
+                (
+                    name,
+                    if composite {
+                        Value::array(vec![value])
+                    } else {
+                        value
+                    },
+                )
+            })
+            .collect();
+        assert_eq!(
+            script
+                .call("run", &[], options(&entries))
+                .unwrap()
+                .value
+                .as_int(),
+            Some(15)
+        );
+    }
+}
+
+#[test]
+fn nil_overrides_and_parameter_shadowing_do_not_lose_bindings() {
+    let script = Engine::new()
+        .compile("def helper;99;end;def f(helper);helper+=1;helper;end;def run;[f(6),helper];end")
+        .unwrap();
+    assert_eq!(
+        json(
+            &script
+                .call("run", &[], options(&[("helper", Value::nil())]))
+                .unwrap()
+                .value
+        ),
+        serde_json::json!([7, null])
+    );
+    for body in [
+        "items=nil;items",
+        "items=1;items+=2;items",
+        "items=1;[2].each{|items|items+=1};items",
+        "items=1;[2].each{items+=2};items",
+    ] {
+        let expected = match body {
+            "items=nil;items" => serde_json::Value::Null,
+            "items=1;[2].each{|items|items+=1};items" => serde_json::json!(1),
+            _ => serde_json::json!(3),
+        };
+        let script = Engine::new().compile(body).unwrap();
+        assert_eq!(
+            json(
+                &script
+                    .run(options(&[("items", Value::array(vec![Value::int(9)]))]))
+                    .unwrap()
+                    .value
+            ),
+            expected,
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn global_mutation_addresses_survive_parent_growth_and_rebindings() {
+    for name in ["rows", "JSON", "Box", "helper"] {
+        let source = format!(
+            "class Box;end;def helper;99;end;before={name};x={name}[-1].push((while true;{name}.push([9]);break 2;end));[x,{name},before]"
+        );
+        let input = Value::array(vec![Value::array(vec![Value::int(1)])]);
+        assert_eq!(
+            json(
+                &Engine::new()
+                    .compile(&source)
+                    .unwrap()
+                    .run(options(&[(name, input.clone())]))
+                    .unwrap()
+                    .value
+            ),
+            serde_json::json!([[1, 2], [[1, 2], [9]], [[1]]])
+        );
+        assert_eq!(json(&input), serde_json::json!([[1]]));
+        let source = format!("class Box;end;def helper;99;end;{name}=[7];{name}");
+        assert_eq!(
+            json(
+                &Engine::new()
+                    .compile(&source)
+                    .unwrap()
+                    .run(options(&[(name, input)]))
+                    .unwrap()
+                    .value
+            ),
+            serde_json::json!([7])
+        );
+    }
+}
+
+#[test]
+fn known_and_computed_calls_capture_global_targets_before_arguments() {
+    let parse = value("JSON[:parse]");
+    for expression in [
+        "helper((while true;helper=1;break \"3\";end))",
+        "helper(*(while true;helper=1;break [\"3\"];end))",
+        "(helper)((while true;helper=1;break \"3\";end))",
+        "helper (while true;helper=1;break \"3\";end)",
+    ] {
+        let script = Engine::new()
+            .compile(&format!(
+                "def helper(*args);99;end;x={expression};[x,helper]"
+            ))
+            .unwrap();
+        assert_eq!(
+            json(
+                &script
+                    .run(options(&[("helper", parse.clone())]))
+                    .unwrap()
+                    .value
+            ),
+            serde_json::json!([3, 1]),
+            "{expression}"
+        );
+    }
+}
+
+#[test]
+fn module_constants_take_precedence_over_host_globals_in_call_targets() {
+    let mut engine = Engine::new();
+    engine.register("Host", |_, _| panic!("shadowed host ran"));
+    for name in ["Parser", "Box", "Math", "Host"] {
+        for expression in [
+            format!("{name}(\"3\")"),
+            format!("({name})(\"3\")"),
+            format!("{name}(*[\"3\"])"),
+            format!("{name} \"3\""),
+        ] {
+            let source = format!(
+                "class Box;end;module M;{name}=JSON[:parse];def self.run;{expression};end;end;M.run"
+            );
+            let script = engine.compile(&source).unwrap();
+            for opts in [CallOptions::default(), options(&[(name, Value::nil())])] {
+                let globals = !opts.globals.is_empty();
+                assert_eq!(
+                    script
+                        .run(opts)
+                        .unwrap_or_else(|error| panic!("{source}, globals={globals}: {error}"))
+                        .value
+                        .as_int(),
+                    Some(3),
+                    "{source}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn module_initializers_call_enclosing_bindings() {
+    for expression in [
+        "helper(\"3\")",
+        "(helper)(\"3\")",
+        "helper(*[\"3\"])",
+        "helper \"3\"",
+    ] {
+        let source = format!("helper=JSON[:parse];module M;Result={expression};end;M.Result");
+        let script = Engine::new().compile(&source).unwrap();
+        for opts in [CallOptions::default(), options(&[("helper", Value::nil())])] {
+            assert_eq!(
+                script.run(opts).unwrap().value.as_int(),
+                Some(3),
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn block_assignments_update_existing_host_bindings() {
+    for body in [
+        "count+=1;count",
+        "count=count+1;count",
+        "[1].each{count+=1};count",
+        "[1].each{count=count+1};count",
+        "count=9;[1].each{count+=1};count",
+    ] {
+        let script = Engine::new()
+            .compile(&format!("def run;{body};end"))
+            .unwrap();
+        let opts = options(&[("count", Value::int(9))]);
+        for _ in 0..2 {
+            assert_eq!(
+                script
+                    .call("run", &[], opts.clone())
+                    .unwrap()
+                    .value
+                    .as_int(),
+                Some(10),
+                "{body}"
+            );
+        }
+        assert_eq!(opts.globals["count"].as_int(), Some(9));
+    }
+}
+
+#[test]
+fn unused_composites_and_overwrites_avoid_importing_large_values() {
+    let huge = Value::array(vec![Value::bytes(vec![b'x'; 1024]); 512]);
+    for strict in [false, true] {
+        let mut engine = Engine::new();
+        engine.set_strict_effects(strict);
+        for body in [
+            "1",
+            "big=1;big",
+            "def f(big);big;end;f(1)",
+            "enum big;Large;end;enum State;Ready;end;def f(x:State);1;end;f(:ready)",
+        ] {
+            let mut opts = options(&[("big", huge.clone())]);
+            opts.limits.memory_bytes = Some(48 << 10);
+            assert_eq!(
+                engine
+                    .compile(body)
+                    .unwrap()
+                    .run(opts)
+                    .unwrap()
+                    .value
+                    .as_int(),
+                Some(1),
+                "{body}, strict={strict}"
+            );
+        }
+        let mut opts = options(&[("big", huge.clone())]);
+        opts.limits.memory_bytes = Some(48 << 10);
+        assert_eq!(
+            engine
+                .compile("big.size")
+                .unwrap()
+                .run(opts)
+                .unwrap_err()
+                .kind,
+            ErrorKind::Memory
+        );
+    }
+}
+
+#[test]
+fn strict_globals_are_validated_before_initializers_defaults_and_callbacks() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let captured = effects.clone();
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    engine.register("effect", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::int(1))
+    });
+    let script = engine
+        .compile("class C;effect();end;def run(x=effect());effect();end")
+        .unwrap();
+    for source in [
+        "JSON",
+        "JSON[:parse]",
+        "{x:int}",
+        "class C;end;C",
+        "class C;end;C.new",
+        "class C;property link;end;c=C.new;c.link=c;c",
+    ] {
+        let poison = Value::array(vec![Value::hash(vec![(b"hidden".to_vec(), value(source))])]);
+        let err = script
+            .call("run", &[], options(&[("unused", poison)]))
+            .unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Runtime, "{source}: {err}");
+        assert!(
+            err.message
+                .starts_with("strict effects: global unused must be data-only"),
+            "{err}"
+        );
+        assert_eq!(effects.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn strict_validation_is_metered_even_for_unused_globals() {
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    let script = engine.compile("1").unwrap();
+    let input = Value::array(vec![Value::int(7); 4096]);
+    let opts = options(&[("unused", input)]);
+    let baseline = script.run(opts.clone()).unwrap();
+    assert!(baseline.stats.steps > 4096);
+    for kind in [
+        ErrorKind::Steps,
+        ErrorKind::Memory,
+        ErrorKind::Cancelled,
+        ErrorKind::Deadline,
+    ] {
+        let mut opts = opts.clone();
+        opts.cancellation = vibescript::CancellationToken::new();
+        match kind {
+            ErrorKind::Steps => opts.limits.steps = Some(baseline.stats.steps - 1),
+            ErrorKind::Memory => {
+                opts.limits.memory_bytes = Some(baseline.stats.peak_memory_bytes - 1)
+            }
+            ErrorKind::Cancelled => opts.cancellation.cancel(),
+            ErrorKind::Deadline => opts.deadline = Some(std::time::Instant::now()),
+            _ => unreachable!(),
+        }
+        assert_eq!(script.run(opts).unwrap_err().kind, kind);
+    }
+}
+
+#[test]
+fn globals_and_arguments_preserve_independent_collection_values() {
+    let input = Value::array(vec![Value::int(1)]);
+    let script = Engine::new()
+        .compile("def run(arg);arg.push(2);other.push(3);[arg,shared,other];end")
+        .unwrap();
+    let opts = options(&[("shared", input.clone()), ("other", input.clone())]);
+    let baseline = script
+        .call("run", std::slice::from_ref(&input), opts.clone())
+        .unwrap();
+    assert_eq!(
+        json(&baseline.value),
+        serde_json::json!([[1, 2], [1], [1, 3]])
+    );
+    for shortage in [0, 1] {
+        for memory in [false, true] {
+            let mut exact = opts.clone();
+            if memory {
+                exact.limits.memory_bytes = Some(baseline.stats.peak_memory_bytes - shortage);
+            } else {
+                exact.limits.steps = Some(baseline.stats.steps - shortage as u64);
+            }
+            let result = script.call("run", std::slice::from_ref(&input), exact);
+            if shortage == 0 {
+                assert_eq!(json(&result.unwrap().value), json(&baseline.value));
+            } else {
+                assert_eq!(
+                    result.unwrap_err().kind,
+                    if memory {
+                        ErrorKind::Memory
+                    } else {
+                        ErrorKind::Steps
+                    }
+                );
+            }
+        }
+    }
+    assert_eq!(json(&input), serde_json::json!([1]));
+}
+
+#[test]
+fn incoming_enums_rebind_when_lazily_materialized_or_used_in_types() {
+    let producer = Engine::new().compile("enum Status;Ready;end;def pair;[Status,Status::Ready];end;def typed(x:Other);x;end;def run;[state==Status::Ready,typed(state)==state];end").unwrap();
+    let pair = producer
+        .call("pair", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let pair = pair.as_array().unwrap();
+    let opts = options(&[("Other", pair[0].clone()), ("state", pair[1].clone())]);
+    assert_eq!(
+        json(&producer.call("run", &[], opts.clone()).unwrap().value),
+        serde_json::json!([true, true])
+    );
+    let consumer = Engine::new()
+        .compile("def typed(x:other);x;end;def run;typed(state[0])==Other::Ready;end")
+        .unwrap();
+    let opts = options(&[
+        ("Other", pair[0].clone()),
+        ("state", Value::array(vec![pair[1].clone()])),
+    ]);
+    assert_eq!(
+        json(&consumer.call("run", &[], opts).unwrap().value),
+        serde_json::json!(true)
+    );
+}
+
+#[test]
+fn imported_global_objects_preserve_cycles_aliases_and_call_isolation() {
+    let original = value(
+        "class Node;property link, count;def initialize;@count=0;@link=self;end;end;Node.new",
+    );
+    let consumer = Engine::new().compile("def run(arg);arg.count+=1;[node.count,node==arg,node.link==node];end;def inspect(arg);arg.count;end").unwrap();
+    for _ in 0..3 {
+        let output = consumer
+            .call(
+                "run",
+                std::slice::from_ref(&original),
+                options(&[("node", original.clone())]),
+            )
+            .unwrap();
+        assert_eq!(json(&output.value), serde_json::json!([1, true, true]));
+        assert_eq!(
+            consumer
+                .call(
+                    "inspect",
+                    std::slice::from_ref(&original),
+                    CallOptions::default()
+                )
+                .unwrap()
+                .value
+                .as_int(),
+            Some(0)
+        );
+    }
+}
+
+#[test]
+fn unused_foreign_namespaces_do_not_initialize_and_used_ones_keep_host_ownership() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let captured = effects.clone();
+    let mut source = Engine::new();
+    source.register("original", move |_, _| {
+        captured.fetch_add(1, Ordering::SeqCst);
+        Ok(Value::int(7))
+    });
+    let namespace = source
+        .compile("class Counter;@@n=original();def self.bump;@@n+=1;end;end;Counter")
+        .unwrap()
+        .run(CallOptions::default())
+        .unwrap()
+        .value;
+    effects.store(0, Ordering::SeqCst);
+    let mut engine = Engine::new();
+    engine.register("original", |_, _| panic!("wrong callback owner"));
+    let opts = options(&[("Counter", namespace)]);
+    assert_eq!(
+        engine
+            .compile("1")
+            .unwrap()
+            .run(opts.clone())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(1)
+    );
+    assert_eq!(effects.load(Ordering::SeqCst), 0);
+    let script = engine.compile("[Counter.bump,Counter.bump]").unwrap();
+    for count in 1..=2 {
+        assert_eq!(
+            json(&script.run(opts.clone()).unwrap().value),
+            serde_json::json!([8, 9])
+        );
+        assert_eq!(effects.load(Ordering::SeqCst), count);
+    }
+}
+
+#[test]
+fn captured_overrides_cover_host_declaration_block_and_error_paths() {
+    let parse = value("JSON[:parse]");
+    let mut engine = Engine::new();
+    engine.register("host", |_, _| panic!("shadowed host ran"));
+    for name in ["helper", "host", "Box", "JSON"] {
+        for form in [format!("{name}(\"3\")"), format!("{name}(*[\"3\"])")] {
+            let script = engine
+                .compile(&format!("def helper(*args);99;end;class Box;end;{form}"))
+                .unwrap();
+            assert_eq!(
+                script
+                    .run(options(&[(name, parse.clone())]))
+                    .unwrap()
+                    .value
+                    .as_int(),
+                Some(3),
+                "{form}"
+            );
+        }
+        let script = engine
+            .compile(&format!(
+                "def helper(*args);99;end;class Box;end;begin;{name}(\"3\"){{42}};rescue;7;end"
+            ))
+            .unwrap();
+        assert_eq!(
+            script
+                .run(options(&[(name, parse.clone())]))
+                .unwrap()
+                .value
+                .as_int(),
+            Some(7),
+            "{name}"
+        );
+    }
+    for argument in [
+        "(begin;raise \"argument\";end)",
+        "(begin;raise \"argument\";rescue;\"3\";end)",
+    ] {
+        let script = engine
+            .compile(&format!(
+                "def helper(*args);99;end;a=begin;helper({argument});rescue;7;end;[a,helper(\"4\")]"
+            ))
+            .unwrap();
+        let expected = if argument.contains("rescue") { 3 } else { 7 };
+        assert_eq!(
+            json(
+                &script
+                    .run(options(&[("helper", parse.clone())]))
+                    .unwrap()
+                    .value
+            ),
+            serde_json::json!([expected, 4])
+        );
+    }
+}
+
+#[test]
+fn global_type_overrides_and_depth_guards_cannot_be_bypassed() {
+    let script = Engine::new()
+        .compile("enum Status;Ready;end;def typed(x:Status);x;end;def run;typed(:ready);end")
+        .unwrap();
+    assert_eq!(
+        script
+            .call("run", &[], options(&[("Status", Value::int(1))]))
+            .unwrap_err()
+            .kind,
+        ErrorKind::Type
+    );
+    let mut deep = Value::int(1);
+    for _ in 0..130 {
+        deep = Value::array(vec![deep]);
+    }
+    let mut engine = Engine::new();
+    let opts = options(&[("unused", deep)]);
+    assert_eq!(
+        engine
+            .compile("1")
+            .unwrap()
+            .run(opts.clone())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(1)
+    );
+    assert_eq!(
+        engine
+            .compile("unused")
+            .unwrap()
+            .run(opts.clone())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Recursion
+    );
+    engine.set_strict_effects(true);
+    assert_eq!(
+        engine.compile("1").unwrap().run(opts).unwrap_err().kind,
+        ErrorKind::Recursion
+    );
+}
+
+#[test]
+fn strict_data_globals_accept_shared_subgraphs_without_exponential_scans() {
+    let mut data = Value::int(1);
+    for _ in 0..64 {
+        data = Value::array(vec![data.clone(), data]);
+    }
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    let mut opts = options(&[("unused", data)]);
+    opts.limits.steps = Some(10_000);
+    opts.limits.memory_bytes = Some(48 << 10);
+    assert_eq!(
+        engine
+            .compile("1")
+            .unwrap()
+            .run(opts)
+            .unwrap()
+            .value
+            .as_int(),
+        Some(1)
+    );
+    let mut shared = Value::int(1);
+    for _ in 0..80 {
+        shared = Value::array(vec![shared]);
+    }
+    let mut nested = shared.clone();
+    for _ in 0..60 {
+        nested = Value::array(vec![nested]);
+    }
+    let opts = options(&[("a", shared), ("b", nested)]);
+    assert_eq!(
+        engine.compile("1").unwrap().run(opts).unwrap_err().kind,
+        ErrorKind::Recursion
+    );
+}

@@ -1,6 +1,14 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: thirty-three intentional differences follow the selected collection, regex and control-flow semantics, and two previously different mutation cases now agree. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy. No cases in this audit remain unresolved.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The separate compatibility audit covers thirty-three collection, regex and control-flow differences, forty-two host-binding differences, and two previously different mutation cases that now agree. It retains the observed Go outputs and checks each Rust result against its port contract.
+
+## Host binding precedence
+
+Rust resolves named and computed calls through the nearest existing binding. Parameters, module constants and enclosing initializer locals take precedence over root data bindings, including host globals, classes and builtins. Named calls retain their existing declared script-function and module-method dispatch when a constant has the same name. In Go v0.70.0, a root data binding can win over a module constant when that constant is called. For example, `module M; Parser=JSON[:parse]; def self.apply; Parser("3"); end; end` returns `3` through `M.apply` in Rust even when a host global named `Parser` contains `nil`; Go tries to call that `nil`. A root class or builtin with the same name causes the same inconsistency.
+
+A block assignment also preserves an existing host binding unless a nearer local shadows it. With a host global `count=9`, `[1].each { count += 1 }; count` returns `10` in Rust. Go creates an uninitialized block local and raises an addition error, although a direct `count += 1` outside the block succeeds. Rust keeps the existing binding for both ordinary and compound assignments. Explicit block parameters retain their separate scope.
+
+The host-global generator in [fixtures.py](../scripts/fixtures.py) records these contracts across named, computed, splat and bare calls, with strict effects enabled and disabled. Thirty additional host-global cases belong to the shared success suite. Forty-two differing cases retain Go's rescued error result in the compatibility audit; they are not counted as matching evaluations.
 
 ## State isolation across host calls
 

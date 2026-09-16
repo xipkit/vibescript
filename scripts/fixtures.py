@@ -90,6 +90,47 @@ def benchmark_cases():
     return out
 
 
+def host_global_cases():
+    cases=[]
+
+    def add(name, body, globals, expected, source=None, args=None, difference=None):
+        for strict in [False, True]:
+            case=dict(name="host_globals/"+name+("/strict" if strict else "/ordinary"),
+                source=source or function(body), args=[None] if args is None else args,
+                globals=globals, strict_effects=strict, expected=expected, accounting=True)
+            if difference:
+                case.update(go="host-global-binding-error", policy="consistent_bindings", reason=difference)
+            cases.append(case)
+
+    add("collection", "settings.items.push(2);settings", {"settings":{"items":[1]}}, {"items":[1,2]})
+    add("nil", "helper", {"helper":None}, None,
+        source="def helper;99;end;"+function("helper"))
+    add("function", "helper+1", {"helper":41}, 42,
+        source="def helper;99;end;"+function("helper+1"))
+    add("declaration", "Box", {"Box":[7]}, [7],
+        source="class Box;end;"+function("Box"))
+    add("enum", "State", {"State":7}, 7,
+        source="enum State;Ready;end;"+function("State"))
+    add("builtin", "Math+1", {"Math":41}, 42)
+    add("parameter", "input", {"input":99}, 4, args=[4])
+    add("block_parameter", "[1].map{|helper|helper+1}", {"helper":99}, [2])
+    add("block_write", 'begin;[1].each{count+=1};count;rescue;"host-global-binding-error";end', {"count":9}, 10,
+        difference="A block assignment retains an existing host binding instead of creating an uninitialized local.")
+    add("overwrite", "settings=7;settings", {"settings":{"items":[1]}}, 7)
+    add("nested_address", "rows[-1].push(2);rows", {"rows":[[1]]}, [[1,2]])
+    add("rescued_call", "begin;helper(1);rescue;7;end", {"helper":None}, 7,
+        source="def helper(x);99;end;"+function("begin;helper(1);rescue;7;end"))
+    for name in ["Parser", "Box", "Math"]:
+        for index, expression in enumerate([
+            f'{name}("3")', f'({name})("3")', f'{name}(*["3"])', f'{name} "3"',
+        ]):
+            source=f'class Box;end;module M;{name}=JSON[:parse];def self.apply;{expression};end;end;'+function('begin;M.apply;rescue;"host-global-binding-error";end')
+            for supplied in [False, True]:
+                difference="A module constant retains precedence over root declarations, builtins and host globals when called." if supplied or name != "Parser" else None
+                add(f"module_constant/{name}/{index}/{supplied}", "", {name:None} if supplied else {}, 3, source=source, difference=difference)
+    return cases
+
+
 def conformance_cases():
     cases=[]
 
@@ -147,7 +188,7 @@ def conformance_cases():
                 cases[-1][field]=case[field]
         if case.get("function")=="__main__":
             cases[-1]["args"]=[]
-    return cases+upstream_cases()+site_cases()
+    return cases+upstream_cases()+site_cases()+[case for case in host_global_cases() if "policy" not in case]
 
 
 if __name__ == "__main__":
