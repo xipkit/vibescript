@@ -1,6 +1,6 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: thirty intentional differences follow the selected collection and regex semantics, and five remain unresolved. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The cases below are separate from that count: thirty-three intentional differences follow the selected collection, regex and control-flow semantics, and two previously different mutation cases now agree. The four-build compatibility audit retains the observed Go outputs and checks each Rust result against its selected policy. No cases in this audit remain unresolved.
 
 ## State isolation across host calls
 
@@ -8,7 +8,7 @@ The selected contract isolates mutable class and module state at every `Script.c
 
 Existing same-script behavior remains the baseline: imported instance fields preserve their values, shared references and cycles within the receiving call, while class and source-module declarations initialize fresh invocation state. Mutations must not change the source value or another concurrent call. Foreign code must still use the receiving call's accounting, cancellation and module policy.
 
-Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. Required-file exports retain their private state, which is copied at each receiving call boundary. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty intentional and five unresolved cases in the existing compatibility audit.
+Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. Required-file exports retain their private state, which is copied at each receiving call boundary. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty-three intentional and two resolved cases in the compatibility audit.
 
 ## Documented value semantics take precedence
 
@@ -16,11 +16,17 @@ The Rust port follows Vibescript's documented collection value semantics when th
 
 An evaluated operand or argument retains its value. Iteration and transformation traverse captured values, so callback writes to a surrounding binding cannot change already captured elements. Adding an unused alias cannot change the result. For `a=[1]; x=a+a.push(2); [x,a]`, the selected result is `[[1,1,2],[1,2]]`: the left operand remains `[1]`, the right operand is `[1,2]`, and the local `a` contains `[1,2]`.
 
-[compatibility-cases.json](compatibility-cases.json) records each policy and its reason. Twenty-two cases have explicit documented expectations, exercised by [value_semantics.rs](../tests/value_semantics.rs) both with and without an extra alias. They are intentional reference differences, not missing language features. This decision does not by itself settle control flow or publication through a nested path that changes during argument or callback evaluation.
+[compatibility-cases.json](compatibility-cases.json) records each policy and its reason. Twenty-four collection cases have explicit selected expectations, exercised by [value_semantics.rs](../tests/value_semantics.rs) both with and without an extra alias. Twenty-two remain intentional reference differences; the two negative-index mutation cases now agree with Go. The separately selected control-flow contracts are recorded below.
+
+## Captured array positions
+
+When an argument or block appends to an array, a pending mutation through a valid negative index updates the originally selected element. For `a=[[1]]; x=a[-1].push((while true; a.push([9]); break 2; end)); [x,a]`, both implementations now return `[[1,2],[[1,2],[9]]]`. The block-fill variant likewise updates the original child while preserving appended siblings.
+
+Compound and logical indexed assignments retain the position selected by their initial read. Plain assignment still evaluates its right-hand side before selecting the target, and custom index methods receive the original selector values. Replacing the parent binding or selected child detaches a pending mutator from that binding. Slices remain temporary collection values. Nested property types still apply, and rejected writes preserve mutations already completed by an argument or block.
 
 ## Inclusive range endpoints
 
-Go's `for` range counters can wrap when an inclusive loop reaches the maximum or minimum 64-bit integer. For example, `for n in max..max` visits `max`, wraps to `min`, and continues. A probe with `break if n < 0` returned `[max, min]` from Go. Rust visits `[max]` and terminates. Rust keeps the iteration position and length in a wider integer so the endpoint cannot wrap.
+Go's `for` range counters can wrap when an inclusive loop reaches the maximum or minimum 64-bit integer. For example, `for n in max..max` visits `max`, wraps to `min`, and continues. A probe with `break if n < 0` returned `[max, min]` from Go. The selected contract stops at the endpoint: Rust visits `[max]` and terminates. Rust keeps the iteration position and length in a wider integer so the endpoint cannot wrap. This is an intentional difference.
 
 ## Hash-loop break results
 
@@ -33,7 +39,7 @@ end
 x
 ```
 
-Go returns `{a: 1}`; Rust returns `7`. With a bare `break`, Go still returns the hash and Rust returns `nil`. Rust applies the same break-result rules to array, range, hash, and while loops.
+Go returns `{a: 1}`; Rust returns the selected break value, `7`. With a bare `break`, Go still returns the hash and Rust returns `nil`. Rust applies the same break-result rules to array, range, hash, and while loops. Both hash-loop cases are intentional differences under the selected contract.
 
 ## Mutation during collection iteration
 
@@ -55,29 +61,29 @@ Go array iteration can also observe index writes through its captured backing, a
 
 Builtin block iteration exposes the same gap. For `a=[1,2,3]; a.map {|v| a[1]=9; v}`, Go returns `[1,9,3]` and Rust returns `[1,2,3]`. Separate audit records cover array `each`, `map`, `select`, and `each_with_index`, including the yielded sequence, the mutated local and the method result. For hash `each`, both implementations yield the original entries, but Go's returned receiver includes the write while Rust's result remains the original snapshot. Hash `map`, `select`, and `transform_values` mutation cases that agree are in the shared success suite.
 
-Mutating blocks add five observations of the same distinction: filling a prefix after a callback edits the captured tail, filtering after an index write, the receiver returned by a filter that removes nothing, and filling a captured negative-index child after its parent grows. These remain separate from the matching cases. Hash filters also have a distinct commit rule that both Go modes agree on: they remove the selected keys from the current captured hash, preserving callback writes to other keys. Rust implements and tests that rule.
+Mutating blocks originally added five observations: filling a prefix after a callback edits the captured tail, filtering after an index write, the receiver returned by a filter that removes nothing, and filling a captured negative-index child after its parent grows. The negative-index case now agrees with Go; the other four remain intentional differences. Hash filters also have a distinct commit rule that both Go modes agree on: they remove the selected keys from the current captured hash, preserving callback writes to other keys. Rust implements and tests that rule.
 
 Key blocks in `sort_by`, `min_by`, and `max_by` also traverse the captured array. Two ordering audit records show how a callback writing the last element affects Go's sorted output and selected maximum while Rust retains the original values. Creating an alias before the call makes the examined mutation cases agree; these matching cases also record the key callback sequence. Comparator-form `sort` copies its input before calling the block and agrees in the examined mutation case.
 
 Adjacent grouping and recursive hash transforms add five records of the same distinction. `slice_when` and `chunk_while` can observe index writes through Go's captured array, changing later pairs and groups. A `merge` conflict block can change a later hash argument before Go visits it, while Rust retains the evaluated argument. Two `deep_transform_keys` cases show callback writes becoming visible in nested arrays or hashes in Go. Rust traverses the captured snapshots; the corresponding cases with explicit aliases agree and remain in the shared success suite.
 
-The selected policy preserves these captured logical values. These differences stay visible in the audit as intentional results. The negative-index parent-growth case remains open because the documentation does not specify which changed path should receive the final write.
+The selected policy preserves these captured logical values. These differences stay visible in the audit as intentional results. Negative-index parent growth follows the selected captured-position contract above.
 
 ## Evaluated collection values
 
-The indexed-write audit found three additional differences, recorded with complete source and observed outputs in [compatibility-cases.json](compatibility-cases.json):
+The indexed-write audit originally found three additional differences, recorded with complete source and observed outputs in [compatibility-cases.json](compatibility-cases.json):
 
 - `a = [[1]]; a[0] += a[0].push(2); a` returns `[[1,2,1,2]]` in Go and `[[1,1,2]]` in Rust. Go can expose the mutation through the already-evaluated left operand.
 - `a = [1]; x = a + a.push(2); [x,a]` has the same distinction for an ordinary binary operand: Go returns `[[1,2,1,2],[1,2]]`; Rust returns `[[1,1,2],[1,2]]`.
-- A pending `a[-1].push(...)` whose argument appends a new array to `a` can still update the previously captured child in Go. Rust currently treats the changed path as a temporary and leaves the original child unchanged.
+- A pending `a[-1].push(...)` whose argument appends a new array to `a` now updates the previously captured child in both Go and Rust.
 
-The first two results follow the selected value semantics: an already evaluated left operand cannot change while its right operand runs. The third remains open because publication through the changed negative-index path needs a separate decision based on the language contract. Together with the block-fill variant and the three control-flow records, that leaves five unresolved differences. After rebuilding the comparison binaries, run:
+The first two results follow the selected value semantics: an already evaluated left operand cannot change while its right operand runs. The third and the block-fill variant are resolved. The selected endpoint and hash-break contracts make the three control-flow records intentional differences. After rebuilding the comparison binaries, run:
 
 ```sh
 python3 scripts/audit-compatibility.py --out .cache/compatibility-audit
 ```
 
-The audit accepts intentional results only when Rust matches their documented expectations. It fails on unresolved cases, changed Rust behavior, or changed reference output, and preserves results for all four builds. All intentional cases remain separate from the matching conformance count.
+The audit accepts selected results only when Rust matches their documented expectations, and marks them resolved when Go matches too. It also checks identical portable/SIMD Rust work, peak-memory and retained-memory counters for successful cases. It fails on unresolved cases, changed Rust behavior, changed reference output or mismatched accounting, and preserves results for all four builds. All intentional cases remain separate from the matching conformance count.
 
 ## Copy oracle investigation
 
@@ -91,7 +97,7 @@ After building the comparison binaries, reproduce the investigation with:
 python3 scripts/audit-reference-views.py --out .cache/reference-view-audit
 ```
 
-The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. The ordinary compatibility audit distinguishes thirty intentional cases from five open cases.
+The tool copies the pinned Go module into its output directory, injects a test through a build overlay, and records outputs and binary hashes for normal Go, copying Go, and both Rust builds. It leaves the module cache and Go checkout unchanged. These recorded copy-oracle results are historical; the current ordinary compatibility audit distinguishes thirty-three intentional cases and two resolved cases.
 
 
 ## Builtin descriptors

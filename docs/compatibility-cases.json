@@ -31,8 +31,23 @@
         ]
       ]
     ],
-    "policy": "unresolved",
-    "reason": "The documentation does not yet determine publication when a captured negative-index path changes during argument evaluation."
+    "policy": "documented_value_semantics",
+    "reason": "The selected array element keeps its original position when arguments or blocks grow its parent.",
+    "expected": [
+      [
+        1,
+        2
+      ],
+      [
+        [
+          1,
+          2
+        ],
+        [
+          9
+        ]
+      ]
+    ]
   },
   {
     "name": "compound_collection_side_effect",
@@ -112,8 +127,11 @@
     "rust": [
       9223372036854775807
     ],
-    "policy": "unresolved",
-    "reason": "Inclusive-loop overflow is a separate control-flow compatibility question."
+    "policy": "stop_at_inclusive_endpoint",
+    "reason": "The selected contract stops at the inclusive endpoint without wrapping the integer counter.",
+    "expected": [
+      9223372036854775807
+    ]
   },
   {
     "name": "hash_break_value",
@@ -122,8 +140,9 @@
       "a": 1
     },
     "rust": 7,
-    "policy": "unresolved",
-    "reason": "Hash-loop break results are a separate control-flow compatibility question."
+    "policy": "return_break_value",
+    "reason": "The selected contract returns the break value from a hash-loop expression, including nil for a bare break.",
+    "expected": 7
   },
   {
     "name": "hash_break_nil",
@@ -132,8 +151,9 @@
       "a": 1
     },
     "rust": null,
-    "policy": "unresolved",
-    "reason": "Hash-loop break results are a separate control-flow compatibility question."
+    "policy": "return_break_value",
+    "reason": "The selected contract returns the break value from a hash-loop expression, including nil for a bare break.",
+    "expected": null
   },
   {
     "name": "for_expression_mutation",
@@ -668,8 +688,26 @@
         7
       ]
     ],
-    "policy": "unresolved",
-    "reason": "The documentation does not yet determine publication when a captured negative-index path changes during a callback."
+    "policy": "documented_value_semantics",
+    "reason": "The selected array element keeps its original position when arguments or blocks grow its parent.",
+    "expected": [
+      [
+        [
+          7,
+          7
+        ],
+        [
+          9
+        ],
+        [
+          9
+        ]
+      ],
+      [
+        7,
+        7
+      ]
+    ]
   },
   {
     "name": "ordering_sort_by_callback_mutation",

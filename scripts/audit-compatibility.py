@@ -22,7 +22,10 @@ def main():
     path = out / "inputs.json"
     errors = {c["name"] for c in cases if "expected_error" in c}
     path.write_text(json.dumps([f for f in fixtures if f["name"] not in errors]) + "\n")
-    results = {v: {r["name"]: json.loads(r["result_json"]) for r in invoke(v, path, 1, "validate", out / f"{v}.jsonl")} for v in VARIANTS}
+    observed = {v: invoke(v, path, 1, "validate", out / f"{v}.jsonl") for v in VARIANTS}
+    results = {v: {r["name"]: json.loads(r["result_json"]) for r in records} for v, records in observed.items()}
+    accounting = [{r["name"]: tuple(r[key] for key in ("steps", "tracked_peak_bytes", "tracked_retained_bytes")) for r in observed[v]} for v in ("rust-portable", "rust-simd")]
+    assert accounting[0] == accounting[1], "Rust accounting differs between portable and SIMD"
     for fixture in fixtures:
         if fixture["name"] not in errors:
             continue
@@ -43,12 +46,15 @@ def main():
         name = case["name"]
         values = {v: results[v][name] for v in VARIANTS}
         policy = case["policy"]
-        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "unresolved"}, (name, policy)
+        assert policy in {"documented_value_semantics", "honor_regex_anchors", "protected_match_data", "stop_at_inclusive_endpoint", "return_break_value", "unresolved"}, (name, policy)
         if any(not equal_json(values[v], case["go"]) for v in VARIANTS if v.startswith("go-")):
             status = "reference_changed"
         elif policy != "unresolved":
             expected = {"error_kind": case["expected_error"]} if "expected_error" in case else case["expected"]
-            status = "intentional" if all(equal_json(values[v], expected) for v in VARIANTS if v.startswith("rust-")) else "changed"
+            if not all(equal_json(values[v], expected) for v in VARIANTS if v.startswith("rust-")):
+                status = "changed"
+            else:
+                status = "resolved" if all(equal_json(value, expected) for value in values.values()) else "intentional"
         elif all(equal_json(values[v], case["go"]) for v in VARIANTS):
             status = "resolved"
         elif all(equal_json(values[v], case["rust"]) for v in VARIANTS if v.startswith("rust-")):
@@ -57,7 +63,7 @@ def main():
             status = "changed"
         records.append({"name": name, "status": status, "policy": policy, "reason": case["reason"], "results": values})
     counts = dict(Counter(r["status"] for r in records))
-    report = {"counts": counts, "binary_sha256": {v: hashlib.sha256((BINS / v).read_bytes()).hexdigest() for v in VARIANTS}, "cases": records}
+    report = {"counts": counts, "rust_accounting_equal": True, "binary_sha256": {v: hashlib.sha256((BINS / v).read_bytes()).hexdigest() for v in VARIANTS}, "cases": records}
     (out / "audit.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(counts))
     if any(r["status"] not in {"resolved", "intentional"} for r in records):
