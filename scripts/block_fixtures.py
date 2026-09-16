@@ -70,7 +70,7 @@ def cases():
         ("ignored_return", "a=[]; blocks.ignore { a.push(1); return [7,a] }; [99,a]"),
     ]:
         add(name, body, [7,[1]], go=[99,[1,1]], policy="preserve_host_block_control",
-            reason="Working control-flow policy: a host cannot erase a pending block break or return by ignoring its error; further block invocations do not rerun script code. This default has not been explicitly selected by the user.")
+            reason="Selected control-flow policy: a host cannot erase a pending block break or return by ignoring its error; further block invocations do not rerun script code.")
     for name, member in [("indexed", "blocks[:once]"), ("scoped", "blocks::once")]:
         add("detached_"+name, f'begin; method={member}; method(3) {{ |n| n+1 }}; rescue; "attached-method-required"; end',
             "attached-method-required", go=4, policy="attached_capability_methods",

@@ -6,7 +6,7 @@ The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761f
 
 Both ordinary and block-capable host methods follow the selected ADR-006 restriction: indexed and scoped members remain attached, while immediate calls work. The capability and block fixture generators each cover two detached forms with strict effects and accounting enabled or disabled. Go permits extracting those methods.
 
-The host-block audit also records a working control-flow default, not an explicit user selection. Rust preserves a pending `break` or nonlocal `return` when a callback ignores `ErrorKind::ControlFlow`, and prevents another invocation of that block from executing script. Go allows the callback to swallow the signal, rerun the block and replace its result. The two examples are checked in all four strict-effects/accounting combinations. Ordinary block exceptions remain available for host recovery and repeated invocation.
+The host-block audit records the explicitly selected control-flow preservation rule. Rust preserves a pending `break` or nonlocal `return` when a callback ignores `ErrorKind::ControlFlow`, and prevents another invocation of that block from executing script. Go allows the callback to swallow the signal, rerun the block and replace its result. The two examples are checked in all four strict-effects/accounting combinations. Ordinary block exceptions remain available for host recovery and repeated invocation.
 
 ## Host binding precedence
 
