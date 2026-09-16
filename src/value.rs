@@ -97,6 +97,7 @@ impl Bytes {
 
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
+    Function(Arc<crate::exports::Function>),
     Instance(Arc<crate::objects::Instance>),
     Namespace(Arc<crate::namespace::Namespace>),
     Offset(Arc<crate::regex::matches::Offset>),
@@ -352,6 +353,7 @@ impl Value {
     /// Reports this value's language type.
     pub fn type_name(&self) -> &'static str {
         match self.0 {
+            Kind::Function(_) => "function",
             Kind::Regex(_) => "regex",
             Kind::Namespace(_) => "class",
             Kind::Instance(_) => "instance",
@@ -551,6 +553,9 @@ impl CallContext {
         match &value.0 {
             Kind::Instance(instance) => crate::objects::import(self, instance)
                 .map(|instance| Value(Kind::Instance(instance))),
+            Kind::Function(function) => Ok(Value(Kind::Function(
+                crate::exports::Function::import(self, function)?,
+            ))),
             Kind::Namespace(namespace) => Ok(Value(Kind::Namespace(
                 crate::namespace::Namespace::import(self, namespace)?,
             ))),
@@ -647,6 +652,11 @@ impl fmt::Display for Value {
                 write!(f, "<{} instance>", instance.class().definition.name)
             }
             Kind::Namespace(namespace) => write!(f, "<Class {}>", namespace.definition.name),
+            Kind::Function(function) => write!(
+                f,
+                "<function {}>",
+                function.code.program.functions[function.index].name
+            ),
             Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
             Kind::Offset(offset) => write!(f, "<builtin {}>", offset.name()),
             Kind::Enum(e) => write!(f, "<Enum {}>", e.definition.name),

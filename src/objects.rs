@@ -289,6 +289,13 @@ impl Data {
             return ctx.guard(ErrorKind::Recursion, "instance field nesting too deep");
         }
         match &value.0 {
+            Kind::Function(function) => self
+                .instance(ctx, heap, &function.environment, internal)?
+                .map(|environment| {
+                    crate::exports::Function::with_environment(ctx, function, environment)
+                        .map(|value| Value(Kind::Function(value)))
+                })
+                .transpose(),
             Kind::Instance(instance) => self
                 .instance(ctx, heap, instance, internal)
                 .map(|value| value.map(|value| Value(Kind::Instance(value)))),
@@ -710,6 +717,7 @@ fn mark_references(
         ));
     }
     match &value.0 {
+        Kind::Function(function) => mark_instance(&function.environment, pending),
         Kind::Instance(instance) => mark_instance(instance, pending),
         Kind::Namespace(namespace) => {
             if let Some(environment) = &namespace.environment {

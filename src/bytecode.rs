@@ -34,6 +34,8 @@ pub(crate) enum Op {
     AmbientAddress(usize, usize),
     FileValue(usize, usize),
     FileAddress(usize, usize),
+    RootAddress(usize, usize),
+    ExportReceiver(CallSite),
     StoreDeclaration(usize),
     Regex(usize, u8),
     TypeShadowed(usize, usize),
@@ -736,6 +738,7 @@ impl Compiler<'_> {
             | Op::NamespaceConstant(_, n)
             | Op::FileValue(_, n)
             | Op::FileAddress(_, n)
+            | Op::RootAddress(_, n)
             | Op::AmbientValue(_, n)
             | Op::AmbientAddress(_, n)
             | Op::TypeShadowed(_, n)
@@ -1460,6 +1463,9 @@ impl Compiler<'_> {
         });
         let mut site = self.call_site(name, form == CallForm::Auto);
         site.parenthesized = form == CallForm::Parenthesized;
+        if mutating && !forwarding {
+            self.emit(Op::ExportReceiver(site));
+        }
         if name == "call" && form != CallForm::Auto {
             self.emit(Op::Arguments);
             self.emit(Op::CallMember(site));
@@ -1610,18 +1616,14 @@ impl Compiler<'_> {
                 Invocation::Host(host)
             } else {
                 let site = self.call_site(name, false);
-                if self.namespace.is_some() {
-                    self.emit(Op::ResolveCall(
-                        usize::MAX,
-                        site.name,
-                        form == CallForm::Parenthesized,
-                    ));
-                    self.argument_values(args)?;
-                    self.emit(Op::Attach(function));
-                    self.emit(Op::Invoke(Invocation::Resolved));
-                } else {
-                    self.emit(Op::Unbound(site.name));
-                }
+                self.emit(Op::ResolveCall(
+                    usize::MAX,
+                    site.name,
+                    form == CallForm::Parenthesized,
+                ));
+                self.argument_values(args)?;
+                self.emit(Op::Attach(function));
+                self.emit(Op::Invoke(Invocation::Resolved));
                 return Ok(());
             };
             self.emit(Op::Arguments);
@@ -1781,6 +1783,16 @@ impl Compiler<'_> {
         result
     }
     fn address_at(&mut self, receiver: &Expr) -> Result<()> {
+        let root = if let Node::Var(name) = &receiver.node {
+            if !name.starts_with('@') && !self.locals.contains_key(name) {
+                let name = self.call_site(name, false).name;
+                Some(self.emit(Op::RootAddress(name, 0)))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         let file = if self.program.file {
             if let Node::Var(name) = &receiver.node {
                 if !name.starts_with('@') && !self.parameters.contains(name) {
@@ -1858,6 +1870,9 @@ impl Compiler<'_> {
                 self.expr(receiver)?;
                 self.emit(Op::AddressValue);
             }
+        }
+        if let Some(root) = root {
+            self.patch(root, self.code.len());
         }
         if let Some(file) = file {
             self.patch(file, self.code.len());

@@ -47,6 +47,7 @@ pub(super) fn declare(
     if get(program, ctx, name)?.is_none()
         && !program.names.contains_key(name)
         && !program.declaration_names.contains_key(name)
+        && !requires::root_bound(ctx, storage, name)?
     {
         set(program, ctx, storage, name, &Value::nil())?;
     }
@@ -98,7 +99,8 @@ pub(super) fn local(
     Ok(
         crate::objects::field_slot(ctx, environment, name)?.is_some()
             || program.names.contains_key(name)
-            || program.declaration_names.contains_key(name),
+            || program.declaration_names.contains_key(name)
+            || requires::root_bound(ctx, storage, name)?,
     )
 }
 
@@ -109,6 +111,7 @@ pub(super) fn local_name(op: Op) -> Option<usize> {
         | Op::ReceiverBound(slot, _)
         | Op::Declare(slot)
         | Op::Store(slot)
+        | Op::AddStore(slot)
         | Op::AddressLocal(slot)
         | Op::AddressBound(slot, _) => Some(slot),
         _ => None,
@@ -216,16 +219,73 @@ pub(super) fn declaration_name(program: &Program, index: usize) -> &str {
     }
 }
 
-pub(super) fn root_target(
-    program: &Program,
-    storage: &Storage,
-    name: &str,
-) -> Option<crate::arguments::Target> {
-    if !program.file || program.index == 0 {
-        return None;
+pub(super) enum RootBinding {
+    Value(Value),
+    Function(Arc<Program>, usize),
+    Host(Arc<Program>, usize),
+}
+
+impl RootBinding {
+    pub fn target(self) -> crate::arguments::Target {
+        match self {
+            Self::Value(value) => value_invocation(&value),
+            Self::Function(owner, function) => crate::arguments::Target::Function(owner, function),
+            Self::Host(owner, host) => crate::arguments::Target::Host(owner, host),
+        }
     }
-    let root = &storage.programs.data[0].program;
-    root.names
-        .get(name)
-        .map(|&function| crate::arguments::Target::Function(root.clone(), function))
+}
+
+pub(super) fn root_binding(
+    program: &Program,
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    name: &str,
+) -> Result<Option<RootBinding>> {
+    if program.file && program.index != 0 {
+        let root = storage.programs.data[0].program.clone();
+        if let Some(&index) = root.declaration_names.get(name) {
+            return Ok(Some(RootBinding::Value(declaration_value(
+                &root, ctx, storage, index,
+            )?)));
+        }
+        if let Some(&function) = root.names.get(name) {
+            return Ok(Some(RootBinding::Function(root, function)));
+        }
+        if let Some(host) = root.hosts.iter().position(|host| host == name) {
+            return Ok(Some(RootBinding::Host(root, host)));
+        }
+    }
+    requires::get(ctx, storage, name).map(|value| value.map(RootBinding::Value))
+}
+
+pub(super) fn read_root(
+    ctx: &mut CallContext,
+    frames: &mut Buffer<Frame>,
+    storage: &mut Storage,
+    stack: &mut Buffer<Value>,
+    binding: RootBinding,
+) -> Result<()> {
+    match binding {
+        RootBinding::Value(Value(Kind::Function(function))) => requires::invoke(
+            ctx,
+            frames,
+            storage,
+            &function,
+            Arguments::empty(),
+            true,
+            stack.data.len(),
+        ),
+        RootBinding::Value(value) => {
+            let value = match value.0 {
+                Kind::Builtin(builtin) => builtin.read(ctx)?,
+                Kind::Offset(offset) => return Err(offset.value_error()),
+                _ => value,
+            };
+            stack.push(ctx, value)
+        }
+        RootBinding::Function(owner, function) => {
+            enter_auto(&owner, ctx, frames, storage, function, stack.data.len())
+        }
+        RootBinding::Host(owner, host) => Err(callable_value_error(&owner.hosts[host], "method")),
+    }
 }

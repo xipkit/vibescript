@@ -2146,7 +2146,7 @@ fn reserved(w: &str) -> bool {
             | "next"
     )
 }
-fn keyword(w: &str) -> bool {
+pub(crate) fn keyword(w: &str) -> bool {
     reserved(w)
         || matches!(
             w,

@@ -4,6 +4,13 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 pub(crate) struct Code {
     pub program: Program,
     pub hosts: Vec<HostCallback>,
+    pub origin: Option<crate::loading::Origin>,
+    pub exports: Vec<(String, Export)>,
+}
+
+pub(crate) enum Export {
+    Function(usize),
+    Enum(usize),
 }
 
 impl Code {
@@ -26,20 +33,30 @@ impl Code {
     }
 
     pub fn compile(source: &str, registered: &BTreeMap<String, HostCallback>) -> Result<Arc<Self>> {
-        Self::compile_mode(source, registered, false)
+        Self::compile_mode(source, registered, false, None)
     }
 
+    #[cfg(test)]
     pub fn compile_file(
         source: &str,
         registered: &BTreeMap<String, HostCallback>,
     ) -> Result<Arc<Self>> {
-        Self::compile_mode(source, registered, true)
+        Self::compile_mode(source, registered, true, None)
+    }
+
+    pub fn compile_module(
+        source: &str,
+        registered: &BTreeMap<String, HostCallback>,
+        origin: crate::loading::Origin,
+    ) -> Result<Arc<Self>> {
+        Self::compile_mode(source, registered, true, Some(origin))
     }
 
     fn compile_mode(
         source: &str,
         registered: &BTreeMap<String, HostCallback>,
         file: bool,
+        origin: Option<crate::loading::Origin>,
     ) -> Result<Arc<Self>> {
         let names = registered.keys().cloned().collect();
         let mut program = if file {
@@ -53,12 +70,31 @@ impl Code {
             .iter()
             .map(|name| registered[name].clone())
             .collect();
+        let mut exports = Vec::new();
+        if file {
+            for (name, &index) in &program.names {
+                if index != 0 && !program.functions[index].private {
+                    exports.push((name.clone(), Export::Function(index)));
+                }
+            }
+            for (name, &index) in &program.declaration_names {
+                if matches!(program.declarations[index].0, crate::value::Kind::Enum(_)) {
+                    exports.push((name.clone(), Export::Enum(index)));
+                }
+            }
+            exports.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        }
         Ok(Arc::new_cyclic(|owner| {
             program.owner = owner.clone();
             for definition in &program.namespaces {
                 assert!(definition.owner.set(owner.clone()).is_ok());
             }
-            Self { program, hosts }
+            Self {
+                program,
+                hosts,
+                origin,
+                exports,
+            }
         }))
     }
 }

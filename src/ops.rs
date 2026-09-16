@@ -296,6 +296,7 @@ fn equal_kinds(
         }
         (Kind::Instance(a), Kind::Instance(b)) => Ok(a.same(b)),
         (Kind::Namespace(a), Kind::Namespace(b)) => Ok(a.same_binding(b)),
+        (Kind::Function(a), Kind::Function(b)) => Ok(a.same(b)),
         (Kind::Enum(a), Kind::Enum(b)) => Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition)),
         (Kind::EnumMember(a), Kind::EnumMember(b)) => Ok(a.index == b.index
             && std::sync::Arc::ptr_eq(&a.enumeration.definition, &b.enumeration.definition)),
@@ -797,6 +798,7 @@ pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     match &value.0 {
         Kind::Regex(regex) => return regex.text(ctx),
         Kind::Offset(offset) => return Err(offset.value_error()),
+        Kind::Function(function) => return Err(function.value_error()),
         Kind::Builtin(builtin) => return Err(builtin.value_error()),
         Kind::Enum(_) | Kind::EnumMember(_) => return crate::enums::text(ctx, value),
         Kind::Money(money) => return money.text(ctx),

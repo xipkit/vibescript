@@ -22,6 +22,7 @@ mod conversion;
 mod duration;
 mod enums;
 mod error;
+mod exports;
 mod format;
 mod hash;
 mod hash_blocks;
@@ -29,6 +30,7 @@ mod integer;
 mod iteration;
 mod json;
 mod loading;
+pub use loading::ModuleConfig;
 mod math;
 mod members;
 mod money;
@@ -71,6 +73,7 @@ type HostCallback =
 #[derive(Default)]
 pub struct Engine {
     hosts: BTreeMap<String, HostCallback>,
+    loader: Arc<loading::Loader>,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -79,6 +82,18 @@ impl Engine {
     /// Creates an engine with core builtins and no external capabilities.
     pub fn new() -> Self {
         Self::default()
+    }
+    /// Configures required files for subsequently compiled scripts.
+    ///
+    /// Configured roots are opened immediately. Earlier scripts retain their previous
+    /// loader; calls share compiled source but keep independent initialized state.
+    pub fn set_module_config(&mut self, config: ModuleConfig) -> Result<()> {
+        self.loader = Arc::new(loading::Loader::new(config)?);
+        Ok(())
+    }
+    /// Clears this configuration's compiled module cache without changing active calls.
+    pub fn clear_module_cache(&self) {
+        self.loader.clear();
     }
     /// Sets the writer used by `puts`, `print`, and `p` in subsequently compiled scripts.
     ///
@@ -142,6 +157,7 @@ impl Engine {
         + 'static,
     ) {
         self.hosts.insert(name.into(), Arc::new(function));
+        self.loader = Arc::new(self.loader.fresh());
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.
     pub fn compile(&self, source: &str) -> Result<Script> {
@@ -149,6 +165,7 @@ impl Engine {
         Ok(Script {
             inner: Arc::new(ScriptInner {
                 code,
+                loader: self.loader.clone(),
                 random_source: self.random_source.clone(),
                 output_writer: self.output_writer.clone(),
                 error_writer: self.error_writer.clone(),
@@ -159,6 +176,7 @@ impl Engine {
 
 struct ScriptInner {
     code: Arc<code::Code>,
+    loader: Arc<loading::Loader>,
     random_source: Option<random::Source>,
     output_writer: Option<output::Writer>,
     error_writer: Option<output::Writer>,
@@ -198,7 +216,14 @@ impl Script {
             .get(name)
             .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
         ctx.code_roots = Some(budget::Buffer::empty());
-        let result = vm::execute(&self.inner.code, &mut ctx, function, args, keywords);
+        let result = vm::execute(
+            &self.inner.code,
+            &self.inner.loader,
+            &mut ctx,
+            function,
+            args,
+            keywords,
+        );
         ctx.random = None;
         let value = match result {
             Ok(value) => value,

@@ -10,9 +10,15 @@ use std::{
 };
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(super) struct Origin {
-    pub root: files::Root,
-    pub relative: Arc<[u8]>,
+pub(crate) struct Origin {
+    pub(super) root: files::Root,
+    pub(super) relative: Arc<[u8]>,
+}
+
+impl Origin {
+    pub(crate) fn name(&self) -> &[u8] {
+        &self.relative
+    }
 }
 
 pub(super) struct Resolver {

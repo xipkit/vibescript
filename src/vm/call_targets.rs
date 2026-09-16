@@ -42,13 +42,13 @@ pub(super) fn identifier(
     if let Some(host) = program.hosts.iter().position(|host| host == name) {
         return Ok(Target::Plain(Invocation::Host(host)));
     }
+    if let Some(binding) = file_bindings::root_binding(program, ctx, storage, name)? {
+        return Ok(binding.target());
+    }
     if let Some(global) = global_index(program, name) {
         return Ok(value_invocation(&global_value(
             program, ctx, storage, global,
         )?));
-    }
-    if let Some(target) = file_bindings::root_target(program, storage, name) {
-        return Ok(target);
     }
     match namespaces::implicit(
         program,

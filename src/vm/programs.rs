@@ -142,7 +142,7 @@ pub(super) fn arguments(
     Ok(())
 }
 
-fn activate(ctx: &mut CallContext, storage: &mut Storage, program: usize) -> Result<()> {
+pub(super) fn activate(ctx: &mut CallContext, storage: &mut Storage, program: usize) -> Result<()> {
     storage.activations.push(
         ctx,
         Activation {
@@ -245,12 +245,19 @@ fn admit(
     let mut needed = Buffer::empty();
     while let Some(value) = values.data.pop() {
         ctx.charge(1)?;
-        let namespace = match &value.0 {
+        let source = match &value.0 {
+            Kind::Function(function) => {
+                values.push(ctx, Value(Kind::Instance(function.environment.clone())))?;
+                Some((&function.code, Some(&function.environment)))
+            }
             Kind::Namespace(namespace) => {
                 if let Some(environment) = &namespace.environment {
                     values.push(ctx, Value(Kind::Instance(environment.clone())))?;
                 }
-                Some(namespace)
+                namespace
+                    .owner
+                    .as_ref()
+                    .map(|owner| (owner, namespace.environment.as_ref()))
             }
             Kind::Instance(instance) => {
                 let mut seen = false;
@@ -266,7 +273,11 @@ fn admit(
                 }
                 instances.push(ctx, instance.clone())?;
                 crate::objects::children(ctx, instance, &mut values)?;
-                Some(instance.class())
+                let namespace = instance.class();
+                namespace
+                    .owner
+                    .as_ref()
+                    .map(|owner| (owner, namespace.environment.as_ref()))
             }
             Kind::Array(array) => {
                 for value in array.buffer.data.iter().rev() {
@@ -285,14 +296,11 @@ fn admit(
             }
             _ => None,
         };
-        let Some(namespace) = namespace else {
-            continue;
-        };
-        let Some(owner) = namespace.owner.as_ref() else {
+        let Some((owner, environment)) = source else {
             continue;
         };
         let next_program = storage.programs.data.len();
-        let program = load(ctx, storage, owner, namespace.environment.as_ref())?;
+        let program = load(ctx, storage, owner, environment)?;
         if program.index == next_program {
             activate(ctx, storage, program.index)?;
             pending += 1;

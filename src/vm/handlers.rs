@@ -244,7 +244,7 @@ fn declare(
         if file_bindings::local(program, ctx, frames, storage, frame, slot, resolved)? {
             let name = &program.functions[owner.function.unwrap()].local_names[slot];
             file_bindings::declare(program, ctx, storage, name)?;
-        } else {
+        } else if !requires::local(ctx, frames, storage, frame, slot, resolved)? {
             storage.locals.data[resolved].get_or_insert_with(Value::nil);
         }
     }
@@ -794,6 +794,10 @@ pub(super) fn apply_control(
                 return Ok(None);
             }
             match return_to {
+                ReturnTo::Require(index) => {
+                    let value = requires::complete(ctx, frames, storage, index)?;
+                    stack.push(ctx, value)?;
+                }
                 ReturnTo::Output => {
                     let program = frames.data.last().unwrap().program.clone();
                     output::resume(&program, ctx, frames, storage, stack, Some(value))?
@@ -809,6 +813,15 @@ pub(super) fn apply_control(
                 ReturnTo::Local(slot) => {
                     address::refresh(ctx, slot, &value, &mut storage.addresses.data, &[])?;
                     storage.locals.data[slot] = Some(value.clone());
+                    stack.push(ctx, value)?;
+                }
+                ReturnTo::RootBinding(name) => {
+                    requires::set(
+                        ctx,
+                        storage,
+                        std::str::from_utf8(name.as_bytes().unwrap()).unwrap(),
+                        &value,
+                    )?;
                     stack.push(ctx, value)?;
                 }
                 ReturnTo::Text(original) => {

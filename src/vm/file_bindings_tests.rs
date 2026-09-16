@@ -6,6 +6,7 @@ fn file(engine: &Engine, source: &str) -> Script {
     Script {
         inner: Arc::new(ScriptInner {
             code: crate::code::Code::compile_file(source, &engine.hosts).unwrap(),
+            loader: engine.loader.clone(),
             random_source: engine.random_source.clone(),
             output_writer: engine.output_writer.clone(),
             error_writer: engine.error_writer.clone(),

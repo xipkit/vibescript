@@ -146,6 +146,7 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) 
         }
         Kind::Regex(regex) => return regex.render(ctx, |ctx, piece| out.append(ctx, piece)),
         Kind::Nil => return out.append(ctx, b"nil"),
+        Kind::Function(function) => return Err(function.value_error()),
         Kind::Builtin(_) | Kind::Offset(_) => return out.append(ctx, b"<builtin>"),
         Kind::Array(array) => {
             out.append(ctx, b"[")?;

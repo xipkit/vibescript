@@ -36,17 +36,13 @@ impl Compiler<'_> {
             return Ok(());
         } else {
             let site = self.call_site(name, false);
-            if self.namespace.is_some() {
-                self.emit(Op::ResolveCall(
-                    usize::MAX,
-                    site.name,
-                    form == CallForm::Parenthesized,
-                ));
-                self.argument_values(args)?;
-                self.emit(Op::Invoke(Invocation::Resolved));
-            } else {
-                self.emit(Op::Unbound(site.name));
-            }
+            self.emit(Op::ResolveCall(
+                usize::MAX,
+                site.name,
+                form == CallForm::Parenthesized,
+            ));
+            self.argument_values(args)?;
+            self.emit(Op::Invoke(Invocation::Resolved));
             return Ok(());
         };
         if expanded(args) {

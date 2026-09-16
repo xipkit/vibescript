@@ -8,7 +8,7 @@ The selected contract isolates mutable class and module state at every `Script.c
 
 Existing same-script behavior remains the baseline: imported instance fields preserve their values, shared references and cycles within the receiving call, while class and source-module declarations initialize fresh invocation state. Mutations must not change the source value or another concurrent call. Foreign code must still use the receiving call's accounting, cancellation and module policy.
 
-Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. File-module closure state transfer remains pending. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty intentional and five unresolved cases in the existing compatibility audit.
+Cross-script source namespace and instance dispatch now use the original compiled code and host callbacks on the receiving VM stack. Source-program globals and class/module initializers start fresh, while imported instance graphs preserve their contents. Required-file exports retain their private state, which is copied at each receiving call boundary. Independent native tests cover the selected cross-script behavior; these tests are separate from the thirty intentional and five unresolved cases in the existing compatibility audit.
 
 ## Documented value semantics take precedence
 

@@ -24,6 +24,7 @@ mod namespaces;
 mod operators;
 mod output;
 mod programs;
+mod requires;
 mod scopes;
 #[cfg(test)]
 mod scopes_tests;
@@ -32,11 +33,13 @@ pub(crate) use programs::Program;
 
 #[derive(Default)]
 enum ReturnTo {
+    Require(usize),
     #[default]
     Stack,
     Address,
     Assigned(Value),
     Local(usize),
+    RootBinding(Value),
     Negate,
     Text(Value),
     Output,
@@ -68,6 +71,9 @@ struct Frame {
 }
 
 struct Storage {
+    pins: Buffer<crate::loading::Pin>,
+    modules: Buffer<requires::Module>,
+    bindings: Option<Arc<crate::objects::Instance>>,
     programs: Buffer<programs::Entry>,
     activations: Buffer<programs::Activation>,
     discovered: usize,
@@ -141,6 +147,7 @@ impl LoopState {
 
 pub(crate) fn execute(
     code: &Arc<crate::code::Code>,
+    loader: &Arc<crate::loading::Loader>,
     ctx: &mut CallContext,
     function: usize,
     args: &[Value],
@@ -150,6 +157,9 @@ pub(crate) fn execute(
     let mut stack = Buffer::empty();
     let mut frames = Buffer::empty();
     let mut storage = Storage {
+        pins: Buffer::empty(),
+        modules: Buffer::empty(),
+        bindings: None,
         programs: Buffer::empty(),
         activations: Buffer::empty(),
         discovered: 0,
@@ -180,11 +190,14 @@ pub(crate) fn execute(
         input.options_hash = false;
         input.positional = Buffer::with_capacity(ctx, args.len())?;
         for arg in args {
-            input.positional.data.push(ctx.import(arg)?);
+            let value = ctx.import(arg)?;
+            crate::exports::check(ctx, &value)?;
+            input.positional.data.push(value);
         }
         for (name, value) in keywords {
             let key = ctx.bytes(name.as_bytes())?;
             let value = ctx.import(value)?;
+            crate::exports::check(ctx, &value)?;
             input.keywords.insert(ctx, key, value)?;
         }
         ctx.enum_rebind.active = false;
@@ -249,6 +262,9 @@ pub(crate) fn execute(
                         };
                         match iteration.advance(ctx, returned)? {
                             Progress::Yield(args, count) => {
+                                for value in &args[..count] {
+                                    crate::exports::check(ctx, value)?;
+                                }
                                 let block = frames.data[current].block.unwrap();
                                 enter_block(
                                     ctx,
@@ -298,6 +314,7 @@ pub(crate) fn execute(
                                     }
                                 }
                                 unwind(&mut frames, &mut storage, &mut stack, current);
+                                crate::exports::check(ctx, &value)?;
                                 stack.push(ctx, value)?;
                             }
                         }
@@ -312,6 +329,7 @@ pub(crate) fn execute(
                     ctx.charge(1)?;
                     let mut slot =
                         |slot, skip| resolve_slot(ctx, &frames, &storage, current, slot, skip);
+                    let binding_local = file_bindings::local_name(op);
                     let file_local = if program.file {
                         file_bindings::local_name(op)
                     } else {
@@ -347,6 +365,17 @@ pub(crate) fn execute(
                                 [relative]
                                 .as_str(),
                         )
+                    } else {
+                        None
+                    };
+                    let root_local = if let Some(relative) = binding_local {
+                        let absolute = file_bindings::local_name(op).unwrap();
+                        requires::local(ctx, &frames, &storage, current, relative, absolute)?
+                            .then_some(
+                                program.functions[frames.data[current].function.unwrap()]
+                                    .local_names[relative]
+                                    .as_str(),
+                            )
                     } else {
                         None
                     };
@@ -509,9 +538,8 @@ pub(crate) fn execute(
                             }
                         }
                         Op::FileValue(name, next) => {
-                            if let Some(mut value) =
-                                file_bindings::get(program, ctx, &program.members[name])?
-                            {
+                            let name = &program.members[name];
+                            if let Some(mut value) = file_bindings::get(program, ctx, name)? {
                                 if let Kind::Offset(offset) = &value.0 {
                                     return Err(offset.value_error());
                                 }
@@ -520,6 +548,22 @@ pub(crate) fn execute(
                                 }
                                 stack.push(ctx, value)?;
                                 frame.ip = next;
+                            } else if !program.names.contains_key(name)
+                                && !program.declaration_names.contains_key(name)
+                                && !program.hosts.iter().any(|host| host == name)
+                            {
+                                if let Some(binding) =
+                                    file_bindings::root_binding(program, ctx, &mut storage, name)?
+                                {
+                                    frames.data[current].ip = next;
+                                    file_bindings::read_root(
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        &mut stack,
+                                        binding,
+                                    )?;
+                                }
                             }
                         }
                         Op::FileAddress(name, next) => {
@@ -531,12 +575,46 @@ pub(crate) fn execute(
                                 &mut storage,
                                 current,
                                 name,
-                            )? && file_bindings::get(program, ctx, name)?.is_some()
-                            {
-                                let address = file_bindings::address(program, ctx, name)?;
+                            )? {
+                                let address = if file_bindings::get(program, ctx, name)?.is_some() {
+                                    Some(file_bindings::address(program, ctx, name)?)
+                                } else {
+                                    requires::address(
+                                        program,
+                                        ctx,
+                                        &frames,
+                                        &mut storage,
+                                        current,
+                                        name,
+                                    )?
+                                };
+                                if let Some(address) = address {
+                                    storage.addresses.push(ctx, address)?;
+                                    frames.data[current].ip = next;
+                                }
+                            }
+                        }
+                        Op::RootAddress(name, next) => {
+                            if let Some(address) = requires::address(
+                                program,
+                                ctx,
+                                &frames,
+                                &mut storage,
+                                current,
+                                &program.members[name],
+                            )? {
                                 storage.addresses.push(ctx, address)?;
                                 frames.data[current].ip = next;
                             }
+                        }
+                        Op::ExportReceiver(site) => {
+                            let address = storage.addresses.data.last_mut().unwrap();
+                            address.exported = crate::exports::member(
+                                ctx,
+                                site,
+                                &program.members[site.name],
+                                &address.value,
+                            )?;
                         }
                         Op::NamespaceSelf(module) => {
                             let value = if let Some(value) = &self_value {
@@ -763,6 +841,8 @@ pub(crate) fn execute(
                         Op::Load(n) => {
                             let mut v = if let Some(name) = file_local {
                                 file_bindings::get(program, ctx, name)?.unwrap_or_default()
+                            } else if let Some(name) = root_local {
+                                requires::get(ctx, &storage, name)?.unwrap()
                             } else {
                                 storage.locals.data[n].clone().unwrap_or_default()
                             };
@@ -777,6 +857,8 @@ pub(crate) fn execute(
                         Op::LoadOptional(slot, name) => {
                             let scoped = if let Some(name) = file_local {
                                 file_bindings::get(program, ctx, name)?
+                            } else if let Some(name) = root_local {
+                                requires::get(ctx, &storage, name)?
                             } else {
                                 None
                             };
@@ -833,6 +915,19 @@ pub(crate) fn execute(
                                 .position(|h| h == &program.members[name])
                             {
                                 return Err(callable_value_error(&program.hosts[host], "method"));
+                            } else if let Some(binding) = file_bindings::root_binding(
+                                program,
+                                ctx,
+                                &mut storage,
+                                &program.members[name],
+                            )? {
+                                file_bindings::read_root(
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    &mut stack,
+                                    binding,
+                                )?;
                             } else if let Some(global) =
                                 global_index(program, &program.members[name])
                             {
@@ -854,6 +949,8 @@ pub(crate) fn execute(
                         Op::ReceiverBound(slot, next) => {
                             let scoped = if let Some(name) = file_local {
                                 file_bindings::get(program, ctx, name)?
+                            } else if let Some(name) = root_local {
+                                requires::get(ctx, &storage, name)?
                             } else {
                                 None
                             };
@@ -865,20 +962,18 @@ pub(crate) fn execute(
                             }
                         }
                         Op::Unbound(name) => {
-                            if let Some(crate::arguments::Target::Function(owner, function)) =
-                                file_bindings::root_target(
-                                    program,
-                                    &storage,
-                                    &program.members[name],
-                                )
-                            {
-                                enter_auto(
-                                    &owner,
+                            if let Some(binding) = file_bindings::root_binding(
+                                program,
+                                ctx,
+                                &mut storage,
+                                &program.members[name],
+                            )? {
+                                file_bindings::read_root(
                                     ctx,
                                     &mut frames,
                                     &mut storage,
-                                    function,
-                                    stack.data.len(),
+                                    &mut stack,
+                                    binding,
                                 )?;
                                 continue;
                             }
@@ -949,6 +1044,30 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::Global(index) => {
+                            if program.file
+                                && file_bindings::get(
+                                    program,
+                                    ctx,
+                                    program.globals[index].0.name(),
+                                )?
+                                .is_none()
+                            {
+                                if let Some(binding) = file_bindings::root_binding(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    program.globals[index].0.name(),
+                                )? {
+                                    file_bindings::read_root(
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        &mut stack,
+                                        binding,
+                                    )?;
+                                    continue;
+                                }
+                            }
                             let mut value = global_value(program, ctx, &mut storage, index)?;
                             if let Kind::Offset(offset) = &value.0 {
                                 return Err(offset.value_error());
@@ -959,6 +1078,30 @@ pub(crate) fn execute(
                             stack.push(ctx, value)?;
                         }
                         Op::GlobalReceiver(index, auto) => {
+                            if program.file
+                                && file_bindings::get(
+                                    program,
+                                    ctx,
+                                    program.globals[index].0.name(),
+                                )?
+                                .is_none()
+                            {
+                                if let Some(binding) = file_bindings::root_binding(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    program.globals[index].0.name(),
+                                )? {
+                                    file_bindings::read_root(
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        &mut stack,
+                                        binding,
+                                    )?;
+                                    continue;
+                                }
+                            }
                             let mut value = global_value(program, ctx, &mut storage, index)?;
                             if let (Kind::Builtin(current), Kind::Builtin(original)) =
                                 (&value.0, &program.globals[index].1.0)
@@ -998,6 +1141,46 @@ pub(crate) fn execute(
                             frame.arguments.push(ctx, arguments)?;
                         }
                         Op::AddressGlobal(index) => {
+                            if program.file
+                                && file_bindings::get(
+                                    program,
+                                    ctx,
+                                    program.globals[index].0.name(),
+                                )?
+                                .is_none()
+                            {
+                                if let Some(binding) = file_bindings::root_binding(
+                                    program,
+                                    ctx,
+                                    &mut storage,
+                                    program.globals[index].0.name(),
+                                )? {
+                                    match binding {
+                                        file_bindings::RootBinding::Value(value) => storage
+                                            .addresses
+                                            .push(ctx, Address::new(None, value))?,
+                                        file_bindings::RootBinding::Function(owner, function) => {
+                                            enter_auto(
+                                                &owner,
+                                                ctx,
+                                                &mut frames,
+                                                &mut storage,
+                                                function,
+                                                stack.data.len(),
+                                            )?;
+                                            frames.data.last_mut().unwrap().return_to =
+                                                ReturnTo::Address;
+                                        }
+                                        file_bindings::RootBinding::Host(owner, host) => {
+                                            return Err(callable_value_error(
+                                                &owner.hosts[host],
+                                                "method",
+                                            ));
+                                        }
+                                    }
+                                    continue;
+                                }
+                            }
                             let address = file_bindings::global_address(
                                 program,
                                 ctx,
@@ -1061,7 +1244,7 @@ pub(crate) fn execute(
                         Op::Declare(slot) => {
                             if let Some(name) = file_local {
                                 file_bindings::declare(program, ctx, &mut storage, name)?;
-                            } else {
+                            } else if root_local.is_none() {
                                 storage.locals.data[slot].get_or_insert_with(Value::nil);
                             }
                         }
@@ -1125,6 +1308,8 @@ pub(crate) fn execute(
                             let value = stack.data.last().unwrap();
                             if let Some(name) = file_local {
                                 file_bindings::set(program, ctx, &mut storage, name, value)?;
+                            } else if let Some(name) = root_local {
+                                requires::set(ctx, &mut storage, name, value)?;
                             } else {
                                 address::refresh(ctx, n, value, &mut storage.addresses.data, &[])?;
                                 storage.locals.data[n] = Some(value.clone());
@@ -1190,13 +1375,22 @@ pub(crate) fn execute(
                                     args,
                                     stack.data.len(),
                                 )?;
-                                frames.data.last_mut().unwrap().return_to = ReturnTo::Local(n);
+                                frames.data.last_mut().unwrap().return_to =
+                                    if let Some(name) = root_local {
+                                        ReturnTo::RootBinding(ctx.bytes(name.as_bytes())?)
+                                    } else {
+                                        ReturnTo::Local(n)
+                                    };
                                 continue;
                             }
                             storage.locals.data[n] = None;
                             let value = ops::binary(ctx, "+", a, b)?;
-                            address::refresh(ctx, n, &value, &mut storage.addresses.data, &[])?;
-                            storage.locals.data[n] = Some(value.clone());
+                            if let Some(name) = root_local {
+                                requires::set(ctx, &mut storage, name, &value)?;
+                            } else {
+                                address::refresh(ctx, n, &value, &mut storage.addresses.data, &[])?;
+                                storage.locals.data[n] = Some(value.clone());
+                            }
                             stack.push(ctx, value)?;
                         }
                         Op::Shovel(site) => {
@@ -1328,6 +1522,16 @@ pub(crate) fn execute(
                         Op::AddressLocal(n) => {
                             let address = if let Some(name) = file_local {
                                 file_bindings::address(program, ctx, name)?
+                            } else if let Some(name) = root_local {
+                                requires::address(
+                                    program,
+                                    ctx,
+                                    &frames,
+                                    &mut storage,
+                                    current,
+                                    name,
+                                )?
+                                .unwrap()
                             } else {
                                 Address::new(
                                     Some(n),
@@ -1337,19 +1541,33 @@ pub(crate) fn execute(
                             storage.addresses.push(ctx, address)?;
                         }
                         Op::AddressBound(slot, next) => {
+                            if let Some(name) = root_local {
+                                if let Some(address) = requires::address(
+                                    program,
+                                    ctx,
+                                    &frames,
+                                    &mut storage,
+                                    current,
+                                    name,
+                                )? {
+                                    storage.addresses.push(ctx, address)?;
+                                    frames.data[current].ip = next;
+                                    continue;
+                                }
+                            }
                             if let Some(name) =
                                 file_local.filter(|_| file_bindings::environment(program).is_some())
                             {
                                 if file_bindings::get(program, ctx, name)?.is_some() {
                                     let address = file_bindings::address(program, ctx, name)?;
                                     storage.addresses.push(ctx, address)?;
-                                    frame.ip = next;
+                                    frames.data[current].ip = next;
                                 }
                             } else if let Some(value) = &storage.locals.data[slot] {
                                 storage
                                     .addresses
                                     .push(ctx, Address::new(Some(slot), value.clone()))?;
-                                frame.ip = next;
+                                frames.data[current].ip = next;
                             }
                         }
                         Op::AddressValue => {
@@ -1425,6 +1643,28 @@ pub(crate) fn execute(
                         }
                         Op::AddressMember(site) => {
                             let name = &program.members[site.name];
+                            if let Some(function) = crate::exports::member(
+                                ctx,
+                                site,
+                                name,
+                                &storage.addresses.data.last().unwrap().value,
+                            )? {
+                                if site.auto && site.scope {
+                                    return Err(function.value_error());
+                                }
+                                storage.addresses.data.pop();
+                                requires::invoke(
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    &function,
+                                    Arguments::empty(),
+                                    site.auto,
+                                    stack.data.len(),
+                                )?;
+                                frames.data.last_mut().unwrap().return_to = ReturnTo::Address;
+                                continue;
+                            }
                             if matches!(
                                 storage.addresses.data.last().unwrap().value.0,
                                 Kind::Namespace(_) | Kind::Instance(_)
@@ -1741,6 +1981,36 @@ pub(crate) fn execute(
                             storage.addresses.data.pop().unwrap();
                         }
                         Op::Mutate(site, n) => {
+                            let address = storage.addresses.data.last().unwrap();
+                            let function = if let Some(function) = &address.exported {
+                                Some(function.clone())
+                            } else {
+                                crate::exports::member(
+                                    ctx,
+                                    site,
+                                    &program.members[site.name],
+                                    &address.value,
+                                )?
+                            };
+                            if let Some(function) = function {
+                                if site.auto && site.scope {
+                                    return Err(function.value_error());
+                                }
+                                let base = stack.data.len() - n;
+                                let args = Arguments::from_values(ctx, &stack.data[base..])?;
+                                stack.data.truncate(base);
+                                storage.addresses.data.pop();
+                                requires::invoke(
+                                    ctx,
+                                    &mut frames,
+                                    &mut storage,
+                                    &function,
+                                    args,
+                                    site.auto,
+                                    base,
+                                )?;
+                                continue;
+                            }
                             let base = stack.data.len() - n;
                             let address = storage.addresses.data.pop().unwrap();
                             if matches!(address.value.0, Kind::Namespace(_) | Kind::Instance(_)) {
@@ -1929,6 +2199,7 @@ pub(crate) fn execute(
                         Op::IterNext => {
                             let state = frame.loops.data.last_mut().unwrap();
                             if let Some(value) = state.next_value(ctx)? {
+                                crate::exports::check(ctx, &value)?;
                                 stack.push(ctx, value)?;
                             } else {
                                 frame.ip = state.end;
@@ -2053,12 +2324,12 @@ pub(crate) fn execute(
                             } else if let Some(host) = program.hosts.iter().position(|h| h == name)
                             {
                                 crate::arguments::Target::Plain(Invocation::Host(host))
+                            } else if let Some(binding) =
+                                file_bindings::root_binding(program, ctx, &mut storage, name)?
+                            {
+                                binding.target()
                             } else if let Some(global) = global_index(program, name) {
                                 value_invocation(&global_value(program, ctx, &mut storage, global)?)
-                            } else if let Some(target) =
-                                file_bindings::root_target(program, &storage, name)
-                            {
-                                target
                             } else {
                                 match namespaces::implicit(
                                     program,
@@ -2112,6 +2383,32 @@ pub(crate) fn execute(
                                 crate::arguments::Target::Plain(target)
                             };
                             let target = match target {
+                                crate::arguments::Target::Host(owner, host) => {
+                                    ctx.checkpoint()?;
+                                    let result = owner.code.hosts[host](
+                                        ctx,
+                                        &args.positional.data,
+                                        &args.keywords.buffer.data,
+                                    );
+                                    ctx.checkpoint()?;
+                                    let value = ctx.import(&result?)?;
+                                    crate::exports::check(ctx, &value)?;
+                                    programs::imported(ctx, &mut storage, &value)?;
+                                    stack.push(ctx, value)?;
+                                    continue;
+                                }
+                                crate::arguments::Target::Export(function) => {
+                                    requires::invoke(
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        &function,
+                                        args,
+                                        false,
+                                        stack.data.len(),
+                                    )?;
+                                    continue;
+                                }
                                 crate::arguments::Target::Raise(..)
                                 | crate::arguments::Target::Output(..)
                                 | crate::arguments::Target::Format(..)
@@ -2218,6 +2515,18 @@ pub(crate) fn execute(
                             };
                             match target {
                                 Invocation::Builtin(builtin) => {
+                                    if builtin == crate::builtin::Builtin::Require {
+                                        requires::start(
+                                            program,
+                                            loader,
+                                            ctx,
+                                            &mut frames,
+                                            &mut storage,
+                                            &mut stack,
+                                            args,
+                                        )?;
+                                        continue;
+                                    }
                                     if let crate::builtin::Builtin::Output(kind) = builtin {
                                         output::start(
                                             program,
@@ -2288,6 +2597,7 @@ pub(crate) fn execute(
                                     );
                                     ctx.checkpoint()?;
                                     let value = ctx.import(&result?)?;
+                                    crate::exports::check(ctx, &value)?;
                                     programs::imported(ctx, &mut storage, &value)?;
                                     stack.push(ctx, value)?;
                                 }
@@ -2330,6 +2640,7 @@ pub(crate) fn execute(
                             ctx.checkpoint()?;
                             let result = result?;
                             let value = ctx.import(&result)?;
+                            crate::exports::check(ctx, &value)?;
                             programs::imported(ctx, &mut storage, &value)?;
                             stack.data.truncate(base);
                             stack.push(ctx, value)?;
@@ -2337,6 +2648,28 @@ pub(crate) fn execute(
                         Op::Method(site, n) => {
                             let base = stack.data.len() - n - 1;
                             let root = std::mem::take(&mut stack.data[base]);
+                            if matches!(root.0, Kind::Hash(_)) {
+                                if let Some(Value(Kind::Function(function))) =
+                                    members::field(ctx, site, &program.members[site.name], &root)?
+                                {
+                                    if site.auto && site.scope {
+                                        return Err(function.value_error());
+                                    }
+                                    let args =
+                                        Arguments::from_values(ctx, &stack.data[base + 1..])?;
+                                    stack.data.truncate(base);
+                                    requires::invoke(
+                                        ctx,
+                                        &mut frames,
+                                        &mut storage,
+                                        &function,
+                                        args,
+                                        site.auto,
+                                        base,
+                                    )?;
+                                    continue;
+                                }
+                            }
                             if matches!(root.0, Kind::Namespace(_) | Kind::Instance(_)) {
                                 let receiver = &root;
                                 let name = &program.members[site.name];
@@ -2440,6 +2773,7 @@ pub(crate) fn execute(
                         }
                         Op::Return | Op::Finish => {
                             let value = stack.data.pop().unwrap();
+                            crate::exports::check(ctx, &value)?;
                             let target = if matches!(op, Op::Return)
                                 && frame.parent.is_some()
                                 && !program.functions[frame.function.unwrap()].initializer
@@ -2460,6 +2794,31 @@ pub(crate) fn execute(
                                 value,
                                 normalize: true,
                             }));
+                        }
+                    }
+                    if ctx.has_exports
+                        && matches!(
+                            op,
+                            Op::Index(_)
+                                | Op::Method(..)
+                                | Op::Mutate(..)
+                                | Op::Invoke(_)
+                                | Op::Host(..)
+                                | Op::Extract(_)
+                                | Op::BlockArg(..)
+                        )
+                    {
+                        let frame = &frames.data[current];
+                        let target = matches!(
+                            frame.program.functions[frame.function.unwrap()]
+                                .code
+                                .get(frame.ip),
+                            Some(Op::CallValue)
+                        );
+                        if !target {
+                            if let Some(value) = stack.data.last() {
+                                crate::exports::check(ctx, value)?;
+                            }
                         }
                     }
                 }
@@ -2691,7 +3050,9 @@ fn runtime_bound(
     {
         return Ok(true);
     }
-    if file_bindings::get(program, ctx, name)?.is_some() {
+    if file_bindings::get(program, ctx, name)?.is_some()
+        || requires::root_bound(ctx, storage, name)?
+    {
         return Ok(true);
     }
     for host in &program.hosts {
@@ -2877,6 +3238,19 @@ fn resolve_type(
                 return Ok(value);
             }
         }
+        if let Some(bindings) = &storage.bindings {
+            for (key, value) in crate::objects::bindings(ctx, bindings)?.data {
+                let candidate = std::str::from_utf8(key.as_bytes().unwrap()).unwrap();
+                if let Some(value) =
+                    type_candidate(ctx, candidate, &value, binding, member, fold, enum_only)?
+                {
+                    merge_type(&mut found, value)?;
+                }
+            }
+            if let Some(value) = found {
+                return Ok(value);
+            }
+        }
         for (index, (global, original)) in program.globals.iter().enumerate() {
             ctx.charge(1)?;
             let scoped = if file_bindings::environment(program).is_some() {
@@ -2926,6 +3300,10 @@ fn resolve_type(
                 Ok(value)
             };
         }
+    }
+    if program.file && program.index != 0 {
+        let root = storage.programs.data[0].program.clone();
+        return resolve_type(&root, ctx, frames, storage, None, name, enum_only);
     }
     Err(Error::new(ErrorKind::Type, "unknown named type"))
 }
@@ -2996,6 +3374,7 @@ fn merge_type(found: &mut Option<Value>, value: Value) -> Result<()> {
 
 fn value_invocation(value: &Value) -> crate::arguments::Target {
     match &value.0 {
+        Kind::Function(function) => crate::arguments::Target::Export(function.clone()),
         Kind::Builtin(builtin) => crate::arguments::Target::Plain(Invocation::Builtin(*builtin)),
         Kind::Offset(offset) => crate::arguments::Target::Offset(offset.clone()),
         _ => crate::arguments::Target::Plain(Invocation::NonCallable),
@@ -3347,6 +3726,12 @@ fn unwind(
     stack: &mut Buffer<Value>,
     target: usize,
 ) {
+    for frame in &frames.data[target..] {
+        if let ReturnTo::Require(index) = frame.return_to {
+            storage.modules.data[index].loading = false;
+            storage.modules.data[index].exports = Value::nil();
+        }
+    }
     let frame = &frames.data[target];
     stack.data.truncate(frame.base);
     storage.locals.data.truncate(frame.local_base);

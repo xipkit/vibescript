@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Builtin {
+    Require,
     Output(crate::output::Kind),
     Format(crate::format::Function),
     Assert,
@@ -47,6 +48,7 @@ pub(crate) enum Math {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Global {
+    Require,
     Output(crate::output::Kind),
     Format(crate::format::Function),
     Assert,
@@ -69,6 +71,7 @@ pub(crate) enum Global {
 impl Global {
     pub fn name(self) -> &'static str {
         match self {
+            Self::Require => "require",
             Self::Output(kind) => kind.name(),
             Self::Format(function) => function.name(),
             Self::Assert => "assert",
@@ -93,6 +96,7 @@ impl Global {
             return Some(Self::Output(kind));
         }
         match name {
+            "require" => Some(Self::Require),
             "format" => Some(Self::Format(crate::format::Function::Format)),
             "sprintf" => Some(Self::Format(crate::format::Function::Sprintf)),
             "assert" => Some(Self::Assert),
@@ -120,6 +124,7 @@ impl Global {
     pub fn value(self) -> Value {
         use Builtin::*;
         let mut entries = match self {
+            Self::Require => return Value(Kind::Builtin(Require)),
             Self::Output(kind) => return Value(Kind::Builtin(Output(kind))),
             Self::Format(function) => return Value(Kind::Builtin(Format(function))),
             Self::Assert => return Value(Kind::Builtin(Assert)),
@@ -254,6 +259,7 @@ impl Builtin {
     pub fn name(self) -> &'static str {
         use Math::*;
         match self {
+            Self::Require => "require",
             Self::Output(kind) => kind.name(),
             Self::Format(function) => function.name(),
             Self::Assert => "assert",
@@ -293,7 +299,10 @@ impl Builtin {
     }
 
     pub fn value_error(self) -> Error {
-        if matches!(self, Self::Output(_) | Self::Format(_) | Self::Loop) {
+        if matches!(
+            self,
+            Self::Output(_) | Self::Format(_) | Self::Loop | Self::Require
+        ) {
             let name = self.name();
             return Error::new(
                 ErrorKind::Type,
@@ -320,7 +329,10 @@ impl Builtin {
     ) -> Result<Value> {
         ctx.checkpoint()?;
         // Calls with script conversions or repeated blocks run through the VM.
-        if matches!(self, Self::Output(_) | Self::Format(_) | Self::Loop) {
+        if matches!(
+            self,
+            Self::Output(_) | Self::Format(_) | Self::Loop | Self::Require
+        ) {
             return Err(self.value_error());
         }
         if self == Self::HashNew {
@@ -487,6 +499,7 @@ impl Builtin {
             | Self::Regexp(_)
             | Self::Assert
             | Self::Loop
+            | Self::Require
             | Self::HashNew => unreachable!(),
         }
     }

@@ -68,6 +68,42 @@ fn invoke(
     } else {
         None
     };
+    let receiver = captured.as_ref().unwrap_or_else(|| {
+        if mutating {
+            &storage.addresses.data.last().unwrap().value
+        } else {
+            stack.data.last().unwrap()
+        }
+    });
+    let retained = if mutating {
+        storage.addresses.data.last().unwrap().exported.clone()
+    } else {
+        None
+    };
+    let function = if retained.is_some() {
+        retained
+    } else {
+        crate::exports::member(ctx, site, name, receiver)?
+    };
+    if let Some(function) = function {
+        if site.auto && site.scope {
+            return Err(function.value_error());
+        }
+        if mutating {
+            storage.addresses.data.pop();
+        } else {
+            stack.data.pop();
+        }
+        return requires::invoke(
+            ctx,
+            frames,
+            storage,
+            &function,
+            args,
+            site.auto,
+            stack.data.len(),
+        );
+    }
     match selected {
         namespaces::Member::Function(function) => {
             if site.parenthesized && !function.constructor {

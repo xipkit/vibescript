@@ -19,6 +19,8 @@ pub(crate) enum Target {
     Unbound(&'static str, usize),
     Plain(Invocation),
     Function(std::sync::Arc<crate::vm::Program>, usize),
+    Host(std::sync::Arc<crate::vm::Program>, usize),
+    Export(std::sync::Arc<crate::exports::Function>),
     Offset(std::sync::Arc<crate::regex::matches::Offset>),
 }
 
@@ -81,6 +83,7 @@ impl Arguments {
         name: &str,
         value: Value,
     ) -> Result<()> {
+        crate::exports::check(ctx, &value)?;
         match op {
             ArgumentOp::Positional => self.positional.push(ctx, value),
             ArgumentOp::Splat => {
@@ -109,6 +112,7 @@ impl Arguments {
                     ));
                 };
                 for (key, value) in &hash.buffer.data {
+                    crate::exports::check(ctx, value)?;
                     self.keywords.insert(ctx, key.clone(), value.clone())?;
                 }
                 Ok(())
