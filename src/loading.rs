@@ -173,9 +173,10 @@ impl Loader {
                     .zip(receiving.hosts.iter().cloned())
                     .collect();
                 let origin = candidate.origin();
-                let code =
-                    crate::code::Code::compile_module(source_text, &registered, origin.clone())?;
+                let compiled =
+                    crate::code::Code::compile_module(source_text, &registered, origin.clone());
                 ctx.checkpoint()?;
+                let code = compiled?;
                 self.cache
                     .insert(ctx, &epoch, origin, source.stamp, code)?
                     .code
