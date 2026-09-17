@@ -1,0 +1,156 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private checker lexical captures through skipped block scopes. Each checker case has a Rust runtime witness. Lexical yield forwarding, native/host block contracts and pending-address mutation histories remain incomplete.",
+  "cases": [
+    {
+      "source": "def once; yield; end; def run; x=0; once {once {once {x=7}}}; x; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=7; once {once {once {x}}}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=[]; once {once {once {x.push(7)}}}; x; end",
+      "runtime": {
+        "display": "[7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def twice; yield; yield; end; def once; yield; end; def run; x=[]; twice {once {once {x.push(7)}}}; x; end",
+      "runtime": {
+        "display": "[7, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield 3; end; def run; x=0; result=once {|x| once {once {x=7}}; x}; [x,result]; end",
+      "runtime": {
+        "display": "[0, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield [3,4]; end; def run; x=0;y=1; result=once {|x,y| once {once {x=7;y=9}}; [x,y]}; [x,y,result]; end",
+      "runtime": {
+        "display": "[0, 1, [7, 9]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield 3; end; def run; it=0; result=once {once {once {it=7}}; it}; [it,result]; end",
+      "runtime": {
+        "display": "[7, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=0; result=once {once {once {x=7; break 9}}}; [result,x]; end",
+      "runtime": {
+        "display": "[9, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=0; begin; once {once {once {x=7; return 9}}}; ensure; return x; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=0; begin; once {once {once {x=7; raise \"bad\"}}}; rescue; x; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; result=once {once {once {x=7}}}; x=9; [result,x]; end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=[]; copy=x; once {once {once {x.push(7)}}}; [x,copy]; end",
+      "runtime": {
+        "display": "[[7], []]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def once; yield; end; def run; x=0; once {once {once {x=\"bad\"}}}; x; end",
+      "runtime": {
+        "display": "bad"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust propagates the assignment through skipped lexical scopes and diagnoses the incompatible captured-variable reassignment. Go reports no warning."
+    },
+    {
+      "source": "def once; yield; end; def need(x:int); x; end; def run; x=0; once {once {once {x=\"bad\"}}}; begin; need(x); rescue; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust preserves the nested capture write and diagnoses both the reassignment and the incompatible argument passed afterward. Go retains the original integer fact and reports no warning."
+    },
+    {
+      "source": "def once; yield; end; def run; once {once {once {return 7}}}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust routes the nested nonlocal return to its lexical owner and skips the unreachable missing name. Go warns about that name."
+    },
+    {
+      "source": "def once; yield; end; def run; m=/(a)/.match(\"a\"); if m; begin; once {once {once {m.captures.push(\"x\")}}}; rescue; m.captures; end; end; end",
+      "runtime": {
+        "display": "[a]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust retains match-data protection through skipped lexical scopes and diagnoses the nested capture mutation. Go reports no warning."
+    }
+  ]
+}

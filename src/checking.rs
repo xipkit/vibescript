@@ -9,6 +9,7 @@ mod facts;
 mod flow;
 mod graph;
 mod iteration;
+mod lexical;
 mod mutations;
 mod relation;
 mod scalar;
@@ -63,3 +64,6 @@ mod block_tests;
 
 #[cfg(test)]
 mod yield_tests;
+
+#[cfg(test)]
+mod lexical_tests;

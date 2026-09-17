@@ -3,6 +3,7 @@ use super::{
     blocks,
     facts::{Atom, Fact, Facts},
     flow::{self, Issue, Report},
+    lexical::Layouts,
     relation::Relation,
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program};
@@ -166,6 +167,7 @@ struct Job {
 
 struct Solver<'a> {
     world: World<'a>,
+    layouts: &'a Layouts,
     jobs: Buffer<Job>,
     buckets: Buffer<usize>,
     queue: Buffer<usize>,
@@ -193,8 +195,10 @@ pub(super) fn analyze(
     let mut functions = Buffer::with_capacity(ctx, world.program.functions.len())?;
     ctx.charge(world.program.functions.len() as u64)?;
     functions.data.resize(world.program.functions.len(), false);
+    let layouts = Layouts::new(ctx, world.program)?;
     let mut solver = Solver {
         world,
+        layouts: &layouts,
         jobs: Buffer::empty(),
         buckets: Buffer::empty(),
         queue: Buffer::empty(),
@@ -243,6 +247,7 @@ pub(super) fn analyze(
             current_error: solver.jobs.data[index].current_error,
             block: block.as_ref(),
             incoming: incoming.as_ref(),
+            layouts: Some(solver.layouts),
         };
         let mut report = flow::analyze_body(ctx, facts, body, &mut solver)?;
         let mut returns = report.returns;

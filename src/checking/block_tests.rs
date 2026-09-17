@@ -128,6 +128,7 @@ fn witness(
             current_error: flow::NO_ERROR,
             block: Some(&input),
             incoming: None,
+            layouts: None,
         },
         &mut Unavailable,
     )
@@ -476,6 +477,7 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
             current_error: flow::NO_ERROR,
             block: Some(&input),
             incoming: None,
+            layouts: None,
         },
         &mut Unavailable,
     )?;
@@ -614,6 +616,7 @@ fn native_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
             current_error: flow::NO_ERROR,
             block: Some(&input),
             incoming: None,
+            layouts: None,
         },
         &mut Unavailable,
     )
@@ -659,6 +662,7 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
             current_error: flow::NO_ERROR,
             block: Some(&input),
             incoming: None,
+            layouts: None,
         },
         &mut Unavailable,
     )

@@ -8,15 +8,31 @@ impl Walker<'_> {
 
     pub(super) fn attach(&mut self, state: &mut State, function: usize) -> Result<bool> {
         let mut captures = Buffer::empty();
-        for (slot, capture) in self.program.functions[function].captures.iter().enumerate() {
+        let locals = self.layouts.locals(self.ctx, self.program, function)?;
+        for slot in 0..locals {
             self.ctx.charge(1)?;
+            let capture = self
+                .layouts
+                .capture(self.ctx, self.program, function, slot)?;
             let Some(capture) = capture else {
                 continue;
             };
-            if capture.depth != 0 {
-                return Ok(false);
-            }
-            let binding = state.locals.get(self.ctx, capture.slot)?;
+            let parent = if capture.depth == 0 {
+                capture.slot
+            } else {
+                let source = crate::bytecode::Capture {
+                    depth: capture.depth - 1,
+                    slot: capture.slot,
+                };
+                let Some(parent) =
+                    self.layouts
+                        .find(self.ctx, self.program, self.function_index, source)?
+                else {
+                    return Ok(false);
+                };
+                parent
+            };
+            let binding = state.locals.get(self.ctx, parent)?;
             if binding.missing {
                 if binding.value != Atom::Never.fact() {
                     return Ok(false);
@@ -27,7 +43,7 @@ impl Walker<'_> {
                 self.ctx,
                 Link {
                     slot,
-                    parent: capture.slot,
+                    parent,
                     value: binding.value,
                 },
             )?;

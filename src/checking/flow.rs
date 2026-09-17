@@ -5,6 +5,7 @@ use super::{
     calls::{Calls, Target},
     facts::{Atom, Fact, Facts},
     graph::{Block, Exit, Graph},
+    lexical::Layouts,
     relation::Relation,
     scalar::Test,
     slots::Slots,
@@ -512,6 +513,7 @@ pub(super) fn analyze(
             current_error: NO_ERROR,
             block: None,
             incoming: None,
+            layouts: None,
         },
         &mut super::calls::Unavailable,
     )
@@ -525,6 +527,7 @@ pub(super) struct Body<'a> {
     pub current_error: u16,
     pub block: Option<&'a blocks::Inputs<'a>>,
     pub incoming: Option<&'a blocks::Closure>,
+    pub layouts: Option<&'a Layouts>,
 }
 
 pub(super) fn analyze_body(
@@ -541,6 +544,7 @@ pub(super) fn analyze_body(
         current_error,
         block,
         incoming,
+        layouts,
     } = body;
     let function_index = function;
     let function = &program.functions[function];
@@ -582,7 +586,15 @@ pub(super) fn analyze_body(
         }
     }
     let graph = Graph::new(ctx, &function.code)?;
-    let mut initial = State::new(function.locals);
+    let owned_layouts;
+    let layouts = if let Some(layouts) = layouts {
+        layouts
+    } else {
+        owned_layouts = Layouts::new(ctx, program)?;
+        &owned_layouts
+    };
+    let locals = layouts.locals(ctx, program, function_index)?;
+    let mut initial = State::new(locals);
     if let Some(incoming) = incoming {
         let mut captures = Buffer::empty();
         for link in &incoming.captures.data {
@@ -595,20 +607,21 @@ pub(super) fn analyze_body(
                 },
             )?;
         }
-        initial.incoming = Some(blocks::Captures::new(
-            ctx,
-            program.functions[incoming.function].locals,
-            &captures.data,
-        )?);
+        let incoming_locals = layouts.locals(ctx, program, incoming.function)?;
+        initial.incoming = Some(blocks::Captures::new(ctx, incoming_locals, &captures.data)?);
     }
     if let Some(block) = block {
         assert_eq!(function.name, "<block>");
         for capture in block.captures {
             ctx.charge(1)?;
-            assert!(function.captures[capture.slot].is_some());
+            assert!(
+                layouts
+                    .capture(ctx, program, function_index, capture.slot)?
+                    .is_some()
+            );
             initial.store(ctx, facts, capture.slot, capture.value)?;
         }
-        initial.captures = Some(blocks::Captures::new(ctx, function.locals, block.captures)?);
+        initial.captures = Some(blocks::Captures::new(ctx, locals, block.captures)?);
     }
     if !function.binds_parameters {
         for (index, parameter) in function.params.iter().enumerate() {
@@ -639,6 +652,8 @@ pub(super) fn analyze_body(
         facts,
         program,
         function,
+        function_index,
+        layouts,
         contracts,
         inputs,
         current_error,
@@ -713,6 +728,8 @@ struct Walker<'a> {
     facts: &'a mut Facts,
     program: &'a Program,
     function: &'a Function,
+    function_index: usize,
+    layouts: &'a Layouts,
     contracts: &'a [Fact],
     inputs: &'a [Input],
     current_error: u16,
