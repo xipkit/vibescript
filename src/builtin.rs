@@ -464,7 +464,15 @@ impl Builtin {
                     "to_float expects an int, float or string",
                 )),
             },
-            Self::JsonParse => json::parse_builtin(ctx, value.require_bytes()?),
+            Self::JsonParse => {
+                let Kind::Bytes(bytes) = &value.0 else {
+                    return Err(Error::new(
+                        ErrorKind::Type,
+                        "JSON.parse expects a JSON string",
+                    ));
+                };
+                json::parse_builtin(ctx, &bytes.data)
+            }
             Self::JsonStringify => json::stringify_builtin(ctx, value),
             Self::JsonParseAs => {
                 let Kind::Bytes(bytes) = &value.0 else {

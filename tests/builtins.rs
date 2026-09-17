@@ -4,6 +4,25 @@ use std::sync::{
 };
 use vibescript::{CallOptions, Engine, ErrorKind, Limits, Value};
 
+#[test]
+fn json_parse_requires_strings_through_every_call_form() {
+    for source in [
+        "JSON.parse(:\"7\")",
+        "JSON::parse(:\"7\")",
+        "(JSON.parse)(:\"7\")",
+        "JSON[:parse](:\"7\")",
+        "JSON.send(:parse,:\"7\")",
+        "JSON.parse_as(:\"7\",int)",
+    ] {
+        let error = Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Type, "{source}: {error}");
+    }
+}
+
 fn run(source: &str) -> vibescript::Outcome {
     Engine::new()
         .compile(source)
