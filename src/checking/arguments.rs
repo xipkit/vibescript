@@ -59,6 +59,12 @@ pub(super) enum Failure {
     HostKeywords,
     BuiltinArity,
     BuiltinKeywords,
+    BuiltinKeyword(Fact),
+    BuiltinKeywordType {
+        name: Fact,
+        actual: Fact,
+        expected: Fact,
+    },
     BuiltinValue,
     TypeLiteral(Fact),
     BuiltinDomain(Fact),

@@ -47,3 +47,6 @@ mod exception_tests;
 
 #[cfg(test)]
 mod builtin_tests;
+
+#[cfg(test)]
+mod native_tests;

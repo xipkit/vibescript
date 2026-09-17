@@ -15,6 +15,9 @@ use crate::{
 
 const RUNTIME: u8 = 1 << ErrorClass::Runtime as u8;
 
+mod native;
+mod temporal;
+
 fn outcome(value: Fact) -> Outcome {
     Outcome {
         value,
@@ -105,8 +108,7 @@ pub(super) fn invoke(
             | Builtin::Assert
     );
     if !supported {
-        result.incomplete = true;
-        return Ok(result);
+        return native::invoke(ctx, facts, builtin, args);
     }
     if builtin != Builtin::Assert && !args.keywords.data.is_empty() {
         result.failures.push(ctx, Failure::BuiltinKeywords)?;
@@ -329,6 +331,22 @@ pub(super) fn namespace(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Re
         }
     }
     Ok(false)
+}
+
+pub(super) fn namespace_call(
+    ctx: &mut CallContext,
+    facts: &Facts,
+    receiver: Fact,
+    name: &str,
+) -> Result<bool> {
+    if !namespace(ctx, facts, receiver)? {
+        return Ok(false);
+    }
+    Ok(facts
+        .selected_field(ctx, receiver, name.as_bytes())?
+        .is_some_and(|(value, optional)| {
+            !optional && matches!(facts.node(value), Node::Builtin(_))
+        }))
 }
 
 pub(super) fn member(

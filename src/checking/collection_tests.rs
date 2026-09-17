@@ -376,7 +376,12 @@ pub(super) fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &cra
     match &value.0 {
         Kind::Nil => Atom::Nil.fact(),
         Kind::Int(n) => facts.integer(ctx, *n).unwrap(),
+        Kind::Big(_) => Atom::Int.fact(),
         Kind::Float(_) => Atom::Float.fact(),
+        Kind::Regex(_) => Atom::Regex.fact(),
+        Kind::Time(_) | Kind::Zoned(_) => Atom::Time.fact(),
+        Kind::Duration(_) => Atom::Duration.fact(),
+        Kind::Money(_) => Atom::Money.fact(),
         Kind::Bool(b) => facts.boolean(ctx, *b).unwrap(),
         Kind::Bytes(b) => facts.string(ctx, &b.data).unwrap(),
         Kind::Symbol(b) => facts.symbol(ctx, &b.data).unwrap(),

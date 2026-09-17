@@ -409,7 +409,7 @@ fn unresolved_calls_types_and_mutable_global_bindings_stay_explicitly_incomplete
         "def run(x: Missing); x; end",
         "def f(*xs); xs; end; def run(xs: array<int>); f(*xs); end",
         "def f(**xs); xs; end; def run(xs: hash<string,int>); f(**xs); end",
-        "def run; Regexp.new(\"x\"); end",
+        "def run; require(\"missing\"); end",
         "def run; [1].map { _1 }; end",
         "def run; begin; 1; rescue; 2; ensure; [1].map { _1 }; end; end",
     ] {

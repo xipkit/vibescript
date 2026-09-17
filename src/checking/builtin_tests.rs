@@ -212,7 +212,7 @@ fn builtin_results_keep_known_bad_alternatives_beside_dynamic_inputs() {
     }
 }
 
-fn check(source: &str, rejected: bool) {
+pub(super) fn check(source: &str, rejected: bool) {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let report = analyze(&mut ctx, &mut facts, source).unwrap();
@@ -395,7 +395,7 @@ fn escaped_builtin_values_and_unmodeled_dispatch_remain_explicitly_incomplete() 
         "def run; JSON.values; end",
         "def run; JSON.send(:parse,\"7\"); end",
         "def run; JSON.parse(\"7\") { 1 }; end",
-        "def run; Regexp.new(\"x\"); end",
+        "def run; require(\"missing\"); end",
         "def run; JSON={parse:7}; JSON.parse; end",
         "def run; to_int=7; to_int(\"7\"); end",
     ] {

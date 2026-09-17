@@ -723,6 +723,8 @@ impl Walker<'_> {
                 | Failure::HostKeywords
                 | Failure::BuiltinArity
                 | Failure::BuiltinKeywords
+                | Failure::BuiltinKeyword(_)
+                | Failure::BuiltinKeywordType { .. }
                 | Failure::BuiltinValue
                 | Failure::TypeLiteral(_)
                 | Failure::BuiltinDomain(_)
@@ -880,10 +882,20 @@ impl Walker<'_> {
         fresh: bool,
     ) -> Result<Option<Edges>> {
         let address = state.addresses.data.pop().unwrap();
+        let name = &self.program.members[site.name];
+        if builtins::namespace_call(self.ctx, self.facts, address.value, name)? {
+            let mut arguments = Arguments::new();
+            arguments.positional.extend(self.ctx, args)?;
+            let edges = self.member(state, pc, address.value, site, arguments)?;
+            if edges.is_none() && address_result {
+                let value = state.stack.data.pop().unwrap().value;
+                state.addresses.push(self.ctx, Address::new(None, value))?;
+            }
+            return Ok(edges);
+        }
         if !address.supported {
             return self.incomplete(pc).map(Some);
         }
-        let name = &self.program.members[site.name];
         let result =
             self.facts
                 .collection_mutation_member(self.ctx, address.value, site, name, args)?;
@@ -1561,6 +1573,18 @@ impl Walker<'_> {
                     let value = state.stack.data.pop().unwrap().value;
                     state.addresses.push(self.ctx, Address::new(None, value))?;
                 }
+                Op::AddressGlobal(index) => {
+                    let (global, value) = &self.program.globals[index];
+                    if self.calls.global(self.ctx, global.name())?
+                        || !matches!(value.0, Kind::Hash(_))
+                    {
+                        return self.incomplete(pc);
+                    }
+                    let value = builtins::global(self.ctx, self.facts, value)?;
+                    let mut address = Address::new(None, value);
+                    address.supported = false;
+                    state.addresses.push(self.ctx, address)?;
+                }
                 Op::AddressIndex(count) | Op::AddressTarget(count, _) => {
                     let base = state.stack.data.len() - count;
                     let mut args = Buffer::empty();
@@ -1733,6 +1757,19 @@ impl Walker<'_> {
                 }
                 Op::Invoke(Invocation::Member(site, true)) => {
                     let args = state.arguments.data.pop().unwrap().arguments;
+                    let receiver = state.addresses.data.last().unwrap().value;
+                    if builtins::namespace_call(
+                        self.ctx,
+                        self.facts,
+                        receiver,
+                        &self.program.members[site.name],
+                    )? {
+                        state.addresses.data.pop().unwrap();
+                        if let Some(edges) = self.member(&mut state, pc, receiver, site, args)? {
+                            return Ok(edges);
+                        }
+                        continue;
+                    }
                     if !args.keywords.data.is_empty() {
                         return self.incomplete(pc);
                     }
@@ -1898,11 +1935,18 @@ impl Walker<'_> {
                 Op::CallMember(site) => {
                     let receiver = state.stack.data.pop().unwrap().value;
                     let name = &self.program.members[site.name];
-                    let field = if name == "call"
-                        && matches!(self.facts.node(receiver), super::facts::Node::Builtin(_))
-                    {
-                        Some(receiver)
-                    } else if matches!(
+                    if let super::facts::Node::Builtin(builtin) = self.facts.node(receiver) {
+                        self.issue(
+                            pc,
+                            IssueKind::Call {
+                                target: Target::Builtin(*builtin),
+                                failure: Failure::BuiltinValue,
+                            },
+                        )?;
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        return Ok([None, None]);
+                    }
+                    let field = if matches!(
                         self.facts.node(receiver),
                         super::facts::Node::Shape(_, false, _, false)
                     ) {
