@@ -70,6 +70,7 @@ pub(super) enum Method {
     MaxBy,
     Merge,
     DeepTransformKeys,
+    Substitute,
 }
 
 impl Method {
@@ -748,7 +749,7 @@ impl Walker<'_> {
             Find | Index | Rindex | Reduce | Count | Any | All | NoneMatch | One | Sum
             | TakeWhile | DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash
             | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Uniq | Sort | SortBy
-            | Min | Max | Minmax | MinBy | MaxBy | Merge => unreachable!(),
+            | Min | Max | Minmax | MinBy | MaxBy | Merge | Substitute => unreachable!(),
             FilterMap | Select | Reject => {
                 let keep = self
                     .facts

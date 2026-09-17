@@ -554,7 +554,7 @@ fn unmodeled_dispatch_callbacks_and_pending_capture_addresses_remain_explicit() 
         "def run(h:hash<string,int>); h.transform_values {|n| n}; end",
         "def run(xs); xs.group_by {:a}; end",
         "def run; [7,9].map! {|n| n}; end",
-        "def run; \"ab\".gsub(/a/) {\"b\"}; end",
+        "def run; [1].group_by {Time.at(0).send(:year) {7}}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

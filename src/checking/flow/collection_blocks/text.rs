@@ -3,6 +3,7 @@ use crate::{Error, Value, iteration::Progress};
 
 mod literal;
 mod matching;
+mod substitution;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(in crate::checking::flow) enum TextMethod {
@@ -16,6 +17,10 @@ pub(in crate::checking::flow) enum TextMethod {
     Lines,
     Match,
     Scan,
+    Sub,
+    SubBang,
+    Gsub,
+    GsubBang,
 }
 
 impl TextMethod {
@@ -31,8 +36,19 @@ impl TextMethod {
             "lines" => Self::Lines,
             "match" => Self::Match,
             "scan" => Self::Scan,
+            "sub" => Self::Sub,
+            "sub!" => Self::SubBang,
+            "gsub" => Self::Gsub,
+            "gsub!" => Self::GsubBang,
             _ => return None,
         })
+    }
+
+    fn substitutes(self) -> bool {
+        matches!(
+            self,
+            Self::Sub | Self::SubBang | Self::Gsub | Self::GsubBang
+        )
     }
 
     pub(in crate::checking::flow) fn materializes(self) -> bool {
@@ -50,6 +66,10 @@ impl TextMethod {
             Self::Line | Self::Lines => "each_line",
             Self::Match => "match",
             Self::Scan => "scan",
+            Self::Sub => "sub",
+            Self::SubBang => "sub!",
+            Self::Gsub => "gsub",
+            Self::GsubBang => "gsub!",
         }
     }
 }
@@ -90,6 +110,10 @@ impl Walker<'_> {
             }
             if matches!(method, TextMethod::Match | TextMethod::Scan) {
                 self.text_matching(state, pc, arm, site, &args, method)?;
+                continue;
+            }
+            if method.substitutes() {
+                self.text_substitution(state, pc, arm, site, &args, method)?;
                 continue;
             }
             if site.scope

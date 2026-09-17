@@ -103,3 +103,6 @@ mod hash_block_tests;
 
 #[cfg(test)]
 mod text_block_tests;
+
+#[cfg(test)]
+mod substitution_tests;

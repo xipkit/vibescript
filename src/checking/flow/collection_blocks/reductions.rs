@@ -335,6 +335,7 @@ impl Walker<'_> {
             return self.mutable_filter_result(current, item, value, hash, keep, depth);
         }
         match method {
+            Substitute => return self.substitution_result(current, pc, value),
             Merge => {
                 if self.wrapping_guard(value)? {
                     self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
