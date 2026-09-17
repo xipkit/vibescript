@@ -1,12 +1,18 @@
 # Known differences from Go v0.70.0
 
-The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The separate compatibility audit covers thirty-three collection, regex and control-flow differences, forty-two host-binding differences, eight required-file differences, sixteen attached-capability-method differences, eight host-block control-flow differences, and two previously different mutation cases that now agree. It retains the observed Go outputs and checks each Rust result against its port contract.
+The reference is Go Vibescript v0.70.0 at `5cba216c33bea8890787d64efb2ab926a761fb1b`. The shared success and rejection suites require matching results. The separate compatibility audit covers thirty-three collection, regex and control-flow differences, forty-two host-binding differences, eight required-file differences, sixteen attached-capability-method differences, eight host-block control-flow differences, twenty-eight host-signature differences, and two previously different mutation cases that now agree. It retains the observed Go outputs and checks each Rust result against its port contract.
 
 ## Attached capability methods and host blocks
 
 Both ordinary and block-capable host methods follow the selected ADR-006 restriction: indexed and scoped members remain attached, while immediate calls work. The capability and block fixture generators each cover two detached forms with strict effects and accounting enabled or disabled. Go permits extracting those methods.
 
 The host-block audit records the explicitly selected control-flow preservation rule. Rust preserves a pending `break` or nonlocal `return` when a callback ignores `ErrorKind::ControlFlow`, and prevents another invocation of that block from executing script. Go allows the callback to swallow the signal, rerun the block and replace its result. The two examples are checked in all four strict-effects/accounting combinations. Ordinary block exceptions remain available for host recovery and repeated invocation.
+
+## Host signature boundaries
+
+Published signatures follow the documented runtime type contract and the selected consistent binding rules. Named types resolve through the active source before the call root, including required-file defaults and qualified file aliases. Go v0.70.0 can substitute a same-named root enum or class and fail an otherwise valid call, or fail to find a file's type alias. The signature audit records twenty-four such cases across registered methods, capabilities and ordinary globals, where allowed by strict effects.
+
+Rust also validates an absorbed block `break` against the host signature's result type, as it does for custom capability return contracts. Go's signature wrapper skips validation when the callback returns the block's control signal; `break "bad"` can therefore escape a declared `int` result. Four audit cases preserve that Go observation while requiring Rust to reject it. Nonlocal returns continue to validate at their defining script function.
 
 ## Host binding precedence
 

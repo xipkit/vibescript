@@ -18,6 +18,7 @@ import (
 )
 
 type fixture struct {
+	SignatureProbe    *signatureProbe            `json:"signature_probe,omitempty"`
 	BlockProbe        bool                       `json:"block_probe,omitempty"`
 	Function          string                     `json:"function"`
 	Name              string                     `json:"name"`
@@ -123,6 +124,11 @@ func run() error {
 		if err != nil {
 			return err
 		}
+		if probe := fixture.SignatureProbe; probe != nil && probe.Registration == "registered" {
+			if err := engine.RegisterBuiltinWithSignature("echo", probe.call, probe.signature()); err != nil {
+				return err
+			}
+		}
 		var script *vibes.Script
 		if function == "__main__" {
 			script, err = engine.CompileSnippet(fixture.Source, function)
@@ -157,6 +163,22 @@ func run() error {
 					return fmt.Errorf("%s global %q: %w", fixture.Name, name, err)
 				}
 				options.Globals[name] = global
+			}
+		}
+		if probe := fixture.SignatureProbe; probe != nil {
+			switch probe.Registration {
+			case "registered":
+			case "global":
+				method, err := probe.method()
+				if err != nil {
+					return err
+				}
+				if options.Globals == nil {
+					options.Globals = make(map[string]value.Value)
+				}
+				options.Globals["echo"] = method
+			default:
+				options.Capabilities = append(options.Capabilities, *probe)
 			}
 		}
 		result, err := script.Call(ctx, function, args, options)

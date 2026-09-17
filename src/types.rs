@@ -4,6 +4,7 @@ use crate::{
 
 mod diagnostics;
 pub(crate) use diagnostics::Context;
+pub(crate) use diagnostics::host_resolution;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Scalar {

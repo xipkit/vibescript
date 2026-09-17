@@ -16,6 +16,7 @@ const SAMPLES: usize = 16;
 pub(crate) enum Context<'a> {
     Value,
     Argument(&'a [u8]),
+    HostArgument(&'a str, &'a str, usize),
     Return(&'a str),
     Ivar(&'a [u8]),
     Json,
@@ -36,6 +37,48 @@ impl TypeWriter for Writer<'_> {
     }
 }
 
+pub(crate) fn host_resolution(
+    ctx: &mut CallContext,
+    context: Context<'_>,
+    name: &str,
+    error: Error,
+) -> Result<Error> {
+    if error.kind != ErrorKind::Type {
+        return Ok(error);
+    }
+    let mut writer = Writer {
+        ctx,
+        bytes: Buffer::empty(),
+    };
+    match context {
+        Context::HostArgument(method, label, index) => {
+            writer.write(method.as_bytes())?;
+            writer.write(b" argument ")?;
+            if label.is_empty() {
+                writer.write((index + 1).to_string().as_bytes())?;
+            } else {
+                writer.write(label.as_bytes())?;
+            }
+            writer.write(b" type check failed: ")?;
+        }
+        Context::Return(method) => {
+            writer.write(b"return type check failed for ")?;
+            writer.write(method.as_bytes())?;
+            writer.write(b": ")?;
+        }
+        _ => unreachable!(),
+    }
+    if error.message == "unknown named type" {
+        writer.write(b"unknown type ")?;
+        writer.write(name.as_bytes())?;
+    } else {
+        writer.write(error.message.as_bytes())?;
+    }
+    let mut error = Error::from_bytes(writer.ctx, &writer.bytes.data)?;
+    error.kind = ErrorKind::Type;
+    Ok(error)
+}
+
 pub(super) fn mismatch(
     ctx: &mut CallContext,
     ty: &Type,
@@ -51,6 +94,16 @@ pub(super) fn mismatch(
         Context::Argument(name) => {
             writer.write(b"argument ")?;
             writer.write(name)?;
+            writer.byte(b' ')?;
+        }
+        Context::HostArgument(method, name, index) => {
+            writer.write(method.as_bytes())?;
+            writer.write(b" argument ")?;
+            if name.is_empty() {
+                writer.write((index + 1).to_string().as_bytes())?;
+            } else {
+                writer.write(name.as_bytes())?;
+            }
             writer.byte(b' ')?;
         }
         Context::Return(name) => {

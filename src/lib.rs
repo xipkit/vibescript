@@ -52,6 +52,7 @@ mod scan;
 mod sequence;
 mod sets;
 mod shapes;
+mod signature;
 mod sort;
 mod source;
 mod syntax;
@@ -65,6 +66,7 @@ pub use budget::{CallContext, CallOptions, CancellationToken, Limits, Stats};
 pub use capability::{Capability, HostMethod};
 pub use error::{Diagnostic, Error, ErrorClass, ErrorKind, Position, Result, StackFrame};
 pub use host_call::HostCall;
+pub use signature::{Signature, SignatureParam};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::Value;
 
@@ -77,7 +79,7 @@ type HostCallback =
 /// A compiler configured with explicitly registered host capabilities.
 #[derive(Default)]
 pub struct Engine {
-    hosts: BTreeMap<String, HostCallback>,
+    hosts: BTreeMap<String, capability::Registered>,
     loader: Arc<loading::Loader>,
     strict_effects: bool,
     random_source: Option<random::Source>,
@@ -171,7 +173,21 @@ impl Engine {
         + Sync
         + 'static,
     ) {
-        self.hosts.insert(name.into(), Arc::new(function));
+        self.hosts.insert(
+            name.into(),
+            capability::Registered::Callback(Arc::new(function)),
+        );
+        self.loader = Arc::new(self.loader.fresh());
+    }
+
+    /// Registers a host method, including its signature, contracts and block driver.
+    ///
+    /// Registration affects subsequently compiled scripts and their required files.
+    /// Each invocation receives a fresh grant. Script declarations and explicit
+    /// globals retain their normal lookup precedence.
+    pub fn register_method(&mut self, name: impl Into<String>, method: HostMethod) {
+        self.hosts
+            .insert(name.into(), capability::Registered::Method(method));
         self.loader = Arc::new(self.loader.fresh());
     }
     /// Compiles UTF-8 source, enforcing source-size and syntax-depth guards.

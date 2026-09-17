@@ -1,9 +1,9 @@
-use crate::{CallContext, HostCallback, Result, bytecode::Program};
+use crate::{CallContext, Result, bytecode::Program, capability::Registered};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 pub(crate) struct Code {
     pub program: Program,
-    pub hosts: Vec<HostCallback>,
+    pub hosts: Vec<Registered>,
     pub origin: Option<crate::loading::Origin>,
     pub exports: Vec<(String, Export)>,
 }
@@ -32,14 +32,14 @@ impl Code {
         result
     }
 
-    pub fn compile(source: &str, registered: &BTreeMap<String, HostCallback>) -> Result<Arc<Self>> {
+    pub fn compile(source: &str, registered: &BTreeMap<String, Registered>) -> Result<Arc<Self>> {
         Self::compile_mode(source, registered, false, None, &())
     }
 
     #[cfg(test)]
     pub fn compile_file(
         source: &str,
-        registered: &BTreeMap<String, HostCallback>,
+        registered: &BTreeMap<String, Registered>,
     ) -> Result<Arc<Self>> {
         Self::compile_mode(source, registered, true, None, &())
     }
@@ -47,7 +47,7 @@ impl Code {
     pub fn compile_module(
         ctx: &mut CallContext,
         source: &str,
-        registered: &BTreeMap<String, HostCallback>,
+        registered: &BTreeMap<String, Registered>,
         origin: crate::loading::Origin,
     ) -> Result<Arc<Self>> {
         Self::compile_mode(
@@ -61,7 +61,7 @@ impl Code {
 
     fn compile_mode(
         source: &str,
-        registered: &BTreeMap<String, HostCallback>,
+        registered: &BTreeMap<String, Registered>,
         file: bool,
         origin: Option<crate::loading::Origin>,
         work: &dyn crate::compilation::Work,

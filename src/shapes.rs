@@ -93,7 +93,7 @@ pub(crate) fn member(
     }))
 }
 
-fn retained(ty: &Type) -> usize {
+pub(crate) fn retained(ty: &Type) -> usize {
     ty.name.capacity()
         + match &ty.kind {
             TypeKind::Array(Some(element)) => size_of::<Type>() + retained(element),

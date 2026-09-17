@@ -49,7 +49,7 @@ The selected ADR-006 policy keeps capability methods attached to their bindings 
 
 Imported containers, descriptor names and metadata, binding storage, traversal work and callback results count against the invocation's limits. Descriptors deferred for safe callback destruction retain their metadata charge until destruction; repeated references share that reservation. Returned or host-retained values retain their own charges. Callback closure captures and allocations made independently by trusted host code remain host-owned; callbacks must cooperate with cancellation and account their work. Rust's immutable values isolate arrays and hashes across the host boundary.
 
-Use `HostMethod::new_with_block` for a synchronous block driver. Its callback receives a scoped `HostCall` with `block_given()`, `call_block(args)` and `context()`. The handle borrows the active invocation and cannot escape the callback or move to another thread; this enforces retirement without an executable script value. Repeated calls within the callback are allowed. `HostMethod::new` and flat registered callbacks keep rejecting attached blocks.
+Use `HostMethod::new_with_block` for a synchronous block driver. Its callback receives a scoped `HostCall` with `block_given()`, `call_block(args)` and `context()`. The handle borrows the active invocation and cannot escape the callback or move to another thread; this enforces retirement without an executable script value. Repeated calls within the callback are allowed. `HostMethod::new` rejects attached blocks unless its published signature explicitly permits them; it does not expose a block handle.
 
 ```rust
 use vibescript::{CallOptions, Capability, Engine, HostMethod};
@@ -72,4 +72,14 @@ A block's `next` returns to the driver. Its `break` terminates the receiving cal
 
 The explicitly selected control-flow policy preserves a pending `break` or `return` even if a host callback ignores `ErrorKind::ControlFlow`. Further block calls cannot execute script after that transfer. Go v0.70.0 permits swallowing these signals and running the block again. This behavior is explicitly selected and recorded separately in the compatibility audit.
 
-Native async methods, published static signatures, and a live mutable capability-object publication API remain unfinished. The optional Tokio runner remains available for bounded execution of synchronous callbacks. This milestone does not complete the language port.
+## Published signatures
+
+`HostMethod::with_signature` declares positional parameters with `SignatureParam { name, ty, optional }`, a result type, and whether a block is accepted. Type strings use the script annotation grammar, including unions, nullable values, typed containers, shapes, enums and classes. Empty strings leave slots unconstrained. Malformed types and required parameters after optional ones fail when the descriptor is created. `signature()` exposes immutable metadata for host tooling; the gradual script checker remains unfinished.
+
+The runtime validates arity, keyword rejection, block presence and parameter types before entering the callback. Missing optional arguments stay omitted. Normalization follows script type rules, including symbols becoming enum members inside containers, without mutating the original argument. Custom argument validators see the original values; the callback receives normalized values. Imported results pass signature normalization before custom return validation. A block `break` is a method result and must satisfy its declared type; a nonlocal `return` belongs to its defining script function.
+
+Named types resolve in the active source, including required-file defaults and file aliases, with the call root as fallback. A same-named root type cannot replace the file's own declaration. Signature metadata, normalization, retained values and error diagnostics stay subject to invocation accounting and cancellation. Methods retain the same attached-call restriction and per-call grant lifetime.
+
+Use `Engine::register_method(name, method)` to register a descriptor, including its signature, validators and optional block driver, for subsequently compiled scripts. Earlier scripts keep their registration snapshot. Descriptors can also be supplied through `Capability` or ordinary call globals; strict effects still require the explicit capability channel for executable globals.
+
+Native async methods, gradual static checking, and a live mutable capability-object publication API remain unfinished. The optional Tokio runner remains available for bounded execution of synchronous callbacks. This milestone does not complete the language port.

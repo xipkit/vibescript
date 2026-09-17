@@ -8,6 +8,7 @@ from pathlib import Path
 from module_fixtures import cases as module_cases, materialize
 from capability_fixtures import cases as capability_cases
 from block_fixtures import cases as block_cases
+from signature_fixtures import cases as signature_cases
 
 UPSTREAM=Path(__file__).resolve().parent.parent/"tests/upstream"
 SITE=UPSTREAM.parent/"site"
@@ -196,7 +197,7 @@ def conformance_cases():
                 cases[-1][field]=case[field]
         if case.get("function")=="__main__":
             cases[-1]["args"]=[]
-    return cases+upstream_cases()+site_cases()+encoding_cases()+[case for case in host_global_cases()+module_cases()+capability_cases()+block_cases() if "policy" not in case]
+    return cases+upstream_cases()+site_cases()+encoding_cases()+[case for case in host_global_cases()+module_cases()+capability_cases()+block_cases()+signature_cases() if "policy" not in case]
 
 
 if __name__ == "__main__":

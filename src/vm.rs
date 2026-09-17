@@ -23,6 +23,7 @@ mod format;
 mod globals;
 mod handlers;
 mod host_blocks;
+mod host_signatures;
 mod namespaces;
 mod operators;
 mod output;
@@ -2414,17 +2415,15 @@ impl Run<'_> {
                             continue;
                         }
                         crate::arguments::Target::Host(owner, host) => {
-                            ctx.checkpoint()?;
-                            let result = owner.code.hosts[host](
+                            let value = capabilities::registered(
                                 ctx,
+                                storage,
+                                &owner.code.hosts[host],
                                 &args.positional.data,
                                 &args.keywords.buffer.data,
-                            );
-                            ctx.checkpoint()?;
-                            let value = ctx.import(&result?)?;
-                            crate::exports::check(ctx, &value)?;
-                            programs::imported(ctx, storage, &value)?;
-                            stack.push(ctx, value)?;
+                                args.block,
+                            )?;
+                            value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                             continue;
                         }
                         crate::arguments::Target::Export(function) => {
@@ -2595,14 +2594,15 @@ impl Run<'_> {
                             )?;
                         }
                         Invocation::Host(host) => {
-                            ctx.checkpoint()?;
-                            let result =
-                                hosts[host](ctx, &args.positional.data, &args.keywords.buffer.data);
-                            ctx.checkpoint()?;
-                            let value = ctx.import(&result?)?;
-                            crate::exports::check(ctx, &value)?;
-                            programs::imported(ctx, storage, &value)?;
-                            stack.push(ctx, value)?;
+                            let value = capabilities::registered(
+                                ctx,
+                                storage,
+                                &hosts[host],
+                                &args.positional.data,
+                                &args.keywords.buffer.data,
+                                args.block,
+                            )?;
+                            value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                         }
                         Invocation::Member(site, mutating) => {
                             dispatch::member(
@@ -2638,15 +2638,16 @@ impl Run<'_> {
                 }
                 Op::Host(host, n) => {
                     let base = stack.data.len() - n;
-                    ctx.checkpoint()?;
-                    let result = hosts[host](ctx, &stack.data[base..], &[]);
-                    ctx.checkpoint()?;
-                    let result = result?;
-                    let value = ctx.import(&result)?;
-                    crate::exports::check(ctx, &value)?;
-                    programs::imported(ctx, storage, &value)?;
+                    let value = capabilities::registered(
+                        ctx,
+                        storage,
+                        &hosts[host],
+                        &stack.data[base..],
+                        &[],
+                        None,
+                    )?;
                     stack.data.truncate(base);
-                    stack.push(ctx, value)?;
+                    value.finish(program, ctx, frames, storage, stack, ReturnTo::Stack)?;
                 }
                 Op::Method(site, n) => {
                     let base = stack.data.len() - n - 1;

@@ -73,7 +73,7 @@ pub(super) fn call(
     if auto {
         return Err(method.value_error());
     }
-    if method.supports_block() {
+    if method.needs_frame() {
         let mut saved = Arguments::from_values(ctx, args)?;
         for (key, value) in keywords {
             saved.keywords.insert(ctx, key.clone(), value.clone())?;
@@ -85,6 +85,33 @@ pub(super) fn call(
     let value = method.call(ctx, args, keywords, block.is_some())?;
     programs::imported(ctx, storage, &value)?;
     Ok(Call::Value(value))
+}
+
+pub(super) fn registered(
+    ctx: &mut CallContext,
+    storage: &mut Storage,
+    host: &crate::capability::Registered,
+    args: &[Value],
+    keywords: &[(Value, Value)],
+    block: Option<Block>,
+) -> Result<Call> {
+    match host {
+        crate::capability::Registered::Callback(callback) => {
+            ctx.checkpoint()?;
+            let result = callback(ctx, args, keywords);
+            ctx.checkpoint()?;
+            let value = ctx.import(&result?)?;
+            crate::exports::check(ctx, &value)?;
+            programs::imported(ctx, storage, &value)?;
+            Ok(Call::Value(value))
+        }
+        crate::capability::Registered::Method(method) => {
+            let Value(Kind::Host(method)) = ctx.import(&method.value())? else {
+                unreachable!()
+            };
+            call(ctx, storage, &method, args, keywords, block, false)
+        }
+    }
 }
 
 pub(super) fn member(

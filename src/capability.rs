@@ -18,6 +18,12 @@ enum Callback {
     Block(BlockCallback),
 }
 
+#[derive(Clone)]
+pub(crate) enum Registered {
+    Callback(crate::HostCallback),
+    Method(HostMethod),
+}
+
 /// A host namespace granted explicitly to one script invocation.
 ///
 /// The factory runs once before script initialization, under the receiving call's
@@ -101,6 +107,7 @@ impl HostMethod {
                 callback: Callback::Plain(Arc::new(callback)),
                 arguments: None,
                 result: None,
+                signature: None,
             }),
         }
     }
@@ -123,6 +130,7 @@ impl HostMethod {
                 callback: Callback::Block(Arc::new(callback)),
                 arguments: None,
                 result: None,
+                signature: None,
             }),
         }
     }
@@ -166,6 +174,27 @@ impl HostMethod {
         self
     }
 
+    /// Publishes and enforces a positional signature using script annotation syntax.
+    ///
+    /// Invalid annotations and required parameters after optional ones are rejected
+    /// immediately. Named types resolve in the calling source, including required
+    /// files and defaults. Custom argument contracts see the original arguments;
+    /// callbacks and return contracts receive normalized values. An absorbed block
+    /// `break` also passes result validation. Signatures do not validate block inputs.
+    pub fn with_signature(mut self, signature: crate::Signature) -> Result<Self> {
+        let signature = crate::signature::Compiled::new(&self.definition.name, signature)?;
+        Arc::make_mut(&mut self.definition).signature = Some(signature);
+        Ok(self)
+    }
+
+    /// Returns the immutable published contract, if one was supplied.
+    pub fn signature(&self) -> Option<&crate::Signature> {
+        self.definition
+            .signature
+            .as_ref()
+            .map(|signature| &signature.source)
+    }
+
     /// Creates a host-owned descriptor for a capability binding or object.
     ///
     /// Importing this descriptor grants it to that invocation. A descriptor already
@@ -193,6 +222,7 @@ pub(crate) struct Definition {
     callback: Callback,
     arguments: Option<ArgumentContract>,
     result: Option<ReturnContract>,
+    signature: Option<Arc<crate::signature::Compiled>>,
 }
 
 impl fmt::Debug for Definition {
@@ -281,23 +311,29 @@ impl BoundMethod {
         matches!(self.definition.callback, Callback::Block(_))
     }
 
-    pub fn invoke_block(
+    pub fn needs_frame(&self) -> bool {
+        self.supports_block() || self.definition.signature.is_some()
+    }
+
+    pub fn signature(&self) -> Option<&crate::signature::Compiled> {
+        self.definition.signature.as_deref()
+    }
+
+    pub fn invoke(
         &self,
         call: &mut crate::HostCall<'_>,
         args: &[Value],
         keywords: &[(Value, Value)],
     ) -> Result<Value> {
-        let block = call.block_given();
-        self.begin(call.context(), args, keywords, block)?;
-        let Callback::Block(callback) = &self.definition.callback else {
-            unreachable!()
+        let result = match &self.definition.callback {
+            Callback::Plain(callback) => callback(call.context(), args, keywords),
+            Callback::Block(callback) => callback(call, args, keywords),
         };
-        let result = callback(call, args, keywords);
         call.context().checkpoint()?;
         result
     }
 
-    fn begin(
+    pub fn begin(
         &self,
         ctx: &mut CallContext,
         args: &[Value],
@@ -315,7 +351,7 @@ impl BoundMethod {
                 format!("capability {} was not granted to this call", self.name()),
             ));
         }
-        if block && !self.supports_block() {
+        if block && !self.supports_block() && self.signature().is_none() {
             return Err(Error::argument(format!(
                 "{} does not accept a block",
                 self.name()
@@ -363,9 +399,17 @@ fn retain(
         {
             previous.clone()
         } else {
+            let signature_bytes = definition
+                .signature
+                .as_ref()
+                .map_or(0, |signature| signature.bytes);
+            if signature_bytes > 0 {
+                ctx.work_bytes(signature_bytes)?;
+            }
             ctx.reserve(
                 size_of::<Definition>()
                     + definition.name.capacity()
+                    + signature_bytes
                     + size_of::<Charge>()
                     + 4 * size_of::<usize>(),
             )?

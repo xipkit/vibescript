@@ -10,6 +10,8 @@ use vibescript::{CallOptions, Engine, Limits, ModuleConfig, parse_json};
 
 #[path = "support/blocks.rs"]
 mod blocks;
+#[path = "support/signatures.rs"]
+mod signatures;
 mod support;
 
 #[cfg(feature = "allocation-stats")]
@@ -127,6 +129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
+        let signature_method = case
+            .get("signature_probe")
+            .map(|probe| signatures::configure(&mut engine, probe))
+            .transpose()?;
         let script = engine.compile(source)?;
         let function = case["function"].as_str().unwrap_or("run");
         let mut input = Vec::new();
@@ -153,7 +159,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for name in strings(&case, "notifications")? {
             capabilities.push(support::notification(&name)?);
         }
-        let options = CallOptions {
+        let mut options = CallOptions {
             globals,
             capabilities,
             allow_require: case["allow_require"].as_bool().unwrap_or(false),
@@ -164,6 +170,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             },
             ..CallOptions::default()
         };
+        if let Some(method) = signature_method {
+            signatures::bind(&mut options, &case["signature_probe"], method);
+        }
         let result = script.call(function, &input, options.clone())?;
         let encoding = case["result_encoding"].as_str().unwrap_or("");
         let output = support::encode(&result.value, encoding, codec_options())?;

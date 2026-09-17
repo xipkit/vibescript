@@ -254,8 +254,8 @@ pub(crate) struct Declarations {
     pub modules: Vec<modules::Module>,
 }
 
-pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
-    let mut p = Parser {
+fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
+    Ok(Parser {
         work,
         source,
         lex_depth: 0,
@@ -271,7 +271,21 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
         locals: HashSet::new(),
         declared_it: false,
         type_structural_error: false,
-    };
+    })
+}
+
+pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
+    let mut p = parser(source, &())?;
+    let ty = p.type_expr(1, false)?;
+    p.line_breaks()?;
+    if !matches!(p.token(), Token::Eof) {
+        return p.err("unexpected trailing input in type annotation");
+    }
+    Ok(ty)
+}
+
+pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
+    let mut p = parser(source, work)?;
     let mut defs = Vec::new();
     let mut enums = Vec::new();
     let mut modules = Vec::new();

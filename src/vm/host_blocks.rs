@@ -8,6 +8,14 @@ impl Run<'_> {
             unreachable!()
         };
         let block = args.block;
+        method.begin(
+            ctx,
+            &args.positional.data,
+            &args.keywords.buffer.data,
+            block.is_some(),
+        )?;
+        let program = self.frames.data[current].program.clone();
+        self.host_arguments(ctx, &program, &method, &mut args)?;
         let mut pending = None;
         let mut invoke = |ctx: &mut CallContext, values: &[Value]| {
             ctx.checkpoint()?;
@@ -23,14 +31,14 @@ impl Run<'_> {
             }
         };
         let mut call = crate::HostCall::new(ctx, block.map(|_| &mut invoke as _));
-        let result =
-            method.invoke_block(&mut call, &args.positional.data, &args.keywords.buffer.data);
+        let result = method.invoke(&mut call, &args.positional.data, &args.keywords.buffer.data);
         ctx.checkpoint()?;
         let value = match pending {
             Some(Control::Return { target, value, .. }) if target == current => value,
             Some(control) => return Ok(Event::Control(control)),
             None => result?,
         };
+        let value = self.host_result(ctx, &program, &method, value)?;
         let value = method.finish(ctx, value)?;
         programs::imported(ctx, self.storage, &value)?;
         Ok(Event::Control(Control::Return {

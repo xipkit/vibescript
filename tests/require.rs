@@ -66,6 +66,56 @@ fn json(value: &Value) -> serde_json::Value {
 }
 
 #[test]
+fn host_signatures_resolve_required_source_types_defaults_and_root_fallbacks() {
+    use vibescript::{HostMethod, Signature, SignatureParam};
+    let files = Files::new();
+    files.write(
+        "widgets.vibe",
+        "class Widget; def id; 7; end; end; def run(x=tag(Widget.new)); tag(x).id; end",
+    );
+    files.write("levels.vibe", "enum Level; Debug; Info; end; def run(x=level(:debug)); [x==Level::Debug, level(:info)==Level::Info]; end");
+    files.write("fallback.vibe", "def run; level(:root)==Level::Root; end");
+    for strict in [false, true] {
+        let mut engine = files.engine();
+        engine.set_strict_effects(strict);
+        for (method, ty) in [("tag", "Widget"), ("level", "Level")] {
+            engine.register_method(
+                method,
+                HostMethod::new(method, |_, args, _| Ok(args[0].clone()))
+                    .with_signature(Signature {
+                        params: vec![SignatureParam {
+                            name: "value".into(),
+                            ty: ty.into(),
+                            optional: false,
+                        }],
+                        result: ty.into(),
+                        accepts_block: false,
+                    })
+                    .unwrap(),
+            );
+        }
+        let script = engine.compile("class Widget; def id; 99; end; end; enum Level; Root; end; def run; [require(:widgets).run(), require(:levels).run(), require(:fallback).run()]; end").unwrap();
+        for _ in 0..2 {
+            assert_eq!(
+                script
+                    .call(
+                        "run",
+                        &[],
+                        CallOptions {
+                            allow_require: true,
+                            ..CallOptions::default()
+                        }
+                    )
+                    .unwrap()
+                    .value
+                    .to_string(),
+                "[7, [true, true], true]"
+            );
+        }
+    }
+}
+
+#[test]
 fn required_files_use_the_receiving_calls_capability_grants() {
     let files = Files::new();
     files.write("notify.vibe", "def notify(n); sms.deliver(n); end");
