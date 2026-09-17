@@ -2,6 +2,7 @@ use super::*;
 use crate::checking::facts::Node;
 use blocks::{Closure, Completion, Parent};
 
+mod grouping;
 mod reductions;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -28,6 +29,16 @@ pub(super) enum Method {
     One,
     Sum,
     TakeWhile,
+    DropWhile,
+    Partition,
+    GroupBy,
+    GroupStable,
+    Tally,
+    ToHash,
+    TransformKeys,
+    TransformValues,
+    SliceWhen,
+    ChunkWhile,
 }
 
 impl Method {
@@ -55,6 +66,16 @@ impl Method {
             "one?" => Self::One,
             "sum" => Self::Sum,
             "take_while" => Self::TakeWhile,
+            "drop_while" => Self::DropWhile,
+            "partition" => Self::Partition,
+            "group_by" => Self::GroupBy,
+            "group_by_stable" => Self::GroupStable,
+            "tally" => Self::Tally,
+            "to_h" => Self::ToHash,
+            "transform_keys" => Self::TransformKeys,
+            "transform_values" => Self::TransformValues,
+            "slice_when" => Self::SliceWhen,
+            "chunk_while" => Self::ChunkWhile,
             _ => return None,
         })
     }
@@ -88,6 +109,8 @@ struct Driver<'a> {
     method: Method,
     callback: Callback<'a>,
     count_overflow: bool,
+    exact: bool,
+    site: CallSite,
 }
 
 impl<'a> Driver<'a> {
@@ -103,6 +126,8 @@ impl<'a> Driver<'a> {
 struct IterationState {
     state: State,
     output: Fact,
+    auxiliary: Fact,
+    previous: Fact,
 }
 
 impl IterationState {
@@ -111,6 +136,8 @@ impl IterationState {
         Ok(Self {
             state: self.state.snapshot(ctx)?,
             output: self.output,
+            auxiliary: self.auxiliary,
+            previous: self.previous,
         })
     }
 
@@ -124,8 +151,15 @@ impl IterationState {
     ) -> Result<bool> {
         let changed = self.state.join(ctx, facts, &other.state, repeat)?;
         let output = facts.widen(ctx, self.output, other.output, depth)?;
-        let changed = changed || output != self.output;
+        let auxiliary = facts.widen(ctx, self.auxiliary, other.auxiliary, depth)?;
+        let previous = facts.widen(ctx, self.previous, other.previous, depth)?;
+        let changed = changed
+            || output != self.output
+            || auxiliary != self.auxiliary
+            || previous != self.previous;
         self.output = output;
+        self.auxiliary = auxiliary;
+        self.previous = previous;
         Ok(changed)
     }
 }
@@ -177,10 +211,21 @@ impl Walker<'_> {
             };
             use self::Method::*;
             let supported = match kind {
-                Receiver::Array => !matches!(method, EachKey | EachValue),
+                Receiver::Array => !matches!(
+                    method,
+                    EachKey | EachValue | TransformKeys | TransformValues
+                ),
                 Receiver::Hash => matches!(
                     method,
-                    Each | EachIndex | EachKey | EachValue | Map | MapIndex | Select | Reject
+                    Each | EachIndex
+                        | EachKey
+                        | EachValue
+                        | Map
+                        | MapIndex
+                        | Select
+                        | Reject
+                        | TransformKeys
+                        | TransformValues
                 ),
                 Receiver::Range => {
                     matches!(method, Each | Map | Select | Reject | Find | Reduce | Count)
@@ -198,8 +243,14 @@ impl Walker<'_> {
             let initial = IterationState {
                 state: state.snapshot(self.ctx)?,
                 output,
+                auxiliary: match method {
+                    GroupStable | SliceWhen | ChunkWhile => self.facts.tuple(self.ctx, &[])?,
+                    DropWhile => self.facts.boolean(self.ctx, true)?,
+                    _ => Atom::Never.fact(),
+                },
+                previous: Atom::Never.fact(),
             };
-            let depth = self.collection_depth(state, driver.block(), arm, output)?;
+            let depth = self.collection_depth(&initial, driver, arm)?;
             if let Node::Tuple(items) = self.facts.node(view) {
                 let length = items.data.len();
                 let mut current = Some(initial);
@@ -247,8 +298,7 @@ impl Walker<'_> {
                 };
                 // Callback jobs arrive over several solver passes. Freeze from this
                 // loop's first completed iteration, not the growing global fact arena.
-                let depth =
-                    self.collection_depth(&current.state, driver.block(), arm, current.output)?;
+                let depth = self.collection_depth(&current, driver, arm)?;
                 current.state.widening.get_or_insert(depth);
                 loop {
                     self.ctx.charge(1)?;
@@ -278,13 +328,25 @@ impl Walker<'_> {
 
     fn collection_depth(
         &mut self,
-        state: &State,
-        block: Option<&Closure>,
+        current: &IterationState,
+        driver: Driver<'_>,
         receiver: Fact,
-        output: Fact,
     ) -> Result<usize> {
         self.ctx.charge(1)?;
-        let mut depth = self.facts.depth(receiver).max(self.facts.depth(output));
+        let state = &current.state;
+        let block = driver.block();
+        let extra = match driver.method {
+            Method::GroupStable => 2,
+            Method::GroupBy | Method::Partition | Method::SliceWhen | Method::ChunkWhile => 1,
+            _ => 0,
+        };
+        let mut depth = self
+            .facts
+            .depth(receiver)
+            .saturating_add(extra)
+            .max(self.facts.depth(current.output))
+            .max(self.facts.depth(current.auxiliary))
+            .max(self.facts.depth(current.previous));
         for &contract in self.contracts {
             self.ctx.charge(1)?;
             depth = depth.max(self.facts.depth(contract));
@@ -350,8 +412,8 @@ impl Walker<'_> {
                 .block()
                 .is_some_and(|block| self.program.functions[block.function].block_arity == 1);
             match method {
-                EachKey => item.arguments[0] = key,
-                EachValue => item.arguments[0] = value,
+                EachKey | TransformKeys => item.arguments[0] = key,
+                EachValue | TransformValues => item.arguments[0] = value,
                 EachIndex | MapIndex => {
                     item.arguments[1] = index;
                     item.count = 2;
@@ -378,6 +440,32 @@ impl Walker<'_> {
         depth: usize,
     ) -> Result<Option<IterationState>> {
         let method = driver.method;
+        if matches!(method, Method::SliceWhen | Method::ChunkWhile)
+            && before.previous == Atom::Never.fact()
+        {
+            before.previous = item.element;
+            before.auxiliary = self.facts.tuple(self.ctx, &[item.element])?;
+            return Ok(Some(before));
+        }
+        let mut after = None;
+        if method == Method::DropWhile {
+            let skipping = self
+                .facts
+                .filter(self.ctx, before.auxiliary, Test::Truth, false)?;
+            let invoking = self
+                .facts
+                .filter(self.ctx, before.auxiliary, Test::Truth, true)?;
+            if skipping != Atom::Never.fact() {
+                let mut next = before.snapshot(self.ctx)?;
+                next.auxiliary = self.facts.boolean(self.ctx, false)?;
+                next.output = self.group_append(next.output, item.element)?;
+                after = Some(next);
+            }
+            if invoking == Atom::Never.fact() {
+                return Ok(after);
+            }
+            before.auxiliary = self.facts.boolean(self.ctx, true)?;
+        }
         if method == Method::Reduce && before.output == Atom::Never.fact() {
             before.output = item.element;
             return Ok(Some(before));
@@ -406,6 +494,9 @@ impl Walker<'_> {
         if method == Method::Reduce {
             args.positional
                 .extend(self.ctx, &[before.output, item.element])?;
+        } else if matches!(method, Method::SliceWhen | Method::ChunkWhile) {
+            args.positional
+                .extend(self.ctx, &[before.previous, item.element])?;
         } else {
             args.positional
                 .extend(self.ctx, &item.arguments[..item.count])?;
@@ -421,10 +512,9 @@ impl Walker<'_> {
         )?;
         if result.incomplete {
             self.incomplete(pc)?;
-            return Ok(None);
+            return Ok(after);
         }
         assert!(result.failures.data.is_empty());
-        let mut after: Option<IterationState> = None;
         for exit in result.exits.data {
             self.ctx.charge(1)?;
             let Some(state) = self.capture_exit(&before.state, pc, block, &exit)? else {
@@ -442,6 +532,8 @@ impl Walker<'_> {
                     let next = IterationState {
                         state,
                         output: before.output,
+                        auxiliary: before.auxiliary,
+                        previous: before.previous,
                     };
                     if let Some(next) =
                         self.collection_result(next, pc, driver, item, exit.value, depth)?
@@ -546,7 +638,8 @@ impl Walker<'_> {
                 Ok(result)
             }
             Find | Index | Rindex | Reduce | Count | Any | All | NoneMatch | One | Sum
-            | TakeWhile => unreachable!(),
+            | TakeWhile | DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash
+            | TransformKeys | TransformValues | SliceWhen | ChunkWhile => unreachable!(),
             FilterMap | Select | Reject => {
                 let keep = self
                     .facts
@@ -594,6 +687,12 @@ impl Walker<'_> {
     ) -> Result<()> {
         let value = if method.returns_receiver() {
             receiver
+        } else if method == Method::GroupStable {
+            self.group_stable_output(current.output, current.auxiliary)?
+        } else if matches!(method, Method::SliceWhen | Method::ChunkWhile)
+            && current.previous != Atom::Never.fact()
+        {
+            self.group_flush(&current.state, pc, current.output, current.auxiliary)?
         } else {
             self.collection_identity(method, current.output)?
         };

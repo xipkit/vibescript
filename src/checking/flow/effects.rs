@@ -13,8 +13,12 @@ impl Walker<'_> {
     }
 
     pub(super) fn wrapping_guard(&mut self, value: Fact) -> Result<bool> {
+        self.wrapping_depth(value, 1)
+    }
+
+    pub(super) fn wrapping_depth(&mut self, value: Fact, layers: usize) -> Result<bool> {
         self.ctx.charge(1)?;
-        if self.facts.depth(value) >= crate::budget::MAX_VALUE_DEPTH {
+        if self.facts.depth(value).saturating_add(layers) > crate::budget::MAX_VALUE_DEPTH {
             return Ok(true);
         }
         let mut pending = Buffer::empty();

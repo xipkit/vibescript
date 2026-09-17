@@ -410,8 +410,8 @@ fn unresolved_calls_types_and_mutable_global_bindings_stay_explicitly_incomplete
         "def f(*xs); xs; end; def run(xs: array<int>); f(*xs); end",
         "def f(**xs); xs; end; def run(xs: hash<string,int>); f(**xs); end",
         "def run; require(\"missing\"); end",
-        "def run; [1].group_by { _1.to_s }; end",
-        "def run; begin; 1; rescue; 2; ensure; [1].group_by { _1.to_s }; end; end",
+        "def run; [1].sort_by { _1 }; end",
+        "def run; begin; 1; rescue; 2; ensure; [1].sort_by { _1 }; end; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -732,8 +732,7 @@ fn call_analysis_observes_cancellation_and_deadlines_on_empty_and_cached_paths()
 
 #[test]
 fn unfinished_callee_analysis_cannot_disappear_behind_a_never_return_summary() {
-    let source =
-        "def incomplete; [1].group_by { _1.to_s }; end; def run -> int; incomplete(); 7; end";
+    let source = "def incomplete; [1].sort_by { _1 }; end; def run -> int; incomplete(); 7; end";
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let result = analyze(&mut ctx, &mut facts, source).unwrap();

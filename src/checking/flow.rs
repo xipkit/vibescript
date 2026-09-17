@@ -32,6 +32,11 @@ const INVALID_CLASS: u16 = 1 << 8;
 pub(super) enum IssueKind {
     MissingBlock,
     BlockGivenArguments,
+    CallbackResult {
+        name: usize,
+        actual: Fact,
+        expected: Fact,
+    },
     Index {
         receiver: Fact,
         arguments: Fact,

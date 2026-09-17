@@ -76,3 +76,6 @@ mod collection_block_tests;
 
 #[cfg(test)]
 mod reduction_tests;
+
+#[cfg(test)]
+mod grouping_tests;

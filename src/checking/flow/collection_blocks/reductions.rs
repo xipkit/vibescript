@@ -61,6 +61,9 @@ impl Walker<'_> {
                     | All
                     | NoneMatch
                     | Sum
+                    | ToHash
+                    | SliceWhen
+                    | ChunkWhile
             )
             || (kind == Receiver::Hash && method == Map);
         if site.scope
@@ -100,6 +103,13 @@ impl Walker<'_> {
                 .copied()
                 .unwrap_or(self.facts.integer(self.ctx, 0)?),
             Count | One => self.facts.integer(self.ctx, 0)?,
+            GroupBy | GroupStable | Tally | ToHash | TransformKeys | TransformValues => {
+                self.facts.shape(self.ctx, &[], false)?
+            }
+            Partition => {
+                let empty = self.facts.tuple(self.ctx, &[])?;
+                self.facts.tuple(self.ctx, &[empty, empty])?
+            }
             Find | Index | Rindex => Atom::Nil.fact(),
             Any => self.facts.boolean(self.ctx, false)?,
             All | NoneMatch => self.facts.boolean(self.ctx, true)?,
@@ -142,8 +152,10 @@ impl Walker<'_> {
                 Atom::Never.fact()
             };
         }
-        let optional = matches!(method, Count | Any | All | NoneMatch | One | Sum)
-            || matches!(callback, Callback::Operation(_) | Callback::Equal(_));
+        let optional = matches!(
+            method,
+            Count | Any | All | NoneMatch | One | Sum | Tally | ToHash
+        ) || matches!(callback, Callback::Operation(_) | Callback::Equal(_));
         if block.is_none() && !optional {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
             return Ok(None);
@@ -189,6 +201,8 @@ impl Walker<'_> {
                 method,
                 callback,
                 count_overflow,
+                exact: matches!(self.facts.node(receiver), Node::Tuple(_)),
+                site,
             },
             output,
         )))
@@ -313,6 +327,10 @@ impl Walker<'_> {
             return Ok(None);
         }
         match method {
+            DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash | TransformKeys
+            | TransformValues | SliceWhen | ChunkWhile => {
+                return self.group_result(current, pc, driver, item, value, depth);
+            }
             Reduce => current.output = value,
             Sum => {
                 current.output =
