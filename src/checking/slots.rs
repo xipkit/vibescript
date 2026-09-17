@@ -139,6 +139,7 @@ impl<T: Copy + Eq> Slots<T> {
     }
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        ctx.charge(1)?;
         if self.len != other.len || self.empty != other.empty {
             return Ok(false);
         }

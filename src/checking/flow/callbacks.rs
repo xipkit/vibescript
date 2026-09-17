@@ -119,6 +119,7 @@ impl Walker<'_> {
         let mut args = Arguments::new();
         let base = state.stack.data.len() - count;
         for operand in &state.stack.data[base..] {
+            self.ctx.charge(1)?;
             args.positional.push(self.ctx, operand.value)?;
         }
         state.stack.data.truncate(base);

@@ -87,6 +87,7 @@ impl Exit {
     }
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        ctx.charge(1)?;
         Ok(self.pc == other.pc
             && self.completion == other.completion
             && self.value == other.value

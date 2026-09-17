@@ -586,6 +586,7 @@ pub(super) fn analyze_body(
     if let Some(incoming) = incoming {
         let mut captures = Buffer::empty();
         for link in &incoming.captures.data {
+            ctx.charge(1)?;
             captures.push(
                 ctx,
                 blocks::Capture {
