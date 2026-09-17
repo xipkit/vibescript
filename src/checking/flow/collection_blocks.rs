@@ -4,6 +4,7 @@ use blocks::{Closure, Completion, Parent};
 
 mod grouping;
 mod reductions;
+mod schedules;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Method {
@@ -39,6 +40,15 @@ pub(super) enum Method {
     TransformValues,
     SliceWhen,
     ChunkWhile,
+    EachSlice,
+    EachCons,
+    Cycle,
+    Times,
+    Upto,
+    Downto,
+    Step,
+    Tap,
+    YieldSelf,
 }
 
 impl Method {
@@ -76,6 +86,15 @@ impl Method {
             "transform_values" => Self::TransformValues,
             "slice_when" => Self::SliceWhen,
             "chunk_while" => Self::ChunkWhile,
+            "each_slice" => Self::EachSlice,
+            "each_cons" => Self::EachCons,
+            "cycle" => Self::Cycle,
+            "times" => Self::Times,
+            "upto" => Self::Upto,
+            "downto" => Self::Downto,
+            "step" => Self::Step,
+            "tap" => Self::Tap,
+            "yield_self" => Self::YieldSelf,
             _ => return None,
         })
     }
@@ -83,7 +102,16 @@ impl Method {
     fn returns_receiver(self) -> bool {
         matches!(
             self,
-            Self::Each | Self::EachIndex | Self::EachKey | Self::EachValue | Self::ReverseEach
+            Self::Each
+                | Self::EachIndex
+                | Self::EachKey
+                | Self::EachValue
+                | Self::ReverseEach
+                | Self::Times
+                | Self::Upto
+                | Self::Downto
+                | Self::Step
+                | Self::Tap
         )
     }
 }
@@ -183,6 +211,9 @@ impl Walker<'_> {
         args: Arguments,
         method: Method,
     ) -> Result<()> {
+        if method.scheduled() {
+            return self.scheduled_block(state, pc, receiver, site, args, method);
+        }
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(receiver, i);
@@ -585,7 +616,9 @@ impl Walker<'_> {
     ) -> Result<Fact> {
         use self::Method::*;
         match method {
-            Each | EachIndex | EachKey | EachValue | ReverseEach => Ok(output),
+            Each | EachIndex | EachKey | EachValue | ReverseEach | EachSlice | EachCons | Cycle
+            | Times | Upto | Downto | Step | Tap => Ok(output),
+            YieldSelf => Ok(value),
             Map | MapIndex => Ok(self
                 .facts
                 .collection_mutate(self.ctx, output, crate::bytecode::Method::Push, &[value])?

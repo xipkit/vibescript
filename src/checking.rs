@@ -79,3 +79,6 @@ mod reduction_tests;
 
 #[cfg(test)]
 mod grouping_tests;
+
+#[cfg(test)]
+mod schedule_tests;

@@ -479,7 +479,7 @@ fn remaining_dispatch_and_pending_address_effects_are_explicit() {
     for source in [
         "def run(op:string); [1,2].reduce(0,op); end",
         "def run; [1,2].reduce(0,\"custom\"); end",
-        "def run; [1,2].each_cons(2) {|pair| pair}; end",
+        "def run; [1,2].grep(7) {|n| n}; end",
         "def run; a=[1]; a.push([1].find {a.clear; true}); a; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

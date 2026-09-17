@@ -293,14 +293,20 @@ impl Facts {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
             let next = match self.node(arm) {
-                Node::Protected(shape, _) if !crate::members::hash_builtin(name) => {
+                Node::Protected(shape, _)
+                    if !crate::members::hash_builtin(name)
+                        && !matches!(name, "tap" | "yield_self") =>
+                {
                     if self.selected_field(ctx, *shape, name.as_bytes())?.is_none() {
                         rejected()
                     } else {
                         outcome(arm)
                     }
                 }
-                Node::Shape(_, false, _, _) if !crate::members::hash_builtin(name) => {
+                Node::Shape(_, false, _, _)
+                    if !crate::members::hash_builtin(name)
+                        && !matches!(name, "tap" | "yield_self") =>
+                {
                     if self.selected_field(ctx, arm, name.as_bytes())?.is_none() {
                         rejected()
                     } else {

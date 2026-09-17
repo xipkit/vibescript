@@ -549,11 +549,11 @@ fn grouping_analysis_keeps_real_cancellation_and_deadlines_latched() {
 }
 
 #[test]
-fn unmodeled_dispatch_windows_and_pending_capture_addresses_remain_explicit() {
+fn unmodeled_dispatch_callbacks_and_pending_capture_addresses_remain_explicit() {
     for source in [
         "def run(h:hash<string,int>); h.transform_values {|n| n}; end",
         "def run(xs); xs.group_by {:a}; end",
-        "def run; [7,9].each_slice(2) {|pair| pair}; end",
+        "def run; [7,9].uniq {|n| n}; end",
         "def run; [7,9].sort_by {|n| n}; end",
         "def run; [7,9].map! {|n| n}; end",
         "def run; \"ab\".gsub(/a/) {\"b\"}; end",

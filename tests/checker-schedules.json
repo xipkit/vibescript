@@ -1,0 +1,506 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private checker windowed, counted and single-callback iteration. All fifty Go checker decisions have independent Rust execution witnesses. Other native callbacks, general object and host dispatch and pending-address effects remain explicitly incomplete. These are Go checker decisions, not Go execution results.",
+  "cases": [
+    {
+      "source": "def run; a=[]; result=[7,9,11].each_slice(2) {|pair| a.push(pair)}; [a,result]; end",
+      "runtime": {
+        "display": "[[[7, 9], [11]], nil]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; result=[7,9,11].each_cons(2) {|pair| a.push(pair)}; [a,result]; end",
+      "runtime": {
+        "display": "[[[7, 9], [9, 11]], nil]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; [7,9,11].each_slice(2) {|l,r| a.push([l,r])}; a; end",
+      "runtime": {
+        "display": "[[7, 9], [11, nil]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; [7,9].each_slice(9223372036854775807) {|pair| a.push(pair)}; a; end",
+      "runtime": {
+        "display": "[[7, 9]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; result=[7,9].cycle(2) {|n| a.push(n)}; [a,result]; end",
+      "runtime": {
+        "display": "[[7, 9, 7, 9], nil]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[7,9]; seen=[]; a.cycle(2) {|n| a.clear; seen.push(n)}; [a,seen]; end",
+      "runtime": {
+        "display": "[[], [7, 9, 7, 9]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; [7,9].cycle {a.push(3); break 7}; a; end",
+      "runtime": {
+        "display": "[3]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].cycle(nil) {return 7}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust follows native callback contracts and reachable control transfers."
+    },
+    {
+      "source": "def run; a=[]; result=2.times {|n| a.push(n)}; [a,result]; end",
+      "runtime": {
+        "display": "[[0, 1], 2]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; result=7.upto(9) {|n| a.push(n)}; [a,result]; end",
+      "runtime": {
+        "display": "[[7, 8, 9], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; result=9.downto(7) {|n| a.push(n)}; [a,result]; end",
+      "runtime": {
+        "display": "[[9, 8, 7], 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; 7.step(11,2) {|n| a.push(n)}; a; end",
+      "runtime": {
+        "display": "[7, 9, 11]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; 11.step(7,-2) {|n| a.push(n)}; a; end",
+      "runtime": {
+        "display": "[11, 9, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; (7..11).step(2) {|n| a.push(n)}; a; end",
+      "runtime": {
+        "display": "[7, 9, 11]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; (11...7).step(2) {|n| a.push(n)}; a; end",
+      "runtime": {
+        "display": "[11, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; 9223372036854775807.upto(9223372036854775807) {|n| a.push(n)}; a; end",
+      "runtime": {
+        "display": "[9223372036854775807]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; 7.tap {|n| 9}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; 7.yield_self {|n| [n,9]}; end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7,9].yield_self {|l,r| [r,l]}; end",
+      "runtime": {
+        "display": "[9, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[7]; result=a.tap {|n| n.push(9); a.clear}; [a,result]; end",
+      "runtime": {
+        "display": "[[], [7]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; {a:7}.yield_self {|n| n[:a]}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; {tap:7}.tap; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; 7.tap {break 9}; end",
+      "runtime": {
+        "display": "9"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [].each_slice(2) {missing}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; [7].each_cons(2) {missing}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; [7].cycle(0) {missing}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; [].cycle {missing}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; 0.times {missing}; end",
+      "runtime": {
+        "display": "0"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; (-7).times {missing}; end",
+      "runtime": {
+        "display": "-7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; 9.upto(7) {missing}; end",
+      "runtime": {
+        "display": "9"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; 7.downto(9) {missing}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; 7.step(9,-1) {missing}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; (7...7).step(1) {missing}; 3; end",
+      "runtime": {
+        "display": "3"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust skips callbacks that these receivers and iteration bounds cannot invoke."
+    },
+    {
+      "source": "def run; x=[]; begin; [].each_slice; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; [].each_cons(0) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; [7].each_cons(1.0) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; [7].cycle(\"bad\") {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; [].cycle; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 0.times; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 7.upto {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 7.downto(1,bad:3) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 7.step(9,0) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; (1..3).step(-1) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; (..3).step(1) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 7.tap; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 7.yield_self(1) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; 7.tap(bad:3) {x.push(9)}; x.push(11); rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses missing blocks, invalid iteration domains and native argument contracts before invoking callbacks."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9].each_slice(1) {|n:int| x.push(7)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust checks the callback parameter contract before its captured writes."
+    },
+    {
+      "source": "def run; x=[]; begin; 3.times {|n:string| x.push(7)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust checks the callback parameter contract before its captured writes."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9,11].each_slice(2) {|a:int,b:int| x.push(7)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[7]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust retains writes from complete windows and rejects the missing typed argument in the final partial slice."
+    }
+  ]
+}
