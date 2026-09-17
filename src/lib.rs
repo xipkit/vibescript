@@ -17,6 +17,9 @@ mod builtin;
 mod bytecode;
 mod capability;
 mod casing;
+// The checker remains internal until its control-flow and scope analysis is complete.
+#[cfg(test)]
+mod checking;
 mod code;
 mod collections;
 mod compilation;
