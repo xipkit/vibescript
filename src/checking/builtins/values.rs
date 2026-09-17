@@ -22,19 +22,20 @@ pub(super) fn supported(facts: &Facts, receiver: Fact, name: &str) -> bool {
     matches!(
         facts.atom(receiver),
         Some(Atom::Time | Atom::Duration | Atom::Money | Atom::Regex)
-    ) || (unit(name)
-        && matches!(
-            facts.atom(receiver),
-            Some(
-                Atom::Int
-                    | Atom::Float
-                    | Atom::Bool
-                    | Atom::Nil
-                    | Atom::String
-                    | Atom::Symbol
-                    | Atom::Range
-            )
-        ))
+    ) || (facts.atom(receiver) == Some(Atom::String) && matches!(name, "match" | "match?"))
+        || (unit(name)
+            && matches!(
+                facts.atom(receiver),
+                Some(
+                    Atom::Int
+                        | Atom::Float
+                        | Atom::Bool
+                        | Atom::Nil
+                        | Atom::String
+                        | Atom::Symbol
+                        | Atom::Range
+                )
+            ))
 }
 
 fn reject(ctx: &mut CallContext, failure: Failure) -> Result<Outcome> {
@@ -120,6 +121,9 @@ pub(super) fn member(
         return Ok(result);
     }
     match kind {
+        Atom::String if matches!(name, "match" | "match?") => {
+            protected::string_match(ctx, facts, receiver, name, args)
+        }
         Atom::Time => time(ctx, facts, receiver, site, name, args),
         Atom::Duration => duration(ctx, facts, receiver, site, name, args),
         Atom::Money => money(ctx, facts, receiver, site, name, args),
@@ -449,7 +453,8 @@ fn regex(
                 if name == "match?" {
                     result.value = Atom::Bool.fact();
                 } else {
-                    result.incomplete = true;
+                    let value = protected::match_data(ctx, facts, receiver)?;
+                    result.value = facts.nullable(ctx, value)?;
                 }
                 result.throws |= LIMIT;
             }

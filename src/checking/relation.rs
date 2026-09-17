@@ -239,6 +239,37 @@ impl Facts {
                         | (Node::Named(_), _)
                         | (_, Node::Named(_)) => Relation::Gradual,
                         _ if pair.source == pair.target => Relation::Accepted,
+                        (Node::Protected(source, _), _) => {
+                            tasks.push(
+                                ctx,
+                                Task::Visit(Pair {
+                                    source: *source,
+                                    ..pair
+                                }),
+                            )?;
+                            continue;
+                        }
+                        (_, Node::Protected(target, _)) => {
+                            tasks.push(
+                                ctx,
+                                Task::Visit(Pair {
+                                    target: *target,
+                                    ..pair
+                                }),
+                            )?;
+                            continue;
+                        }
+                        (Node::Offset(source), Node::Offset(target)) => {
+                            tasks.push(
+                                ctx,
+                                Task::Visit(Pair {
+                                    source: *source,
+                                    target: *target,
+                                    ..pair
+                                }),
+                            )?;
+                            continue;
+                        }
                         (Node::Union(arms), _) => {
                             tasks.push(
                                 ctx,
@@ -353,6 +384,12 @@ impl Facts {
                             continue;
                         }
                         (Node::Array(_), Node::Tuple(_)) => Relation::Gradual,
+                        // An unparameterized hash checks only the container kind.
+                        (Node::Hash(..) | Node::Shape(..), Node::Hash(key, value, _))
+                            if *key == Atom::Unknown.fact() && *value == Atom::Unknown.fact() =>
+                        {
+                            Relation::Accepted
+                        }
                         (Node::Hash(..), Node::Hash(..)) if pair.overlap => Relation::Gradual,
                         (Node::Hash(sk, sv, _), Node::Hash(tk, tv, _)) => {
                             tasks.push(ctx, Task::All(2))?;

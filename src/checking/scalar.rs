@@ -160,6 +160,15 @@ impl Facts {
                 ctx.charge(1)?;
                 let left = self.arm(left, a);
                 let right = self.arm(right, b);
+                if op == "+"
+                    && ((matches!(self.node(left), Node::Protected(..))
+                        && self.atom(right) == Some(Atom::String))
+                        || (self.atom(left) == Some(Atom::String)
+                            && matches!(self.node(right), Node::Protected(..))))
+                {
+                    result.rejected = true;
+                    continue;
+                }
                 let (Some(a), Some(b)) = (self.atom(left), self.atom(right)) else {
                     result.unsupported = true;
                     continue;
@@ -216,6 +225,7 @@ impl Facts {
                     | Node::Tuple(_)
                     | Node::Hash(..)
                     | Node::Shape(..)
+                    | Node::Protected(..)
                     | Node::TypeValue(_)
             ) {
                 continue;
@@ -234,6 +244,17 @@ impl Facts {
                 self.atom(self.arm(value, index)),
                 None | Some(Atom::Unknown | Atom::Any)
             ) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    pub(super) fn known_nil_receiver(&self, ctx: &mut CallContext, value: Fact) -> Result<bool> {
+        for i in 0..self.arm_count(value) {
+            ctx.charge(1)?;
+            let arm = self.arm(value, i);
+            if !matches!(self.node(arm), Node::Protected(..)) && !self.known_primitive(ctx, arm)? {
                 return Ok(false);
             }
         }
@@ -265,8 +286,8 @@ impl Facts {
                     Node::Range(..) => 1 << Atom::Range as u32,
                     Node::Regex(_) => 1 << Atom::Regex as u32,
                     Node::Array(_) | Node::Tuple(_) => 1 << 20,
-                    Node::Hash(..) | Node::Shape(..) => 1 << 21,
-                    Node::Builtin(_) => 1 << 22,
+                    Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => 1 << 21,
+                    Node::Builtin(_) | Node::Offset(_) => 1 << 22,
                     Node::TypeValue(_) => 1 << 23,
                     Node::Union(_) => unreachable!(),
                 };

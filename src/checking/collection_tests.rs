@@ -379,6 +379,11 @@ pub(super) fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &cra
         Kind::Big(_) => Atom::Int.fact(),
         Kind::Float(_) => Atom::Float.fact(),
         Kind::Regex(_) => Atom::Regex.fact(),
+        Kind::Offset(_) => {
+            let value = facts.nullable(ctx, Atom::Int.fact()).unwrap();
+            let values = facts.array(ctx, value).unwrap();
+            facts.offset(ctx, values).unwrap()
+        }
         Kind::Time(_) | Kind::Zoned(_) => Atom::Time.fact(),
         Kind::Duration(_) => Atom::Duration.fact(),
         Kind::Money(_) => Atom::Money.fact(),
@@ -408,7 +413,12 @@ pub(super) fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &cra
                     )
                 })
                 .collect();
-            facts.shape(ctx, &fields, false).unwrap()
+            let shape = facts.shape(ctx, &fields, false).unwrap();
+            if h.tag.protected() {
+                facts.protected(ctx, shape, h.tag).unwrap()
+            } else {
+                shape
+            }
         }
         _ => panic!("unexpected literal value"),
     }

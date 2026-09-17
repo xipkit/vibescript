@@ -110,6 +110,11 @@ impl Regex {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn capture_names(&self) -> (&[u8], &[(usize, usize)]) {
+        (self.pattern.as_bytes().unwrap(), &self.code.names)
+    }
+
     pub(super) fn view(&self) -> View<'_> {
         View {
             instructions: &self.code.instructions,

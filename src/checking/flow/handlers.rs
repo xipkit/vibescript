@@ -359,8 +359,11 @@ impl Walker<'_> {
                 },
             )?;
         }
+        let shape = self
+            .facts
+            .shape_fields(self.ctx, fields, false, Atom::String.fact(), true)?;
         self.facts
-            .shape_fields(self.ctx, fields, false, Atom::String.fact(), false)
+            .protected(self.ctx, shape, crate::hash::Tag::Error)
     }
 
     pub(super) fn emit_error(&mut self, state: &State, pc: usize, classes: u8) -> Result<()> {

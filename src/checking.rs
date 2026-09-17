@@ -53,3 +53,6 @@ mod native_tests;
 
 #[cfg(test)]
 mod value_tests;
+
+#[cfg(test)]
+mod protected_tests;

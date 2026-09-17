@@ -153,6 +153,9 @@ impl Facts {
         index: Fact,
         length: Option<Fact>,
     ) -> Result<Operation> {
+        if matches!(self.node(receiver), Node::Protected(..)) {
+            return super::builtins::protected::index(ctx, self, receiver, index, length);
+        }
         let selector = self.atom(index);
         let unknown = |a| matches!(a, Some(Atom::Unknown | Atom::Any));
         if unknown(self.atom(receiver)) {
@@ -290,6 +293,13 @@ impl Facts {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
             let next = match self.node(arm) {
+                Node::Protected(shape, _) if !crate::members::hash_builtin(name) => {
+                    if self.selected_field(ctx, *shape, name.as_bytes())?.is_none() {
+                        rejected()
+                    } else {
+                        outcome(arm)
+                    }
+                }
                 Node::Shape(_, false, _, _) if !crate::members::hash_builtin(name) => {
                     if self.selected_field(ctx, arm, name.as_bytes())?.is_none() {
                         rejected()
@@ -332,6 +342,17 @@ impl Facts {
         name: &str,
         args: &[Fact],
     ) -> Result<Operation> {
+        if matches!(self.node(receiver), Node::Protected(..)) {
+            let mut arguments = super::arguments::Arguments::new();
+            arguments.positional.extend(ctx, args)?;
+            let result =
+                super::builtins::protected::member(ctx, self, receiver, site, name, &arguments)?;
+            return Ok(Operation {
+                value: result.value,
+                rejected: !result.failures.data.is_empty(),
+                unsupported: result.incomplete,
+            });
+        }
         if receiver == Atom::Never.fact() {
             return Ok(outcome(receiver));
         }

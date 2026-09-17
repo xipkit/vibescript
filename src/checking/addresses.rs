@@ -12,6 +12,13 @@ pub(super) enum Attached {
 }
 
 impl Attached {
+    fn or(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Yes, _) | (_, Self::Yes) => Self::Yes,
+            (Self::Maybe, _) | (_, Self::Maybe) => Self::Maybe,
+            _ => Self::No,
+        }
+    }
     fn and(self, other: Self) -> Self {
         match (self, other) {
             (Self::No, _) | (_, Self::No) => Self::No,
@@ -33,6 +40,7 @@ struct Hop {
 
 #[derive(Debug)]
 pub(super) struct Address {
+    protected: Attached,
     pub root: Option<usize>,
     pub attached: Attached,
     pub value: Fact,
@@ -65,6 +73,7 @@ impl Address {
 
     pub fn new(root: Option<usize>, value: Fact) -> Self {
         Self {
+            protected: Attached::No,
             root,
             value,
             attached: if root.is_some() {
@@ -81,6 +90,7 @@ impl Address {
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut address = Self::new(self.root, self.value);
         address.attached = self.attached;
+        address.protected = self.protected;
         address.supported = self.supported;
         address.path.extend(ctx, &self.path.data)?;
         address.selectors.extend(ctx, &self.selectors.data)?;
@@ -98,6 +108,9 @@ impl Address {
         let next = facts.joined(ctx, self.value, other.value, depth)?;
         changed |= next != self.value;
         self.value = next;
+        let protected = self.protected.join(other.protected);
+        changed |= protected != self.protected;
+        self.protected = protected;
         let attached = self.attached.join(other.attached);
         changed |= attached != self.attached;
         self.attached = attached;
@@ -147,6 +160,7 @@ impl Address {
         facts: &mut Facts,
         args: &[Fact],
     ) -> Result<Operation> {
+        self.protected = self.protection(ctx, facts)?;
         let result = facts.collection_index(ctx, self.value, args)?;
         for i in 0..facts.arm_count(self.value) {
             ctx.charge(1)?;
@@ -174,6 +188,24 @@ impl Address {
         }
         self.value = result.value;
         Ok(result)
+    }
+
+    pub fn protection(&self, ctx: &mut CallContext, facts: &Facts) -> Result<Attached> {
+        let mut protected = None;
+        for i in 0..facts.arm_count(self.value) {
+            ctx.charge(1)?;
+            let value = facts.arm(self.value, i);
+            if value == Atom::Never.fact() {
+                continue;
+            }
+            let next = if matches!(facts.node(value), Node::Protected(..)) {
+                Attached::Yes
+            } else {
+                Attached::No
+            };
+            protected = Some(protected.map_or(next, |previous: Attached| previous.join(next)));
+        }
+        Ok(self.protected.or(protected.unwrap_or(Attached::No)))
     }
 
     pub fn target(

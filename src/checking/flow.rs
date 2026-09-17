@@ -707,11 +707,14 @@ impl Walker<'_> {
         args: Arguments,
     ) -> Result<Option<Edges>> {
         let current_error = state.current_error(self.ctx, self.current_error)?;
-        let result = if let Target::Builtin(builtin) = target {
-            builtins::invoke(self.ctx, self.facts, builtin, &args)?
-        } else {
-            self.calls
-                .invoke(self.ctx, self.facts, target, args, current_error)?
+        let result = match target {
+            Target::Builtin(builtin) => builtins::invoke(self.ctx, self.facts, builtin, &args)?,
+            Target::Offset(value) => {
+                builtins::protected::invoke(self.ctx, self.facts, value, &args)?
+            }
+            _ => self
+                .calls
+                .invoke(self.ctx, self.facts, target, args, current_error)?,
         };
         let mut classes = result.throws;
         for failure in result.failures.data {
@@ -758,6 +761,15 @@ impl Walker<'_> {
     }
 
     fn value_target(&mut self, value: Fact) -> Result<Target> {
+        for i in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            if matches!(
+                self.facts.node(self.facts.arm(value, i)),
+                super::facts::Node::Offset(_)
+            ) {
+                return Ok(Target::Offset(value));
+            }
+        }
         if let super::facts::Node::Builtin(builtin) = self.facts.node(value) {
             return Ok(Target::Builtin(*builtin));
         }
@@ -883,6 +895,22 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let address = state.addresses.data.pop().unwrap();
         let name = &self.program.members[site.name];
+        let protection = address.protection(self.ctx, self.facts)?;
+        if protection != Attached::No {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            let arguments = self.facts.tuple(self.ctx, args)?;
+            self.issue(
+                pc,
+                IssueKind::Member {
+                    name: site.name,
+                    receiver: address.value,
+                    arguments,
+                },
+            )?;
+            if protection == Attached::Yes {
+                return Ok(Some([None, None]));
+            }
+        }
         if builtins::namespace_call(self.ctx, self.facts, address.value, name)?
             || builtins::value_member(self.ctx, self.facts, address.value, name)?
         {
@@ -1114,6 +1142,28 @@ impl Walker<'_> {
                     } else {
                         binding.value
                     };
+                    let mut readable = Buffer::empty();
+                    for index in 0..self.facts.arm_count(value) {
+                        self.ctx.charge(1)?;
+                        let arm = self.facts.arm(value, index);
+                        if matches!(self.facts.node(arm), super::facts::Node::Offset(_)) {
+                            let target = Target::Offset(arm);
+                            self.issue(
+                                pc,
+                                IssueKind::Call {
+                                    target,
+                                    failure: Failure::BuiltinValue,
+                                },
+                            )?;
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        } else {
+                            readable.push(self.ctx, arm)?;
+                        }
+                    }
+                    let value = self.facts.union(self.ctx, &readable.data)?;
+                    if value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
                     state.stack.push(self.ctx, Operand::local(value, slot))?;
                 }
                 Op::Unbound(name) => {
@@ -1650,6 +1700,22 @@ impl Walker<'_> {
                 Op::AddressStore => {
                     let value = state.stack.data.pop().unwrap();
                     let address = state.addresses.data.pop().unwrap();
+                    let protection = address.protection(self.ctx, self.facts)?;
+                    if protection != Attached::No {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        let selectors = self.facts.tuple(self.ctx, &address.selectors.data)?;
+                        self.issue(
+                            pc,
+                            IssueKind::Write {
+                                receiver: address.value,
+                                selectors,
+                                value: value.value,
+                            },
+                        )?;
+                        if protection == Attached::Yes {
+                            return Ok([None, None]);
+                        }
+                    }
                     if !address.supported {
                         return self.incomplete(pc);
                     }
@@ -1760,6 +1826,29 @@ impl Walker<'_> {
                 Op::Invoke(Invocation::Member(site, true)) => {
                     let args = state.arguments.data.pop().unwrap().arguments;
                     let receiver = state.addresses.data.last().unwrap().value;
+                    if !args.keywords.data.is_empty() {
+                        let protection = state
+                            .addresses
+                            .data
+                            .last()
+                            .unwrap()
+                            .protection(self.ctx, self.facts)?;
+                        if protection != Attached::No {
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                            let arguments = self.facts.tuple(self.ctx, &args.positional.data)?;
+                            self.issue(
+                                pc,
+                                IssueKind::Member {
+                                    name: site.name,
+                                    receiver,
+                                    arguments,
+                                },
+                            )?;
+                            if protection == Attached::Yes {
+                                return Ok([None, None]);
+                            }
+                        }
+                    }
                     if builtins::namespace_call(
                         self.ctx,
                         self.facts,
@@ -1789,6 +1878,37 @@ impl Walker<'_> {
                 Op::AddressMember(site) | Op::AddressNamespaceField(site) => {
                     let name = &self.program.members[site.name];
                     let receiver = state.addresses.data.last().unwrap().value;
+                    let mut protected_field = true;
+                    for i in 0..self.facts.arm_count(receiver) {
+                        self.ctx.charge(1)?;
+                        let arm = self.facts.arm(receiver, i);
+                        let super::facts::Node::Protected(shape, _) = self.facts.node(arm) else {
+                            protected_field = false;
+                            break;
+                        };
+                        if !self
+                            .facts
+                            .selected_field(self.ctx, *shape, name.as_bytes())?
+                            .is_some_and(|(_, optional)| !optional)
+                        {
+                            protected_field = false;
+                            break;
+                        }
+                    }
+                    if protected_field {
+                        let key = self.facts.string(self.ctx, name.as_bytes())?;
+                        let result = state.addresses.data.last_mut().unwrap().index(
+                            self.ctx,
+                            self.facts,
+                            &[key],
+                        )?;
+                        if let Some(edges) =
+                            self.index_outcome(&state, pc, receiver, &[key], &result)?
+                        {
+                            return Ok(edges);
+                        }
+                        continue;
+                    }
                     if builtins::value_member(self.ctx, self.facts, receiver, name)? {
                         state.addresses.data.pop().unwrap();
                         if let Some(edges) =
@@ -1805,6 +1925,13 @@ impl Walker<'_> {
                         self.ctx.charge(1)?;
                         let arm = self.facts.arm(receiver, i);
                         match self.facts.node(arm) {
+                            super::facts::Node::Protected(shape, _) => {
+                                let selected =
+                                    self.facts
+                                        .selected_field(self.ctx, *shape, name.as_bytes())?;
+                                fields |= selected.is_some();
+                                absent |= selected.is_none();
+                            }
                             super::facts::Node::Shape(_, open, _, _)
                                 if matches!(op, Op::AddressMember(_)) =>
                             {
@@ -1953,6 +2080,18 @@ impl Walker<'_> {
                 Op::CallMember(site) => {
                     let receiver = state.stack.data.pop().unwrap().value;
                     let name = &self.program.members[site.name];
+                    if matches!(self.facts.node(receiver), super::facts::Node::Offset(_)) {
+                        let target = Target::Offset(receiver);
+                        self.issue(
+                            pc,
+                            IssueKind::Call {
+                                target,
+                                failure: Failure::BuiltinValue,
+                            },
+                        )?;
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        return Ok([None, None]);
+                    }
                     if let super::facts::Node::Builtin(builtin) = self.facts.node(receiver) {
                         self.issue(
                             pc,
@@ -1964,12 +2103,21 @@ impl Walker<'_> {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         return Ok([None, None]);
                     }
-                    let field = if matches!(
-                        self.facts.node(receiver),
-                        super::facts::Node::Shape(_, false, _, false)
-                    ) {
+                    let fields = if let super::facts::Node::Protected(shape, _) =
+                        self.facts.node(receiver)
+                    {
+                        *shape
+                    } else {
+                        receiver
+                    };
+                    let protected = fields != receiver;
+                    let field = if protected
+                        || matches!(
+                            self.facts.node(fields),
+                            super::facts::Node::Shape(_, false, _, false)
+                        ) {
                         self.facts
-                            .selected_field(self.ctx, receiver, name.as_bytes())?
+                            .selected_field(self.ctx, fields, name.as_bytes())?
                             .and_then(|(value, optional)| (!optional).then_some(value))
                     } else {
                         return self.incomplete(pc);
@@ -2065,8 +2213,15 @@ impl Walker<'_> {
                         }
                         ArgumentOp::KeywordSplat => {
                             let mut keywords = Buffer::empty();
-                            if let super::facts::Node::Shape(fields, false, _, _) =
+                            let value = if let super::facts::Node::Protected(shape, _) =
                                 self.facts.node(operand.value)
+                            {
+                                *shape
+                            } else {
+                                operand.value
+                            };
+                            if let super::facts::Node::Shape(fields, false, _, _) =
+                                self.facts.node(value)
                             {
                                 for field in &fields.data {
                                     self.ctx.charge(1)?;
@@ -2221,7 +2376,7 @@ impl Walker<'_> {
                 {
                     let operand = state.stack.data.pop().unwrap();
                     // Nominal receivers may implement their own method; that dispatch is unfinished.
-                    if !self.facts.known_primitive(self.ctx, operand.value)? {
+                    if !self.facts.known_nil_receiver(self.ctx, operand.value)? {
                         return self.incomplete(pc);
                     }
                     let value = self.facts.test_result(self.ctx, operand.value, Test::Nil)?;

@@ -24,7 +24,12 @@ impl Facts {
         for i in 0..self.arm_count(source) {
             ctx.charge(1)?;
             let arm = self.arm(source, i);
-            let (item, empty, multiple) = match self.node(arm) {
+            let view = if let Node::Protected(shape, _) = self.node(arm) {
+                *shape
+            } else {
+                arm
+            };
+            let (item, empty, multiple) = match self.node(view) {
                 Node::Atom(Atom::Never) => continue,
                 Node::Atom(Atom::Unknown | Atom::Any) => (Atom::Unknown.fact(), true, true),
                 Node::Atom(Atom::Range) => (Atom::Int.fact(), true, true),
@@ -62,7 +67,7 @@ impl Facts {
                     let mut items = Buffer::empty();
                     for index in 0..length {
                         ctx.charge(1)?;
-                        let Node::Shape(fields, ..) = self.node(arm) else {
+                        let Node::Shape(fields, ..) = self.node(view) else {
                             unreachable!()
                         };
                         let field = &fields.data[index];

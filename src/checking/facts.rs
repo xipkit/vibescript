@@ -53,6 +53,8 @@ pub(super) enum Node {
     Range(Option<i64>, Option<i64>, bool),
     Regex(Value),
     Builtin(crate::builtin::Builtin),
+    Offset(Fact),
+    Protected(Fact, crate::hash::Tag),
     TypeValue(Fact),
     Array(Fact),
     Tuple(Buffer<Fact>),
@@ -213,6 +215,7 @@ impl Facts {
             _ => Some(false),
         };
         let normalizes = match &node {
+            Node::Protected(value, _) | Node::Offset(value) => self.normalizes(*value),
             Node::Named(_) | Node::Nominal { .. } => true,
             Node::Array(element) => self.normalizes(*element),
             Node::Hash(key, value, _) => self.normalizes(*key) || self.normalizes(*value),
@@ -227,6 +230,7 @@ impl Facts {
             _ => false,
         };
         let unresolved = match &node {
+            Node::Protected(value, _) | Node::Offset(value) => self.unresolved(*value),
             Node::Named(_) => true,
             Node::TypeValue(ty) => self.unresolved(*ty),
             Node::Array(element) => self.unresolved(*element),
@@ -265,6 +269,7 @@ impl Facts {
             _ => false,
         };
         let depth = match &node {
+            Node::Protected(value, _) | Node::Offset(value) => self.depth(*value),
             Node::Array(element) => self.depth(*element).saturating_add(1),
             Node::Hash(key, value, _) => self.depth(*key).max(self.depth(*value)).saturating_add(1),
             Node::Tuple(values) | Node::Union(values) => {
@@ -360,6 +365,20 @@ impl Facts {
 
     pub fn type_value(&mut self, ctx: &mut CallContext, ty: Fact) -> Result<Fact> {
         self.intern(ctx, Node::TypeValue(ty))
+    }
+
+    pub(super) fn protected(
+        &mut self,
+        ctx: &mut CallContext,
+        shape: Fact,
+        tag: crate::hash::Tag,
+    ) -> Result<Fact> {
+        assert!(tag.protected());
+        self.intern(ctx, Node::Protected(shape, tag))
+    }
+
+    pub(super) fn offset(&mut self, ctx: &mut CallContext, values: Fact) -> Result<Fact> {
+        self.intern(ctx, Node::Offset(values))
     }
 
     pub fn integer(&mut self, ctx: &mut CallContext, value: i64) -> Result<Fact> {
@@ -816,6 +835,8 @@ impl Node {
             Self::Integer(value) => value.hash(&mut hash),
             Self::Float(value) => value.hash(&mut hash),
             Self::Builtin(value) => value.name().hash(&mut hash),
+            Self::Offset(value) => value.hash(&mut hash),
+            Self::Protected(value, tag) => (value, *tag as u8).hash(&mut hash),
             Self::TypeValue(value) => value.hash(&mut hash),
             Self::Range(start, end, exclusive) => (start, end, exclusive).hash(&mut hash),
             Self::Regex(value) => {
@@ -864,6 +885,8 @@ impl Node {
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Builtin(a), Self::Builtin(b)) => a == b,
+            (Self::Offset(a), Self::Offset(b)) => a == b,
+            (Self::Protected(a, at), Self::Protected(b, bt)) => a == b && at == bt,
             (Self::TypeValue(a), Self::TypeValue(b)) => a == b,
             (Self::Range(a, b, c), Self::Range(x, y, z)) => a == x && b == y && c == z,
             (Self::Regex(a), Self::Regex(b)) => {

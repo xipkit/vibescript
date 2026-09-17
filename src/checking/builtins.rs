@@ -16,6 +16,7 @@ use crate::{
 const RUNTIME: u8 = 1 << ErrorClass::Runtime as u8;
 
 mod native;
+pub(super) mod protected;
 mod temporal;
 mod values;
 
@@ -27,7 +28,8 @@ pub(super) fn value_member(
 ) -> Result<bool> {
     for i in 0..facts.arm_count(receiver) {
         ctx.charge(1)?;
-        if !values::supported(facts, facts.arm(receiver, i), name) {
+        let arm = facts.arm(receiver, i);
+        if !matches!(facts.node(arm), Node::Protected(..)) && !values::supported(facts, arm, name) {
             return Ok(false);
         }
     }
@@ -311,6 +313,7 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             continue;
         }
         match facts.node(value) {
+            Node::Protected(shape, _) => pending.push(ctx, *shape)?,
             Node::Array(element) => pending.push(ctx, *element)?,
             Node::Tuple(values) | Node::Union(values) => pending.extend(ctx, &values.data)?,
             Node::Hash(_, value, _) => pending.push(ctx, *value)?,
@@ -323,6 +326,7 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             | Node::Range(..)
             | Node::Regex(_)
             | Node::Builtin(_)
+            | Node::Offset(_)
             | Node::TypeValue(_) => result.invalid = true,
             Node::Nominal {
                 symbols: Some(_), ..
@@ -377,7 +381,7 @@ pub(super) fn member(
     for i in 0..facts.arm_count(receiver) {
         ctx.charge(1)?;
         let arm = facts.arm(receiver, i);
-        special |= matches!(facts.node(arm), Node::TypeValue(_))
+        special |= matches!(facts.node(arm), Node::TypeValue(_) | Node::Protected(..))
             || values::supported(facts, arm, name)
             || namespace(ctx, facts, arm)?;
     }
@@ -396,9 +400,26 @@ pub(super) fn member(
             next
         } else {
             let operation = facts.collection_member(ctx, arm, site, name, &args.positional.data)?;
+            let missing = operation.unsupported
+                && matches!(
+                    name,
+                    "captures"
+                        | "named_captures"
+                        | "pre_match"
+                        | "post_match"
+                        | "begin"
+                        | "end"
+                        | "message"
+                        | "backtrace"
+                        | "code_frame"
+                )
+                && facts.known_primitive(ctx, arm)?;
             let mut next = outcome(operation.value);
-            next.incomplete = operation.unsupported;
-            if operation.rejected {
+            next.incomplete = operation.unsupported && !missing;
+            if missing {
+                next.value = Atom::Never.fact();
+            }
+            if operation.rejected || missing {
                 next.failures.push(ctx, Failure::NonCallable)?;
             }
             next
@@ -419,6 +440,9 @@ fn member_arm(
     name: &str,
     args: &Arguments,
 ) -> Result<Option<Outcome>> {
+    if matches!(facts.node(receiver), Node::Protected(..)) {
+        return protected::member(ctx, facts, receiver, site, name, args).map(Some);
+    }
     if values::supported(facts, receiver, name) {
         return values::member(ctx, facts, receiver, site, name, args).map(Some);
     }

@@ -10,6 +10,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Target {
     Builtin(crate::builtin::Builtin),
+    Offset(Fact),
     Function(usize),
     Host(usize),
     NonCallable,
@@ -549,6 +550,9 @@ impl Calls for Solver<'_> {
         };
         match target {
             Target::Builtin(builtin) => return super::builtins::invoke(ctx, facts, builtin, &args),
+            Target::Offset(value) => {
+                return super::builtins::protected::invoke(ctx, facts, value, &args);
+            }
             Target::Function(function) => {
                 let bound = args.bind(
                     ctx,
