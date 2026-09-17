@@ -1,0 +1,179 @@
+{
+  "reference": "Go v0.70.0 CheckWarningsForFunction(\"run\")",
+  "reference_timeout_seconds": 5,
+  "cases": [
+    {
+      "source": "def grow(a,n: int); if n>0; grow(a.push(1),n-1); else; a; end; end; def run -> array<int>; grow([],3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def grow(a,n: int); if n>0; grow(a.push(\"bad\"),n-1); else; a; end; end; def run -> array<int>; grow([],3); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust preserves known incompatible collection contents through recursive argument and return analysis."
+    },
+    {
+      "source": "def grow(a,n: int); if n>0; grow([a],n-1); else; a; end; end; def run -> array; grow([],3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def grow(h,n: int); if n>0; grow({child:h},n-1); else; h; end; end; def run -> hash; grow({},3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def f(a=[7], n: 0); if n>0; f(n:n-1); else; a; end; end; def run -> array<int>; f([8],n:3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def f(a=[\"bad\"], n: 0); if n>0; f(n:n-1); else; a; end; end; def run -> array<int>; f([8],n:3); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust preserves known incompatible collection contents through recursive argument and return analysis."
+    },
+    {
+      "source": "def f(a: array<int> = [\"bad\"], n: int=0); if n>0; f(a.push(7),n-1); else; a; end; end; def run -> array<int>; f([8],3); end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "value_json": [
+          8,
+          7,
+          7,
+          7
+        ]
+      },
+      "difference": "Rust checks defaults and return boundaries only on reachable paths."
+    },
+    {
+      "source": "def f(n: int, value: array:); if n>0; f(n-1,value:value.push(7)); else; value; end; end; def run -> array<int>; f(3,value:[]); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def grow(n: int); if n==0; []; else; [grow(n-1)]; end; end; def run -> array; grow(3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def grow(n: int); if n==0; {}; else; {child:grow(n-1)}; end; end; def run -> hash; grow(3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def a(xs,n: int); if n>0; b(xs.push(1),n-1); else; xs; end; end; def b(xs,n: int); a(xs.push(2),n); end; def run -> array<int>; a([],3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def a(n: int); if n==0; []; else; [b(n-1)]; end; end; def b(n: int); [a(n)]; end; def run -> array; a(3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def run -> int; id(\"bad\"); id(7); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def first(x); x[0]; end; def run -> int; first([\"bad\"]); first([7]); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def f(n: int,x); if n>0; f(n-1,x); else; x; end; end; def run -> int; f(2,\"bad\"); f(2,7); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def a(n: int,x); if n>0; b(n-1,x); else; x; end; end; def b(n: int,x); if n>0; a(n-1,x); else; x; end; end; def run -> int; a(2,\"bad\"); b(3,7); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def f(n: int); if n>0; [f(n-1)]; else; [\"bad\"]; end; end; def run -> array<array<int>>; f(2); end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def f(xs,n: int); if n>0; f(xs.push(\"bad\"),n-1); else; xs; end; end; def run(x) -> array<int>; f([x],2); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "error": "type"
+      },
+      "difference": "Rust preserves known incompatible collection contents through recursive argument and return analysis."
+    },
+    {
+      "source": "def f(n: int); if n>0; {child:f(n-1),value:\"bad\"}; else; {}; end; end; def run -> hash<string,int>; f(2); end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def f(a); f([a]); end; def run -> int; f([]); \"unreachable\"; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "error": "recursion"
+      },
+      "difference": "Rust checks defaults and return boundaries only on reachable paths."
+    },
+    {
+      "source": "def a(xs); b(xs.push(7)); end; def b(xs); a(xs); end; def run -> int; a([]); \"unreachable\"; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "error": "recursion"
+      },
+      "difference": "Rust checks defaults and return boundaries only on reachable paths."
+    }
+  ],
+  "unresolved_reference": [
+    {
+      "source": "def f(n: int, *xs); if n>0; f(n-1,xs); else; xs; end; end; def run -> array; f(3,7); end",
+      "rust_rejected": false,
+      "go_status": "timeout",
+      "reason": "The standalone pinned Go checker did not complete within five seconds; no checker decision is inferred.",
+      "runtime": {
+        "value_json": [
+          [
+            [
+              [
+                7
+              ]
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "source": "def f(n: int, **kw); if n>0; f(n-1,child:kw); else; kw; end; end; def run -> hash; f(3,value:7); end",
+      "rust_rejected": false,
+      "go_status": "timeout",
+      "reason": "The standalone pinned Go checker did not complete within five seconds; no checker decision is inferred.",
+      "runtime": {
+        "value_json": {
+          "child": {
+            "child": {
+              "child": {
+                "value": 7
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

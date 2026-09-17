@@ -129,7 +129,13 @@ pub(super) struct Analysis {
 
 struct Job {
     function: usize,
+    // The cache key stays exact even when recursive analysis needs broader inputs.
     inputs: Buffer<Input>,
+    widened: Option<Buffer<Input>>,
+    input_depth: Option<usize>,
+    return_depth: Option<usize>,
+    cyclic: bool,
+    visited: usize,
     hash: u64,
     next: usize,
     parents: Buffer<usize>,
@@ -146,6 +152,13 @@ struct Solver<'a> {
     queue: Buffer<usize>,
     current: usize,
     dependencies: Buffer<usize>,
+    functions: Buffer<bool>,
+    search: usize,
+}
+
+enum Ancestor {
+    Function(usize),
+    Job(usize),
 }
 
 const EMPTY: usize = usize::MAX;
@@ -158,6 +171,9 @@ pub(super) fn analyze(
     inputs: &[Input],
 ) -> Result<Analysis> {
     ctx.checkpoint()?;
+    let mut functions = Buffer::with_capacity(ctx, world.program.functions.len())?;
+    ctx.charge(world.program.functions.len() as u64)?;
+    functions.data.resize(world.program.functions.len(), false);
     let mut solver = Solver {
         world,
         jobs: Buffer::empty(),
@@ -165,15 +181,18 @@ pub(super) fn analyze(
         queue: Buffer::empty(),
         current: EMPTY,
         dependencies: Buffer::empty(),
+        functions,
+        search: 0,
     };
-    let entry = solver.request(ctx, function, inputs)?;
+    let entry = solver.request(ctx, facts, function, inputs)?;
     while let Some(index) = solver.queue.data.pop() {
         ctx.charge(1)?;
         solver.current = index;
         solver.jobs.data[index].queued = false;
         solver.dependencies = Buffer::empty();
         let mut inputs = Buffer::empty();
-        inputs.extend(ctx, &solver.jobs.data[index].inputs.data)?;
+        let job = &solver.jobs.data[index];
+        inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
         let function = solver.jobs.data[index].function;
         let body = flow::Body {
             program: solver.world.program,
@@ -187,6 +206,13 @@ pub(super) fn analyze(
             if let Some(ty) = solver.world.program.functions[function].return_type {
                 returns = facts.normalized(ctx, returns, solver.world.contracts[ty])?;
             }
+        }
+        let previous = solver.jobs.data[index].returns;
+        if solver.jobs.data[index].cyclic && previous != Atom::Never.fact() && previous != returns {
+            let depth = *solver.jobs.data[index]
+                .return_depth
+                .get_or_insert(facts.max_depth());
+            returns = facts.widen(ctx, previous, returns, depth)?;
         }
         let job = &mut solver.jobs.data[index];
         let changed = job.returns != returns;
@@ -282,6 +308,7 @@ impl Solver<'_> {
     fn request(
         &mut self,
         ctx: &mut CallContext,
+        facts: &mut Facts,
         function: usize,
         inputs: &[Input],
     ) -> Result<usize> {
@@ -299,6 +326,30 @@ impl Solver<'_> {
                     return Ok(index);
                 }
                 index = job.next;
+            }
+        }
+        if self.functions.data[function] {
+            if let Some(path) = self.ancestor(ctx, Ancestor::Function(function))? {
+                let index = path.data[0];
+                self.cycle(ctx, &path.data)?;
+                let depth = *self.jobs.data[index]
+                    .input_depth
+                    .get_or_insert(facts.max_depth());
+                let mut joined = Buffer::empty();
+                let mut changed = false;
+                for (i, &incoming) in inputs.iter().enumerate() {
+                    ctx.charge(1)?;
+                    let job = &self.jobs.data[index];
+                    let before = job.widened.as_ref().unwrap_or(&job.inputs).data[i];
+                    let value = before.widen(ctx, facts, incoming, depth)?;
+                    changed |= before != value;
+                    joined.push(ctx, value)?;
+                }
+                if changed {
+                    self.jobs.data[index].widened = Some(joined);
+                    self.enqueue(ctx, index)?;
+                }
+                return Ok(index);
             }
         }
         if self.jobs.data.len() >= self.buckets.data.len() / 2 {
@@ -320,6 +371,11 @@ impl Solver<'_> {
         }
         let mut copied = Buffer::empty();
         copied.extend(ctx, inputs)?;
+        let mut parents = Buffer::empty();
+        // A newly created context cannot close a cycle. Record its first edge directly.
+        if self.current != EMPTY {
+            parents.push(ctx, self.current)?;
+        }
         let index = self.jobs.data.len();
         let bucket = hash as usize & (self.buckets.data.len() - 1);
         self.jobs.push(
@@ -327,9 +383,14 @@ impl Solver<'_> {
             Job {
                 function,
                 inputs: copied,
+                widened: None,
+                input_depth: None,
+                return_depth: None,
+                cyclic: false,
+                visited: 0,
                 hash,
                 next: self.buckets.data[bucket],
-                parents: Buffer::empty(),
+                parents,
                 dependencies: Buffer::empty(),
                 queued: false,
                 returns: Atom::Never.fact(),
@@ -337,8 +398,68 @@ impl Solver<'_> {
             },
         )?;
         self.buckets.data[bucket] = index;
+        self.functions.data[function] = true;
         self.enqueue(ctx, index)?;
         Ok(index)
+    }
+
+    fn ancestor(
+        &mut self,
+        ctx: &mut CallContext,
+        target: Ancestor,
+    ) -> Result<Option<Buffer<usize>>> {
+        ctx.checkpoint()?;
+        if self.current == EMPTY {
+            return Ok(None);
+        }
+        self.search = self.search.wrapping_add(1);
+        if self.search == 0 {
+            for job in &mut self.jobs.data {
+                ctx.charge(1)?;
+                job.visited = 0;
+            }
+            self.search = 1;
+        }
+        let mut pending = Buffer::empty();
+        pending.push(ctx, (self.current, EMPTY))?;
+        self.jobs.data[self.current].visited = self.search;
+        let mut cursor = 0;
+        while cursor < pending.data.len() {
+            ctx.charge(1)?;
+            let index = pending.data[cursor].0;
+            let matched = match target {
+                Ancestor::Function(function) => self.jobs.data[index].function == function,
+                Ancestor::Job(job) => index == job,
+            };
+            if matched {
+                let mut path = Buffer::empty();
+                while cursor != EMPTY {
+                    ctx.charge(1)?;
+                    let (index, parent) = pending.data[cursor];
+                    path.push(ctx, index)?;
+                    cursor = parent;
+                }
+                return Ok(Some(path));
+            }
+            for i in 0..self.jobs.data[index].parents.data.len() {
+                ctx.charge(1)?;
+                let parent = self.jobs.data[index].parents.data[i];
+                if self.jobs.data[parent].visited != self.search {
+                    self.jobs.data[parent].visited = self.search;
+                    pending.push(ctx, (parent, cursor))?;
+                }
+            }
+            cursor += 1;
+        }
+        Ok(None)
+    }
+
+    fn cycle(&mut self, ctx: &mut CallContext, path: &[usize]) -> Result<()> {
+        for &index in path {
+            ctx.charge(1)?;
+            self.jobs.data[index].cyclic = true;
+        }
+        Ok(())
     }
 }
 
@@ -410,17 +531,19 @@ impl Calls for Solver<'_> {
                     outcome.failures = bound.failures;
                     return Ok(outcome);
                 }
-                let index = self.request(ctx, function, &bound.inputs.data)?;
+                let index = self.request(ctx, facts, function, &bound.inputs.data)?;
                 ctx.charge(self.dependencies.data.len() as u64)?;
                 if !self.dependencies.data.contains(&index) {
                     self.dependencies.push(ctx, index)?;
                 }
-                let job = &mut self.jobs.data[index];
-                ctx.charge(job.parents.data.len() as u64)?;
-                if !job.parents.data.contains(&self.current) {
-                    job.parents.push(ctx, self.current)?;
+                ctx.charge(self.jobs.data[index].parents.data.len() as u64)?;
+                if !self.jobs.data[index].parents.data.contains(&self.current) {
+                    if let Some(path) = self.ancestor(ctx, Ancestor::Job(index))? {
+                        self.cycle(ctx, &path.data)?;
+                    }
+                    self.jobs.data[index].parents.push(ctx, self.current)?;
                 }
-                outcome.value = job.returns;
+                outcome.value = self.jobs.data[index].returns;
             }
             Target::Host(index) => {
                 let Some(host) = self.world.hosts.get(index) else {

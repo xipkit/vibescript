@@ -11,6 +11,34 @@ pub(super) enum Input {
     Either(Fact),
 }
 
+impl Input {
+    pub fn widen(
+        self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        other: Self,
+        depth: usize,
+    ) -> Result<Self> {
+        ctx.checkpoint()?;
+        let (a, b) = match (self, other) {
+            (Self::Default, Self::Default) => return Ok(Self::Default),
+            (Self::Default, Self::Supplied(value) | Self::Either(value))
+            | (Self::Supplied(value) | Self::Either(value), Self::Default) => {
+                (Atom::Never.fact(), value)
+            }
+            (Self::Supplied(a) | Self::Either(a), Self::Supplied(b) | Self::Either(b)) => (a, b),
+        };
+        let value = facts.widen(ctx, a, b, depth)?;
+        Ok(
+            if matches!((self, other), (Self::Supplied(_), Self::Supplied(_))) {
+                Self::Supplied(value)
+            } else {
+                Self::Either(value)
+            },
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Keyword {
     pub name: Fact,

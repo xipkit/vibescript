@@ -34,6 +34,16 @@ Registered host calls use already compiled declarative signatures to check arity
 
 The call corpus contains 52 scripts compared with Go v0.70.0 reachable-function checking. Eight decisions intentionally differ: Rust retains known facts through `any`, rejects known noncallables and invalid splats, skips unused defaults, and follows reachable loop/recursive returns. Each difference has a Rust execution witness. Separate tests cover binding against the runtime, a 1,000-function call chain on the default stack, mutual recursion, host-effect isolation, incomplete paths, exact quotas, failed-allocation cleanup and cancellation.
 
+## Recursive call convergence
+
+Recursive calls now reuse and widen an ancestor context when their arguments change, preserving the distinction between supplied values and defaults. Recursive return summaries also widen as their collection structure grows. Both operations freeze a structural depth at their first widening; later growth becomes gradual beyond that envelope. Known scalar alternatives remain visible, and declared contracts participate in the initial facts. Separate ordinary calls retain their exact cache keys and specialized summaries.
+
+Cycle discovery walks the recorded call graph iteratively with metered scratch storage. New contexts record their first caller directly; ordinary call chains avoid unnecessary graph searches. Shared cached contexts can close a cycle, and changed recursive inputs requeue the owning analysis even when its return has not changed yet. Final diagnostics still follow reachable dependencies. Unmodeled callees remain incomplete, and functions without normal returns do not make trailing statements reachable.
+
+Twelve tests cover growing arrays and hashes in arguments and results, mutual recursion, shared contexts, positional/keyword defaults, rest arguments, preserved known contradictions, separate call specializations, incomplete paths, exact quotas, sampled allocation failures, cleanup and cancellation. A 200-function recursive cycle and the existing 1,000-function ordinary chain run on the default Rust stack under normal limits. Three initial regression tests exhausted the default checker step quota before this change; they now converge.
+
+The [recursion reference corpus](../tests/checker-recursion.json) retains all 23 comparison scripts. Go v0.70.0 completed 21, with six decisions that differ from Rust and have explicit runtime witnesses. Standalone checks of two recursively nested rest-argument cases did not finish within five seconds; their Go decisions remain unresolved, and both remain Rust execution and inference regressions. Widened recursive facts can still lose correlations and cause conservative diagnostics. This work does not expose the checker publicly or complete the remaining analysis paths.
+
 ## Collection reads
 
 Array, string and hash indexing now preserves element and field facts, including known negative indexes, missing values and optional shape fields. Literal keys and indexes survive bindings and script calls. Array slices with known start/count retain selected elements; range and unknown numeric selectors retain conservative collection/nullability facts. Raw string indexing uses the runtime's metered Unicode and invalid-byte handling without executing script code.
@@ -60,7 +70,7 @@ Mutation results remain distinct from updated receivers, including popped values
 
 Backward control-flow edges widen growing collection facts until they converge. Equal-length tuples retain positions; differently sized tuples become general element facts. Hash joins retain optional fields and ordinary-data provenance. Recursive collection growth becomes gradual beyond the fact depth present at the first backward join, including inputs and declared contracts. The work queue, widening memo and temporary buffers are metered and use the default Rust stack. Runtime limits are unchanged.
 
-Precision is still limited: generalizing differently sized arrays loses prefix positions and minimum lengths, and uncertain attachment can include impossible combinations. These can produce conservative diagnostics for safe programs. Recursive function inputs that grow structurally also need convergence work. The checker remains private while these limits and the other integration requirements are addressed.
+Precision is still limited: generalizing differently sized arrays loses prefix positions and minimum lengths, and uncertain attachment can include impossible combinations. These can produce conservative diagnostics for safe programs. The checker remains private while these limits and the other integration requirements are addressed.
 
 Nine addressed-flow tests compare 268 parent-mutation executions, twelve branch/result executions and ten selected-position witnesses with inferred results. They also cover exact quotas, sampled allocation-failure boundaries, cleanup and cancellation. Six widening tests cover recursive growth, optional hash fields, preserved scalar contradictions, shared 2,000-level facts, quotas and the default stack. The reference corpus contains 66 Go v0.70.0 decisions: fifteen differences diagnose runtime-invalid code that Go accepts, while two reflect Go's separate temporary-update lint warnings. All seventeen have Rust runtime witnesses. These checks do not establish a public deployment gate.
 
@@ -68,7 +78,7 @@ Nine addressed-flow tests compare 268 parent-mutation executions, twelve branch/
 
 Completion still requires:
 
-- Iterable loops, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop precision and structurally growing recursive-call inputs need further convergence work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Iterable loops, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop and recursive-call precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Class, module, builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
