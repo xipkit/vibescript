@@ -1,4 +1,6 @@
 use super::{
+    arguments::{self, Arguments, Failure, Input},
+    calls::{Calls, Target},
     facts::{Atom, Fact, Facts},
     graph::{Block, Exit, Graph},
     relation::Relation,
@@ -8,13 +10,20 @@ use super::{
 use crate::{
     CallContext, Result,
     budget::Buffer,
-    bytecode::{Function, Method, Op, Program},
-    syntax::ParamKind,
+    bytecode::{ArgumentOp, Function, Invocation, Method, Op, Program},
     value::Kind,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
+    Call {
+        target: Target,
+        failure: Failure,
+    },
+    Splat {
+        actual: Fact,
+        keyword: bool,
+    },
     Return {
         actual: Fact,
         expected: Fact,
@@ -70,6 +79,7 @@ struct Operand {
     value: Fact,
     origin: Option<usize>,
     predicate: Option<Predicate>,
+    literal: Option<usize>,
 }
 
 impl Operand {
@@ -78,6 +88,7 @@ impl Operand {
             value,
             origin: None,
             predicate: None,
+            literal: None,
         }
     }
 
@@ -111,6 +122,11 @@ impl Operand {
             } else {
                 None
             },
+            literal: if self.literal == other.literal {
+                self.literal
+            } else {
+                None
+            },
         })
     }
 }
@@ -118,6 +134,7 @@ impl Operand {
 #[derive(Clone, Copy, Debug)]
 struct Loop {
     base: usize,
+    argument_base: usize,
     expression: bool,
     last: Fact,
     result: Fact,
@@ -128,6 +145,13 @@ struct State {
     locals: Slots<Binding>,
     stack: Buffer<Operand>,
     loops: Buffer<Loop>,
+    arguments: Buffer<Pending>,
+}
+
+#[derive(Debug)]
+struct Pending {
+    target: Target,
+    arguments: Arguments,
 }
 
 impl State {
@@ -142,6 +166,7 @@ impl State {
             ),
             stack: Buffer::empty(),
             loops: Buffer::empty(),
+            arguments: Buffer::empty(),
         }
     }
 
@@ -150,9 +175,21 @@ impl State {
             locals: self.locals.snapshot(ctx)?,
             stack: Buffer::empty(),
             loops: Buffer::empty(),
+            arguments: Buffer::empty(),
         };
         state.stack.extend(ctx, &self.stack.data)?;
         state.loops.extend(ctx, &self.loops.data)?;
+        for pending in &self.arguments.data {
+            ctx.charge(1)?;
+            let arguments = pending.arguments.snapshot(ctx)?;
+            state.arguments.push(
+                ctx,
+                Pending {
+                    target: pending.target,
+                    arguments,
+                },
+            )?;
+        }
         Ok(state)
     }
 
@@ -165,6 +202,15 @@ impl State {
         })?;
         assert_eq!(self.stack.data.len(), other.stack.data.len());
         assert_eq!(self.loops.data.len(), other.loops.data.len());
+        assert_eq!(self.arguments.data.len(), other.arguments.data.len());
+        for (a, b) in self.arguments.data.iter_mut().zip(&other.arguments.data) {
+            ctx.charge(1)?;
+            if a.target != b.target {
+                changed |= a.target != Target::Unsupported;
+                a.target = Target::Unsupported;
+            }
+            changed |= a.arguments.join(ctx, facts, &b.arguments)?;
+        }
         for (a, b) in self.stack.data.iter_mut().zip(&other.stack.data) {
             ctx.charge(1)?;
             let next = a.join(ctx, facts, *b)?;
@@ -173,7 +219,11 @@ impl State {
         }
         for (a, b) in self.loops.data.iter_mut().zip(&other.loops.data) {
             ctx.charge(1)?;
-            assert!(a.base == b.base && a.expression == b.expression);
+            assert!(
+                a.base == b.base
+                    && a.argument_base == b.argument_base
+                    && a.expression == b.expression
+            );
             let last = facts.union(ctx, &[a.last, b.last])?;
             let result = facts.union(ctx, &[a.result, b.result])?;
             changed |= a.last != last || a.result != result;
@@ -265,6 +315,40 @@ pub(super) fn analyze(
     function: usize,
     contracts: &[Fact],
 ) -> Result<Report> {
+    let inputs =
+        arguments::general_inputs(ctx, facts, &program.functions[function].params, contracts)?;
+    analyze_body(
+        ctx,
+        facts,
+        Body {
+            program,
+            function,
+            contracts,
+            inputs: &inputs.data,
+        },
+        &mut super::calls::Unavailable,
+    )
+}
+
+pub(super) struct Body<'a> {
+    pub program: &'a Program,
+    pub function: usize,
+    pub contracts: &'a [Fact],
+    pub inputs: &'a [Input],
+}
+
+pub(super) fn analyze_body(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    body: Body<'_>,
+    calls: &mut dyn Calls,
+) -> Result<Report> {
+    let Body {
+        program,
+        function,
+        contracts,
+        inputs,
+    } = body;
     let function_index = function;
     let function = &program.functions[function];
     let mut report = Report {
@@ -279,22 +363,38 @@ pub(super) fn analyze(
         || function.namespace.is_some()
         || function.name == "<block>"
         || !function.captures.is_empty()
-        || function
-            .params
-            .iter()
-            .any(|p| matches!(p.kind, ParamKind::Rest | ParamKind::KeywordRest))
     {
         report.incomplete.push(ctx, 0)?;
         return Ok(report);
     }
+    assert_eq!(inputs.len(), function.params.len());
+    for ty in function
+        .params
+        .iter()
+        .filter_map(|param| param.ty)
+        .chain(function.return_type)
+    {
+        ctx.charge(1)?;
+        if facts.unresolved(contracts[ty]) {
+            report.incomplete.push(ctx, 0)?;
+            return Ok(report);
+        }
+    }
+    for (slot, name) in function.local_names.iter().enumerate() {
+        ctx.charge(function.params.len() as u64 + 1)?;
+        if !function.params.iter().any(|param| param.slot == slot) && calls.global(ctx, name)? {
+            report.incomplete.push(ctx, 0)?;
+            return Ok(report);
+        }
+    }
     let graph = Graph::new(ctx, &function.code)?;
     let mut initial = State::new(function.locals);
     if !function.binds_parameters {
-        for parameter in &function.params {
+        for (index, parameter) in function.params.iter().enumerate() {
             ctx.charge(1)?;
-            let value = parameter
-                .ty
-                .map_or(Atom::Unknown.fact(), |ty| contracts[ty]);
+            let Input::Supplied(value) = inputs[index] else {
+                unreachable!()
+            };
             initial.store(ctx, parameter.slot, value)?;
         }
     }
@@ -315,6 +415,8 @@ pub(super) fn analyze(
         program,
         function,
         contracts,
+        inputs,
+        calls,
         report: None,
     };
     while let Some(index) = queue.data.pop() {
@@ -353,10 +455,58 @@ struct Walker<'a> {
     program: &'a Program,
     function: &'a Function,
     contracts: &'a [Fact],
+    inputs: &'a [Input],
+    calls: &'a mut dyn Calls,
     report: Option<&'a mut Report>,
 }
 
 impl Walker<'_> {
+    fn invoke(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        target: Target,
+        args: Arguments,
+    ) -> Result<Option<Edges>> {
+        let result = self.calls.invoke(self.ctx, self.facts, target, args)?;
+        for failure in result.failures.data {
+            self.issue(pc, IssueKind::Call { target, failure })?;
+        }
+        if result.incomplete {
+            return self.incomplete(pc).map(Some);
+        }
+        if result.value == Atom::Never.fact() {
+            return Ok(Some([None, None]));
+        }
+        state.stack.push(self.ctx, Operand::new(result.value))?;
+        Ok(None)
+    }
+
+    fn target(&mut self, state: &State, slot: usize, name: usize) -> Result<Target> {
+        if slot != usize::MAX {
+            let binding = state.locals.get(self.ctx, slot)?;
+            if binding.value != Atom::Never.fact() {
+                if binding.missing {
+                    return Ok(Target::Unsupported);
+                }
+                return self.value_target(binding.value);
+            }
+        }
+        self.calls.resolve(self.ctx, &self.program.members[name])
+    }
+
+    fn value_target(&mut self, value: Fact) -> Result<Target> {
+        if self.facts.known_primitive(self.ctx, value)? {
+            Ok(Target::NonCallable)
+        } else if matches!(
+            self.facts.node(value),
+            super::facts::Node::Atom(Atom::Any | Atom::Unknown)
+        ) {
+            Ok(Target::Dynamic)
+        } else {
+            Ok(Target::Unsupported)
+        }
+    }
     fn issue(&mut self, pc: usize, kind: IssueKind) -> Result<()> {
         if let Some(report) = self.report.as_mut() {
             report.issues.push(self.ctx, Issue { pc, kind })?;
@@ -426,7 +576,13 @@ impl Walker<'_> {
                         Kind::Money(_) => Atom::Money.fact(),
                         _ => return self.incomplete(pc),
                     };
-                    state.stack.push(self.ctx, Operand::new(value))?;
+                    state.stack.push(
+                        self.ctx,
+                        Operand {
+                            literal: Some(index),
+                            ..Operand::new(value)
+                        },
+                    )?;
                 }
                 Op::Load(slot) | Op::LoadOptional(slot, _) => {
                     let binding = state.locals.get(self.ctx, slot)?;
@@ -483,13 +639,18 @@ impl Walker<'_> {
                 Op::Bind(index, target) => {
                     let parameter = &self.function.params[index];
                     let mut supplied = state.snapshot(self.ctx)?;
-                    let value = parameter
-                        .ty
-                        .map_or(Atom::Unknown.fact(), |ty| self.contracts[ty]);
-                    supplied.store(self.ctx, parameter.slot, value)?;
+                    let input = self.inputs[index];
+                    let value = match input {
+                        Input::Supplied(value) | Input::Either(value) => Some(value),
+                        Input::Default => None,
+                    };
+                    if let Some(value) = value {
+                        supplied.store(self.ctx, parameter.slot, value)?;
+                    }
                     return Ok([
-                        Some((target, supplied)),
-                        parameter.default.then_some((pc + 1, state)),
+                        value.is_some().then_some((target, supplied)),
+                        matches!(input, Input::Default | Input::Either(_))
+                            .then_some((pc + 1, state)),
                     ]);
                 }
                 Op::BindEnd => (),
@@ -506,7 +667,8 @@ impl Walker<'_> {
                             },
                         )?;
                     }
-                    *operand = Operand::new(expected);
+                    *operand =
+                        Operand::new(self.facts.normalized(self.ctx, operand.value, expected)?);
                 }
                 Op::Pop => {
                     state.stack.data.pop().unwrap();
@@ -514,6 +676,190 @@ impl Walker<'_> {
                 Op::Dup => state
                     .stack
                     .push(self.ctx, *state.stack.data.last().unwrap())?,
+                Op::Array(count) => {
+                    let base = state.stack.data.len() - count;
+                    let mut elements = Buffer::empty();
+                    for operand in &state.stack.data[base..] {
+                        self.ctx.charge(1)?;
+                        elements.push(self.ctx, operand.value)?;
+                    }
+                    let value = self.facts.tuple(self.ctx, &elements.data)?;
+                    state.stack.data.truncate(base);
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::Hash(count) => {
+                    let base = state.stack.data.len() - count * 2;
+                    let mut fields = Buffer::empty();
+                    for pair in state.stack.data[base..].chunks_exact(2) {
+                        self.ctx.charge(1)?;
+                        let Some(index) = pair[0].literal else {
+                            return self.incomplete(pc);
+                        };
+                        let Some(name) = self.program.constants[index].as_bytes() else {
+                            return self.incomplete(pc);
+                        };
+                        fields.push(self.ctx, (name, pair[1].value, false))?;
+                    }
+                    let value = self.facts.shape(self.ctx, &fields.data, false)?;
+                    state.stack.data.truncate(base);
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::RootCall(name, _) => {
+                    let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
+                    state.arguments.push(
+                        self.ctx,
+                        Pending {
+                            target,
+                            arguments: Arguments::new(),
+                        },
+                    )?;
+                }
+                Op::Arguments => state.arguments.push(
+                    self.ctx,
+                    Pending {
+                        target: Target::Unsupported,
+                        arguments: Arguments::new(),
+                    },
+                )?,
+                Op::ResolveCall(slot, name, _) => {
+                    let target = self.target(&state, slot, name)?;
+                    if target == Target::Undefined {
+                        self.issue(
+                            pc,
+                            IssueKind::Call {
+                                target,
+                                failure: Failure::Undefined,
+                            },
+                        )?;
+                        return Ok([None, None]);
+                    }
+                    state.arguments.push(
+                        self.ctx,
+                        Pending {
+                            target,
+                            arguments: Arguments::new(),
+                        },
+                    )?;
+                }
+                Op::CallName(slot, name) => {
+                    let target = self.target(&state, slot, name)?;
+                    if target == Target::Undefined {
+                        self.issue(
+                            pc,
+                            IssueKind::Call {
+                                target,
+                                failure: Failure::Undefined,
+                            },
+                        )?;
+                        return Ok([None, None]);
+                    }
+                    state.arguments.data.last_mut().unwrap().target = target;
+                }
+                Op::CallValue => {
+                    let operand = state.stack.data.pop().unwrap();
+                    state.arguments.data.last_mut().unwrap().target =
+                        self.value_target(operand.value)?;
+                }
+                Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) => {
+                    let mut pending = state.arguments.data.pop().unwrap();
+                    let base = state.stack.data.len() - count;
+                    for operand in &state.stack.data[base..] {
+                        self.ctx.charge(1)?;
+                        pending.arguments.positional.push(self.ctx, operand.value)?;
+                    }
+                    state.stack.data.truncate(base);
+                    if let Some(edges) =
+                        self.invoke(&mut state, pc, pending.target, pending.arguments)?
+                    {
+                        return Ok(edges);
+                    }
+                }
+                Op::AutoCall(function) => {
+                    let name = &self.program.functions[function].name;
+                    // A root override is read as a value here, not called implicitly.
+                    if self.calls.global(self.ctx, name)? {
+                        return self.incomplete(pc);
+                    }
+                    let target = self.calls.resolve(self.ctx, name)?;
+                    if let Some(edges) = self.invoke(&mut state, pc, target, Arguments::new())? {
+                        return Ok(edges);
+                    }
+                }
+                Op::Argument(kind) => {
+                    let operand = state.stack.data.pop().unwrap();
+                    let pending = state.arguments.data.last_mut().unwrap();
+                    match kind {
+                        ArgumentOp::Positional => {
+                            pending.arguments.positional.push(self.ctx, operand.value)?
+                        }
+                        ArgumentOp::Keyword(name) => {
+                            let name = self
+                                .facts
+                                .symbol(self.ctx, self.program.members[name].as_bytes())?;
+                            pending.arguments.keyword(self.ctx, name, operand.value)?;
+                        }
+                        ArgumentOp::Splat => {
+                            if let super::facts::Node::Tuple(values) =
+                                self.facts.node(operand.value)
+                            {
+                                pending
+                                    .arguments
+                                    .positional
+                                    .extend(self.ctx, &values.data)?;
+                            } else {
+                                if self.facts.known_primitive(self.ctx, operand.value)? {
+                                    self.issue(
+                                        pc,
+                                        IssueKind::Splat {
+                                            actual: operand.value,
+                                            keyword: false,
+                                        },
+                                    )?;
+                                    return Ok([None, None]);
+                                }
+                                return self.incomplete(pc);
+                            }
+                        }
+                        ArgumentOp::KeywordSplat => {
+                            let mut keywords = Buffer::empty();
+                            if let super::facts::Node::Shape(fields, false, _) =
+                                self.facts.node(operand.value)
+                            {
+                                for field in &fields.data {
+                                    self.ctx.charge(1)?;
+                                    if field.optional {
+                                        return self.incomplete(pc);
+                                    }
+                                    keywords.push(self.ctx, (field.name.clone(), field.value))?;
+                                }
+                            } else {
+                                if self.facts.known_primitive(self.ctx, operand.value)? {
+                                    self.issue(
+                                        pc,
+                                        IssueKind::Splat {
+                                            actual: operand.value,
+                                            keyword: true,
+                                        },
+                                    )?;
+                                    return Ok([None, None]);
+                                }
+                                return self.incomplete(pc);
+                            }
+                            for (name, value) in &keywords.data {
+                                let name = self.facts.symbol(self.ctx, name.as_bytes().unwrap())?;
+                                pending.arguments.keyword(self.ctx, name, *value)?;
+                            }
+                        }
+                    }
+                }
+                Op::InvokeRoot(_) | Op::Invoke(Invocation::Resolved) => {
+                    let pending = state.arguments.data.pop().unwrap();
+                    if let Some(edges) =
+                        self.invoke(&mut state, pc, pending.target, pending.arguments)?
+                    {
+                        return Ok(edges);
+                    }
+                }
                 Op::Unary("!") => {
                     let operand = state.stack.data.pop().unwrap();
                     let test = self
@@ -653,6 +999,7 @@ impl Walker<'_> {
                         self.ctx,
                         Loop {
                             base: state.stack.data.len(),
+                            argument_base: state.arguments.data.len(),
                             expression,
                             last: Atom::Nil.fact(),
                             result: Atom::Never.fact(),
@@ -697,6 +1044,7 @@ impl Walker<'_> {
                         _ => (),
                     }
                     state.stack.data.truncate(current.base);
+                    state.arguments.data.truncate(current.argument_base);
                     let Exit::Jump(target) = block.exit else {
                         unreachable!()
                     };
@@ -705,6 +1053,7 @@ impl Walker<'_> {
                 Op::LoopEnd => {
                     let current = state.loops.data.pop().unwrap();
                     state.stack.data.truncate(current.base);
+                    state.arguments.data.truncate(current.argument_base);
                     state.stack.push(self.ctx, Operand::new(current.result))?;
                 }
                 Op::Return | Op::Finish => {

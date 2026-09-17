@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-The checker is unfinished. Its type-fact store, boundary relations and initial control-flow analysis currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
+The checker is unfinished. Its type-fact store, boundary relations, control-flow walker and function-call analysis currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
 
 ## Type facts
 
@@ -20,14 +20,26 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. Calls, general members, iterable loops, collection construction/mutation, exception handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
+The walker reports incomplete analysis at reachable operations it cannot model. General members, iterable loops, collection mutation/indexing, exception handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
+
+## Function calls
+
+Plain script calls propagate supplied argument facts and inferred return facts through an iterative work queue. Each function/input combination has a shared summary; changed returns requeue dependent callers, including recursive callers. Script call chains do not grow the Rust analysis stack. Diagnostics come from the final reachable dependencies, so provisional calls and unreachable functions do not contribute warnings. An unfinished callee remains visible even when its current summary has no returning path.
+
+Argument binding follows runtime positional, keyword, options-hash, rest and keyword-rest rules, including duplicate-key order. Supplied arguments skip defaults; missing optional arguments follow the default bytecode. Known boolean and scalar facts survive compatible typed boundaries, while enum conversions produce the declared nominal contract. Literal arrays and hashes retain their element or field facts, supporting exact positional and keyword splats. General array lengths and optional/unknown keyword sets still require analysis.
+
+Call targets are selected before arguments. Nested calls and loop exits preserve the appropriate pending arguments, and missing names stop analysis before argument effects. Explicit root overrides and parameter/local shadowing participate in target selection. Bare reads of overridden function names remain incomplete until root-value analysis can distinguish data reads from forbidden method extraction. Mutable root bindings and source-dependent named types also remain incomplete.
+
+Registered host calls use already compiled declarative signatures to check arity, keyword rejection, arguments and results. Analysis does not invoke callbacks, custom validators or capability factories. Unsigned callbacks retain gradual unknown results. Namespaced capabilities, source-dependent host types and attached blocks still need integration.
+
+The call corpus contains 52 scripts compared with Go v0.70.0 reachable-function checking. Eight decisions intentionally differ: Rust retains known facts through `any`, rejects known noncallables and invalid splats, skips unused defaults, and follows reachable loop/recursive returns. Each difference has a Rust execution witness. Separate tests cover binding against the runtime, a 1,000-function call chain on the default stack, mutual recursion, host-effect isolation, incomplete paths, exact quotas, failed-allocation cleanup and cancellation.
 
 ## Remaining integration
 
 Completion still requires:
 
 - Iterable loops, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Container loops need deliberate convergence rules, and value-origin facts must preserve correlations without confusing equivalent types with identical values.
-- Script, class, module, builtin and host calls, argument evaluation order, positional/keyword/rest binding, defaults, blocks and attached-method restrictions.
+- Class, module, builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
 - Mutable-container facts, property constraints, selected value semantics and invalidation after unmodeled effects.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Host-value facts, per-call capability descriptors, strict-effects validation and checker accounting across every entry point. Signature metadata must be inspected without invoking callbacks or validators.

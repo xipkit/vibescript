@@ -108,6 +108,20 @@ enum Task {
 }
 
 impl Facts {
+    pub fn normalized(
+        &mut self,
+        ctx: &mut CallContext,
+        actual: Fact,
+        expected: Fact,
+    ) -> Result<Fact> {
+        if self.relation(ctx, actual, expected)? == Relation::Accepted && !self.normalizes(expected)
+        {
+            Ok(actual)
+        } else {
+            Ok(expected)
+        }
+    }
+
     pub fn relation(
         &mut self,
         ctx: &mut CallContext,

@@ -213,7 +213,7 @@ fn nested_loops_keep_separate_control_targets_and_results() {
 #[test]
 fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
     for source in [
-        "def run; [1, 2]; end",
+        "def run; [1, 2].push(3); end",
         "def run; puts(7); end",
         "def run; begin; 1; rescue; 2; ensure; 3; end; end",
         "def run; for x in 1..3; x; end; end",
@@ -221,7 +221,7 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
         "def run(x); x.nil?; end",
         "def run(x: int); x::nil?; end",
         "def run(x: int); x::nil?(); end",
-        "def run(*args); args; end",
+        "def run(*args); args[0]; end",
         "def run; 1 <=> 2; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

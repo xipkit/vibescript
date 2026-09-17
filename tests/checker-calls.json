@@ -1,0 +1,297 @@
+{
+  "reference": "Go v0.70.0 CheckWarningsForFunction(\"run\")",
+  "cases": [
+    {
+      "source": "def id(x); x; end; def run -> int; id(7); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def run -> int; id(\"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def add(x: int, y: int) -> int; x + y; end; def run -> int; add(2, 3); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def add(x: int, y: int) -> int; x + y; end; def run -> int; add(2, \"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def bad -> int; \"bad\"; end; def run -> int; bad(); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def good -> int; 7; end; def run -> int; good; end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def pick(flag: bool); if flag; 7; else; \"bad\"; end; end; def run -> int; pick(true); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def pick(flag: bool); if flag; 7; else; \"bad\"; end; end; def run -> int; pick(false); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def id(x: any); x; end; def run -> int; id(\"bad\"); end",
+      "go_rejected": false,
+      "rust_rejected": true,
+      "difference": "An any annotation preserves the known string argument reaching an int return boundary.",
+      "runtime": {
+        "error": "type"
+      }
+    },
+    {
+      "source": "def run -> int; def_missing(7); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def run; f = 7; f(1); end",
+      "go_rejected": false,
+      "rust_rejected": true,
+      "difference": "A known integer local is not callable.",
+      "runtime": {
+        "error": "type"
+      }
+    },
+    {
+      "source": "def f(x = 7); x; end; def run -> int; f(); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x = \"bad\"); x; end; def run -> int; f(); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x = \"bad\"); x; end; def run -> int; f(7); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int = \"bad\"); x; end; def run -> int; f(7); end",
+      "go_rejected": true,
+      "rust_rejected": false,
+      "difference": "The supplied argument bypasses the invalid default expression.",
+      "runtime": {
+        "value": 7
+      }
+    },
+    {
+      "source": "def f(x: int = \"bad\"); x; end; def run -> int; f(); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int, y: int = x + 1); y; end; def run -> int; f(x: 7); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int, y: int:); x + y; end; def run -> int; f(1, y: 2); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int, y: int:); x + y; end; def run -> int; f(y: 2, x: 1); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int); x; end; def run; f(); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int); x; end; def run; f(1, 2); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int); x; end; def run; f(1, x: 2); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int:); x; end; def run; f(y: 2); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(options: {x: int}); options; end; def run -> {x: int}; f(x: 7); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(options: {x: int}); options; end; def run; f(x: \"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(*xs: array<int>); xs; end; def run -> array<int>; f(1, 2, 3); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(*xs: array<int>); xs; end; def run; f(1, \"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(**xs: hash<string, int>); xs; end; def run -> hash<string, int>; f(x: 1, y: 2); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(**xs: hash<string, int>); xs; end; def run; f(x: 1, y: \"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(first: int:, **xs: hash<string, int>); xs; end; def run -> hash<string,int>; f(first: 7, x: 1); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int); x; end; def run -> int; f(x: \"bad\", x: 7); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int); x; end; def run -> int; f(x: 7, x: \"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int, y: string); x; end; def run -> int; f(*[7, \"yes\"]); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int, y: string); x; end; def run; f(*[7, 8]); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int); x; end; def run; f(*7); end",
+      "go_rejected": false,
+      "rust_rejected": true,
+      "difference": "A known integer cannot supply positional or keyword splat arguments.",
+      "runtime": {
+        "error": "type"
+      }
+    },
+    {
+      "source": "def f(x: int); x; end; def run; f(**7); end",
+      "go_rejected": false,
+      "rust_rejected": true,
+      "difference": "A known integer cannot supply positional or keyword splat arguments.",
+      "runtime": {
+        "error": "type"
+      }
+    },
+    {
+      "source": "def f(x: int, y: string:); x; end; def run -> int; f(**{x: 7, y: \"yes\"}); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int); x; end; def run -> int; f(x: \"bad\", **{x: 7}); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int); x; end; def run; f(**{x: 7}, x: \"bad\"); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def f(x: int); x; end; def run -> int; f(**{x: \"bad\", x: 7}); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def add(x: int,y: int); x+y; end; def run -> int; add(id(7), id(8)); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def add(x: int,y: int); x+y; end; def run(flag: bool) -> int; add(x: flag ? id(7) : id(8), y: id(9)); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def add(x: int,y: int); x+y; end; def run(flag: bool) -> int; add(flag ? id(7) : id(\"bad\"), id(9)); end",
+      "go_rejected": true,
+      "rust_rejected": true
+    },
+    {
+      "source": "def id(x); x; end; def run -> int; id(while true; break id(7); end); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int,y: int); x+y; end; def run -> int; f(1, while true; break 7; end); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(x: int); x; end; def run -> int; while true; f(while true; break 7; end); break 2; end; end",
+      "go_rejected": true,
+      "rust_rejected": false,
+      "difference": "The unconditional outer loop returns its integer break value.",
+      "runtime": {
+        "value": 2
+      }
+    },
+    {
+      "source": "def f(n: int); if n == 0; 7; else; f(n - 1); end; end; def run -> int; f(3); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def f(n: int); if n == 0; \"bad\"; else; f(n - 1); end; end; def run -> int; f(3); end",
+      "go_rejected": false,
+      "rust_rejected": true,
+      "difference": "The recursive function returns a known string after reaching its base case.",
+      "runtime": {
+        "error": "type"
+      }
+    },
+    {
+      "source": "def a(flag: bool); if flag; 7; else; b(!flag); end; end; def b(flag: bool); a(flag); end; def run -> int; a(false); end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def a; b(); end; def b; a(); end; def run -> int; a(); \"unreachable\"; end",
+      "go_rejected": true,
+      "rust_rejected": false,
+      "difference": "Mutual recursion with no base case cannot reach the trailing string return.",
+      "runtime": {
+        "error": "recursion"
+      }
+    },
+    {
+      "source": "def bad(x: int); \"bad\"; end; def run -> int; if false; bad(\"bad\"); end; 7; end",
+      "go_rejected": false,
+      "rust_rejected": false
+    },
+    {
+      "source": "def bad -> int; \"bad\"; end; def run -> int; 7; end",
+      "go_rejected": false,
+      "rust_rejected": false
+    }
+  ]
+}

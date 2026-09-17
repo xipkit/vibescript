@@ -67,6 +67,8 @@ struct Entry {
     next: usize,
     choices: bool,
     string_key: Option<bool>,
+    normalizes: bool,
+    unresolved: bool,
 }
 
 #[derive(Debug)]
@@ -116,6 +118,14 @@ impl Facts {
 
     pub fn has_choices(&self, fact: Fact) -> bool {
         self.entries.data[fact.0].choices
+    }
+
+    pub fn normalizes(&self, fact: Fact) -> bool {
+        self.entries.data[fact.0].normalizes
+    }
+
+    pub fn unresolved(&self, fact: Fact) -> bool {
+        self.entries.data[fact.0].unresolved
     }
 
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
@@ -169,6 +179,34 @@ impl Facts {
             }
             _ => Some(false),
         };
+        let normalizes = match &node {
+            Node::Named(_) | Node::Nominal { .. } => true,
+            Node::Array(element) => self.normalizes(*element),
+            Node::Hash(key, value) => self.normalizes(*key) || self.normalizes(*value),
+            Node::Tuple(values) | Node::Union(values) => {
+                ctx.charge(values.data.len() as u64)?;
+                values.data.iter().any(|&value| self.normalizes(value))
+            }
+            Node::Shape(fields, _, _) => {
+                ctx.charge(fields.data.len() as u64)?;
+                fields.data.iter().any(|field| self.normalizes(field.value))
+            }
+            _ => false,
+        };
+        let unresolved = match &node {
+            Node::Named(_) => true,
+            Node::Array(element) => self.unresolved(*element),
+            Node::Hash(key, value) => self.unresolved(*key) || self.unresolved(*value),
+            Node::Tuple(values) | Node::Union(values) => {
+                ctx.charge(values.data.len() as u64)?;
+                values.data.iter().any(|&value| self.unresolved(value))
+            }
+            Node::Shape(fields, _, _) => {
+                ctx.charge(fields.data.len() as u64)?;
+                fields.data.iter().any(|field| self.unresolved(field.value))
+            }
+            _ => false,
+        };
         self.entries.push(
             ctx,
             Entry {
@@ -177,6 +215,8 @@ impl Facts {
                 next: self.buckets.data[bucket],
                 choices,
                 string_key,
+                normalizes,
+                unresolved,
             },
         )?;
         self.buckets.data[bucket] = fact.0;
