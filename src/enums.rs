@@ -188,7 +188,8 @@ impl Enumeration {
         Ok(None)
     }
 
-    fn lookup(&self, ctx: &mut CallContext, name: &[u8]) -> Result<Option<usize>> {
+    /// Finds a member by its exact declared name.
+    pub(crate) fn lookup(&self, ctx: &mut CallContext, name: &[u8]) -> Result<Option<usize>> {
         let mut lower = 0;
         let mut upper = self.definition.lookup.len();
         while lower < upper {

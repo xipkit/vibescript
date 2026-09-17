@@ -114,7 +114,8 @@ impl Facts {
         actual: Fact,
         expected: Fact,
     ) -> Result<Fact> {
-        if self.relation(ctx, actual, expected)? == Relation::Accepted && !self.normalizes(expected)
+        if self.relation(ctx, actual, expected)? == Relation::Accepted
+            && (!self.normalizes(expected) || self.enum_nominal(actual).is_some())
         {
             Ok(actual)
         } else {
@@ -255,6 +256,20 @@ impl Facts {
                         | (Node::Named(_), _)
                         | (_, Node::Named(_)) => Relation::Gradual,
                         _ if pair.source == pair.target => Relation::Accepted,
+                        (Node::EnumMember { .. }, Node::Nominal { .. }) => {
+                            if self.enum_nominal(pair.source) == Some(pair.target) {
+                                Relation::Accepted
+                            } else {
+                                Relation::Rejected
+                            }
+                        }
+                        (Node::Nominal { .. }, Node::EnumMember { .. }) => {
+                            if self.enum_nominal(pair.target) == Some(pair.source) {
+                                Relation::Gradual
+                            } else {
+                                Relation::Rejected
+                            }
+                        }
                         (Node::Protected(source, _), _) => {
                             tasks.push(
                                 ctx,

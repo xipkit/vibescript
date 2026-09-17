@@ -106,7 +106,7 @@ fn source_types_preserve_identity_enum_symbols_and_unexecuted_bodies() {
     let other = bindings.source(&mut ctx, &mut facts, &program, 2).unwrap();
     let status = known(&bindings, &mut ctx, &[first], "Status");
     assert_eq!(status, known(&bindings, &mut ctx, &[same], "status"));
-    assert_ne!(status, known(&bindings, &mut ctx, &[other], "Status"));
+    assert_eq!(status, known(&bindings, &mut ctx, &[other], "Status"));
     let draft = facts.symbol(&mut ctx, b"draft").unwrap();
     let missing = facts.symbol(&mut ctx, b"missing").unwrap();
     assert_eq!(

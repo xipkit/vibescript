@@ -118,6 +118,9 @@ impl Walker<'_> {
         let universal = names::universal(name);
         let block_rejected = universal
             || match kind {
+                Receiver::Enum | Receiver::EnumMember => {
+                    matches!(name, "to_s" | "string" | "inspect")
+                }
                 Receiver::Time | Receiver::Zoned => {
                     matches!(name, "between?" | "to_s" | "string" | "inspect")
                 }

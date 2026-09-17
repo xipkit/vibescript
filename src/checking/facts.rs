@@ -42,6 +42,12 @@ pub(super) struct Field {
     pub optional: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum NominalId {
+    Binding(usize, usize),
+    Enumeration(usize),
+}
+
 #[derive(Debug)]
 pub(super) enum Node {
     Atom(Atom),
@@ -56,6 +62,14 @@ pub(super) enum Node {
     Offset(Fact),
     Protected(Fact, crate::hash::Tag),
     TypeValue(Fact),
+    Enumeration {
+        nominal: Fact,
+        value: Value,
+    },
+    EnumMember {
+        enumeration: Fact,
+        index: usize,
+    },
     Array(Fact),
     Tuple(Buffer<Fact>),
     // The last flag identifies ordinary hashes; annotations may describe objects too.
@@ -64,8 +78,7 @@ pub(super) enum Node {
     Union(Buffer<Fact>),
     Named(Value),
     Nominal {
-        owner: usize,
-        declaration: usize,
+        identity: NominalId,
         name: Value,
         symbols: Option<Buffer<Value>>,
     },
@@ -88,6 +101,7 @@ struct Entry {
 pub(super) struct Facts {
     entries: Buffer<Entry>,
     buckets: Buffer<usize>,
+    enumerations: Buffer<Fact>,
     max_depth: usize,
 }
 
@@ -96,6 +110,7 @@ impl Facts {
         let mut facts = Self {
             entries: Buffer::empty(),
             buckets: Buffer::empty(),
+            enumerations: Buffer::empty(),
             max_depth: 0,
         };
         for atom in [
@@ -249,7 +264,9 @@ impl Facts {
             | Node::String(_)
             | Node::Symbol(_)
             | Node::Range(..)
-            | Node::Regex(_) => true,
+            | Node::Regex(_)
+            | Node::Enumeration { .. }
+            | Node::EnumMember { .. } => true,
             Node::Tuple(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().all(|&value| self.singleton(value))
@@ -493,12 +510,70 @@ impl Facts {
         self.intern(
             ctx,
             Node::Nominal {
-                owner,
-                declaration,
+                identity: NominalId::Binding(owner, declaration),
                 name,
                 symbols,
             },
         )
+    }
+
+    /// Admits immutable enum metadata without evaluating a declaration body.
+    pub fn enumeration(&mut self, ctx: &mut CallContext, value: &Value) -> Result<Fact> {
+        ctx.checkpoint()?;
+        let crate::value::Kind::Enum(enumeration) = &value.0 else {
+            unreachable!()
+        };
+        for &fact in &self.enumerations.data {
+            ctx.charge(1)?;
+            let Node::Enumeration { value, .. } = self.node(fact) else {
+                unreachable!()
+            };
+            let crate::value::Kind::Enum(previous) = &value.0 else {
+                unreachable!()
+            };
+            if std::sync::Arc::ptr_eq(&enumeration.definition, &previous.definition) {
+                return Ok(fact);
+            }
+        }
+        let mut symbols = Buffer::with_capacity(ctx, enumeration.definition.members.len())?;
+        for member in &enumeration.definition.members {
+            let symbol = ctx.bytes(member.symbol.as_bytes())?;
+            symbols.push(ctx, symbol)?;
+        }
+        let name = ctx.bytes(enumeration.definition.name.as_bytes())?;
+        let nominal = self.intern(
+            ctx,
+            Node::Nominal {
+                identity: NominalId::Enumeration(self.enumerations.data.len()),
+                name,
+                symbols: Some(symbols),
+            },
+        )?;
+        let value = ctx.import(value)?;
+        let fact = self.intern(ctx, Node::Enumeration { nominal, value })?;
+        self.enumerations.push(ctx, fact)?;
+        Ok(fact)
+    }
+
+    /// Represents one member of an admitted enum type.
+    pub fn enum_member(
+        &mut self,
+        ctx: &mut CallContext,
+        enumeration: Fact,
+        index: usize,
+    ) -> Result<Fact> {
+        debug_assert!(matches!(self.node(enumeration), Node::Enumeration { .. }));
+        self.intern(ctx, Node::EnumMember { enumeration, index })
+    }
+
+    pub(super) fn enum_nominal(&self, value: Fact) -> Option<Fact> {
+        let Node::EnumMember { enumeration, .. } = self.node(value) else {
+            return None;
+        };
+        let Node::Enumeration { nominal, .. } = self.node(*enumeration) else {
+            unreachable!()
+        };
+        Some(*nominal)
     }
 
     pub fn union(&mut self, ctx: &mut CallContext, alternatives: &[Fact]) -> Result<Fact> {
@@ -813,6 +888,8 @@ impl Node {
             Self::Offset(value) => value.hash(&mut hash),
             Self::Protected(value, tag) => (value, *tag as u8).hash(&mut hash),
             Self::TypeValue(value) => value.hash(&mut hash),
+            Self::Enumeration { nominal, .. } => nominal.hash(&mut hash),
+            Self::EnumMember { enumeration, index } => (enumeration, index).hash(&mut hash),
             Self::Range(start, end, exclusive) => (start, end, exclusive).hash(&mut hash),
             Self::Regex(value) => {
                 let crate::value::Kind::Regex(regex) = &value.0 else {
@@ -845,9 +922,7 @@ impl Node {
                     (name, field.value, field.optional).hash(&mut hash);
                 }
             }
-            Self::Nominal {
-                owner, declaration, ..
-            } => (owner, declaration).hash(&mut hash),
+            Self::Nominal { identity, .. } => identity.hash(&mut hash),
         }
         Ok(hash.finish())
     }
@@ -863,6 +938,17 @@ impl Node {
             (Self::Offset(a), Self::Offset(b)) => a == b,
             (Self::Protected(a, at), Self::Protected(b, bt)) => a == b && at == bt,
             (Self::TypeValue(a), Self::TypeValue(b)) => a == b,
+            (Self::Enumeration { nominal: a, .. }, Self::Enumeration { nominal: b, .. }) => a == b,
+            (
+                Self::EnumMember {
+                    enumeration: a,
+                    index: ai,
+                },
+                Self::EnumMember {
+                    enumeration: b,
+                    index: bi,
+                },
+            ) => a == b && ai == bi,
             (Self::Range(a, b, c), Self::Range(x, y, z)) => a == x && b == y && c == z,
             (Self::Regex(a), Self::Regex(b)) => {
                 let (crate::value::Kind::Regex(a), crate::value::Kind::Regex(b)) = (&a.0, &b.0)
@@ -894,18 +980,7 @@ impl Node {
                 }
                 true
             }
-            (
-                Self::Nominal {
-                    owner: ao,
-                    declaration: ad,
-                    ..
-                },
-                Self::Nominal {
-                    owner: bo,
-                    declaration: bd,
-                    ..
-                },
-            ) => ao == bo && ad == bd,
+            (Self::Nominal { identity: a, .. }, Self::Nominal { identity: b, .. }) => a == b,
             _ => false,
         })
     }

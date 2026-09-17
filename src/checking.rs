@@ -5,6 +5,8 @@ mod builtins;
 mod calls;
 mod cases;
 mod collections;
+#[cfg(test)]
+mod enum_tests;
 mod equality;
 mod facts;
 mod flow;

@@ -222,7 +222,7 @@ impl Bindings {
     }
 
     /// Admits initial source identities without running declaration bodies.
-    /// `owner` identifies this source environment within the analysis arena.
+    /// `owner` identifies the class environment; immutable enums keep their compiled identity.
     pub fn source(
         &mut self,
         ctx: &mut CallContext,
@@ -233,28 +233,21 @@ impl Bindings {
         let scope = self.scope(ctx)?;
         for (index, value) in program.declarations.iter().enumerate() {
             ctx.charge(1)?;
-            let mut symbols = Buffer::empty();
-            let (name, members) = match &value.0 {
-                Kind::Namespace(value) => (value.definition.name.as_bytes(), None),
-                Kind::Enum(value) => {
-                    for member in &value.definition.members {
-                        ctx.charge(1)?;
-                        symbols.push(ctx, member.symbol.as_bytes())?;
-                    }
-                    (value.definition.name.as_bytes(), Some(&symbols.data[..]))
+            let (name, fact, enumeration) = match &value.0 {
+                Kind::Namespace(value) => {
+                    let name = value.definition.name.as_bytes();
+                    (name, facts.nominal(ctx, owner, index, name, None)?, false)
+                }
+                Kind::Enum(enumeration) => {
+                    let fact = facts.enumeration(ctx, value)?;
+                    let super::facts::Node::Enumeration { nominal, .. } = facts.node(fact) else {
+                        unreachable!()
+                    };
+                    (enumeration.definition.name.as_bytes(), *nominal, true)
                 }
                 _ => unreachable!(),
             };
-            let fact = facts.nominal(ctx, owner, index, name, members)?;
-            self.insert(
-                ctx,
-                scope,
-                name,
-                Binding::Type {
-                    fact,
-                    enumeration: members.is_some(),
-                },
-            )?;
+            self.insert(ctx, scope, name, Binding::Type { fact, enumeration })?;
         }
         Ok(scope)
     }

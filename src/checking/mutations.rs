@@ -468,6 +468,20 @@ impl Facts {
         if self.singleton(a) && self.singleton(b) {
             return Some(a == b);
         }
+        for (enumeration, other) in [(a, b), (b, a)] {
+            if matches!(
+                self.node(enumeration),
+                Node::Enumeration { .. } | Node::EnumMember { .. }
+            ) && !matches!(
+                self.node(other),
+                Node::Union(_)
+                    | Node::Atom(Atom::Unknown | Atom::Any)
+                    | Node::Named(_)
+                    | Node::Nominal { .. }
+            ) {
+                return Some(false);
+            }
+        }
         let collection = |value| match self.node(value) {
             Node::Array(_) | Node::Tuple(_) => Some(false),
             Node::Hash(..) | Node::Shape(..) => Some(true),

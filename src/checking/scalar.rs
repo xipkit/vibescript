@@ -110,7 +110,14 @@ impl Facts {
                     }
                 }
                 (_, None) => {
-                    result.unsupported = true;
+                    if matches!(
+                        self.node(arm),
+                        Node::Enumeration { .. } | Node::EnumMember { .. }
+                    ) {
+                        result.rejected = true;
+                    } else {
+                        result.unsupported = true;
+                    }
                     Atom::Unknown.fact()
                 }
                 _ => {
@@ -151,6 +158,7 @@ impl Facts {
                 | "<=>"
                 | "=~"
                 | "!~"
+                | "&"
         ) {
             result.unsupported = true;
             return Ok(result);
@@ -160,6 +168,46 @@ impl Facts {
                 ctx.charge(1)?;
                 let left = self.arm(left, a);
                 let right = self.arm(right, b);
+                let enumeration = |value| {
+                    matches!(
+                        self.node(value),
+                        Node::Enumeration { .. } | Node::EnumMember { .. }
+                    )
+                };
+                if enumeration(left) || enumeration(right) {
+                    let other = if enumeration(left) { right } else { left };
+                    let next = match self.node(other) {
+                        Node::Atom(Atom::Never) => Atom::Never.fact(),
+                        Node::Named(_) | Node::Nominal { .. } => {
+                            result.unsupported = true;
+                            continue;
+                        }
+                        Node::Atom(Atom::Unknown | Atom::Any) => Atom::Unknown.fact(),
+                        _ if matches!(op, "==" | "!=") => {
+                            match self.definitely_equal(left, right) {
+                                Some(equal) => self.boolean(ctx, equal == (op == "=="))?,
+                                None => Atom::Bool.fact(),
+                            }
+                        }
+                        _ if op == "<=>" => Atom::Nil.fact(),
+                        _ if op == "%" && self.atom(left) == Some(Atom::String) => {
+                            Atom::String.fact()
+                        }
+                        Node::String(_) | Node::Atom(Atom::String)
+                            if op == "+"
+                                && (self.enum_nominal(left).is_some()
+                                    || self.enum_nominal(right).is_some()) =>
+                        {
+                            Atom::String.fact()
+                        }
+                        _ => {
+                            result.rejected = true;
+                            Atom::Never.fact()
+                        }
+                    };
+                    result.value = self.union(ctx, &[result.value, next])?;
+                    continue;
+                }
                 if op == "+"
                     && ((matches!(self.node(left), Node::Protected(..))
                         && self.atom(right) == Some(Atom::String))
@@ -231,6 +279,8 @@ impl Facts {
                     | Node::Shape(..)
                     | Node::Protected(..)
                     | Node::TypeValue(_)
+                    | Node::Enumeration { .. }
+                    | Node::EnumMember { .. }
             ) {
                 continue;
             }
@@ -260,7 +310,11 @@ impl Facts {
             let arm = self.arm(value, i);
             if !matches!(
                 self.node(arm),
-                Node::Protected(..) | Node::Tuple(_) | Node::Array(_)
+                Node::Protected(..)
+                    | Node::Tuple(_)
+                    | Node::Array(_)
+                    | Node::Enumeration { .. }
+                    | Node::EnumMember { .. }
             ) && !self.plain_hash(arm)
                 && !self.known_primitive(ctx, arm)?
             {
@@ -298,6 +352,8 @@ impl Facts {
                     Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => 1 << 21,
                     Node::Builtin(_) | Node::Offset(_) => 1 << 22,
                     Node::TypeValue(_) => 1 << 23,
+                    Node::Enumeration { .. } => 1 << 24,
+                    Node::EnumMember { .. } => 1 << 25,
                     Node::Union(_) => unreachable!(),
                 };
                 bits |= bit;

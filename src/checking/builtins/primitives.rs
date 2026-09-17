@@ -10,6 +10,8 @@ pub(super) fn receiver(facts: &Facts, value: Fact) -> Option<crate::members::nam
         Node::Tuple(_) | Node::Array(_) => Receiver::Array,
         Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => Receiver::Hash,
         Node::Builtin(_) | Node::Offset(_) | Node::TypeValue(_) => Receiver::Other,
+        Node::Enumeration { .. } => Receiver::Enum,
+        Node::EnumMember { .. } => Receiver::EnumMember,
         _ => match facts.atom(value)? {
             Atom::Never | Atom::Unknown | Atom::Any => return None,
             Atom::Nil => Receiver::Nil,
@@ -163,6 +165,16 @@ pub(super) fn member(
             "nil?" => facts.boolean(ctx, receiver == Atom::Nil.fact())?,
             "frozen?" => facts.boolean(ctx, true)?,
             "eql?" | "equal?" => {
+                if matches!(
+                    facts.node(receiver),
+                    Node::Enumeration { .. } | Node::EnumMember { .. }
+                ) {
+                    return Ok(outcome(facts.set_equal(
+                        ctx,
+                        receiver,
+                        args.positional.data[0],
+                    )?));
+                }
                 if let Some(result) = literal_call(ctx, facts, receiver, site, name, args)? {
                     return Ok(result);
                 }

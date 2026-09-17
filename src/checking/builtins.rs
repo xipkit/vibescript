@@ -15,6 +15,7 @@ use crate::{
 
 const RUNTIME: u8 = 1 << ErrorClass::Runtime as u8;
 
+mod enums;
 mod native;
 mod primitives;
 pub(super) mod protected;
@@ -47,6 +48,7 @@ pub(super) fn value_member(
         ctx.charge(1)?;
         let arm = facts.arm(receiver, i);
         if !matches!(facts.node(arm), Node::Protected(..))
+            && !enums::supported(facts, arm)
             && !values::supported(facts, arm, name)
             && !primitives::supported(ctx, facts, arm, name)?
         {
@@ -348,7 +350,8 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             | Node::Regex(_)
             | Node::Builtin(_)
             | Node::Offset(_)
-            | Node::TypeValue(_) => result.invalid = true,
+            | Node::TypeValue(_)
+            | Node::Enumeration { .. } => result.invalid = true,
             Node::Nominal {
                 symbols: Some(_), ..
             } => (),
@@ -403,6 +406,7 @@ pub(super) fn member(
         ctx.charge(1)?;
         let arm = facts.arm(receiver, i);
         special |= matches!(facts.node(arm), Node::TypeValue(_) | Node::Protected(..))
+            || enums::supported(facts, arm)
             || values::supported(facts, arm, name)
             || primitives::supported(ctx, facts, arm, name)?
             || namespace(ctx, facts, arm)?;
@@ -462,8 +466,14 @@ fn member_arm(
     name: &str,
     args: &Arguments,
 ) -> Result<Option<Outcome>> {
+    if site.scope && enums::supported(facts, receiver) {
+        return enums::member(ctx, facts, receiver, site, name, args).map(Some);
+    }
     if primitives::supported(ctx, facts, receiver, name)? {
         return primitives::member(ctx, facts, receiver, site, name, args).map(Some);
+    }
+    if enums::supported(facts, receiver) {
+        return enums::member(ctx, facts, receiver, site, name, args).map(Some);
     }
     if args.block.is_some() {
         let mut result = outcome(Atom::Never.fact());

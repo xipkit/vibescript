@@ -1271,6 +1271,17 @@ impl Walker<'_> {
                         },
                     )?;
                 }
+                Op::Declaration(index) => {
+                    let value = &self.program.declarations[index];
+                    let Kind::Enum(enumeration) = &value.0 else {
+                        return self.incomplete(pc);
+                    };
+                    if self.calls.global(self.ctx, &enumeration.definition.name)? {
+                        return self.incomplete(pc);
+                    }
+                    let value = self.facts.enumeration(self.ctx, value)?;
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
                     let (global, value) = &self.program.globals[index];
                     if self.calls.global(self.ctx, global.name())? {
