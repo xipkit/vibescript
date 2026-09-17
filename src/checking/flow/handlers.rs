@@ -324,7 +324,9 @@ impl Walker<'_> {
                     if relation == Relation::Rejected {
                         self.issue(pc, IssueKind::Return { actual, expected })?;
                     }
-                    value = if relation == Relation::Rejected {
+                    value = if relation == Relation::Rejected
+                        && !self.facts.overlaps(self.ctx, actual, expected)?
+                    {
                         Atom::Never.fact()
                     } else {
                         self.facts.normalized(self.ctx, actual, expected)?
@@ -332,6 +334,9 @@ impl Walker<'_> {
                 }
                 if let Some(report) = self.report.as_mut() {
                     report.returns = self.facts.union(self.ctx, &[report.returns, actual])?;
+                    report.normal_returns = self
+                        .facts
+                        .union(self.ctx, &[report.normal_returns, value])?;
                 }
                 if value != Atom::Never.fact() {
                     self.block_exit(&state, pc, blocks::Completion::Value, value)?;

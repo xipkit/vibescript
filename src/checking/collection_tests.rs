@@ -266,7 +266,7 @@ fn hash_member_reads_keep_field_and_builtin_precedence_separate() {
 #[test]
 fn blocks_and_capability_object_dispatch_remain_explicitly_incomplete() {
     for source in [
-        "def run; [7].map { _1 }; end",
+        "def run; [7].group_by { _1.to_s }; end",
         "def run(x: {size: string}); x.size; end",
         "def run(x: hash<string,int>); x.keys; end",
         "def run(x: hash); x[0]; end",

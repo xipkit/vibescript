@@ -232,9 +232,9 @@ fn recursive_returns_keep_known_bad_arms_and_unreachable_tails_separate() {
 #[test]
 fn recursive_unmodeled_paths_stay_incomplete_after_return_widening() {
     for source in [
-        "def f(xs,n: int); if n>0; f(xs.push(7),n-1); else; xs.map { _1 }; end; end; def run -> int; f([],3); 7; end",
-        "def f(n: int); if n>0; [f(n-1)]; else; [1].map { _1 }; end; end; def run -> array; f(3); end",
-        "def f(n: int); if n>1; [f(n-1)]; elsif n>0; [1].map { _1 }; else; []; end; end; def run -> array; f(3); end",
+        "def f(xs,n: int); if n>0; f(xs.push(7),n-1); else; xs.group_by { _1.to_s }; end; end; def run -> int; f([],3); 7; end",
+        "def f(n: int); if n>0; [f(n-1)]; else; [1].group_by { _1.to_s }; end; end; def run -> array; f(3); end",
+        "def f(n: int); if n>1; [f(n-1)]; elsif n>0; [1].group_by { _1.to_s }; else; []; end; end; def run -> array; f(3); end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

@@ -252,12 +252,7 @@ pub(super) fn analyze(
             layouts: Some(solver.layouts),
         };
         let mut report = flow::analyze_body(ctx, facts, body, &mut solver)?;
-        let mut returns = report.returns;
-        if returns != Atom::Never.fact() {
-            if let Some(ty) = solver.world.program.functions[function].return_type {
-                returns = facts.normalized(ctx, returns, solver.world.contracts[ty])?;
-            }
-        }
+        let mut returns = report.normal_returns;
         let previous = solver.jobs.data[index].returns;
         if solver.jobs.data[index].cyclic && previous != Atom::Never.fact() && previous != returns {
             let depth = *solver.jobs.data[index]

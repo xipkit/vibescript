@@ -70,3 +70,6 @@ mod lexical_tests;
 
 #[cfg(test)]
 mod forwarding_tests;
+
+#[cfg(test)]
+mod collection_block_tests;

@@ -28,7 +28,7 @@ fn check(source: &str, rejected: bool) {
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
-fn inferred_runtime(source: &str, args: &[Value], rejected: bool) -> Value {
+pub(super) fn inferred_runtime(source: &str, args: &[Value], rejected: bool) -> Value {
     let actual = crate::Engine::new()
         .compile(source)
         .unwrap()
@@ -203,7 +203,7 @@ fn iterable_loops_keep_unsupported_reachable_paths_visible() {
     for source in [
         "def run; for x in [7]; x.no_such_method; end; end",
         "def run(h: hash<string,int>); for k,v in h; v; end; end",
-        "def run; for x in [7]; begin; x; ensure; [1].map { _1 }; end; end; end",
+        "def run; for x in [7]; begin; x; ensure; [1].group_by { _1.to_s }; end; end; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

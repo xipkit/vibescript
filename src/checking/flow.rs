@@ -18,6 +18,7 @@ use crate::{
 };
 
 mod callbacks;
+mod collection_blocks;
 mod effects;
 mod handlers;
 mod native;
@@ -101,6 +102,7 @@ pub(super) struct Issue {
 #[derive(Debug)]
 pub(super) struct Report {
     pub returns: Fact,
+    pub normal_returns: Fact,
     pub throws: u8,
     pub issues: Buffer<Issue>,
     pub incomplete: Buffer<usize>,
@@ -547,6 +549,7 @@ pub(super) fn analyze_body(
     let function = &program.functions[function];
     let mut report = Report {
         returns: Atom::Never.fact(),
+        normal_returns: Atom::Never.fact(),
         throws: 0,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
@@ -1376,20 +1379,20 @@ impl Walker<'_> {
                 }
                 Op::BindEnd => (),
                 Op::Normalize(ty, _) => {
-                    let operand = state.stack.data.last_mut().unwrap();
+                    let actual = state.stack.data.last().unwrap().value;
                     let expected = self.contracts[ty];
-                    if self.facts.relation(self.ctx, operand.value, expected)? == Relation::Rejected
-                    {
-                        self.issue(
-                            pc,
-                            IssueKind::Default {
-                                actual: operand.value,
-                                expected,
-                            },
-                        )?;
+                    let relation = self.facts.relation(self.ctx, actual, expected)?;
+                    if relation != Relation::Accepted {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                     }
-                    *operand =
-                        Operand::new(self.facts.normalized(self.ctx, operand.value, expected)?);
+                    if relation == Relation::Rejected {
+                        self.issue(pc, IssueKind::Default { actual, expected })?;
+                        if !self.facts.overlaps(self.ctx, actual, expected)? {
+                            return Ok([None, None]);
+                        }
+                    }
+                    *state.stack.data.last_mut().unwrap() =
+                        Operand::new(self.facts.normalized(self.ctx, actual, expected)?);
                 }
                 Op::Pop => {
                     state.stack.data.pop().unwrap();

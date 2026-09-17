@@ -239,8 +239,8 @@ fn native_blocks_and_retained_mutations_stay_incomplete() {
         "def once; yield; end; def run; a=[[1]]; a[0].push(once {a[0]=[2]; 7}); a; end",
         "def once; yield; end; def run; a=[1]; a[-1]+=once {a.push(2); 7}; a; end",
         "def once; yield; end; def run; a=[1]; a.push(once {a=a; 7}); a; end",
-        "def run; [1].map {|x| x+1}; end",
-        "def run; [1].each {|x| break 7}; end",
+        "def run; [1].reduce {|a,x| a}; end",
+        "def run; [1].group_by {|x| x.to_s}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

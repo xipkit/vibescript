@@ -128,6 +128,22 @@ impl Facts {
         source: Fact,
         target: Fact,
     ) -> Result<Relation> {
+        self.compare(ctx, source, target, false)
+    }
+
+    pub fn overlaps(&mut self, ctx: &mut CallContext, source: Fact, target: Fact) -> Result<bool> {
+        ctx.charge(1)?;
+        Ok(source != Atom::Never.fact()
+            && self.compare(ctx, source, target, true)? != Relation::Rejected)
+    }
+
+    fn compare(
+        &mut self,
+        ctx: &mut CallContext,
+        source: Fact,
+        target: Fact,
+        overlap: bool,
+    ) -> Result<Relation> {
         let mut tasks = Buffer::empty();
         let mut values = Buffer::empty();
         let mut memo = Memo::new();
@@ -137,7 +153,7 @@ impl Facts {
                 source,
                 target,
                 keys: false,
-                overlap: false,
+                overlap,
             }),
         )?;
         while let Some(task) = tasks.data.pop() {

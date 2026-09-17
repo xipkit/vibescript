@@ -97,6 +97,71 @@ impl Walker<'_> {
         Ok(true)
     }
 
+    pub(super) fn capture_exit(
+        &mut self,
+        state: &State,
+        pc: usize,
+        block: &Closure,
+        exit: &blocks::Exit,
+    ) -> Result<Option<State>> {
+        let mut next = state.snapshot(self.ctx)?;
+        let mut supported = true;
+        for link in &block.captures.data {
+            if exit.written.get(self.ctx, link.slot)? {
+                let value = exit.captures.get(self.ctx, link.slot)?;
+                let parent = match link.parent {
+                    Parent::Local(parent) => parent,
+                    Parent::Capture(parent) => {
+                        next.captures
+                            .as_mut()
+                            .unwrap()
+                            .store(self.ctx, self.facts, parent, value)?;
+                        continue;
+                    }
+                };
+                // A final value does not distinguish mutation from root replacement.
+                // Pending addresses require the ordered mutation history of the callback.
+                for address in &next.addresses.data {
+                    self.ctx.charge(1)?;
+                    if address.root == Some(parent) {
+                        supported = false;
+                    }
+                }
+                next.store(self.ctx, self.facts, parent, value)?;
+            }
+        }
+        if !supported {
+            self.incomplete(pc)?;
+            return Ok(None);
+        }
+        Ok(Some(next))
+    }
+
+    pub(super) fn callback_return(
+        &mut self,
+        next: State,
+        pc: usize,
+        depth: usize,
+        value: Fact,
+    ) -> Result<()> {
+        // A block shares its caller's lexical home. An ordinary caller
+        // consumes that home and moves every older destination one layer nearer.
+        let transfer = if self.block_inputs.is_some() || depth > 0 {
+            Transfer::Block {
+                pc,
+                completion: Completion::Return(depth - usize::from(self.block_inputs.is_none())),
+                value,
+            }
+        } else {
+            Transfer::Return { pc, value }
+        };
+        let edges = self.transfer(next, pc, transfer)?;
+        for edge in edges.into_iter().flatten() {
+            self.extra.push(self.ctx, edge)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn call_exits(
         &mut self,
         state: &State,
@@ -106,62 +171,16 @@ impl Walker<'_> {
     ) -> Result<()> {
         for exit in exits.data {
             self.ctx.charge(1)?;
-            let mut next = state.snapshot(self.ctx)?;
-            let mut supported = true;
-            for link in &block.captures.data {
-                if exit.written.get(self.ctx, link.slot)? {
-                    let value = exit.captures.get(self.ctx, link.slot)?;
-                    let parent = match link.parent {
-                        Parent::Local(parent) => parent,
-                        Parent::Capture(parent) => {
-                            next.captures
-                                .as_mut()
-                                .unwrap()
-                                .store(self.ctx, self.facts, parent, value)?;
-                            continue;
-                        }
-                    };
-                    // A final value does not distinguish mutation from root replacement.
-                    // Pending addresses require the ordered mutation history of the callback.
-                    for address in &next.addresses.data {
-                        self.ctx.charge(1)?;
-                        if address.root == Some(parent) {
-                            supported = false;
-                        }
-                    }
-                    next.store(self.ctx, self.facts, parent, value)?;
-                }
-            }
-            if !supported {
-                self.incomplete(pc)?;
+            let Some(mut next) = self.capture_exit(state, pc, block, &exit)? else {
                 continue;
-            }
+            };
             match exit.completion {
                 Completion::Value => {
                     next.stack.push(self.ctx, Operand::new(exit.value))?;
                     self.extra.push(self.ctx, (pc + 1, next))?;
                 }
                 Completion::Return(depth) => {
-                    // A block shares its caller's lexical home. An ordinary caller
-                    // consumes that home and moves every older destination one layer nearer.
-                    let transfer = if self.block_inputs.is_some() || depth > 0 {
-                        Transfer::Block {
-                            pc,
-                            completion: Completion::Return(
-                                depth - usize::from(self.block_inputs.is_none()),
-                            ),
-                            value: exit.value,
-                        }
-                    } else {
-                        Transfer::Return {
-                            pc,
-                            value: exit.value,
-                        }
-                    };
-                    let edges = self.transfer(next, pc, transfer)?;
-                    for edge in edges.into_iter().flatten() {
-                        self.extra.push(self.ctx, edge)?;
-                    }
+                    self.callback_return(next, pc, depth, exit.value)?;
                 }
                 Completion::Error(class) => self.emit_error(&next, pc, handlers::bit(class))?,
                 Completion::Break(_) => unreachable!("receiving functions consume block breaks"),
