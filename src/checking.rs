@@ -67,3 +67,6 @@ mod yield_tests;
 
 #[cfg(test)]
 mod lexical_tests;
+
+#[cfg(test)]
+mod forwarding_tests;

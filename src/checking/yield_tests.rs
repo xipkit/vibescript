@@ -234,9 +234,8 @@ fn block_contexts_distinguish_capture_types_presence_and_recursive_calls() {
 }
 
 #[test]
-fn nonlocal_owner_forwarding_native_blocks_and_retained_mutations_stay_incomplete() {
+fn native_blocks_and_retained_mutations_stay_incomplete() {
     for source in [
-        "def once; yield; end; def outer; once {yield}; end; def run; outer {7}; end",
         "def once; yield; end; def run; a=[[1]]; a[0].push(once {a[0]=[2]; 7}); a; end",
         "def once; yield; end; def run; a=[1]; a[-1]+=once {a.push(2); 7}; a; end",
         "def once; yield; end; def run; a=[1]; a.push(once {a=a; 7}); a; end",

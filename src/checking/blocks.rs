@@ -12,32 +12,60 @@ pub(super) struct Capture {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Parent {
+    Local(usize),
+    Capture(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Link {
     pub slot: usize,
-    pub parent: usize,
+    pub parent: Parent,
     pub value: Fact,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Layer {
+    pub function: usize,
+    pub given: bool,
+    pub locals: usize,
 }
 
 #[derive(Debug)]
 pub(super) struct Closure {
     pub function: usize,
     pub given: bool,
+    pub locals: usize,
+    // Each layer belongs to an earlier lexical function home, ordered nearest first.
+    pub inherited: Buffer<Layer>,
     pub captures: Buffer<Link>,
 }
 
 impl Closure {
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
+        ctx.charge(1)?;
         let mut captures = Buffer::empty();
         captures.extend(ctx, &self.captures.data)?;
+        let mut inherited = Buffer::empty();
+        inherited.extend(ctx, &self.inherited.data)?;
         Ok(Self {
             function: self.function,
             given: self.given,
+            locals: self.locals,
+            inherited,
             captures,
         })
     }
 
+    pub fn extent(&self, ctx: &mut CallContext) -> Result<usize> {
+        extent(ctx, self.locals, &self.inherited.data)
+    }
+
     pub fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
+        ctx.charge(self.inherited.data.len() as u64 + 1)?;
         assert_eq!((self.function, self.given), (other.function, other.given));
+        assert_eq!(self.locals, other.locals);
+        assert_eq!(self.inherited.data, other.inherited.data);
         assert_eq!(self.captures.data.len(), other.captures.data.len());
         let mut changed = false;
         for (a, b) in self.captures.data.iter_mut().zip(&other.captures.data) {
@@ -51,17 +79,35 @@ impl Closure {
     }
 }
 
+pub(super) fn extent(ctx: &mut CallContext, locals: usize, inherited: &[Layer]) -> Result<usize> {
+    ctx.charge(1)?;
+    let mut total = locals;
+    for layer in inherited {
+        ctx.charge(1)?;
+        let Some(next) = total.checked_add(layer.locals) else {
+            return ctx.fail(
+                crate::ErrorKind::Memory,
+                "checker capture layout size overflow",
+            );
+        };
+        total = next;
+    }
+    Ok(total)
+}
+
 pub(super) struct Inputs<'a> {
     pub arguments: &'a [Fact],
     // The caller resolves lexical owners; absent entries are local to this invocation.
     pub captures: &'a [Capture],
     pub given: bool,
+    pub inherited: &'a [Layer],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Completion {
     Value,
-    Return,
+    // The home of the indicated callback layer, including the invoked block itself.
+    Return(usize),
     Break(bool),
     Error(ErrorClass),
 }

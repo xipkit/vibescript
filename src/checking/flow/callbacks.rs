@@ -1,9 +1,19 @@
 use super::*;
-use blocks::{Closure, Completion, Link};
+use blocks::{Closure, Completion, Layer, Link, Parent};
 
 impl Walker<'_> {
     pub(super) fn given(&self) -> bool {
         self.incoming.is_some() || self.block_inputs.is_some_and(|b| b.given)
+    }
+
+    fn incoming_base(&mut self) -> Result<usize> {
+        if self.block_inputs.is_some() {
+            self.layouts
+                .locals(self.ctx, self.program, self.function_index)
+        } else {
+            self.ctx.charge(1)?;
+            Ok(0)
+        }
     }
 
     pub(super) fn attach(&mut self, state: &mut State, function: usize) -> Result<bool> {
@@ -43,14 +53,45 @@ impl Walker<'_> {
                 self.ctx,
                 Link {
                     slot,
-                    parent,
+                    parent: Parent::Local(parent),
                     value: binding.value,
                 },
             )?;
         }
+        let mut inherited = Buffer::empty();
+        let forwarding = self.layouts.forwarding(self.ctx, function)?;
+        if let Some(incoming) = self.incoming.filter(|_| forwarding) {
+            let base = self.incoming_base()?;
+            inherited.push(
+                self.ctx,
+                Layer {
+                    function: incoming.function,
+                    given: incoming.given,
+                    locals: incoming.locals,
+                },
+            )?;
+            inherited.extend(self.ctx, &incoming.inherited.data)?;
+            // Check the full extent before adding offsets to the individual capture slots.
+            blocks::extent(self.ctx, locals, &inherited.data)?;
+            for link in &incoming.captures.data {
+                self.ctx.charge(1)?;
+                let parent = base + link.slot;
+                let value = state.captures.as_ref().unwrap().value(self.ctx, parent)?;
+                captures.push(
+                    self.ctx,
+                    Link {
+                        slot: locals + link.slot,
+                        parent: Parent::Capture(parent),
+                        value,
+                    },
+                )?;
+            }
+        }
         state.arguments.data.last_mut().unwrap().arguments.block = Some(Closure {
             function,
             given: self.given(),
+            locals,
+            inherited,
             captures,
         });
         Ok(true)
@@ -69,16 +110,26 @@ impl Walker<'_> {
             let mut supported = true;
             for link in &block.captures.data {
                 if exit.written.get(self.ctx, link.slot)? {
+                    let value = exit.captures.get(self.ctx, link.slot)?;
+                    let parent = match link.parent {
+                        Parent::Local(parent) => parent,
+                        Parent::Capture(parent) => {
+                            next.captures
+                                .as_mut()
+                                .unwrap()
+                                .store(self.ctx, self.facts, parent, value)?;
+                            continue;
+                        }
+                    };
                     // A final value does not distinguish mutation from root replacement.
                     // Pending addresses require the ordered mutation history of the callback.
                     for address in &next.addresses.data {
                         self.ctx.charge(1)?;
-                        if address.root == Some(link.parent) {
+                        if address.root == Some(parent) {
                             supported = false;
                         }
                     }
-                    let value = exit.captures.get(self.ctx, link.slot)?;
-                    next.store(self.ctx, self.facts, link.parent, value)?;
+                    next.store(self.ctx, self.facts, parent, value)?;
                 }
             }
             if !supported {
@@ -90,11 +141,15 @@ impl Walker<'_> {
                     next.stack.push(self.ctx, Operand::new(exit.value))?;
                     self.extra.push(self.ctx, (pc + 1, next))?;
                 }
-                Completion::Return => {
-                    let transfer = if self.block_inputs.is_some() {
+                Completion::Return(depth) => {
+                    // A block shares its caller's lexical home. An ordinary caller
+                    // consumes that home and moves every older destination one layer nearer.
+                    let transfer = if self.block_inputs.is_some() || depth > 0 {
                         Transfer::Block {
                             pc,
-                            completion: Completion::Return,
+                            completion: Completion::Return(
+                                depth - usize::from(self.block_inputs.is_none()),
+                            ),
                             value: exit.value,
                         }
                     } else {
@@ -124,21 +179,22 @@ impl Walker<'_> {
         let Some(incoming) = self.incoming else {
             return self.incomplete(pc);
         };
+        let base = self.incoming_base()?;
         let mut block = incoming.snapshot(self.ctx)?;
         for link in &mut block.captures.data {
             link.value = state
-                .incoming
+                .captures
                 .as_ref()
                 .unwrap()
-                .value(self.ctx, link.slot)?;
+                .value(self.ctx, base + link.slot)?;
         }
         let mut args = Arguments::new();
-        let base = state.stack.data.len() - count;
-        for operand in &state.stack.data[base..] {
+        let argument_base = state.stack.data.len() - count;
+        for operand in &state.stack.data[argument_base..] {
             self.ctx.charge(1)?;
             args.positional.push(self.ctx, operand.value)?;
         }
-        state.stack.data.truncate(base);
+        state.stack.data.truncate(argument_base);
         args.block = Some(block);
         let current_error = state.current_error(self.ctx, self.current_error)?;
         let result = self.calls.invoke(
@@ -158,10 +214,12 @@ impl Walker<'_> {
             for link in &incoming.captures.data {
                 if exit.written.get(self.ctx, link.slot)? {
                     let value = exit.captures.get(self.ctx, link.slot)?;
-                    next.incoming
-                        .as_mut()
-                        .unwrap()
-                        .store(self.ctx, self.facts, link.slot, value)?;
+                    next.captures.as_mut().unwrap().store(
+                        self.ctx,
+                        self.facts,
+                        base + link.slot,
+                        value,
+                    )?;
                 }
             }
             let transfer = match exit.completion {
@@ -174,9 +232,11 @@ impl Walker<'_> {
                     self.emit_error(&next, pc, handlers::bit(class))?;
                     continue;
                 }
-                Completion::Return => Transfer::Block {
+                Completion::Return(depth) => Transfer::Block {
                     pc,
-                    completion: Completion::Return,
+                    completion: Completion::Return(
+                        depth + usize::from(self.block_inputs.is_some()),
+                    ),
                     value: exit.value,
                 },
                 Completion::Break(supplied) => {
@@ -193,6 +253,12 @@ impl Walker<'_> {
                             index: next.loops.data.len() - 1,
                             breaking: true,
                             value,
+                        }
+                    } else if self.block_inputs.is_some() {
+                        Transfer::Block {
+                            pc,
+                            completion: Completion::Break(supplied),
+                            value: exit.value,
                         }
                     } else {
                         Transfer::Return {

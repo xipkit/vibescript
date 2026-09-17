@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{CallContext, CallOptions, Engine};
 
-fn witness(source: &str, exact: bool, warnings: bool) {
+pub(super) fn witness(source: &str, exact: bool, warnings: bool) {
     let actual = Engine::new()
         .compile(source)
         .unwrap_or_else(|e| panic!("{source}: {e}"))

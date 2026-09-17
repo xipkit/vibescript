@@ -179,6 +179,7 @@ struct Solver<'a> {
 
 enum Ancestor<'a> {
     Function(usize, &'a Context),
+    Expanding(usize, &'a Context),
     Job(usize),
 }
 
@@ -234,6 +235,7 @@ pub(super) fn analyze(
                 arguments: &context.arguments.data,
                 captures: &context.captures.data,
                 given,
+                inherited: &context.inherited.data,
             })
         } else {
             None
@@ -533,6 +535,10 @@ impl Solver<'_> {
                     self.jobs.data[index].function == function
                         && self.jobs.data[index].context.compatible(ctx, context)?
                 }
+                Ancestor::Expanding(function, context) => {
+                    self.jobs.data[index].function == function
+                        && self.jobs.data[index].context.expands(ctx, context)?
+                }
                 Ancestor::Job(job) => index == job,
             };
             if matched {
@@ -669,6 +675,15 @@ impl Calls for Solver<'_> {
                     }
                     bound.inputs
                 };
+                if !context.inherited.data.is_empty()
+                    && self.functions.data[function]
+                    && self
+                        .ancestor(ctx, Ancestor::Expanding(function, &context))?
+                        .is_some()
+                {
+                    outcome.incomplete = true;
+                    return Ok(outcome);
+                }
                 let index =
                     self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
                 ctx.charge(self.dependencies.data.len() as u64)?;

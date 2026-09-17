@@ -73,7 +73,11 @@ fn witness(
                 expected == Completion::Value,
                 "{source}"
             );
-            assert_eq!(observed.after, expected != Completion::Return, "{source}");
+            assert_eq!(
+                observed.after,
+                expected != Completion::Return(0),
+                "{source}"
+            );
             result.value
         }
     };
@@ -116,6 +120,7 @@ fn witness(
         arguments: &inputs.data,
         captures: &variables.data,
         given,
+        inherited: &[],
     };
     let report = flow::analyze_body(
         &mut ctx,
@@ -227,7 +232,7 @@ fn block_nonlocal_controls_keep_distinct_exit_kinds() {
         ("x=2; next; missing", Completion::Value),
         ("x=2; break 7; missing", Completion::Break(true)),
         ("x=2; break; missing", Completion::Break(false)),
-        ("x=2; return 7; missing", Completion::Return),
+        ("x=2; return 7; missing", Completion::Return(0)),
         ("x=2; raise \"bad\"", Completion::Error(ErrorClass::Runtime)),
     ] {
         witness("", &[], body, &[("x", "1", Value::int(1))], expected, false);
@@ -243,7 +248,10 @@ fn ensure_writes_follow_the_surviving_block_control() {
             "begin; x=2; break 7; ensure; x=3; end",
             Completion::Break(true),
         ),
-        ("begin; x=2; return 7; ensure; x=3; end", Completion::Return),
+        (
+            "begin; x=2; return 7; ensure; x=3; end",
+            Completion::Return(0),
+        ),
         (
             "begin; x=2; raise \"bad\"; ensure; x=3; end",
             Completion::Error(ErrorClass::Runtime),
@@ -254,7 +262,7 @@ fn ensure_writes_follow_the_surviving_block_control() {
         ),
         (
             "begin; break 7; ensure; x=3; return 9; end",
-            Completion::Return,
+            Completion::Return(0),
         ),
         (
             "begin; next 7; ensure; x=3; break 9; end",
@@ -266,7 +274,7 @@ fn ensure_writes_follow_the_surviving_block_control() {
         ),
         (
             "begin; raise \"bad\"; ensure; x=3; return 9; end",
-            Completion::Return,
+            Completion::Return(0),
         ),
     ] {
         witness("", &[], body, &[("x", "1", Value::int(1))], expected, false);
@@ -342,7 +350,7 @@ fn block_cleanup_control_matrix_matches_execution() {
         ("next 7", Completion::Value),
         ("break 7", Completion::Break(true)),
         ("break", Completion::Break(false)),
-        ("return 7", Completion::Return),
+        ("return 7", Completion::Return(0)),
         ("raise \"body\"", Completion::Error(ErrorClass::Runtime)),
     ];
     let cleanups = [
@@ -350,7 +358,7 @@ fn block_cleanup_control_matrix_matches_execution() {
         ("next 9", Some(Completion::Value)),
         ("break 9", Some(Completion::Break(true))),
         ("break", Some(Completion::Break(false))),
-        ("return 9", Some(Completion::Return)),
+        ("return 9", Some(Completion::Return(0))),
         (
             "raise \"cleanup\"",
             Some(Completion::Error(ErrorClass::Runtime)),
@@ -465,6 +473,7 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
         arguments: &[Atom::Bool.fact()],
         captures: &captures,
         given: false,
+        inherited: &[],
     };
     let report = flow::analyze_body(
         ctx,
@@ -487,7 +496,7 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
             .block_exits
             .data
             .iter()
-            .any(|e| e.completion == Completion::Return)
+            .any(|e| e.completion == Completion::Return(0))
     );
     assert!(
         report
@@ -604,6 +613,7 @@ fn native_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
         arguments: &[],
         captures: &[],
         given: true,
+        inherited: &[],
     };
     let report = flow::analyze_body(
         &mut ctx,
@@ -650,6 +660,7 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
         arguments: &[Atom::Bool.fact()],
         captures: &captures,
         given: false,
+        inherited: &[],
     };
     let report = flow::analyze_body(
         &mut ctx,
@@ -672,9 +683,10 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
     assert_eq!(report.returns, Atom::Never.fact());
     assert_eq!(report.throws, 0);
     assert_eq!(report.block_exits.data.len(), 2);
-    for (completion, value, written) in
-        [(Completion::Return, 7, 2), (Completion::Break(true), 9, 3)]
-    {
+    for (completion, value, written) in [
+        (Completion::Return(0), 7, 2),
+        (Completion::Break(true), 9, 3),
+    ] {
         let exit = report
             .block_exits
             .data
@@ -717,7 +729,7 @@ fn block_controls_preserve_completed_argument_effects_without_publishing_pending
     for (control, completion) in [
         ("next 7", Completion::Value),
         ("break 7", Completion::Break(true)),
-        ("return 7", Completion::Return),
+        ("return 7", Completion::Return(0)),
         ("raise \"bad\"", Completion::Error(ErrorClass::Runtime)),
     ] {
         for expression in [

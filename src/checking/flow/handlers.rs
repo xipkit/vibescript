@@ -174,10 +174,7 @@ impl Walker<'_> {
         completion: blocks::Completion,
         value: Fact,
     ) -> Result<()> {
-        if let (Some(report), Some(captures)) = (
-            &mut self.report,
-            state.captures.as_ref().or(state.incoming.as_ref()),
-        ) {
+        if let (Some(report), Some(captures)) = (&mut self.report, state.captures.as_ref()) {
             captures.record(
                 self.ctx,
                 self.facts,
@@ -442,7 +439,7 @@ impl Walker<'_> {
             if let Some(report) = self.report.as_mut() {
                 report.throws |= classes;
             }
-            if state.captures.is_some() || state.incoming.is_some() {
+            if state.captures.is_some() {
                 for class in CLASSES {
                     self.ctx.charge(1)?;
                     if classes & bit(class) != 0 {

@@ -9,6 +9,7 @@ struct Layout {
     additional: Buffer<Capture>,
     shadows: Buffer<bool>,
     parent: Option<usize>,
+    forwarding: bool,
 }
 
 pub(super) struct Layouts {
@@ -22,6 +23,7 @@ impl Layouts {
         for function in &program.functions {
             ctx.charge(1)?;
             let mut shadows = Buffer::with_capacity(ctx, function.locals)?;
+            let mut forwarding = false;
             ctx.charge(function.locals as u64)?;
             shadows.data.resize(function.locals, false);
             for op in &function.code {
@@ -29,6 +31,7 @@ impl Layouts {
                 if let Op::Shadow(slot) = *op {
                     shadows.data[slot] = true;
                 }
+                forwarding |= matches!(op, Op::Yield(_));
             }
             functions.push(
                 ctx,
@@ -36,6 +39,7 @@ impl Layouts {
                     additional: Buffer::empty(),
                     shadows,
                     parent: None,
+                    forwarding,
                 },
             )?;
         }
@@ -51,6 +55,18 @@ impl Layouts {
         }
         let mut layouts = Self { functions };
         for (function, body) in program.functions.iter().enumerate() {
+            ctx.charge(1)?;
+            if layouts.functions.data[function].forwarding {
+                let mut child = function;
+                while let Some(parent) = layouts.functions.data[child].parent {
+                    ctx.charge(1)?;
+                    if layouts.functions.data[parent].forwarding {
+                        break;
+                    }
+                    layouts.functions.data[parent].forwarding = true;
+                    child = parent;
+                }
+            }
             for source in &body.captures {
                 ctx.charge(1)?;
                 let Some(mut source) = *source else {
@@ -74,6 +90,11 @@ impl Layouts {
             }
         }
         Ok(layouts)
+    }
+
+    pub fn forwarding(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {
+        ctx.charge(1)?;
+        Ok(self.functions.data[function].forwarding)
     }
 
     pub fn locals(

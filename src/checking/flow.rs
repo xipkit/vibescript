@@ -226,7 +226,7 @@ struct Attempt {
 struct State {
     locals: Slots<Binding>,
     captures: Option<blocks::Captures>,
-    incoming: Option<blocks::Captures>,
+    capture_locals: bool,
     stack: Buffer<Operand>,
     loops: Buffer<Loop>,
     arguments: Buffer<Pending>,
@@ -257,7 +257,7 @@ impl State {
     fn new(locals: usize) -> Self {
         Self {
             captures: None,
-            incoming: None,
+            capture_locals: false,
             locals: Slots::new(
                 locals,
                 Binding {
@@ -278,11 +278,7 @@ impl State {
     fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut state = Self {
             locals: self.locals.snapshot(ctx)?,
-            incoming: self
-                .incoming
-                .as_ref()
-                .map(|c| c.snapshot(ctx))
-                .transpose()?,
+            capture_locals: self.capture_locals,
             captures: self
                 .captures
                 .as_ref()
@@ -341,9 +337,7 @@ impl State {
         if let (Some(a), Some(b)) = (&mut self.captures, &other.captures) {
             changed |= a.join(ctx, facts, b, depth)?;
         }
-        if let (Some(a), Some(b)) = (&mut self.incoming, &other.incoming) {
-            changed |= a.join(ctx, facts, b, depth)?;
-        }
+        assert_eq!(self.capture_locals, other.capture_locals);
         assert_eq!(self.stack.data.len(), other.stack.data.len());
         assert_eq!(self.loops.data.len(), other.loops.data.len());
         assert_eq!(self.arguments.data.len(), other.arguments.data.len());
@@ -411,8 +405,11 @@ impl State {
         slot: usize,
         value: Fact,
     ) -> Result<()> {
-        if let Some(captures) = &mut self.captures {
-            captures.store(ctx, facts, slot, value)?;
+        if self.capture_locals {
+            self.captures
+                .as_mut()
+                .unwrap()
+                .store(ctx, facts, slot, value)?;
         }
         self.locals.set(
             ctx,
@@ -595,7 +592,7 @@ pub(super) fn analyze_body(
     };
     let locals = layouts.locals(ctx, program, function_index)?;
     let mut initial = State::new(locals);
-    if let Some(incoming) = incoming {
+    if let Some(incoming) = incoming.filter(|_| block.is_none()) {
         let mut captures = Buffer::empty();
         for link in &incoming.captures.data {
             ctx.charge(1)?;
@@ -607,13 +604,16 @@ pub(super) fn analyze_body(
                 },
             )?;
         }
-        let incoming_locals = layouts.locals(ctx, program, incoming.function)?;
-        initial.incoming = Some(blocks::Captures::new(ctx, incoming_locals, &captures.data)?);
+        let extent = incoming.extent(ctx)?;
+        initial.captures = Some(blocks::Captures::new(ctx, extent, &captures.data)?);
     }
     if let Some(block) = block {
         assert_eq!(function.name, "<block>");
         for capture in block.captures {
             ctx.charge(1)?;
+            if capture.slot >= locals {
+                continue;
+            }
             assert!(
                 layouts
                     .capture(ctx, program, function_index, capture.slot)?
@@ -621,7 +621,9 @@ pub(super) fn analyze_body(
             );
             initial.store(ctx, facts, capture.slot, capture.value)?;
         }
-        initial.captures = Some(blocks::Captures::new(ctx, locals, block.captures)?);
+        let extent = blocks::extent(ctx, locals, block.inherited)?;
+        initial.captures = Some(blocks::Captures::new(ctx, extent, block.captures)?);
+        initial.capture_locals = true;
     }
     if !function.binds_parameters {
         for (index, parameter) in function.params.iter().enumerate() {
@@ -1315,8 +1317,8 @@ impl Walker<'_> {
                     }
                 }
                 Op::Shadow(slot) => {
-                    if let Some(captures) = &mut state.captures {
-                        captures.shadow(self.ctx, slot)?;
+                    if state.capture_locals {
+                        state.captures.as_mut().unwrap().shadow(self.ctx, slot)?;
                     }
                     state.store(self.ctx, self.facts, slot, Atom::Nil.fact())?;
                 }
@@ -2773,7 +2775,7 @@ impl Walker<'_> {
                     let transfer = if self.block_inputs.is_some() && matches!(op, Op::Return) {
                         Transfer::Block {
                             pc,
-                            completion: blocks::Completion::Return,
+                            completion: blocks::Completion::Return(0),
                             value: actual,
                         }
                     } else {

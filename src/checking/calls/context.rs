@@ -1,5 +1,5 @@
 use super::*;
-use crate::checking::blocks::{Capture, Closure};
+use crate::checking::blocks::{Capture, Closure, Layer, Parent};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Kind {
@@ -10,6 +10,8 @@ pub(super) enum Kind {
 
 pub(super) struct Context {
     pub kind: Kind,
+    pub locals: usize,
+    pub inherited: Buffer<Layer>,
     pub captures: Buffer<Capture>,
     pub arguments: Buffer<Fact>,
 }
@@ -18,6 +20,8 @@ impl Context {
     pub fn plain() -> Self {
         Self {
             kind: Kind::Plain,
+            locals: 0,
+            inherited: Buffer::empty(),
             captures: Buffer::empty(),
             arguments: Buffer::empty(),
         }
@@ -30,6 +34,8 @@ impl Context {
             function: block.function,
             given: block.given,
         };
+        result.locals = block.locals;
+        result.inherited.extend(ctx, &block.inherited.data)?;
         for link in &block.captures.data {
             ctx.charge(1)?;
             result.captures.push(
@@ -44,8 +50,11 @@ impl Context {
     }
 
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
+        ctx.charge(1)?;
         let mut next = Self::plain();
         next.kind = self.kind;
+        next.locals = self.locals;
+        next.inherited.extend(ctx, &self.inherited.data)?;
         next.captures.extend(ctx, &self.captures.data)?;
         next.arguments.extend(ctx, &self.arguments.data)?;
         Ok(next)
@@ -54,6 +63,9 @@ impl Context {
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
         ctx.charge((self.captures.data.len() + self.arguments.data.len()) as u64 + 1)?;
         self.kind.hash(hash);
+        ctx.charge(self.inherited.data.len() as u64 + 1)?;
+        self.locals.hash(hash);
+        self.inherited.data.hash(hash);
         self.captures.data.hash(hash);
         self.arguments.data.hash(hash);
         Ok(())
@@ -61,14 +73,19 @@ impl Context {
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge((self.captures.data.len() + self.arguments.data.len()) as u64 + 1)?;
+        ctx.charge(self.inherited.data.len() as u64 + 1)?;
         Ok(self.kind == other.kind
+            && self.locals == other.locals
+            && self.inherited.data == other.inherited.data
             && self.captures.data == other.captures.data
             && self.arguments.data == other.arguments.data)
     }
 
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
-        ctx.charge(1)?;
+        ctx.charge(self.inherited.data.len() as u64 + 1)?;
         if self.kind != other.kind
+            || self.locals != other.locals
+            || self.inherited.data != other.inherited.data
             || self.captures.data.len() != other.captures.data.len()
             || self.arguments.data.len() != other.arguments.data.len()
         {
@@ -81,6 +98,14 @@ impl Context {
             }
         }
         Ok(true)
+    }
+
+    pub fn expands(&self, ctx: &mut CallContext, next: &Self) -> Result<bool> {
+        ctx.charge(self.inherited.data.len() as u64 + 1)?;
+        Ok(self.kind == next.kind
+            && self.locals == next.locals
+            && self.inherited.data.len() < next.inherited.data.len()
+            && next.inherited.data.ends_with(&self.inherited.data))
     }
 
     pub fn widen(
@@ -108,17 +133,37 @@ impl Context {
 
     pub fn incoming(&self, ctx: &mut CallContext) -> Result<Option<Closure>> {
         ctx.charge(1)?;
-        let Kind::Receiving { function, given } = self.kind else {
-            return Ok(None);
+        let (function, given, locals, inherited, base) = match self.kind {
+            Kind::Plain => return Ok(None),
+            Kind::Receiving { function, given } => {
+                (function, given, self.locals, &self.inherited.data[..], 0)
+            }
+            Kind::Invoked { .. } => {
+                let Some((first, inherited)) = self.inherited.data.split_first() else {
+                    return Ok(None);
+                };
+                (
+                    first.function,
+                    first.given,
+                    first.locals,
+                    inherited,
+                    self.locals,
+                )
+            }
         };
+        let mut layers = Buffer::empty();
+        layers.extend(ctx, inherited)?;
         let mut captures = Buffer::empty();
         for capture in &self.captures.data {
             ctx.charge(1)?;
+            if capture.slot < base {
+                continue;
+            }
             captures.push(
                 ctx,
                 super::blocks::Link {
-                    slot: capture.slot,
-                    parent: usize::MAX,
+                    slot: capture.slot - base,
+                    parent: Parent::Local(usize::MAX),
                     value: capture.value,
                 },
             )?;
@@ -126,6 +171,8 @@ impl Context {
         Ok(Some(Closure {
             function,
             given,
+            locals,
+            inherited: layers,
             captures,
         }))
     }
@@ -151,7 +198,7 @@ mod tests {
                         &mut owner,
                         Link {
                             slot,
-                            parent: slot,
+                            parent: Parent::Local(slot),
                             value: Atom::Int.fact(),
                         },
                     )
@@ -160,6 +207,8 @@ mod tests {
             let closure = Closure {
                 function: 1,
                 given: false,
+                locals: count,
+                inherited: Buffer::empty(),
                 captures,
             };
             let mut ctx = CallContext::new(CallOptions::default());
@@ -229,6 +278,8 @@ mod tests {
                         let closure = Closure {
                             function: 1,
                             given: false,
+                            locals: 0,
+                            inherited: Buffer::empty(),
                             captures: Buffer::empty(),
                         };
                         match Context::receiving(&mut ctx, &closure) {
