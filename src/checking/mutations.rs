@@ -1,5 +1,9 @@
 use super::facts::{Atom, Fact, Facts, Field, Node};
-use crate::{CallContext, Result, budget::Buffer, bytecode::Method};
+use crate::{
+    CallContext, Result,
+    budget::Buffer,
+    bytecode::{CallSite, Method},
+};
 
 #[derive(Debug)]
 pub(super) struct Mutation {
@@ -43,6 +47,46 @@ impl Mutation {
 }
 
 impl Facts {
+    pub fn collection_mutation_member(
+        &mut self,
+        ctx: &mut CallContext,
+        receiver: Fact,
+        site: CallSite,
+        name: &str,
+        args: &[Fact],
+    ) -> Result<Mutation> {
+        ctx.checkpoint()?;
+        let mut result = Mutation::empty();
+        for i in 0..self.arm_count(receiver) {
+            ctx.charge(1)?;
+            let arm = self.arm(receiver, i);
+            let hash_field = matches!(self.node(arm), Node::Hash(..) | Node::Shape(..))
+                && !crate::members::hash_builtin(name);
+            let next =
+                if self.atom(arm) == Some(Atom::String) && matches!(name, "unshift" | "append") {
+                    Mutation::rejected()
+                } else if hash_field || site.scope {
+                    let next = self.collection_member(ctx, arm, site, name, args)?;
+                    Mutation {
+                        receiver: if next.value == Atom::Never.fact() {
+                            Atom::Never.fact()
+                        } else {
+                            arm
+                        },
+                        value: next.value,
+                        rejected: next.rejected,
+                        unsupported: next.unsupported,
+                    }
+                } else if let Some(method) = site.method {
+                    self.collection_mutate(ctx, arm, method, args)?
+                } else {
+                    Mutation::unsupported()
+                };
+            self.merge_mutation(ctx, &mut result, next)?;
+        }
+        Ok(result)
+    }
+
     fn merge_mutation(
         &mut self,
         ctx: &mut CallContext,

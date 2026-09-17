@@ -1,3 +1,4 @@
+mod addresses;
 mod arguments;
 mod calls;
 mod collections;
@@ -8,6 +9,7 @@ mod mutations;
 mod relation;
 mod scalar;
 mod slots;
+mod widening;
 
 #[cfg(test)]
 mod call_tests;
@@ -21,3 +23,9 @@ mod collection_tests;
 
 #[cfg(test)]
 mod mutation_tests;
+
+#[cfg(test)]
+mod widening_tests;
+
+#[cfg(test)]
+mod address_tests;

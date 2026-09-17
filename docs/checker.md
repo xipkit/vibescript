@@ -20,7 +20,7 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. General members, iterable loops, collection mutation, exception handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
+The walker reports incomplete analysis at reachable operations it cannot model. General members, iterable loops, rescue/ensure/retry handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
 
 ## Function calls
 
@@ -38,7 +38,7 @@ The call corpus contains 52 scripts compared with Go v0.70.0 reachable-function 
 
 Array, string and hash indexing now preserves element and field facts, including known negative indexes, missing values and optional shape fields. Literal keys and indexes survive bindings and script calls. Array slices with known start/count retain selected elements; range and unknown numeric selectors retain conservative collection/nullability facts. Raw string indexing uses the runtime's metered Unicode and invalid-byte handling without executing script code.
 
-The walker models `length`, `size`, `bytesize`, `empty?`, `keys`, `values`, `reverse`, `first`, `last`, `take`, `drop`, `at`, `slice`, `getbyte`, `itself`, `dup` and `nil?` for their supported data receivers. Exact positional splats work for these members. Hash projections retain possible contents without inventing an iteration order from sorted shape fields. Pure reads preserve the original local facts. Unknown methods, keyword binding, mutation and block effects still leave analysis incomplete.
+The walker models `length`, `size`, `bytesize`, `empty?`, `keys`, `values`, `reverse`, `first`, `last`, `take`, `drop`, `at`, `slice`, `getbyte`, `itself`, `dup` and `nil?` for their supported data receivers. Exact positional splats work for these members. Hash projections retain possible contents without inventing an iteration order from sorted shape fields. Pure reads preserve the original local facts. Unknown methods, keyword binding and block effects still leave analysis incomplete; modeled addressed mutations are described below.
 
 Known ordinary hashes carry a separate representation flag. Structural annotations can also describe capability objects or protected match data, so they do not imply ordinary hash member/index dispatch. Unresolved object overrides and special capture indexing remain explicitly incomplete. Known hash fields keep their normal lookup and builtin-name precedence; missing members fail before argument analysis.
 
@@ -50,15 +50,27 @@ Independent mutation inference now separates an operation's updated receiver fro
 
 Dynamic hash writes retain ordinary-data provenance separately from structural contracts, including through generalized hashes and subsequent reads. Protected or overridden object mutation remains explicitly incomplete. Deletion uses exact value facts where equality is known; sharing an abstract type fact never proves shared runtime storage. Known invalid alternatives survive joins with unknown inputs.
 
-Twelve unit tests cover 5,580 mutation and indexed-write cases against runtime outcomes, exact receiver/result facts, snapshots, optional fields, generalized collections, large windows, quotas, failed-allocation cleanup and cancellation. These are inference tests, not additional end-to-end checker or Go conformance fixtures. Pending-address tracking, publication into local flow state, property guards and convergence for collection-growing loops remain unfinished; the bytecode walker still reports reachable mutation as incomplete. There is no public checking gate.
+Twelve unit tests cover 5,580 mutation and indexed-write cases against runtime outcomes, exact receiver/result facts, snapshots, optional fields, generalized collections, large windows, quotas, failed-allocation cleanup and cancellation. These are inference tests, separate from the addressed-flow and Go fixtures below. Property guards and public checking remain unfinished.
+
+## Addressed mutation and collection loops
+
+The walker now publishes modeled array/hash mutations and indexed, compound and logical writes into local facts. Metered pending addresses preserve selected positions while argument expressions edit parents, detach fresh replacements, and keep copies and temporary results separate. Negative array selectors capture their selected absolute position. Literal value equality and shared type-fact IDs never establish shared runtime storage. Uncertain attachment retains both possible outcomes; paths whose dispatch or origin cannot be modeled remain explicitly incomplete.
+
+Mutation results remain distinct from updated receivers, including popped values and unchanged string receivers. Hash fields keep their lookup precedence, including names that resemble mutators. Safe navigation skips nil-receiver arguments. Plain `begin ... end` expressions preserve pending outer calls and writes, declare missing body locals on exit, and clean up abandoned state on loop control transfers. Rescue, ensure and retry are still unmodeled.
+
+Backward control-flow edges widen growing collection facts until they converge. Equal-length tuples retain positions; differently sized tuples become general element facts. Hash joins retain optional fields and ordinary-data provenance. Recursive collection growth becomes gradual beyond the fact depth present at the first backward join, including inputs and declared contracts. The work queue, widening memo and temporary buffers are metered and use the default Rust stack. Runtime limits are unchanged.
+
+Precision is still limited: generalizing differently sized arrays loses prefix positions and minimum lengths, and uncertain attachment can include impossible combinations. These can produce conservative diagnostics for safe programs. Recursive function inputs that grow structurally also need convergence work. The checker remains private while these limits and the other integration requirements are addressed.
+
+Nine addressed-flow tests compare 268 parent-mutation executions, twelve branch/result executions and ten selected-position witnesses with inferred results. They also cover exact quotas, sampled allocation-failure boundaries, cleanup and cancellation. Six widening tests cover recursive growth, optional hash fields, preserved scalar contradictions, shared 2,000-level facts, quotas and the default stack. The reference corpus contains 66 Go v0.70.0 decisions: fifteen differences diagnose runtime-invalid code that Go accepts, while two reflect Go's separate temporary-update lint warnings. All seventeen have Rust runtime witnesses. These checks do not establish a public deployment gate.
 
 ## Remaining integration
 
 Completion still requires:
 
-- Iterable loops, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Container loops need deliberate convergence rules, and value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Iterable loops, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop precision and structurally growing recursive-call inputs need further convergence work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Class, module, builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
-- Mutable-container facts, property constraints, selected value semantics and invalidation after unmodeled effects.
+- Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Host-value facts, per-call capability descriptors, strict-effects validation and checker accounting across every entry point. Signature metadata must be inspected without invoking callbacks or validators.
 - Sorted, deduplicated source diagnostics, whole-file checking, reachable-function checking, exact-call checking, checked invocation and CLI gates. A rejected check must not execute script effects.

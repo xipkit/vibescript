@@ -74,7 +74,7 @@ impl Facts {
         }
     }
 
-    fn selected_field(
+    pub(super) fn selected_field(
         &self,
         ctx: &mut CallContext,
         value: Fact,
@@ -363,7 +363,7 @@ impl Facts {
             };
             return Ok(if site.auto {
                 outcome(value)
-            } else if self.known_primitive(ctx, value)? {
+            } else if self.known_non_callable(ctx, value)? {
                 rejected()
             } else {
                 unsupported()

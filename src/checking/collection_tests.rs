@@ -6,8 +6,9 @@ use super::{
 };
 use crate::{CallContext, CallOptions, ErrorKind, Limits, Result, budget::Buffer, bytecode};
 
-fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) -> Result<Analysis> {
-    let program = bytecode::compile(source, Vec::new(), &()).unwrap();
+pub(super) fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) -> Result<Analysis> {
+    let program = bytecode::compile(source, Vec::new(), &())
+        .unwrap_or_else(|error| panic!("{source}: {error}"));
     let mut contracts = Buffer::empty();
     for ty in &program.types {
         let fact = facts.annotation(ctx, ty, |_, _| Ok(None))?;
@@ -263,14 +264,13 @@ fn hash_member_reads_keep_field_and_builtin_precedence_separate() {
 }
 
 #[test]
-fn mutations_and_capability_object_dispatch_remain_explicitly_incomplete() {
+fn blocks_and_capability_object_dispatch_remain_explicitly_incomplete() {
     for source in [
-        "def run; [7].push(8); end",
-        "def run; a=[7]; a[0]=8; a; end",
         "def run; [7].map { _1 }; end",
         "def run(x: {size: string}); x.size; end",
         "def run(x: hash<string,int>); x.keys; end",
         "def run(x: hash); x[0]; end",
+        "def run(x: hash); x.store(:key, 7); end",
         "def run(x: {to_s: string, named_captures: hash}); x[:capture]; end",
         "def run; [7].first(n: 1); end",
     ] {

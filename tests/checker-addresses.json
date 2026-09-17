@@ -1,0 +1,415 @@
+{
+  "reference": "Go v0.70.0 CheckWarningsForFunction(\"run\")",
+  "cases": [
+    {
+      "source": "def run; [1, 2].push(3); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].push(8); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[7]; a[0]=8; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(*args); args.push(1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1]; a.push(2); a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<string>; a=[1]; a.push(2); a; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run -> array<int>; a=[1]; b=a; a.push(\"bad\"); b; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1]; a.push(2); a[1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1]; a << 2; a[1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1,2]; a.pop; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1,2]; a.pop(1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1,2]; a.pop; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1,2]; a.unshift(0); a.append(3); a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; a=[1]; a[0]=\"changed\"; a[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1]; a[-1]+=2; a[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[nil]; a[0] ||= 7; a[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[7]; a[0] ||= \"bad\"; a[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1]; a.push(*[2,3]); a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1]; a.push(*[\"bad\"]); a; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run -> string; a=\"old\"; a.replace(\"new\"); a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; a=\"old\"; a.clear; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> bool; a=[1]; a.clear.push(2); a.empty?; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "value": "true"
+      },
+      "difference": "Go emits a temporary-update lint warning; this internal type analysis checks the resulting values and does not implement that lint."
+    },
+    {
+      "source": "def run; a=[1]; a[2]=7; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "argument"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run; a=[1]; a[0,1]=7; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "argument"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run; a=[1]; a.pop(\"bad\"); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run; a=7; a.push(1); end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run -> int; h={items:[1]}; h.items.push(2); h.items[1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; h={items:[1]}; h.items[0]=\"bad\"; h.items[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; h={keys:[1]}; h.keys.push(2); h[:keys][1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; h={x:1}; h.x+=2; h.x; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; h={}; h.x=\"new\"; h.x; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; h={}; h.store(:x,7); h.x; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; h={x:7}; h.delete(:x); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; h={push:[7]}; x=h.push; x.push(\"bad\"); h[:push][0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; h={push:[7]}; h.push(1); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run; h={}; h.missing.push(7); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "name"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run -> array<int>; h={x:1}; h.replace({x:[7]}); h.x; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; h={x:[1]}; h.x.push(begin; h.store(:x,[\"kept\"]); 2; end); h.x[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=nil; a&.push(\"bad\"); 7; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1]; a&.push(2); a[1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a={items:nil}; a.items&.push(\"bad\"); 7; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[]; n=2; while n>0; a.push(7); n-=1; end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[]; n=2; while n>0; a.push(\"bad\"); n-=1; end; a; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run -> array; a=[]; n=2; while n>0; a.push(a); n-=1; end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array; a=[1]; n=2; a.push(while n>0; a.push(2); n-=1; end); a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1]; n=2; while n>0; a.push(begin; n=0; break; end); end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[1]; n=2; while n>0; a.push(begin; n-=1; next; end); end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def make; [1]; end; def run -> array<int>; make.push(2); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; x=7; if false; y=8; end; x; end; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> nil; begin; if false; x=7; end; end; x; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1]; a.push(begin; begin; a.push(2); end; 3; end); a[-1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a=[1]; a.push(begin; return 7; end); 99; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; (begin; [1]; end)(2); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run; (begin; {x:1}; end)(2); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def f; 7; end; def run; (begin; f; end)(2); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run -> nil; a=[nil]; (begin; a[0]=a; end).clear; a[0][0]; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "value": "nil"
+      },
+      "difference": "Go emits a temporary-update lint warning; this internal type analysis checks the resulting values and does not implement that lint."
+    },
+    {
+      "source": "def run(n: int) -> array; a=[]; while n>0; a=[a]; n-=1; end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(n: int) -> array<int>; a=[]; while n>0; a=[a,\"bad\"]; n-=1; end; a; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "args": [
+          1
+        ],
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run(n: int) -> hash; h={}; while n>0; h={child:h}; n-=1; end; h; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(n: int) -> hash<string,int>; h={}; while n>0; h={child:h,value:\"bad\"}; n-=1; end; h; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "args": [
+          1
+        ],
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run(n: int) -> array<array<int>>; a=[[7]]; while n>0; a=[a]; n-=1; end; a; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "args": [
+          1
+        ],
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run(n: int) -> int; a=[7,\"other\"]; while n>0; a=[7,a]; n-=1; end; a[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(n: int) -> string; a=[7,\"other\"]; while n>0; a=[7,a]; n-=1; end; a[0]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "args": [
+          1
+        ],
+        "error": "type"
+      },
+      "difference": "Rust retains collection facts through mutations and loop joins, and diagnoses known invalid operations and return contracts."
+    },
+    {
+      "source": "def run(n: int) -> int; a={value:7}; while n>0; a={value:7,child:a}; n-=1; end; a.value; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; a=[]; while false; a=[a,\"bad\"]; end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(n: int); a=[]; while n>0; a=[a]; n-=1; next; a=7; end; a; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    }
+  ]
+}

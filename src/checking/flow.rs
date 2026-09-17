@@ -1,4 +1,5 @@
 use super::{
+    addresses::{Address, Attached, Change},
     arguments::{self, Arguments, Failure, Input},
     calls::{Calls, Target},
     facts::{Atom, Fact, Facts},
@@ -10,7 +11,7 @@ use super::{
 use crate::{
     CallContext, Result,
     budget::Buffer,
-    bytecode::{ArgumentOp, Function, Invocation, Method, Op, Program},
+    bytecode::{ArgumentOp, CallSite, Function, Invocation, Method, Op, Program},
     value::Kind,
 };
 
@@ -19,6 +20,11 @@ pub(super) enum IssueKind {
     Index {
         receiver: Fact,
         arguments: Fact,
+    },
+    Write {
+        receiver: Fact,
+        selectors: Fact,
+        value: Fact,
     },
     Member {
         name: usize,
@@ -92,6 +98,7 @@ struct Operand {
     origin: Option<usize>,
     predicate: Option<Predicate>,
     literal: Option<usize>,
+    fresh: bool,
 }
 
 impl Operand {
@@ -101,6 +108,7 @@ impl Operand {
             origin: None,
             predicate: None,
             literal: None,
+            fresh: false,
         }
     }
 
@@ -121,9 +129,15 @@ impl Operand {
         })
     }
 
-    fn join(self, ctx: &mut CallContext, facts: &mut Facts, other: Self) -> Result<Self> {
+    fn join(
+        self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        other: Self,
+        depth: Option<usize>,
+    ) -> Result<Self> {
         Ok(Self {
-            value: facts.union(ctx, &[self.value, other.value])?,
+            value: facts.joined(ctx, self.value, other.value, depth)?,
             origin: if self.origin == other.origin {
                 self.origin
             } else {
@@ -134,6 +148,7 @@ impl Operand {
             } else {
                 None
             },
+            fresh: self.fresh && other.fresh,
             literal: if self.literal == other.literal {
                 self.literal
             } else {
@@ -147,9 +162,19 @@ impl Operand {
 struct Loop {
     base: usize,
     argument_base: usize,
+    address_base: usize,
+    attempt_base: usize,
     expression: bool,
     last: Fact,
     result: Fact,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Attempt {
+    spec: usize,
+    stack: usize,
+    arguments: usize,
+    addresses: usize,
 }
 
 #[derive(Debug)]
@@ -158,6 +183,9 @@ struct State {
     stack: Buffer<Operand>,
     loops: Buffer<Loop>,
     arguments: Buffer<Pending>,
+    addresses: Buffer<Address>,
+    attempts: Buffer<Attempt>,
+    widening: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -179,6 +207,9 @@ impl State {
             stack: Buffer::empty(),
             loops: Buffer::empty(),
             arguments: Buffer::empty(),
+            addresses: Buffer::empty(),
+            attempts: Buffer::empty(),
+            widening: None,
         }
     }
 
@@ -188,9 +219,13 @@ impl State {
             stack: Buffer::empty(),
             loops: Buffer::empty(),
             arguments: Buffer::empty(),
+            addresses: Buffer::empty(),
+            attempts: Buffer::empty(),
+            widening: None,
         };
         state.stack.extend(ctx, &self.stack.data)?;
         state.loops.extend(ctx, &self.loops.data)?;
+        state.attempts.extend(ctx, &self.attempts.data)?;
         for pending in &self.arguments.data {
             ctx.charge(1)?;
             let arguments = pending.arguments.snapshot(ctx)?;
@@ -202,19 +237,43 @@ impl State {
                 },
             )?;
         }
+        for address in &self.addresses.data {
+            let address = address.snapshot(ctx)?;
+            state.addresses.push(ctx, address)?;
+        }
         Ok(state)
     }
 
-    fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
+    fn join(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        other: &Self,
+        backedge: bool,
+    ) -> Result<bool> {
+        // Freeze precision at the first backedge, including existing values and declared contracts.
+        // Later recursive growth becomes gradual beyond that depth; script limits are unchanged.
+        let depth = if backedge {
+            Some(*self.widening.get_or_insert_with(|| facts.max_depth()))
+        } else {
+            None
+        };
         let mut changed = self.locals.merge(ctx, &other.locals, |ctx, a, b| {
             Ok(Binding {
-                value: facts.union(ctx, &[a.value, b.value])?,
+                value: facts.joined(ctx, a.value, b.value, depth)?,
                 missing: a.missing || b.missing,
             })
         })?;
         assert_eq!(self.stack.data.len(), other.stack.data.len());
         assert_eq!(self.loops.data.len(), other.loops.data.len());
         assert_eq!(self.arguments.data.len(), other.arguments.data.len());
+        assert_eq!(self.addresses.data.len(), other.addresses.data.len());
+        ctx.charge(self.attempts.data.len() as u64)?;
+        assert_eq!(self.attempts.data, other.attempts.data);
+        for (a, b) in self.addresses.data.iter_mut().zip(&other.addresses.data) {
+            ctx.charge(1)?;
+            changed |= a.join(ctx, facts, b, depth)?;
+        }
         for (a, b) in self.arguments.data.iter_mut().zip(&other.arguments.data) {
             ctx.charge(1)?;
             if a.target != b.target {
@@ -225,7 +284,7 @@ impl State {
         }
         for (a, b) in self.stack.data.iter_mut().zip(&other.stack.data) {
             ctx.charge(1)?;
-            let next = a.join(ctx, facts, *b)?;
+            let next = a.join(ctx, facts, *b, depth)?;
             changed |= *a != next;
             *a = next;
         }
@@ -234,10 +293,12 @@ impl State {
             assert!(
                 a.base == b.base
                     && a.argument_base == b.argument_base
+                    && a.address_base == b.address_base
+                    && a.attempt_base == b.attempt_base
                     && a.expression == b.expression
             );
-            let last = facts.union(ctx, &[a.last, b.last])?;
-            let result = facts.union(ctx, &[a.result, b.result])?;
+            let last = facts.joined(ctx, a.last, b.last, depth)?;
+            let result = facts.joined(ctx, a.result, b.result, depth)?;
             changed |= a.last != last || a.result != result;
             a.last = last;
             a.result = result;
@@ -310,6 +371,13 @@ impl State {
                     if operand.origin == Some(predicate.slot) {
                         operand.value =
                             facts.filter(ctx, operand.value, predicate.test, predicate.yes)?;
+                    }
+                }
+                for address in &mut self.addresses.data {
+                    ctx.charge(1)?;
+                    if address.origin() == Some(predicate.slot) {
+                        address.value =
+                            facts.filter(ctx, address.value, predicate.test, predicate.yes)?;
                     }
                 }
             }
@@ -437,9 +505,10 @@ pub(super) fn analyze_body(
         let state = entries.data[index].as_ref().unwrap().snapshot(walker.ctx)?;
         let edges = walker.block(&graph.blocks.data[index], state)?;
         for (pc, state) in edges.into_iter().flatten() {
+            let backedge = pc <= graph.blocks.data[index].start;
             let index = graph.at(walker.ctx, pc)?;
             let changed = if let Some(entry) = &mut entries.data[index] {
-                entry.join(walker.ctx, walker.facts, &state)?
+                entry.join(walker.ctx, walker.facts, &state, backedge)?
             } else {
                 entries.data[index] = Some(state);
                 true
@@ -508,7 +577,7 @@ impl Walker<'_> {
     }
 
     fn value_target(&mut self, value: Fact) -> Result<Target> {
-        if self.facts.known_primitive(self.ctx, value)? {
+        if self.facts.known_non_callable(self.ctx, value)? {
             Ok(Target::NonCallable)
         } else if matches!(
             self.facts.node(value),
@@ -553,7 +622,8 @@ impl Walker<'_> {
         Ok([taken, other])
     }
 
-    fn store(&mut self, state: &mut State, pc: usize, slot: usize, value: Fact) -> Result<()> {
+    fn store(&mut self, state: &mut State, pc: usize, slot: usize, operand: Operand) -> Result<()> {
+        let value = operand.value;
         let before = state.locals.get(self.ctx, slot)?.value;
         if self.facts.reassignment_conflicts(self.ctx, before, value)? {
             self.issue(
@@ -565,7 +635,190 @@ impl Walker<'_> {
                 },
             )?;
         }
-        state.store(self.ctx, slot, value)
+        state.store(self.ctx, slot, value)?;
+        let change = Change::Store {
+            same: operand.origin == Some(slot),
+            fresh: operand.fresh,
+        };
+        for address in &mut state.addresses.data {
+            self.ctx.charge(1)?;
+            if address.root == Some(slot) {
+                address.refresh(self.ctx, self.facts, value, &change)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn publish(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        address: &Address,
+        receiver: Fact,
+        change: Change<'_>,
+    ) -> Result<Option<Edges>> {
+        if !address.supported {
+            return self.incomplete(pc).map(Some);
+        }
+        if address.attached == Attached::No {
+            return Ok(None);
+        }
+        let Some(slot) = address.root else {
+            return self.incomplete(pc).map(Some);
+        };
+        let result = address.rebuild(self.ctx, self.facts, receiver)?;
+        if result.unsupported {
+            return self.incomplete(pc).map(Some);
+        }
+        let mut updated = result.value;
+        if address.attached == Attached::Maybe {
+            let current = state.locals.get(self.ctx, slot)?.value;
+            updated = self.facts.union(self.ctx, &[current, updated])?;
+        }
+        if updated == Atom::Never.fact() {
+            return self.incomplete(pc).map(Some);
+        }
+        state.store(self.ctx, slot, updated)?;
+        for pending in &mut state.addresses.data {
+            self.ctx.charge(1)?;
+            if pending.root == Some(slot) {
+                pending.refresh(self.ctx, self.facts, updated, &change)?;
+            }
+        }
+        Ok(None)
+    }
+
+    fn mutate(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        site: CallSite,
+        args: &[Fact],
+        address_result: bool,
+        fresh: bool,
+    ) -> Result<Option<Edges>> {
+        let address = state.addresses.data.pop().unwrap();
+        if !address.supported {
+            return self.incomplete(pc).map(Some);
+        }
+        let name = &self.program.members[site.name];
+        let result =
+            self.facts
+                .collection_mutation_member(self.ctx, address.value, site, name, args)?;
+        if result.rejected {
+            let arguments = self.facts.tuple(self.ctx, args)?;
+            self.issue(
+                pc,
+                IssueKind::Member {
+                    name: site.name,
+                    receiver: address.value,
+                    arguments,
+                },
+            )?;
+        }
+        if result.unsupported {
+            return self.incomplete(pc).map(Some);
+        }
+        if result.value == Atom::Never.fact() {
+            return Ok(Some([None, None]));
+        }
+        let mut pure = true;
+        let mut returns_receiver = true;
+        for i in 0..self.facts.arm_count(address.value) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(address.value, i);
+            let array = matches!(
+                self.facts.node(arm),
+                super::facts::Node::Array(_) | super::facts::Node::Tuple(_)
+            );
+            let hash = self.facts.plain_hash(arm);
+            pure &= self.facts.atom(arm) == Some(Atom::String)
+                || (hash && !crate::members::hash_builtin(name));
+            returns_receiver &= (array
+                && matches!(
+                    site.method,
+                    Some(
+                        Method::Push
+                            | Method::Prepend
+                            | Method::Insert
+                            | Method::Clear
+                            | Method::Fill
+                    )
+                ))
+                || (hash && matches!(site.method, Some(Method::Clear | Method::Replace)));
+        }
+        let change = if pure {
+            Change::Store {
+                same: true,
+                fresh: false,
+            }
+        } else {
+            Change::Mutation {
+                address: &address,
+                method: site.method,
+                args,
+                fresh,
+            }
+        };
+        if let Some(edges) = self.publish(state, pc, &address, result.receiver, change)? {
+            return Ok(Some(edges));
+        }
+        if address_result {
+            state
+                .addresses
+                .push(self.ctx, Address::new(None, result.value))?;
+        } else {
+            let origin = if returns_receiver {
+                address.origin()
+            } else {
+                None
+            };
+            state.stack.push(
+                self.ctx,
+                Operand {
+                    origin,
+                    ..Operand::new(result.value)
+                },
+            )?;
+        }
+        Ok(None)
+    }
+
+    fn index_outcome(
+        &mut self,
+        pc: usize,
+        receiver: Fact,
+        args: &[Fact],
+        result: &super::scalar::Operation,
+    ) -> Result<Option<Edges>> {
+        if result.rejected {
+            let arguments = self.facts.tuple(self.ctx, args)?;
+            self.issue(
+                pc,
+                IssueKind::Index {
+                    receiver,
+                    arguments,
+                },
+            )?;
+        }
+        if result.unsupported {
+            return self.incomplete(pc).map(Some);
+        }
+        Ok((result.value == Atom::Never.fact()).then_some([None, None]))
+    }
+
+    fn declare_attempt(&mut self, state: &mut State, pc: usize, spec: usize) -> Result<()> {
+        for &slot in &self.program.handlers[spec].body_locals {
+            self.ctx.charge(1)?;
+            let binding = state.locals.get(self.ctx, slot)?;
+            if binding.missing {
+                let value = self
+                    .facts
+                    .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
+                self.store(state, pc, slot, Operand::local(value, slot))?;
+            }
+        }
+        Ok(())
     }
 
     fn block(&mut self, block: &Block, mut state: State) -> Result<Edges> {
@@ -641,13 +894,15 @@ impl Walker<'_> {
                         let value = self
                             .facts
                             .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
-                        state.store(self.ctx, slot, value)?;
+                        self.store(&mut state, pc, slot, Operand::local(value, slot))?;
                     }
                 }
-                Op::Shadow(slot) => state.store(self.ctx, slot, Atom::Nil.fact())?,
+                Op::Shadow(slot) => {
+                    self.store(&mut state, pc, slot, Operand::new(Atom::Nil.fact()))?
+                }
                 Op::Store(slot) => {
-                    let value = state.stack.data.last().unwrap().value;
-                    self.store(&mut state, pc, slot, value)?;
+                    let operand = *state.stack.data.last().unwrap();
+                    self.store(&mut state, pc, slot, operand)?;
                 }
                 Op::Bind(index, target) => {
                     let parameter = &self.function.params[index];
@@ -698,7 +953,13 @@ impl Walker<'_> {
                     }
                     let value = self.facts.tuple(self.ctx, &elements.data)?;
                     state.stack.data.truncate(base);
-                    state.stack.push(self.ctx, Operand::new(value))?;
+                    state.stack.push(
+                        self.ctx,
+                        Operand {
+                            fresh: true,
+                            ..Operand::new(value)
+                        },
+                    )?;
                 }
                 Op::Hash(count) => {
                     let base = state.stack.data.len() - count * 2;
@@ -715,7 +976,13 @@ impl Walker<'_> {
                     }
                     let value = self.facts.shape(self.ctx, &fields.data, false)?;
                     state.stack.data.truncate(base);
-                    state.stack.push(self.ctx, Operand::new(value))?;
+                    state.stack.push(
+                        self.ctx,
+                        Operand {
+                            fresh: true,
+                            ..Operand::new(value)
+                        },
+                    )?;
                 }
                 Op::Range(start, end, _) => {
                     for _ in 0..usize::from(start) + usize::from(end) {
@@ -758,6 +1025,404 @@ impl Walker<'_> {
                     }
                     state.stack.data.truncate(base);
                     state.stack.push(self.ctx, Operand::new(result.value))?;
+                }
+                Op::TryBegin(spec) => {
+                    let handler = &self.program.handlers[spec];
+                    if !handler.rescues.is_empty()
+                        || handler.alternate.is_some()
+                        || handler.ensure.is_some()
+                    {
+                        return self.incomplete(pc);
+                    }
+                    state.attempts.push(
+                        self.ctx,
+                        Attempt {
+                            spec,
+                            stack: state.stack.data.len(),
+                            arguments: state.arguments.data.len(),
+                            addresses: state.addresses.data.len(),
+                        },
+                    )?;
+                }
+                Op::TryBody => {
+                    let attempt = state.attempts.data.pop().unwrap();
+                    let operand = state.stack.data.pop().unwrap();
+                    self.declare_attempt(&mut state, pc, attempt.spec)?;
+                    state.stack.data.truncate(attempt.stack);
+                    state.arguments.data.truncate(attempt.arguments);
+                    state.addresses.data.truncate(attempt.addresses);
+                    state.stack.push(self.ctx, operand)?;
+                }
+                Op::Shovel(site) => {
+                    let value = state.stack.data.pop().unwrap().value;
+                    let receiver = state.addresses.data.last().unwrap().value;
+                    let mut allowed = Buffer::empty();
+                    let mut rejected = false;
+                    for i in 0..self.facts.arm_count(receiver) {
+                        self.ctx.charge(1)?;
+                        let arm = self.facts.arm(receiver, i);
+                        match self.facts.node(arm) {
+                            super::facts::Node::Array(_)
+                            | super::facts::Node::Tuple(_)
+                            | super::facts::Node::Atom(Atom::Unknown | Atom::Any) => {
+                                allowed.push(self.ctx, arm)?
+                            }
+                            super::facts::Node::Named(_) | super::facts::Node::Nominal { .. } => {
+                                return self.incomplete(pc);
+                            }
+                            super::facts::Node::Atom(Atom::Never) => (),
+                            _ => rejected = true,
+                        }
+                    }
+                    if rejected {
+                        self.issue(
+                            pc,
+                            IssueKind::Binary {
+                                op: "<<",
+                                left: receiver,
+                                right: value,
+                            },
+                        )?;
+                    }
+                    let receiver = self.facts.union(self.ctx, &allowed.data)?;
+                    if receiver == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    state.addresses.data.last_mut().unwrap().value = receiver;
+                    if let Some(edges) =
+                        self.mutate(&mut state, pc, site, &[value], false, false)?
+                    {
+                        return Ok(edges);
+                    }
+                }
+                Op::AddressLocal(slot) => {
+                    let binding = state.locals.get(self.ctx, slot)?;
+                    let value = if binding.missing {
+                        self.facts
+                            .union(self.ctx, &[binding.value, Atom::Nil.fact()])?
+                    } else {
+                        binding.value
+                    };
+                    state
+                        .addresses
+                        .push(self.ctx, Address::new(Some(slot), value))?;
+                }
+                Op::AddressBound(slot, target) => {
+                    let binding = state.locals.get(self.ctx, slot)?;
+                    let mut bound = state.snapshot(self.ctx)?;
+                    bound.locals.set(
+                        self.ctx,
+                        slot,
+                        Binding {
+                            missing: false,
+                            ..binding
+                        },
+                    )?;
+                    bound
+                        .addresses
+                        .push(self.ctx, Address::new(Some(slot), binding.value))?;
+                    state.locals.set(
+                        self.ctx,
+                        slot,
+                        Binding {
+                            value: Atom::Never.fact(),
+                            missing: true,
+                        },
+                    )?;
+                    return Ok([
+                        (binding.value != Atom::Never.fact()).then_some((target, bound)),
+                        binding.missing.then_some((pc + 1, state)),
+                    ]);
+                }
+                Op::RootAddress(name, _) => {
+                    let name = &self.program.members[name];
+                    if self.calls.global(self.ctx, name)? {
+                        return self.incomplete(pc);
+                    }
+                    for root in &self.program.functions[0].local_names {
+                        self.ctx.work_bytes(root.len().max(name.len()))?;
+                        if root == name {
+                            return self.incomplete(pc);
+                        }
+                    }
+                }
+                Op::AddressValue => {
+                    let value = state.stack.data.pop().unwrap().value;
+                    state.addresses.push(self.ctx, Address::new(None, value))?;
+                }
+                Op::AddressIndex(count) | Op::AddressTarget(count, _) => {
+                    let base = state.stack.data.len() - count;
+                    let mut args = Buffer::empty();
+                    for operand in &state.stack.data[base..] {
+                        args.push(self.ctx, operand.value)?;
+                    }
+                    state.stack.data.truncate(base);
+                    let address = state.addresses.data.last_mut().unwrap();
+                    let receiver = address.value;
+                    let result = match op {
+                        Op::AddressIndex(_) => {
+                            Some(address.index(self.ctx, self.facts, &args.data)?)
+                        }
+                        Op::AddressTarget(_, read) => {
+                            address.target(self.ctx, self.facts, &args.data, read)?
+                        }
+                        _ => unreachable!(),
+                    };
+                    if let Some(result) = result {
+                        if let Some(edges) =
+                            self.index_outcome(pc, receiver, &args.data, &result)?
+                        {
+                            return Ok(edges);
+                        }
+                        if matches!(op, Op::AddressTarget(..)) {
+                            state.stack.push(self.ctx, Operand::new(result.value))?;
+                        }
+                    }
+                }
+                Op::AddressMemberTarget(site, read) => {
+                    let name = &self.program.members[site.name];
+                    let key = self.facts.string(self.ctx, name.as_bytes())?;
+                    let address = state.addresses.data.last_mut().unwrap();
+                    address.selectors.push(self.ctx, key)?;
+                    let receiver = address.value;
+                    if read {
+                        let result =
+                            self.facts
+                                .collection_member(self.ctx, receiver, site, name, &[])?;
+                        if result.rejected {
+                            let arguments = self.facts.tuple(self.ctx, &[])?;
+                            self.issue(
+                                pc,
+                                IssueKind::Member {
+                                    name: site.name,
+                                    receiver,
+                                    arguments,
+                                },
+                            )?;
+                        }
+                        if result.unsupported {
+                            return self.incomplete(pc);
+                        }
+                        if result.value == Atom::Never.fact() {
+                            return Ok([None, None]);
+                        }
+                        state.stack.push(self.ctx, Operand::new(result.value))?;
+                    }
+                }
+                Op::AddressStore => {
+                    let value = state.stack.data.pop().unwrap();
+                    let address = state.addresses.data.pop().unwrap();
+                    if !address.supported {
+                        return self.incomplete(pc);
+                    }
+                    let selectors = self.facts.tuple(self.ctx, &address.selectors.data)?;
+                    let [key] = address.selectors.data.as_slice() else {
+                        self.issue(
+                            pc,
+                            IssueKind::Write {
+                                receiver: address.value,
+                                selectors,
+                                value: value.value,
+                            },
+                        )?;
+                        return Ok([None, None]);
+                    };
+                    let result =
+                        self.facts
+                            .collection_write(self.ctx, address.value, *key, value.value)?;
+                    if result.rejected {
+                        self.issue(
+                            pc,
+                            IssueKind::Write {
+                                receiver: address.value,
+                                selectors,
+                                value: value.value,
+                            },
+                        )?;
+                    }
+                    if result.unsupported {
+                        return self.incomplete(pc);
+                    }
+                    if result.value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    let change = Change::Mutation {
+                        address: &address,
+                        method: None,
+                        args: &[],
+                        fresh: value.fresh,
+                    };
+                    if let Some(edges) =
+                        self.publish(&mut state, pc, &address, result.receiver, change)?
+                    {
+                        return Ok(edges);
+                    }
+                    let mut value = value;
+                    if address.attached != Attached::No {
+                        if value.origin == address.root {
+                            value.origin = None;
+                        }
+                        if value
+                            .predicate
+                            .is_some_and(|predicate| Some(predicate.slot) == address.root)
+                        {
+                            value.predicate = None;
+                        }
+                    }
+                    state.stack.push(self.ctx, value)?;
+                }
+                Op::AddressDrop => {
+                    state.addresses.data.pop().unwrap();
+                }
+                Op::PrepareMember(site, true) => {
+                    let receiver = state.addresses.data.last().unwrap().value;
+                    let result = self.facts.prepare_collection_member(
+                        self.ctx,
+                        receiver,
+                        &self.program.members[site.name],
+                    )?;
+                    if result.rejected {
+                        let arguments = self.facts.tuple(self.ctx, &[])?;
+                        self.issue(
+                            pc,
+                            IssueKind::Member {
+                                name: site.name,
+                                receiver,
+                                arguments,
+                            },
+                        )?;
+                    }
+                    if result.unsupported {
+                        return self.incomplete(pc);
+                    }
+                    if result.value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    state.addresses.data.last_mut().unwrap().value = result.value;
+                }
+                Op::Mutate(site, count) => {
+                    let base = state.stack.data.len() - count;
+                    let fresh = matches!(site.method, Some(Method::Store))
+                        && count == 2
+                        && state.stack.data.last().unwrap().fresh;
+                    let mut args = Buffer::empty();
+                    for operand in &state.stack.data[base..] {
+                        args.push(self.ctx, operand.value)?;
+                    }
+                    state.stack.data.truncate(base);
+                    if let Some(edges) =
+                        self.mutate(&mut state, pc, site, &args.data, false, fresh)?
+                    {
+                        return Ok(edges);
+                    }
+                }
+                Op::Invoke(Invocation::Member(site, true)) => {
+                    let args = state.arguments.data.pop().unwrap().arguments;
+                    if !args.keywords.data.is_empty() {
+                        return self.incomplete(pc);
+                    }
+                    if let Some(edges) =
+                        self.mutate(&mut state, pc, site, &args.positional.data, false, false)?
+                    {
+                        return Ok(edges);
+                    }
+                }
+                Op::AddressMember(site) | Op::AddressNamespaceField(site) => {
+                    let name = &self.program.members[site.name];
+                    let receiver = state.addresses.data.last().unwrap().value;
+                    let (mut fields, mut absent) = (false, false);
+                    for i in 0..self.facts.arm_count(receiver) {
+                        self.ctx.charge(1)?;
+                        let arm = self.facts.arm(receiver, i);
+                        match self.facts.node(arm) {
+                            super::facts::Node::Shape(_, open, _, _)
+                                if matches!(op, Op::AddressMember(_)) =>
+                            {
+                                let selected =
+                                    self.facts.selected_field(self.ctx, arm, name.as_bytes())?;
+                                if *open
+                                    || selected.is_some_and(|(_, optional)| {
+                                        optional && crate::members::hash_builtin(name)
+                                    })
+                                {
+                                    return self.incomplete(pc);
+                                }
+                                fields |= selected.is_some();
+                                absent |= selected.is_none();
+                            }
+                            super::facts::Node::Hash(..) if matches!(op, Op::AddressMember(_)) => {
+                                return self.incomplete(pc);
+                            }
+                            _ => absent = true,
+                        }
+                    }
+                    if fields && absent {
+                        return self.incomplete(pc);
+                    }
+                    if fields {
+                        let key = self.facts.string(self.ctx, name.as_bytes())?;
+                        let result = state.addresses.data.last_mut().unwrap().index(
+                            self.ctx,
+                            self.facts,
+                            &[key],
+                        )?;
+                        if let Some(edges) = self.index_outcome(pc, receiver, &[key], &result)? {
+                            return Ok(edges);
+                        }
+                    } else if crate::bytecode::mutating_member(name)
+                        && matches!(op, Op::AddressMember(_))
+                    {
+                        if let Some(edges) = self.mutate(&mut state, pc, site, &[], true, false)? {
+                            return Ok(edges);
+                        }
+                    } else {
+                        let result =
+                            self.facts
+                                .collection_member(self.ctx, receiver, site, name, &[])?;
+                        if result.rejected {
+                            let arguments = self.facts.tuple(self.ctx, &[])?;
+                            self.issue(
+                                pc,
+                                IssueKind::Member {
+                                    name: site.name,
+                                    receiver,
+                                    arguments,
+                                },
+                            )?;
+                        }
+                        if result.unsupported {
+                            return self.incomplete(pc);
+                        }
+                        if result.value == Atom::Never.fact() {
+                            return Ok([None, None]);
+                        }
+                        *state.addresses.data.last_mut().unwrap() =
+                            Address::new(None, result.value);
+                    }
+                }
+                Op::AddressJumpNil(target, value_result) => {
+                    let address = state.addresses.data.last().unwrap();
+                    let operand = Operand {
+                        origin: address.origin(),
+                        ..Operand::new(address.value)
+                    };
+                    let mut edges = self.branch(state, operand, Test::Nil, true, target, pc + 1)?;
+                    if let Some((_, nil)) = &mut edges[0] {
+                        if value_result {
+                            nil.addresses.data.pop();
+                            nil.stack.push(self.ctx, Operand::new(Atom::Nil.fact()))?;
+                        } else {
+                            *nil.addresses.data.last_mut().unwrap() =
+                                Address::new(None, Atom::Nil.fact());
+                        }
+                    }
+                    if let Some((_, non_nil)) = &mut edges[1] {
+                        let address = non_nil.addresses.data.last_mut().unwrap();
+                        address.value =
+                            self.facts
+                                .filter(self.ctx, address.value, Test::Nil, false)?;
+                    }
+                    return Ok(edges);
                 }
                 Op::RootCall(name, _) => {
                     let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
@@ -994,7 +1659,7 @@ impl Walker<'_> {
                         None
                     };
                     if let Op::AddStore(slot) = self.function.code[pc] {
-                        self.store(&mut state, pc, slot, result.value)?;
+                        self.store(&mut state, pc, slot, Operand::new(result.value))?;
                     }
                     state.stack.push(
                         self.ctx,
@@ -1147,6 +1812,8 @@ impl Walker<'_> {
                         Loop {
                             base: state.stack.data.len(),
                             argument_base: state.arguments.data.len(),
+                            address_base: state.addresses.data.len(),
+                            attempt_base: state.attempts.data.len(),
                             expression,
                             last: Atom::Nil.fact(),
                             result: Atom::Never.fact(),
@@ -1174,6 +1841,11 @@ impl Walker<'_> {
                     if state.loops.data.is_empty() {
                         return self.incomplete(pc);
                     }
+                    let attempt_base = state.loops.data.last().unwrap().attempt_base;
+                    while state.attempts.data.len() > attempt_base {
+                        let attempt = state.attempts.data.pop().unwrap();
+                        self.declare_attempt(&mut state, pc, attempt.spec)?;
+                    }
                     let current = state.loops.data.last_mut().unwrap();
                     match op {
                         Op::LoopBody => current.last = state.stack.data.pop().unwrap().value,
@@ -1192,6 +1864,7 @@ impl Walker<'_> {
                     }
                     state.stack.data.truncate(current.base);
                     state.arguments.data.truncate(current.argument_base);
+                    state.addresses.data.truncate(current.address_base);
                     let Exit::Jump(target) = block.exit else {
                         unreachable!()
                     };
@@ -1201,6 +1874,7 @@ impl Walker<'_> {
                     let current = state.loops.data.pop().unwrap();
                     state.stack.data.truncate(current.base);
                     state.arguments.data.truncate(current.argument_base);
+                    state.addresses.data.truncate(current.address_base);
                     state.stack.push(self.ctx, Operand::new(current.result))?;
                 }
                 Op::Return | Op::Finish => {

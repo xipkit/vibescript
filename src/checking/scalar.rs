@@ -173,6 +173,23 @@ impl Facts {
         Ok(result)
     }
 
+    pub fn known_non_callable(&self, ctx: &mut CallContext, value: Fact) -> Result<bool> {
+        for index in 0..self.arm_count(value) {
+            ctx.charge(1)?;
+            let arm = self.arm(value, index);
+            if matches!(
+                self.node(arm),
+                Node::Array(_) | Node::Tuple(_) | Node::Hash(..) | Node::Shape(..)
+            ) {
+                continue;
+            }
+            if matches!(self.atom(arm), None | Some(Atom::Unknown | Atom::Any)) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub fn known_primitive(&self, ctx: &mut CallContext, value: Fact) -> Result<bool> {
         for index in 0..self.arm_count(value) {
             ctx.charge(1)?;

@@ -73,12 +73,14 @@ struct Entry {
     normalizes: bool,
     unresolved: bool,
     singleton: bool,
+    depth: usize,
 }
 
 #[derive(Debug)]
 pub(super) struct Facts {
     entries: Buffer<Entry>,
     buckets: Buffer<usize>,
+    max_depth: usize,
 }
 
 impl Facts {
@@ -86,6 +88,7 @@ impl Facts {
         let mut facts = Self {
             entries: Buffer::empty(),
             buckets: Buffer::empty(),
+            max_depth: 0,
         };
         for atom in [
             Atom::Never,
@@ -134,6 +137,14 @@ impl Facts {
 
     pub(super) fn singleton(&self, fact: Fact) -> bool {
         self.entries.data[fact.0].singleton
+    }
+
+    pub(super) fn depth(&self, fact: Fact) -> usize {
+        self.entries.data[fact.0].depth
+    }
+
+    pub(super) fn max_depth(&self) -> usize {
+        self.max_depth
     }
 
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
@@ -236,6 +247,31 @@ impl Facts {
             }
             _ => false,
         };
+        let depth = match &node {
+            Node::Array(element) => self.depth(*element).saturating_add(1),
+            Node::Hash(key, value, _) => self.depth(*key).max(self.depth(*value)).saturating_add(1),
+            Node::Tuple(values) | Node::Union(values) => {
+                ctx.charge(values.data.len() as u64)?;
+                values
+                    .data
+                    .iter()
+                    .map(|&value| self.depth(value))
+                    .max()
+                    .unwrap_or(0)
+                    .saturating_add(usize::from(matches!(node, Node::Tuple(_))))
+            }
+            Node::Shape(fields, ..) => {
+                ctx.charge(fields.data.len() as u64)?;
+                fields
+                    .data
+                    .iter()
+                    .map(|field| self.depth(field.value))
+                    .max()
+                    .unwrap_or(0)
+                    .saturating_add(1)
+            }
+            _ => 0,
+        };
         self.entries.push(
             ctx,
             Entry {
@@ -247,9 +283,11 @@ impl Facts {
                 normalizes,
                 unresolved,
                 singleton,
+                depth,
             },
         )?;
         self.buckets.data[bucket] = fact.0;
+        self.max_depth = self.max_depth.max(depth);
         Ok(fact)
     }
 
