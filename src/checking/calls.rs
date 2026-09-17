@@ -234,6 +234,7 @@ pub(super) fn analyze(
             Some(blocks::Inputs {
                 arguments: &context.arguments.data,
                 captures: &context.captures.data,
+                pending: &context.pending,
                 given,
                 inherited: &context.inherited.data,
             })

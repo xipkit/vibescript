@@ -3,8 +3,9 @@ use super::{
     scalar::Operation,
 };
 use crate::{CallContext, Result, budget::Buffer, bytecode::Method};
+use std::hash::{Hash, Hasher};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Attached {
     No,
     Maybe,
@@ -32,7 +33,7 @@ impl Attached {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Hop {
     container: Fact,
     key: Fact,
@@ -63,6 +64,35 @@ pub(super) enum Change<'a> {
 }
 
 impl Address {
+    pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
+        ctx.charge((self.path.data.len() + self.selectors.data.len()) as u64 + 1)?;
+        self.protected.hash(hash);
+        self.root.hash(hash);
+        self.attached.hash(hash);
+        self.value.hash(hash);
+        self.supported.hash(hash);
+        self.path.data.hash(hash);
+        self.selectors.data.hash(hash);
+        Ok(())
+    }
+
+    pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        ctx.charge((self.path.data.len() + self.selectors.data.len()) as u64 + 1)?;
+        Ok(self.protected == other.protected
+            && self.root == other.root
+            && self.attached == other.attached
+            && self.value == other.value
+            && self.supported == other.supported
+            && self.path.data == other.path.data
+            && self.selectors.data == other.selectors.data)
+    }
+
+    pub fn compatible(&self, other: &Self) -> bool {
+        self.root == other.root
+            && self.path.data.len() == other.path.data.len()
+            && self.selectors.data.len() == other.selectors.data.len()
+    }
+
     pub fn origin(&self) -> Option<usize> {
         if self.attached == Attached::Yes && self.path.data.is_empty() {
             self.root

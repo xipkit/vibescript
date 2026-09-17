@@ -575,18 +575,7 @@ impl Walker<'_> {
             return Ok(after);
         };
         let mut callback = block.snapshot(self.ctx)?;
-        for link in &mut callback.captures.data {
-            self.ctx.charge(1)?;
-            link.value = match link.parent {
-                Parent::Local(slot) => before.state.locals.get(self.ctx, slot)?.value,
-                Parent::Capture(slot) => before
-                    .state
-                    .captures
-                    .as_ref()
-                    .unwrap()
-                    .value(self.ctx, slot)?,
-            };
-        }
+        self.prepare_callback(&before.state, &mut callback)?;
         let mut args = Arguments::new();
         if method == Method::Reduce {
             args.positional
@@ -598,7 +587,7 @@ impl Walker<'_> {
             args.positional
                 .extend(self.ctx, &item.arguments[..item.count])?;
         }
-        args.block = Some(callback);
+        args.block = Some(callback.snapshot(self.ctx)?);
         let current_error = before.state.current_error(self.ctx, self.current_error)?;
         let result = self.calls.invoke(
             self.ctx,
@@ -614,9 +603,7 @@ impl Walker<'_> {
         assert!(result.failures.data.is_empty());
         for exit in result.exits.data {
             self.ctx.charge(1)?;
-            let Some(state) = self.capture_exit(&before.state, pc, block, &exit)? else {
-                continue;
-            };
+            let state = self.capture_exit(&before.state, &callback, &exit)?;
             match exit.completion {
                 Completion::Error(class) => self.emit_error(&state, pc, handlers::bit(class))?,
                 Completion::Return(depth) => self.callback_return(state, pc, depth, exit.value)?,

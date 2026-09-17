@@ -583,7 +583,6 @@ fn unmodeled_receivers_callbacks_and_pending_addresses_stay_explicit() {
         "def run; [7,9].fill {|n| n}; end",
         "def run; [7,9].delete_if {|n| n}; end",
         "def run; [7,9].map! {|n| n}; end",
-        "def run; a=[1]; a.push(7.yield_self {a.clear; 9}); a; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

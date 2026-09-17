@@ -1,5 +1,6 @@
 use super::*;
 use crate::checking::blocks::{Capture, Closure, Layer, Parent};
+use crate::checking::pending::Pending;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Kind {
@@ -14,6 +15,7 @@ pub(super) struct Context {
     pub inherited: Buffer<Layer>,
     pub captures: Buffer<Capture>,
     pub arguments: Buffer<Fact>,
+    pub pending: Pending,
 }
 
 impl Context {
@@ -24,6 +26,7 @@ impl Context {
             inherited: Buffer::empty(),
             captures: Buffer::empty(),
             arguments: Buffer::empty(),
+            pending: Pending::new(),
         }
     }
 
@@ -34,6 +37,7 @@ impl Context {
             function: block.function,
             given: block.given,
         };
+        result.pending = block.pending.snapshot(ctx)?;
         result.locals = block.locals;
         result.inherited.extend(ctx, &block.inherited.data)?;
         for link in &block.captures.data {
@@ -53,6 +57,7 @@ impl Context {
         ctx.charge(1)?;
         let mut next = Self::plain();
         next.kind = self.kind;
+        next.pending = self.pending.snapshot(ctx)?;
         next.locals = self.locals;
         next.inherited.extend(ctx, &self.inherited.data)?;
         next.captures.extend(ctx, &self.captures.data)?;
@@ -62,6 +67,7 @@ impl Context {
 
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
         ctx.charge((self.captures.data.len() + self.arguments.data.len()) as u64 + 1)?;
+        self.pending.hash(ctx, hash)?;
         self.kind.hash(hash);
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         self.locals.hash(hash);
@@ -78,7 +84,8 @@ impl Context {
             && self.locals == other.locals
             && self.inherited.data == other.inherited.data
             && self.captures.data == other.captures.data
-            && self.arguments.data == other.arguments.data)
+            && self.arguments.data == other.arguments.data
+            && self.pending.equal(ctx, &other.pending)?)
     }
 
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
@@ -97,7 +104,7 @@ impl Context {
                 return Ok(false);
             }
         }
-        Ok(true)
+        self.pending.compatible(ctx, &other.pending)
     }
 
     pub fn expands(&self, ctx: &mut CallContext, next: &Self) -> Result<bool> {
@@ -115,7 +122,7 @@ impl Context {
         other: &Self,
         depth: usize,
     ) -> Result<bool> {
-        let mut changed = false;
+        let mut changed = self.pending.join(ctx, facts, &other.pending, Some(depth))?;
         for (a, b) in self.captures.data.iter_mut().zip(&other.captures.data) {
             ctx.charge(1)?;
             let value = facts.widen(ctx, a.value, b.value, depth)?;
@@ -168,7 +175,20 @@ impl Context {
                 },
             )?;
         }
+        let mut pending = Pending::new();
+        for address in &self.pending.addresses.data {
+            ctx.charge(1)?;
+            let root = address.root.unwrap();
+            if root < base {
+                continue;
+            }
+            let mut address = address.snapshot(ctx)?;
+            address.root = Some(root - base);
+            pending.addresses.push(ctx, address)?;
+        }
         Ok(Some(Closure {
+            pending,
+            destinations: Buffer::empty(),
             function,
             given,
             locals,
@@ -205,6 +225,8 @@ mod tests {
                     .unwrap();
             }
             let closure = Closure {
+                pending: Pending::new(),
+                destinations: Buffer::empty(),
                 function: 1,
                 given: false,
                 locals: count,
@@ -257,6 +279,7 @@ mod tests {
                 let error = match operation {
                     0 => {
                         let exit = |pc| Exit {
+                            pending: Pending::new(),
                             pc,
                             completion: Completion::Value,
                             value: Atom::Int.fact(),
@@ -276,6 +299,8 @@ mod tests {
                     3 => Context::plain().incoming(&mut ctx).unwrap_err(),
                     4 => {
                         let closure = Closure {
+                            pending: Pending::new(),
+                            destinations: Buffer::empty(),
                             function: 1,
                             given: false,
                             locals: 0,

@@ -557,7 +557,6 @@ fn unmodeled_dispatch_callbacks_and_pending_capture_addresses_remain_explicit() 
         "def run; [7,9].fill {|n| n}; end",
         "def run; [7,9].map! {|n| n}; end",
         "def run; \"ab\".gsub(/a/) {\"b\"}; end",
-        "def run; a=[1]; a.push([7].group_by {a.clear; :a}); a; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

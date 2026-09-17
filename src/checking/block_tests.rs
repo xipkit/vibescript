@@ -116,7 +116,9 @@ fn witness(
                 .unwrap();
         }
     }
+    let pending = super::pending::Pending::new();
     let input = blocks::Inputs {
+        pending: &pending,
         arguments: &inputs.data,
         captures: &variables.data,
         given,
@@ -469,7 +471,9 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
     let one = facts.integer(ctx, 1)?;
     let value = facts.tuple(ctx, &[one])?;
     let captures = [blocks::Capture { slot, value }];
+    let pending = super::pending::Pending::new();
     let input = blocks::Inputs {
+        pending: &pending,
         arguments: &[Atom::Bool.fact()],
         captures: &captures,
         given: false,
@@ -609,7 +613,9 @@ fn native_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
         .unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
+    let pending = super::pending::Pending::new();
     let input = blocks::Inputs {
+        pending: &pending,
         arguments: &[],
         captures: &[],
         given: true,
@@ -656,7 +662,9 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
     let mut facts = Facts::new(&mut ctx).unwrap();
     let value = facts.integer(&mut ctx, 1).unwrap();
     let captures = [blocks::Capture { slot, value }];
+    let pending = super::pending::Pending::new();
     let input = blocks::Inputs {
+        pending: &pending,
         arguments: &[Atom::Bool.fact()],
         captures: &captures,
         given: false,

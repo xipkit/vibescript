@@ -618,7 +618,9 @@ pub(super) fn analyze_body(
             )?;
         }
         let extent = incoming.extent(ctx)?;
-        initial.captures = Some(blocks::Captures::new(ctx, extent, &captures.data)?);
+        let mut values = blocks::Captures::new(ctx, extent, &captures.data)?;
+        values.pending = incoming.pending.snapshot(ctx)?;
+        initial.captures = Some(values);
     }
     if let Some(block) = block {
         assert_eq!(function.name, "<block>");
@@ -635,7 +637,9 @@ pub(super) fn analyze_body(
             initial.store(ctx, facts, capture.slot, capture.value)?;
         }
         let extent = blocks::extent(ctx, locals, block.inherited)?;
-        initial.captures = Some(blocks::Captures::new(ctx, extent, block.captures)?);
+        let mut values = blocks::Captures::new(ctx, extent, block.captures)?;
+        values.pending = block.pending.snapshot(ctx)?;
+        initial.captures = Some(values);
         initial.capture_locals = true;
     }
     if !function.binds_parameters {
@@ -807,13 +811,16 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         target: Target,
-        args: Arguments,
+        mut args: Arguments,
     ) -> Result<Option<Edges>> {
         if target == Target::Builtin(crate::builtin::Builtin::Loop) {
             self.native_loop(state, pc, args)?;
             return Ok(Some([None, None]));
         }
         let current_error = state.current_error(self.ctx, self.current_error)?;
+        if let Some(block) = &mut args.block {
+            self.prepare_callback(state, block)?;
+        }
         let attached = args
             .block
             .as_ref()
@@ -954,6 +961,13 @@ impl Walker<'_> {
             same: operand.origin == Some(slot),
             fresh: operand.fresh,
         };
+        if state.capture_locals {
+            state
+                .captures
+                .as_mut()
+                .unwrap()
+                .refresh(self.ctx, self.facts, slot, value, &change)?;
+        }
         for address in &mut state.addresses.data {
             self.ctx.charge(1)?;
             if address.root == Some(slot) {
@@ -993,6 +1007,13 @@ impl Walker<'_> {
             return self.incomplete(pc).map(Some);
         }
         state.store(self.ctx, self.facts, slot, updated)?;
+        if state.capture_locals {
+            state
+                .captures
+                .as_mut()
+                .unwrap()
+                .refresh(self.ctx, self.facts, slot, updated, &change)?;
+        }
         for pending in &mut state.addresses.data {
             self.ctx.charge(1)?;
             if pending.root == Some(slot) {

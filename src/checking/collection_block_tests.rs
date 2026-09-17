@@ -456,12 +456,11 @@ fn native_collection_analysis_observes_latched_cancellation_and_deadlines() {
 }
 
 #[test]
-fn structural_objects_remaining_methods_and_pending_mutations_stay_explicit() {
+fn structural_objects_and_remaining_methods_stay_explicit() {
     for source in [
         "def run(h:hash<string,int>); h.each {|k,v| v}; end",
         "def run; [1,2].fill {|n| n}; end",
         "def run; [1,2].delete_if {|n| true}; end",
-        "def run; a=[1]; a.push([1].map {a.push(7); 9}); a; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

@@ -156,7 +156,7 @@ fn pending_address_facts_include_runtime_results_through_parent_mutations() {
     assert_eq!(cases, 268);
 }
 
-fn runtime_fact(engine: &crate::Engine, source: &str, args: &[Value]) {
+pub(super) fn runtime_fact(engine: &crate::Engine, source: &str, args: &[Value]) {
     let actual = engine
         .compile(source)
         .unwrap()

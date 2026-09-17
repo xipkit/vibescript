@@ -480,7 +480,6 @@ fn remaining_dispatch_and_pending_address_effects_are_explicit() {
         "def run(op:string); [1,2].reduce(0,op); end",
         "def run; [1,2].reduce(0,\"custom\"); end",
         "def run; [1,2].fill {|n| n}; end",
-        "def run; a=[1]; a.push([1].find {a.clear; true}); a; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

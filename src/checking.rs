@@ -13,6 +13,7 @@ mod iteration;
 mod lexical;
 mod mutations;
 mod ordering;
+mod pending;
 mod relation;
 mod scalar;
 mod slots;
@@ -90,3 +91,6 @@ mod selection_tests;
 
 #[cfg(test)]
 mod order_tests;
+
+#[cfg(test)]
+mod pending_tests;
