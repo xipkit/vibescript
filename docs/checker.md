@@ -142,12 +142,24 @@ Bare `hash` contracts check the container kind and preserve known fields and pro
 
 Twenty focused tests include 7,688 direct member/runtime comparisons, 320 index comparisons, branch and call witnesses, exact quota thresholds, sampled allocation failures, cleanup and cancellation. The [protected-value reference corpus](../tests/checker-protected.json) records 108 Go v0.70.0 checker decisions with 51 explained differences and Rust execution witnesses. Regressions first exposed lost protection after branch joins, lost field metadata at bare-hash boundaries, and incomplete named-capture operations for dynamic patterns. These remain private checker summaries; they do not provide a public checking gate.
 
+## Block body analysis
+
+The flow analyzer can now summarize a block body supplied with argument facts and already resolved lexical captures. Explicit parameters, numbered parameters, implicit `it`, destructuring, single-array expansion and missing-argument nil padding follow the compiled block binding rules. Parameters shadow the corresponding outer binding; ordinary captured assignments and nested collection writes update the retained capture facts. Independent value copies remain separate.
+
+Block summaries keep normal results, nonlocal returns, break payload presence and ordinary errors separate. Each exit records its captured values after cleanup. `next` ends one block invocation, local-loop control stays local, and ensure can preserve or replace a pending transfer. Error exits retain writes completed before failure. Prepared block contexts also retain whether their lexical owner received a block, so `block_given?` does not accidentally describe the yielding function's block.
+
+Ordinary calls without a supplied block now infer `block_given?` as false. A missing-block `yield` reports LocalJumpError before evaluating its arguments. Invalid arguments or an attached block on `block_given?` likewise fail before evaluating those expressions. The [block-presence reference corpus](../tests/checker-blocks.json) records 12 Go v0.70.0 decisions with seven explained differences and Rust execution witnesses.
+
+Seventeen focused tests include 129 block-body execution comparisons, including 36 combinations of body and cleanup control. They cover all eight ordinary error classes, captured mutation and parameter shadowing, exact quotas, sampled allocation failures, reclamation, cancellation and deadlines. Capture storage and exit snapshots use the existing metered persistent slot tree. Distinct nonlocal exits retain distinct captured writes.
+
+This is the body-analysis layer. Attaching blocks to call contexts, resolving lexical owners across frames, repeated yields and native callbacks, routing nonlocal transfers through callers, and refreshing caller pending addresses remain unfinished. Whole-function analysis still reports attached calls and unresolved nested yields as incomplete; these body summaries do not imply that block calls pass a public checker.
+
 ## Remaining integration
 
 Completion still requires:
 
-- Opaque iterable dispatch, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
-- Class, module, remaining builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
+- Opaque iterable dispatch, interprocedural block control, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Class, module, remaining builtin and namespaced host calls, variable-size splats, attached block contexts, lexical-owner resolution and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Host-value facts, per-call capability descriptors, strict-effects validation and checker accounting across every entry point. Signature metadata must be inspected without invoking callbacks or validators.

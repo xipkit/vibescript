@@ -210,6 +210,7 @@ pub(super) fn analyze(
             function,
             inputs: &inputs.data,
             current_error: solver.jobs.data[index].current_error,
+            block: None,
         };
         let report = flow::analyze_body(ctx, facts, body, &mut solver)?;
         let mut returns = report.returns;

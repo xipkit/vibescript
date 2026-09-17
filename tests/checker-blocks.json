@@ -1,0 +1,134 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private checker ordinary calls without supplied blocks: block_given?, missing-block yield, evaluation order and exception flow. These whole-function cases have Rust execution witnesses. Prepared block-body summaries have separate runtime comparisons; attached-call integration remains incomplete.",
+  "cases": [
+    {
+      "source": "def run -> bool; block_given?; end",
+      "runtime": {
+        "display": "false"
+      },
+      "rust_rejected": false,
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; if block_given?; missing; else; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "difference": "Rust knows that this ordinary invocation has no supplied block and skips the unreachable block-given branch. Go warns about its missing name."
+    },
+    {
+      "source": "def helper; block_given?; end; def run; helper(); end",
+      "runtime": {
+        "display": "false"
+      },
+      "rust_rejected": false,
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; unless block_given?; 7; else; missing; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "difference": "Rust knows that this ordinary invocation has no supplied block and skips the unreachable block-given branch. Go warns about its missing name."
+    },
+    {
+      "source": "def run; begin; yield missing; rescue LocalJumpError; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": true,
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses yield without a supplied block, propagates LocalJumpError and skips yield argument evaluation. Go reports no checker warning."
+    },
+    {
+      "source": "def run; x=0; begin; yield (while true; x=7; break 9; end); rescue LocalJumpError; x; end; end",
+      "runtime": {
+        "display": "0"
+      },
+      "rust_rejected": true,
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses yield without a supplied block, propagates LocalJumpError and skips yield argument evaluation. Go reports no checker warning."
+    },
+    {
+      "source": "def run; begin; yield 7; rescue ArgumentError; missing; rescue LocalJumpError; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": true,
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "note": "Both checkers warn. Rust diagnoses the invalid block operation; Go instead warns about a missing name in an expression or branch that execution skips."
+    },
+    {
+      "source": "def run; begin; block_given?(missing); rescue; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": true,
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "note": "Both checkers warn. Rust diagnoses the invalid block operation; Go instead warns about a missing name in an expression or branch that execution skips."
+    },
+    {
+      "source": "def run; begin; block_given? {missing}; rescue; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": true,
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "note": "Both checkers warn. Rust diagnoses the invalid block operation; Go instead warns about a missing name in an expression or branch that execution skips."
+    },
+    {
+      "source": "def run; x=0; begin; block_given?(bad:(while true; x=7; break 9; end)); rescue; x; end; end",
+      "runtime": {
+        "display": "0"
+      },
+      "rust_rejected": true,
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses arguments to block_given? and preserves the runtime rule that their expressions are not evaluated. Go reports no checker warning."
+    },
+    {
+      "source": "def helper; yield 7; end; def run; begin; helper(); rescue LocalJumpError; 7; end; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": true,
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses yield without a supplied block, propagates LocalJumpError and skips yield argument evaluation. Go reports no checker warning."
+    },
+    {
+      "source": "def run; x=0; begin; yield 7; rescue LocalJumpError; x=2; ensure; x+=1; end; x; end",
+      "runtime": {
+        "display": "3"
+      },
+      "rust_rejected": true,
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses yield without a supplied block, propagates LocalJumpError and skips yield argument evaluation. Go reports no checker warning."
+    }
+  ]
+}

@@ -31,6 +31,11 @@ pub(super) enum Transfer {
         pc: usize,
         value: Fact,
     },
+    Block {
+        pc: usize,
+        completion: blocks::Completion,
+        value: Fact,
+    },
     Jump {
         target: usize,
         index: usize,
@@ -47,6 +52,18 @@ impl Transfer {
         match (self, other) {
             (Self::Value(_), Self::Value(_)) | (Self::Error(_), Self::Error(_)) => true,
             (Self::Return { pc: a, .. }, Self::Return { pc: b, .. }) => a == b,
+            (
+                Self::Block {
+                    pc: a,
+                    completion: b,
+                    ..
+                },
+                Self::Block {
+                    pc: x,
+                    completion: y,
+                    ..
+                },
+            ) => a == x && b == y,
             (Self::Retry(a), Self::Retry(b)) => a == b,
             (Self::InvalidRetry, Self::InvalidRetry) => true,
             (
@@ -78,6 +95,7 @@ impl Transfer {
         match (&mut *self, other) {
             (Self::Value(a), Self::Value(b)) => *a = a.join(ctx, facts, b, depth)?,
             (Self::Return { value: a, .. }, Self::Return { value: b, .. })
+            | (Self::Block { value: a, .. }, Self::Block { value: b, .. })
             | (Self::Jump { value: a, .. }, Self::Jump { value: b, .. }) => {
                 *a = facts.joined(ctx, *a, b, depth)?
             }
@@ -149,6 +167,26 @@ impl State {
 }
 
 impl Walker<'_> {
+    fn block_exit(
+        &mut self,
+        state: &State,
+        pc: usize,
+        completion: blocks::Completion,
+        value: Fact,
+    ) -> Result<()> {
+        if let (Some(report), Some(captures)) = (&mut self.report, &state.captures) {
+            captures.record(
+                self.ctx,
+                self.facts,
+                &mut report.block_exits,
+                pc,
+                completion,
+                value,
+            )?;
+        }
+        Ok(())
+    }
+
     fn declare_slots(&mut self, state: &mut State, pc: usize, slots: &[usize]) -> Result<()> {
         for &slot in slots {
             self.ctx.charge(1)?;
@@ -166,7 +204,7 @@ impl Walker<'_> {
     fn clear_rescue(&mut self, state: &mut State, attempt: Attempt) -> Result<()> {
         if let Phase::Rescue(index) = attempt.phase {
             if let Some(slot) = self.program.handlers[attempt.spec].rescues[index].binding {
-                state.store(self.ctx, slot, Atom::Never.fact())?;
+                state.store(self.ctx, self.facts, slot, Atom::Never.fact())?;
                 state.locals.set(
                     self.ctx,
                     slot,
@@ -251,7 +289,7 @@ impl Walker<'_> {
         }
         while let Some(attempt) = state.attempts.data.last().copied() {
             let exits = match transfer {
-                Transfer::Return { .. } | Transfer::InvalidRetry => true,
+                Transfer::Return { .. } | Transfer::Block { .. } | Transfer::InvalidRetry => true,
                 Transfer::Jump { index, .. } => attempt.loops > index,
                 Transfer::Retry(index) => state.attempts.data.len() - 1 > index,
                 _ => unreachable!(),
@@ -283,6 +321,15 @@ impl Walker<'_> {
                 if let Some(report) = self.report.as_mut() {
                     report.returns = self.facts.union(self.ctx, &[report.returns, actual])?;
                 }
+                self.block_exit(&state, pc, blocks::Completion::Value, actual)?;
+                Ok([None, None])
+            }
+            Transfer::Block {
+                pc,
+                completion,
+                value,
+            } => {
+                self.block_exit(&state, pc, completion, value)?;
                 Ok([None, None])
             }
             Transfer::Jump {
@@ -319,6 +366,12 @@ impl Walker<'_> {
                 if let Some(report) = self.report.as_mut() {
                     report.throws |= bit(ErrorClass::LocalJump);
                 }
+                self.block_exit(
+                    &state,
+                    pc,
+                    blocks::Completion::Error(ErrorClass::LocalJump),
+                    Atom::Never.fact(),
+                )?;
                 Ok([None, None])
             }
             _ => unreachable!(),
@@ -372,6 +425,19 @@ impl Walker<'_> {
             if let Some(report) = self.report.as_mut() {
                 report.throws |= classes;
             }
+            if state.captures.is_some() {
+                for class in CLASSES {
+                    self.ctx.charge(1)?;
+                    if classes & bit(class) != 0 {
+                        self.block_exit(
+                            state,
+                            pc,
+                            blocks::Completion::Error(class),
+                            Atom::Never.fact(),
+                        )?;
+                    }
+                }
+            }
             return Ok(());
         }
         for class in CLASSES {
@@ -414,7 +480,7 @@ impl Walker<'_> {
                         current.error = bit(class);
                         if let Some(slot) = clause.binding {
                             let value = self.error_value(class)?;
-                            state.store(self.ctx, slot, value)?;
+                            state.store(self.ctx, self.facts, slot, value)?;
                         }
                         return Ok(Some((clause.start, state)));
                     }
@@ -430,6 +496,12 @@ impl Walker<'_> {
         if let Some(report) = self.report.as_mut() {
             report.throws |= bit(class);
         }
+        self.block_exit(
+            &state,
+            pc,
+            blocks::Completion::Error(class),
+            Atom::Never.fact(),
+        )?;
         Ok(None)
     }
 }

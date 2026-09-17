@@ -1,7 +1,7 @@
 use super::{
     addresses::{Address, Attached, Change},
     arguments::{self, Arguments, Failure, Input},
-    builtins,
+    blocks, builtins,
     calls::{Calls, Target},
     facts::{Atom, Fact, Facts},
     graph::{Block, Exit, Graph},
@@ -27,6 +27,8 @@ const INVALID_CLASS: u16 = 1 << 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
+    MissingBlock,
+    BlockGivenArguments,
     Index {
         receiver: Fact,
         arguments: Fact,
@@ -100,6 +102,7 @@ pub(super) struct Report {
     pub throws: u8,
     pub issues: Buffer<Issue>,
     pub incomplete: Buffer<usize>,
+    pub block_exits: Buffer<blocks::Exit>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -219,6 +222,7 @@ struct Attempt {
 #[derive(Debug)]
 struct State {
     locals: Slots<Binding>,
+    captures: Option<blocks::Captures>,
     stack: Buffer<Operand>,
     loops: Buffer<Loop>,
     arguments: Buffer<Pending>,
@@ -248,6 +252,7 @@ impl State {
     }
     fn new(locals: usize) -> Self {
         Self {
+            captures: None,
             locals: Slots::new(
                 locals,
                 Binding {
@@ -268,6 +273,11 @@ impl State {
     fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut state = Self {
             locals: self.locals.snapshot(ctx)?,
+            captures: self
+                .captures
+                .as_ref()
+                .map(|c| c.snapshot(ctx))
+                .transpose()?,
             stack: Buffer::empty(),
             loops: Buffer::empty(),
             arguments: Buffer::empty(),
@@ -318,6 +328,9 @@ impl State {
                 missing: a.missing || b.missing,
             })
         })?;
+        if let (Some(a), Some(b)) = (&mut self.captures, &other.captures) {
+            changed |= a.join(ctx, facts, b, depth)?;
+        }
         assert_eq!(self.stack.data.len(), other.stack.data.len());
         assert_eq!(self.loops.data.len(), other.loops.data.len());
         assert_eq!(self.arguments.data.len(), other.arguments.data.len());
@@ -378,7 +391,16 @@ impl State {
         Ok(changed)
     }
 
-    fn store(&mut self, ctx: &mut CallContext, slot: usize, value: Fact) -> Result<()> {
+    fn store(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        slot: usize,
+        value: Fact,
+    ) -> Result<()> {
+        if let Some(captures) = &mut self.captures {
+            captures.store(ctx, facts, slot, value)?;
+        }
         self.locals.set(
             ctx,
             slot,
@@ -476,6 +498,7 @@ pub(super) fn analyze(
             contracts,
             inputs: &inputs.data,
             current_error: NO_ERROR,
+            block: None,
         },
         &mut super::calls::Unavailable,
     )
@@ -487,6 +510,7 @@ pub(super) struct Body<'a> {
     pub contracts: &'a [Fact],
     pub inputs: &'a [Input],
     pub current_error: u16,
+    pub block: Option<&'a blocks::Inputs<'a>>,
 }
 
 pub(super) fn analyze_body(
@@ -501,6 +525,7 @@ pub(super) fn analyze_body(
         contracts,
         inputs,
         current_error,
+        block,
     } = body;
     let function_index = function;
     let function = &program.functions[function];
@@ -509,14 +534,14 @@ pub(super) fn analyze_body(
         throws: 0,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
+        block_exits: Buffer::empty(),
     };
     ctx.checkpoint()?;
     ctx.charge(function.params.len() as u64)?;
     if function_index == 0
         || program.file
         || function.namespace.is_some()
-        || function.name == "<block>"
-        || !function.captures.is_empty()
+        || (block.is_none() && (function.name == "<block>" || !function.captures.is_empty()))
     {
         report.incomplete.push(ctx, 0)?;
         return Ok(report);
@@ -543,13 +568,22 @@ pub(super) fn analyze_body(
     }
     let graph = Graph::new(ctx, &function.code)?;
     let mut initial = State::new(function.locals);
+    if let Some(block) = block {
+        assert_eq!(function.name, "<block>");
+        for capture in block.captures {
+            ctx.charge(1)?;
+            assert!(function.captures[capture.slot].is_some());
+            initial.store(ctx, facts, capture.slot, capture.value)?;
+        }
+        initial.captures = Some(blocks::Captures::new(ctx, function.locals, block.captures)?);
+    }
     if !function.binds_parameters {
         for (index, parameter) in function.params.iter().enumerate() {
             ctx.charge(1)?;
             let Input::Supplied(value) = inputs[index] else {
                 unreachable!()
             };
-            initial.store(ctx, parameter.slot, value)?;
+            initial.store(ctx, facts, parameter.slot, value)?;
         }
     }
     let mut entries = Buffer::with_capacity(ctx, graph.blocks.data.len())?;
@@ -575,6 +609,7 @@ pub(super) fn analyze_body(
         contracts,
         inputs,
         current_error,
+        block_inputs: block,
         calls,
         report: None,
         extra: Buffer::empty(),
@@ -647,6 +682,7 @@ struct Walker<'a> {
     contracts: &'a [Fact],
     inputs: &'a [Input],
     current_error: u16,
+    block_inputs: Option<&'a blocks::Inputs<'a>>,
     calls: &'a mut dyn Calls,
     report: Option<&'a mut Report>,
     extra: Buffer<(usize, State)>,
@@ -831,7 +867,7 @@ impl Walker<'_> {
                 },
             )?;
         }
-        state.store(self.ctx, slot, value)?;
+        state.store(self.ctx, self.facts, slot, value)?;
         let change = Change::Store {
             same: operand.origin == Some(slot),
             fresh: operand.fresh,
@@ -874,7 +910,7 @@ impl Walker<'_> {
         if updated == Atom::Never.fact() {
             return self.incomplete(pc).map(Some);
         }
-        state.store(self.ctx, slot, updated)?;
+        state.store(self.ctx, self.facts, slot, updated)?;
         for pending in &mut state.addresses.data {
             self.ctx.charge(1)?;
             if pending.root == Some(slot) {
@@ -1216,7 +1252,35 @@ impl Walker<'_> {
                     }
                 }
                 Op::Shadow(slot) => {
-                    self.store(&mut state, pc, slot, Operand::new(Atom::Nil.fact()))?
+                    if let Some(captures) = &mut state.captures {
+                        captures.shadow(self.ctx, slot)?;
+                    }
+                    state.store(self.ctx, self.facts, slot, Atom::Nil.fact())?;
+                }
+                Op::BlockArg(index, autosplat) => {
+                    let Some(inputs) = self.block_inputs else {
+                        return self.incomplete(pc);
+                    };
+                    let value =
+                        blocks::argument(self.ctx, self.facts, inputs.arguments, index, autosplat)?;
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::BlockGiven(arguments, block) => {
+                    if arguments || block {
+                        self.issue(pc, IssueKind::BlockGivenArguments)?;
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        return Ok([None, None]);
+                    }
+                    let given = self.block_inputs.is_some_and(|inputs| inputs.given);
+                    let value = self.facts.boolean(self.ctx, given)?;
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::CheckBlock => {
+                    if !self.block_inputs.is_some_and(|inputs| inputs.given) {
+                        self.issue(pc, IssueKind::MissingBlock)?;
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::LocalJump))?;
+                        return Ok([None, None]);
+                    }
                 }
                 Op::Store(slot) => {
                     let operand = *state.stack.data.last().unwrap();
@@ -1231,7 +1295,7 @@ impl Walker<'_> {
                         Input::Default => None,
                     };
                     if let Some(value) = value {
-                        supplied.store(self.ctx, parameter.slot, value)?;
+                        supplied.store(self.ctx, self.facts, parameter.slot, value)?;
                     }
                     return Ok([
                         value.is_some().then_some((target, supplied)),
@@ -2571,6 +2635,24 @@ impl Walker<'_> {
                 }
                 Op::LoopBody | Op::Next(_) | Op::Break(_) => {
                     if state.loops.data.is_empty() {
+                        if self.block_inputs.is_some() && !matches!(op, Op::LoopBody) {
+                            let supplied = matches!(op, Op::Next(true) | Op::Break(true));
+                            let value = if supplied {
+                                state.stack.data.pop().unwrap().value
+                            } else {
+                                Atom::Nil.fact()
+                            };
+                            let transfer = if matches!(op, Op::Next(_)) {
+                                Transfer::Return { pc, value }
+                            } else {
+                                Transfer::Block {
+                                    pc,
+                                    completion: blocks::Completion::Break(supplied),
+                                    value,
+                                }
+                            };
+                            return self.transfer(state, pc, transfer);
+                        }
                         return self.incomplete(pc);
                     }
                     let current = state.loops.data.last_mut().unwrap();
@@ -2615,7 +2697,16 @@ impl Walker<'_> {
                 }
                 Op::Return | Op::Finish => {
                     let actual = state.stack.data.pop().unwrap().value;
-                    return self.transfer(state, pc, Transfer::Return { pc, value: actual });
+                    let transfer = if self.block_inputs.is_some() && matches!(op, Op::Return) {
+                        Transfer::Block {
+                            pc,
+                            completion: blocks::Completion::Return,
+                            value: actual,
+                        }
+                    } else {
+                        Transfer::Return { pc, value: actual }
+                    };
+                    return self.transfer(state, pc, transfer);
                 }
                 _ => return self.incomplete(pc),
             }
