@@ -28,6 +28,7 @@ impl Walker<'_> {
             return self.issue(pc, failure);
         }
         let driver = Driver {
+            mutation: None,
             method: Method::Loop,
             callback: Callback::Block(args.block.as_ref().unwrap()),
             pattern: None,

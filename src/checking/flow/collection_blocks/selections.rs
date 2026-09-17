@@ -112,6 +112,7 @@ impl Walker<'_> {
                 continue;
             }
             let driver = Driver {
+                mutation: None,
                 method,
                 callback: args
                     .block
@@ -211,7 +212,7 @@ impl Walker<'_> {
         Ok(())
     }
 
-    fn lookup_key(
+    pub(super) fn lookup_key(
         &mut self,
         state: &State,
         pc: usize,
@@ -262,7 +263,12 @@ impl Walker<'_> {
         Ok(value)
     }
 
-    fn lookup_value(&mut self, receiver: Fact, kind: Receiver, key: Fact) -> Result<(Fact, bool)> {
+    pub(super) fn lookup_value(
+        &mut self,
+        receiver: Fact,
+        kind: Receiver,
+        key: Fact,
+    ) -> Result<(Fact, bool)> {
         self.ctx.charge(1)?;
         if kind == Receiver::Array {
             if let (Node::Tuple(values), Node::Integer(index)) =

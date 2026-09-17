@@ -73,6 +73,7 @@ impl Walker<'_> {
                 continue;
             }
             let driver = Driver {
+                mutation: None,
                 method,
                 callback: args
                     .block

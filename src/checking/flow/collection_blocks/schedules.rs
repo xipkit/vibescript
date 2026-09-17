@@ -205,6 +205,7 @@ impl Walker<'_> {
                 continue;
             };
             let driver = Driver {
+                mutation: None,
                 method,
                 callback: Callback::Block(block),
                 pattern: None,

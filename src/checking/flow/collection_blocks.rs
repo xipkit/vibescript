@@ -4,6 +4,7 @@ use blocks::{Closure, Completion, Parent};
 
 mod grouping;
 mod loops;
+mod mutating;
 mod ordering;
 mod reductions;
 mod schedules;
@@ -163,6 +164,7 @@ enum Callback<'a> {
 #[derive(Clone, Copy)]
 struct Driver<'a> {
     method: Method,
+    mutation: Option<mutating::Mutation>,
     callback: Callback<'a>,
     pattern: Option<Fact>,
     count_overflow: bool,
@@ -609,6 +611,9 @@ impl Walker<'_> {
                 Completion::Return(depth) => self.callback_return(state, pc, depth, exit.value)?,
                 Completion::Break(_) => {
                     let mut state = state;
+                    if driver.mutation.is_some() {
+                        state.addresses.data.pop().unwrap();
+                    }
                     state.stack.push(self.ctx, Operand::new(exit.value))?;
                     self.extra.push(self.ctx, (pc + 1, state))?;
                 }

@@ -1,0 +1,410 @@
+use super::*;
+use crate::bytecode::Method as Native;
+
+mod fill;
+
+#[derive(Clone, Copy)]
+pub(super) enum Mutation {
+    Filter { hash: bool, keep: bool },
+    Fill,
+    Missing,
+}
+
+impl Walker<'_> {
+    pub(in crate::checking::flow) fn mutable_block(
+        &mut self,
+        state: &State,
+        pc: usize,
+        site: CallSite,
+        args: &Arguments,
+    ) -> Result<()> {
+        let receiver = state.addresses.data.last().unwrap().value;
+        let name = self.program.members[site.name].as_str();
+        for i in 0..self.facts.arm_count(receiver) {
+            self.ctx.charge(1)?;
+            let source = self.facts.arm(receiver, i);
+            if source == Atom::Never.fact() {
+                continue;
+            }
+            let mut state = state.snapshot(self.ctx)?;
+            state.addresses.data.last_mut().unwrap().value = source;
+            let protection = state
+                .addresses
+                .data
+                .last()
+                .unwrap()
+                .protection(self.ctx, self.facts)?;
+            if protection != Attached::No {
+                self.collection_error(&state, pc, source, site, args, ErrorClass::Runtime)?;
+                if protection == Attached::Yes {
+                    continue;
+                }
+            }
+            let kind = match self.facts.node(source) {
+                Node::Tuple(_) | Node::Array(_) => Some(Receiver::Array),
+                Node::Shape(_, _, _, true) | Node::Hash(_, _, true) => Some(Receiver::Hash),
+                Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Shape(..)
+                | Node::Hash(..)
+                | Node::Atom(Atom::Unknown | Atom::Any)
+                | Node::Builtin(_)
+                | Node::TypeValue(_)
+                | Node::Offset(_) => {
+                    self.incomplete(pc)?;
+                    continue;
+                }
+                _ => None,
+            };
+            let specialized = match (name, kind) {
+                ("delete_if" | "keep_if" | "delete", Some(_)) => true,
+                ("fill", Some(Receiver::Array)) => args.block.is_some(),
+                _ => false,
+            };
+            if !specialized {
+                if matches!(name, "delete_if" | "keep_if") || !args.keywords.data.is_empty() {
+                    self.collection_error(&state, pc, source, site, args, ErrorClass::Runtime)?;
+                } else if self
+                    .mutate(&mut state, pc, site, &args.positional.data, false, false)?
+                    .is_none()
+                {
+                    self.extra.push(self.ctx, (pc + 1, state))?;
+                }
+                continue;
+            }
+            let kind = kind.unwrap();
+            let arity = match name {
+                "fill" => args.positional.data.len() <= 2,
+                "delete" => args.positional.data.len() == 1,
+                _ => args.positional.data.is_empty(),
+            };
+            if site.scope || !args.keywords.data.is_empty() || !arity {
+                self.collection_error(&state, pc, source, site, args, ErrorClass::Runtime)?;
+                continue;
+            }
+            let Some(block) = &args.block else {
+                self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                self.issue(pc, IssueKind::MissingBlock)?;
+                continue;
+            };
+            let mutation = match name {
+                "delete_if" | "keep_if" => Mutation::Filter {
+                    hash: kind == Receiver::Hash,
+                    keep: name == "keep_if",
+                },
+                "fill" => Mutation::Fill,
+                "delete" => Mutation::Missing,
+                _ => unreachable!(),
+            };
+            let driver = Driver {
+                method: match mutation {
+                    Mutation::Filter { keep: true, .. } => Method::Select,
+                    Mutation::Filter { .. } => Method::Reject,
+                    Mutation::Fill => Method::Map,
+                    Mutation::Missing => Method::Fetch,
+                },
+                mutation: Some(mutation),
+                callback: Callback::Block(block),
+                pattern: None,
+                count_overflow: false,
+                exact: true,
+                site: Some(site),
+            };
+            match mutation {
+                Mutation::Filter { .. } => self.mutable_filter(state, pc, source, kind, driver)?,
+                Mutation::Fill => self.fill_block(state, pc, source, driver, args)?,
+                Mutation::Missing => self.delete_block(state, pc, source, kind, driver, args)?,
+            }
+        }
+        Ok(())
+    }
+
+    fn mutable_initial(&mut self, state: State) -> Result<IterationState> {
+        Ok(IterationState {
+            state,
+            output: self.facts.tuple(self.ctx, &[])?,
+            auxiliary: self.facts.boolean(self.ctx, false)?,
+            previous: Atom::Never.fact(),
+        })
+    }
+
+    fn mutable_filter(
+        &mut self,
+        state: State,
+        pc: usize,
+        source: Fact,
+        kind: Receiver,
+        driver: Driver<'_>,
+    ) -> Result<()> {
+        let initial = self.mutable_initial(state)?;
+        let depth = self.collection_depth(&initial, driver, source)?;
+        if let Node::Tuple(items) = self.facts.node(source) {
+            let count = items.data.len();
+            let mut current = Some(initial);
+            for position in 0..count {
+                self.ctx.charge(1)?;
+                let Some(before) = current else { break };
+                let Node::Tuple(items) = self.facts.node(source) else {
+                    unreachable!()
+                };
+                let element = items.data[position];
+                let index = self.facts.integer(self.ctx, position as i64)?;
+                let item = self.collection_item(kind, driver, element, index)?;
+                current = self.collection_step(before, pc, driver, item, depth)?;
+            }
+            if let Some(current) = current {
+                self.mutable_done(current, pc, source, driver.mutation.unwrap())?;
+            }
+            return Ok(());
+        }
+        let iteration = self.facts.iteration(self.ctx, source)?;
+        if iteration.empty != Atom::Never.fact() {
+            let empty = initial.snapshot(self.ctx)?;
+            self.mutable_done(empty, pc, source, driver.mutation.unwrap())?;
+        }
+        if iteration.item == Atom::Never.fact() {
+            return Ok(());
+        }
+        let item = self.collection_item(kind, driver, iteration.item, Atom::Int.fact())?;
+        let Some(mut current) = self.collection_step(initial, pc, driver, item, depth)? else {
+            return Ok(());
+        };
+        let depth = self.collection_depth(&current, driver, source)?;
+        current.state.widening.get_or_insert(depth);
+        loop {
+            self.ctx.charge(1)?;
+            let done = current.snapshot(self.ctx)?;
+            self.mutable_done(done, pc, source, driver.mutation.unwrap())?;
+            if iteration.repeat == Atom::Never.fact() {
+                break;
+            }
+            let before = current.snapshot(self.ctx)?;
+            let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
+                break;
+            };
+            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn mutable_filter_result(
+        &mut self,
+        current: IterationState,
+        item: Item,
+        value: Fact,
+        hash: bool,
+        keep: bool,
+        depth: usize,
+    ) -> Result<Option<IterationState>> {
+        let kept = self.facts.filter(self.ctx, value, Test::Truth, keep)?;
+        let removed = self.facts.filter(self.ctx, value, Test::Truth, !keep)?;
+        let mut result = None;
+        if kept != Atom::Never.fact() {
+            let mut next = current.snapshot(self.ctx)?;
+            if !hash {
+                next.output = self.group_append(next.output, item.element)?;
+            }
+            result = Some(next);
+        }
+        if removed != Atom::Never.fact() {
+            let mut next = current;
+            next.auxiliary = self.facts.boolean(self.ctx, true)?;
+            if hash {
+                next.output = self.group_append(next.output, item.pair.unwrap().0)?;
+            }
+            if let Some(kept) = &mut result {
+                kept.join(self.ctx, self.facts, &next, false, depth)?;
+            } else {
+                result = Some(next);
+            }
+        }
+        Ok(result)
+    }
+
+    fn mutable_done(
+        &mut self,
+        current: IterationState,
+        pc: usize,
+        source: Fact,
+        mutation: Mutation,
+    ) -> Result<()> {
+        if matches!(mutation, Mutation::Missing) {
+            return self.mutable_value(current.state, pc, current.output);
+        }
+        if self
+            .facts
+            .filter(self.ctx, current.auxiliary, Test::Truth, false)?
+            != Atom::Never.fact()
+        {
+            let state = current.state.snapshot(self.ctx)?;
+            self.mutable_value(state, pc, source)?;
+        }
+        if self
+            .facts
+            .filter(self.ctx, current.auxiliary, Test::Truth, true)?
+            == Atom::Never.fact()
+        {
+            return Ok(());
+        }
+        let (receiver, value) = if matches!(mutation, Mutation::Filter { hash: true, .. }) {
+            let receiver = current.state.addresses.data.last().unwrap().value;
+            let receiver = self.delete_keys(receiver, current.output)?;
+            (receiver, receiver)
+        } else {
+            (current.output, current.output)
+        };
+        self.mutable_commit(current.state, pc, receiver, value)
+    }
+
+    fn mutable_value(&mut self, mut state: State, pc: usize, value: Fact) -> Result<()> {
+        state.addresses.data.pop().unwrap();
+        state.stack.push(self.ctx, Operand::new(value))?;
+        self.extra.push(self.ctx, (pc + 1, state))
+    }
+
+    fn mutable_commit(
+        &mut self,
+        mut state: State,
+        pc: usize,
+        receiver: Fact,
+        value: Fact,
+    ) -> Result<()> {
+        let address = state.addresses.data.pop().unwrap();
+        let change = Change::Mutation {
+            address: &address,
+            method: Some(Native::Replace),
+            args: &[],
+            fresh: false,
+        };
+        if self
+            .publish(&mut state, pc, &address, receiver, change)?
+            .is_some()
+        {
+            return Ok(());
+        }
+        state.stack.push(self.ctx, Operand::new(value))?;
+        self.extra.push(self.ctx, (pc + 1, state))
+    }
+
+    fn delete_keys(&mut self, receiver: Fact, keys: Fact) -> Result<Fact> {
+        let mut result = Atom::Never.fact();
+        for i in 0..self.facts.arm_count(keys) {
+            self.ctx.charge(1)?;
+            let keys = self.facts.arm(keys, i);
+            let mut current = receiver;
+            if let Node::Tuple(items) = self.facts.node(keys) {
+                let mut keys = Buffer::empty();
+                keys.extend(self.ctx, &items.data)?;
+                for key in keys.data {
+                    current = self
+                        .facts
+                        .collection_mutate(self.ctx, current, Native::Delete, &[key])?
+                        .receiver;
+                }
+            } else if let Node::Array(key) = self.facts.node(keys) {
+                let key = *key;
+                let depth = self.facts.depth(receiver);
+                loop {
+                    self.ctx.charge(1)?;
+                    let next = self
+                        .facts
+                        .collection_mutate(self.ctx, current, Native::Delete, &[key])?
+                        .receiver;
+                    let next = self.facts.widen(self.ctx, current, next, depth)?;
+                    if next == current {
+                        break;
+                    }
+                    current = next;
+                }
+            } else {
+                unreachable!();
+            }
+            result = self.facts.union(self.ctx, &[result, current])?;
+        }
+        Ok(result)
+    }
+
+    fn delete_block(
+        &mut self,
+        state: State,
+        pc: usize,
+        source: Fact,
+        kind: Receiver,
+        driver: Driver<'_>,
+        args: &Arguments,
+    ) -> Result<()> {
+        let site = driver.site.unwrap();
+        let target = args.positional.data[0];
+        for i in 0..self.facts.arm_count(target) {
+            self.ctx.charge(1)?;
+            let mut key = self.facts.arm(target, i);
+            if kind == Receiver::Hash {
+                key = self.lookup_key(&state, pc, (source, site, args), kind, key)?;
+                if key == Atom::Never.fact() {
+                    continue;
+                }
+            }
+            let (found, missing) = if kind == Receiver::Hash {
+                self.lookup_value(source, kind, key)?
+            } else {
+                self.deleted_values(source, key)?
+            };
+            if found != Atom::Never.fact() {
+                let updated = self
+                    .facts
+                    .collection_mutate(self.ctx, source, Native::Delete, &[key])?
+                    .receiver;
+                let next = state.snapshot(self.ctx)?;
+                self.mutable_commit(next, pc, updated, found)?;
+            }
+            if missing {
+                let state = state.snapshot(self.ctx)?;
+                let initial = self.mutable_initial(state)?;
+                let depth = self.collection_depth(&initial, driver, source)?;
+                let item = Item {
+                    arguments: [key, Atom::Nil.fact()],
+                    count: 1,
+                    element: key,
+                    index: Atom::Int.fact(),
+                    pair: None,
+                };
+                if let Some(current) = self.collection_step(initial, pc, driver, item, depth)? {
+                    self.mutable_done(current, pc, source, Mutation::Missing)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn deleted_values(&mut self, source: Fact, key: Fact) -> Result<(Fact, bool)> {
+        let tuple = matches!(self.facts.node(source), Node::Tuple(_));
+        let mut values = Buffer::empty();
+        match self.facts.node(source) {
+            Node::Tuple(items) => values.extend(self.ctx, &items.data)?,
+            Node::Array(element) => values.push(self.ctx, *element)?,
+            _ => unreachable!(),
+        }
+        let mut found = Atom::Never.fact();
+        let mut missing = true;
+        for value in values.data {
+            let mut always = tuple;
+            for i in 0..self.facts.arm_count(value) {
+                self.ctx.charge(1)?;
+                let arm = self.facts.arm(value, i);
+                if arm == Atom::Never.fact() {
+                    always = false;
+                    continue;
+                }
+                let equal = self.facts.definitely_equal(arm, key);
+                always &= equal == Some(true);
+                if equal != Some(false) {
+                    found = self.facts.union(self.ctx, &[found, arm])?;
+                }
+            }
+            missing &= !always;
+        }
+        Ok((found, missing))
+    }
+}

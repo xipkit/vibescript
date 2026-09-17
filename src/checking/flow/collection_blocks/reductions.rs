@@ -201,6 +201,7 @@ impl Walker<'_> {
             };
         Ok(Some((
             Driver {
+                mutation: None,
                 method,
                 callback,
                 pattern: matches!(method, Grep | GrepV).then(|| args.positional.data[0]),
@@ -329,6 +330,9 @@ impl Walker<'_> {
         let method = driver.method;
         if value == Atom::Never.fact() {
             return Ok(None);
+        }
+        if let Some(mutating::Mutation::Filter { hash, keep }) = driver.mutation {
+            return self.mutable_filter_result(current, item, value, hash, keep, depth);
         }
         match method {
             Sort | SortBy | Min | Max | Minmax | MinBy | MaxBy => {

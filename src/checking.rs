@@ -94,3 +94,6 @@ mod order_tests;
 
 #[cfg(test)]
 mod pending_tests;
+
+#[cfg(test)]
+mod mutable_block_tests;

@@ -1032,6 +1032,15 @@ impl Walker<'_> {
         address_result: bool,
         fresh: bool,
     ) -> Result<Option<Edges>> {
+        if matches!(
+            self.program.members[site.name].as_str(),
+            "delete_if" | "keep_if"
+        ) {
+            let mut arguments = Arguments::new();
+            arguments.positional.extend(self.ctx, args)?;
+            self.mutable_block(state, pc, site, &arguments)?;
+            return Ok(Some([None, None]));
+        }
         let address = state.addresses.data.pop().unwrap();
         let name = &self.program.members[site.name];
         let protection = address.protection(self.ctx, self.facts)?;
@@ -1999,7 +2008,8 @@ impl Walker<'_> {
                 Op::Invoke(Invocation::Member(site, true)) => {
                     let args = state.arguments.data.pop().unwrap().arguments;
                     if args.block.is_some() {
-                        return self.incomplete(pc);
+                        self.mutable_block(&state, pc, site, &args)?;
+                        return Ok([None, None]);
                     }
                     let receiver = state.addresses.data.last().unwrap().value;
                     if !args.keywords.data.is_empty() {
