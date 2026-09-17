@@ -5,10 +5,50 @@ use super::{
 };
 use crate::{CallContext, ErrorClass, Result, budget::Buffer};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Capture {
     pub slot: usize,
     pub value: Fact,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) struct Link {
+    pub slot: usize,
+    pub parent: usize,
+    pub value: Fact,
+}
+
+#[derive(Debug)]
+pub(super) struct Closure {
+    pub function: usize,
+    pub given: bool,
+    pub captures: Buffer<Link>,
+}
+
+impl Closure {
+    pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
+        let mut captures = Buffer::empty();
+        captures.extend(ctx, &self.captures.data)?;
+        Ok(Self {
+            function: self.function,
+            given: self.given,
+            captures,
+        })
+    }
+
+    pub fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
+        assert_eq!((self.function, self.given), (other.function, other.given));
+        assert_eq!(self.captures.data.len(), other.captures.data.len());
+        let mut changed = false;
+        for (a, b) in self.captures.data.iter_mut().zip(&other.captures.data) {
+            ctx.charge(1)?;
+            assert_eq!((a.slot, a.parent), (b.slot, b.parent));
+            let value = facts.union(ctx, &[a.value, b.value])?;
+            changed |= a.value != value;
+            a.value = value;
+        }
+        Ok(changed)
+    }
 }
 
 pub(super) struct Inputs<'a> {
@@ -32,12 +72,50 @@ pub(super) struct Exit {
     pub completion: Completion,
     pub value: Fact,
     pub captures: Slots<Fact>,
+    pub written: Slots<bool>,
+}
+
+impl Exit {
+    pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
+        Ok(Self {
+            pc: self.pc,
+            completion: self.completion,
+            value: self.value,
+            captures: self.captures.snapshot(ctx)?,
+            written: self.written.snapshot(ctx)?,
+        })
+    }
+
+    pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        Ok(self.pc == other.pc
+            && self.completion == other.completion
+            && self.value == other.value
+            && self.captures.equal(ctx, &other.captures)?
+            && self.written.equal(ctx, &other.written)?)
+    }
+
+    pub fn widen(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        previous: &Self,
+        depth: usize,
+    ) -> Result<()> {
+        self.value = facts.widen(ctx, previous.value, self.value, depth)?;
+        self.captures.merge(ctx, &previous.captures, |ctx, a, b| {
+            facts.widen(ctx, b, a, depth)
+        })?;
+        self.written
+            .merge(ctx, &previous.written, |_, a, b| Ok(a || b))?;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
 pub(super) struct Captures {
     values: Slots<Fact>,
     attached: Slots<Attached>,
+    written: Slots<bool>,
 }
 
 impl Captures {
@@ -45,6 +123,7 @@ impl Captures {
         let mut result = Self {
             values: Slots::new(locals, Atom::Never.fact()),
             attached: Slots::new(locals, Attached::No),
+            written: Slots::new(locals, false),
         };
         for input in inputs {
             ctx.charge(1)?;
@@ -58,6 +137,7 @@ impl Captures {
         Ok(Self {
             values: self.values.snapshot(ctx)?,
             attached: self.attached.snapshot(ctx)?,
+            written: self.written.snapshot(ctx)?,
         })
     }
 
@@ -80,7 +160,12 @@ impl Captures {
                 facts.union(ctx, &[previous, value])?
             }
         };
+        self.written.set(ctx, slot, true)?;
         self.values.set(ctx, slot, value)
+    }
+
+    pub fn value(&self, ctx: &mut CallContext, slot: usize) -> Result<Fact> {
+        self.values.get(ctx, slot)
     }
 
     pub fn join(
@@ -96,7 +181,10 @@ impl Captures {
         let attached = self.attached.merge(ctx, &other.attached, |_, a, b| {
             Ok(if a == b { a } else { Attached::Maybe })
         })?;
-        Ok(values || attached)
+        let written = self
+            .written
+            .merge(ctx, &other.written, |_, a, b| Ok(a || b))?;
+        Ok(values || attached || written)
     }
 
     pub fn record(
@@ -114,10 +202,13 @@ impl Captures {
                 exit.value = facts.union(ctx, &[exit.value, value])?;
                 exit.captures
                     .merge(ctx, &self.values, |ctx, a, b| facts.union(ctx, &[a, b]))?;
+                exit.written
+                    .merge(ctx, &self.written, |_, a, b| Ok(a || b))?;
                 return Ok(());
             }
         }
         let captures = self.values.snapshot(ctx)?;
+        let written = self.written.snapshot(ctx)?;
         exits.push(
             ctx,
             Exit {
@@ -125,6 +216,7 @@ impl Captures {
                 completion,
                 value,
                 captures,
+                written,
             },
         )
     }

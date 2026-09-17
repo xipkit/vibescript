@@ -43,6 +43,9 @@ impl Walker<'_> {
         site: CallSite,
         args: Arguments,
     ) -> Result<Option<Edges>> {
+        if args.block.is_some() {
+            return self.incomplete(pc).map(Some);
+        }
         let name = &self.program.members[site.name];
         let (value, rejected, incomplete, throws) = if let Some(result) =
             builtins::member(self.ctx, self.facts, receiver, site, name, &args)?

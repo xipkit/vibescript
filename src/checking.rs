@@ -60,3 +60,6 @@ mod protected_tests;
 
 #[cfg(test)]
 mod block_tests;
+
+#[cfg(test)]
+mod yield_tests;

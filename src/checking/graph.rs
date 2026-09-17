@@ -70,7 +70,13 @@ impl Graph {
                     .data
                     .last()
                     .map_or(Exit::Stop, |(next, _)| Exit::Jump(*next)),
-                Op::TryBegin(_) | Op::TryBody | Op::TryEnd | Op::EnsureEnd => {
+                Op::TryBegin(_)
+                | Op::TryBody
+                | Op::TryEnd
+                | Op::EnsureEnd
+                | Op::Yield(_)
+                | Op::Invoke(_)
+                | Op::InvokeRoot(_) => {
                     leaders.data[pc + 1] = true;
                     Exit::Next
                 }

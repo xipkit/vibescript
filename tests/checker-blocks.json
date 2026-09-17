@@ -1,6 +1,6 @@
 {
   "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
-  "scope": "Private checker ordinary calls without supplied blocks: block_given?, missing-block yield, evaluation order and exception flow. These whole-function cases have Rust execution witnesses. Prepared block-body summaries have separate runtime comparisons; attached-call integration remains incomplete.",
+  "scope": "Private checker ordinary calls without supplied blocks: block_given?, missing-block yield, evaluation order and exception flow. These whole-function cases have Rust execution witnesses. Prepared block-body summaries have separate runtime comparisons; attached script calls and yield have separate integration coverage.",
   "cases": [
     {
       "source": "def run -> bool; block_given?; end",

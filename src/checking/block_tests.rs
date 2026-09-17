@@ -127,6 +127,7 @@ fn witness(
             inputs: &[],
             current_error: flow::NO_ERROR,
             block: Some(&input),
+            incoming: None,
         },
         &mut Unavailable,
     )
@@ -474,6 +475,7 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
             inputs: &[],
             current_error: flow::NO_ERROR,
             block: Some(&input),
+            incoming: None,
         },
         &mut Unavailable,
     )?;
@@ -580,11 +582,9 @@ fn block_analysis_preserves_latched_cancellation_and_deadlines() {
 }
 
 #[test]
-fn attached_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
-    for source in [
-        "def once; yield 7; end; def run; once {|x| x}; end",
-        "def run; [1].map {|x| x}; end",
-    ] {
+fn native_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
+    {
+        let source = "def run; [1].map {|x| x}; end";
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = super::collection_tests::analyze(&mut ctx, &mut facts, source).unwrap();
@@ -613,6 +613,7 @@ fn attached_calls_and_nested_yields_remain_incomplete_until_solver_integration()
             inputs: &[],
             current_error: flow::NO_ERROR,
             block: Some(&input),
+            incoming: None,
         },
         &mut Unavailable,
     )
@@ -657,6 +658,7 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
             inputs: &[],
             current_error: flow::NO_ERROR,
             block: Some(&input),
+            incoming: None,
         },
         &mut Unavailable,
     )

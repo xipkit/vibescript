@@ -16,6 +16,7 @@ use crate::{
     value::Kind,
 };
 
+mod callbacks;
 mod effects;
 mod handlers;
 mod native;
@@ -194,6 +195,7 @@ impl Operand {
 
 #[derive(Clone, Copy, Debug)]
 struct Loop {
+    end: usize,
     base: usize,
     argument_base: usize,
     address_base: usize,
@@ -223,6 +225,7 @@ struct Attempt {
 struct State {
     locals: Slots<Binding>,
     captures: Option<blocks::Captures>,
+    incoming: Option<blocks::Captures>,
     stack: Buffer<Operand>,
     loops: Buffer<Loop>,
     arguments: Buffer<Pending>,
@@ -253,6 +256,7 @@ impl State {
     fn new(locals: usize) -> Self {
         Self {
             captures: None,
+            incoming: None,
             locals: Slots::new(
                 locals,
                 Binding {
@@ -273,6 +277,11 @@ impl State {
     fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut state = Self {
             locals: self.locals.snapshot(ctx)?,
+            incoming: self
+                .incoming
+                .as_ref()
+                .map(|c| c.snapshot(ctx))
+                .transpose()?,
             captures: self
                 .captures
                 .as_ref()
@@ -329,6 +338,9 @@ impl State {
             })
         })?;
         if let (Some(a), Some(b)) = (&mut self.captures, &other.captures) {
+            changed |= a.join(ctx, facts, b, depth)?;
+        }
+        if let (Some(a), Some(b)) = (&mut self.incoming, &other.incoming) {
             changed |= a.join(ctx, facts, b, depth)?;
         }
         assert_eq!(self.stack.data.len(), other.stack.data.len());
@@ -499,6 +511,7 @@ pub(super) fn analyze(
             inputs: &inputs.data,
             current_error: NO_ERROR,
             block: None,
+            incoming: None,
         },
         &mut super::calls::Unavailable,
     )
@@ -511,6 +524,7 @@ pub(super) struct Body<'a> {
     pub inputs: &'a [Input],
     pub current_error: u16,
     pub block: Option<&'a blocks::Inputs<'a>>,
+    pub incoming: Option<&'a blocks::Closure>,
 }
 
 pub(super) fn analyze_body(
@@ -526,6 +540,7 @@ pub(super) fn analyze_body(
         inputs,
         current_error,
         block,
+        incoming,
     } = body;
     let function_index = function;
     let function = &program.functions[function];
@@ -568,6 +583,23 @@ pub(super) fn analyze_body(
     }
     let graph = Graph::new(ctx, &function.code)?;
     let mut initial = State::new(function.locals);
+    if let Some(incoming) = incoming {
+        let mut captures = Buffer::empty();
+        for link in &incoming.captures.data {
+            captures.push(
+                ctx,
+                blocks::Capture {
+                    slot: link.slot,
+                    value: link.value,
+                },
+            )?;
+        }
+        initial.incoming = Some(blocks::Captures::new(
+            ctx,
+            program.functions[incoming.function].locals,
+            &captures.data,
+        )?);
+    }
     if let Some(block) = block {
         assert_eq!(function.name, "<block>");
         for capture in block.captures {
@@ -610,6 +642,7 @@ pub(super) fn analyze_body(
         inputs,
         current_error,
         block_inputs: block,
+        incoming,
         calls,
         report: None,
         extra: Buffer::empty(),
@@ -683,6 +716,7 @@ struct Walker<'a> {
     inputs: &'a [Input],
     current_error: u16,
     block_inputs: Option<&'a blocks::Inputs<'a>>,
+    incoming: Option<&'a blocks::Closure>,
     calls: &'a mut dyn Calls,
     report: Option<&'a mut Report>,
     extra: Buffer<(usize, State)>,
@@ -743,9 +777,16 @@ impl Walker<'_> {
         args: Arguments,
     ) -> Result<Option<Edges>> {
         let current_error = state.current_error(self.ctx, self.current_error)?;
+        let attached = args
+            .block
+            .as_ref()
+            .map(|b| b.snapshot(self.ctx))
+            .transpose()?;
         let result = match target {
-            Target::Builtin(builtin) => builtins::invoke(self.ctx, self.facts, builtin, &args)?,
-            Target::Offset(value) => {
+            Target::Builtin(builtin) if attached.is_none() => {
+                builtins::invoke(self.ctx, self.facts, builtin, &args)?
+            }
+            Target::Offset(value) if attached.is_none() => {
                 builtins::protected::invoke(self.ctx, self.facts, value, &args)?
             }
             _ => self
@@ -775,6 +816,10 @@ impl Walker<'_> {
         self.emit_error(state, pc, classes)?;
         if result.incomplete {
             return self.incomplete(pc).map(Some);
+        }
+        if let Some(attached) = attached {
+            self.call_exits(state, pc, &attached, result.exits)?;
+            return Ok(Some([None, None]));
         }
         if result.value == Atom::Never.fact() {
             return Ok(Some([None, None]));
@@ -1271,17 +1316,23 @@ impl Walker<'_> {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         return Ok([None, None]);
                     }
-                    let given = self.block_inputs.is_some_and(|inputs| inputs.given);
+                    let given = self.given();
                     let value = self.facts.boolean(self.ctx, given)?;
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::CheckBlock => {
-                    if !self.block_inputs.is_some_and(|inputs| inputs.given) {
+                    if !self.given() {
                         self.issue(pc, IssueKind::MissingBlock)?;
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::LocalJump))?;
                         return Ok([None, None]);
                     }
                 }
+                Op::Attach(function) => {
+                    if !self.attach(&mut state, function)? {
+                        return self.incomplete(pc);
+                    }
+                }
+                Op::Yield(count) => return self.yield_block(state, pc, count),
                 Op::Store(slot) => {
                     let operand = *state.stack.data.last().unwrap();
                     self.store(&mut state, pc, slot, operand)?;
@@ -1889,6 +1940,9 @@ impl Walker<'_> {
                 }
                 Op::Invoke(Invocation::Member(site, true)) => {
                     let args = state.arguments.data.pop().unwrap().arguments;
+                    if args.block.is_some() {
+                        return self.incomplete(pc);
+                    }
                     let receiver = state.addresses.data.last().unwrap().value;
                     if !args.keywords.data.is_empty() {
                         let protection = state
@@ -2557,6 +2611,7 @@ impl Walker<'_> {
                     state.loops.push(
                         self.ctx,
                         Loop {
+                            end,
                             base: state.stack.data.len(),
                             argument_base: state.arguments.data.len(),
                             address_base: state.addresses.data.len(),

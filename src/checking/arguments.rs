@@ -49,6 +49,7 @@ pub(super) struct Keyword {
 pub(super) struct Arguments {
     pub positional: Buffer<Fact>,
     pub keywords: Buffer<Keyword>,
+    pub block: Option<super::blocks::Closure>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,6 +90,7 @@ impl Arguments {
         Self {
             positional: Buffer::empty(),
             keywords: Buffer::empty(),
+            block: None,
         }
     }
 
@@ -97,6 +99,7 @@ impl Arguments {
         let mut args = Self::new();
         args.positional.extend(ctx, &self.positional.data)?;
         args.keywords.extend(ctx, &self.keywords.data)?;
+        args.block = self.block.as_ref().map(|b| b.snapshot(ctx)).transpose()?;
         Ok(args)
     }
 
@@ -117,6 +120,11 @@ impl Arguments {
         assert_eq!(self.positional.data.len(), other.positional.data.len());
         assert_eq!(self.keywords.data.len(), other.keywords.data.len());
         let mut changed = false;
+        if let (Some(a), Some(b)) = (&mut self.block, &other.block) {
+            changed |= a.join(ctx, facts, b)?;
+        } else {
+            assert_eq!(self.block.is_some(), other.block.is_some());
+        }
         for (left, right) in self.positional.data.iter_mut().zip(&other.positional.data) {
             ctx.charge(1)?;
             let value = facts.union(ctx, &[*left, *right])?;

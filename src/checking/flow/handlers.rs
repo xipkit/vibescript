@@ -174,7 +174,10 @@ impl Walker<'_> {
         completion: blocks::Completion,
         value: Fact,
     ) -> Result<()> {
-        if let (Some(report), Some(captures)) = (&mut self.report, &state.captures) {
+        if let (Some(report), Some(captures)) = (
+            &mut self.report,
+            state.captures.as_ref().or(state.incoming.as_ref()),
+        ) {
             captures.record(
                 self.ctx,
                 self.facts,
@@ -306,6 +309,7 @@ impl Walker<'_> {
         }
         match transfer {
             Transfer::Return { pc, value: actual } => {
+                let mut value = actual;
                 if let Some(ty) = self.function.return_type {
                     let expected = self.contracts[ty];
                     let relation = self.facts.relation(self.ctx, actual, expected)?;
@@ -313,15 +317,28 @@ impl Walker<'_> {
                         if let Some(report) = self.report.as_mut() {
                             report.throws |= bit(ErrorClass::Runtime);
                         }
+                        self.block_exit(
+                            &state,
+                            pc,
+                            blocks::Completion::Error(ErrorClass::Runtime),
+                            Atom::Never.fact(),
+                        )?;
                     }
                     if relation == Relation::Rejected {
                         self.issue(pc, IssueKind::Return { actual, expected })?;
                     }
+                    value = if relation == Relation::Rejected {
+                        Atom::Never.fact()
+                    } else {
+                        self.facts.normalized(self.ctx, actual, expected)?
+                    };
                 }
                 if let Some(report) = self.report.as_mut() {
                     report.returns = self.facts.union(self.ctx, &[report.returns, actual])?;
                 }
-                self.block_exit(&state, pc, blocks::Completion::Value, actual)?;
+                if value != Atom::Never.fact() {
+                    self.block_exit(&state, pc, blocks::Completion::Value, value)?;
+                }
                 Ok([None, None])
             }
             Transfer::Block {
@@ -425,7 +442,7 @@ impl Walker<'_> {
             if let Some(report) = self.report.as_mut() {
                 report.throws |= classes;
             }
-            if state.captures.is_some() {
+            if state.captures.is_some() || state.incoming.is_some() {
                 for class in CLASSES {
                     self.ctx.charge(1)?;
                     if classes & bit(class) != 0 {

@@ -1,5 +1,6 @@
 use super::{
     arguments::{Arguments, Failure, Input},
+    blocks,
     facts::{Atom, Fact, Facts},
     flow::{self, Issue, Report},
     relation::Relation,
@@ -7,11 +8,15 @@ use super::{
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+mod context;
+use context::{Context, Kind};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Target {
     Builtin(crate::builtin::Builtin),
     Offset(Fact),
     Function(usize),
+    Block(usize),
     Host(usize),
     NonCallable,
     Undefined,
@@ -24,6 +29,7 @@ pub(super) struct Outcome {
     pub throws: u8,
     pub failures: Buffer<Failure>,
     pub incomplete: bool,
+    pub exits: Buffer<blocks::Exit>,
 }
 
 pub(super) trait Calls {
@@ -64,6 +70,7 @@ impl Calls for Unavailable {
             throws: 0,
             failures: Buffer::empty(),
             incomplete: true,
+            exits: Buffer::empty(),
         })
     }
 }
@@ -141,6 +148,8 @@ struct Job {
     // The cache key stays exact even when recursive analysis needs broader inputs.
     inputs: Buffer<Input>,
     widened: Option<Buffer<Input>>,
+    context: Context,
+    widened_context: Option<Context>,
     input_depth: Option<usize>,
     return_depth: Option<usize>,
     cyclic: bool,
@@ -166,8 +175,8 @@ struct Solver<'a> {
     search: usize,
 }
 
-enum Ancestor {
-    Function(usize),
+enum Ancestor<'a> {
+    Function(usize, &'a Context),
     Job(usize),
 }
 
@@ -194,7 +203,14 @@ pub(super) fn analyze(
         functions,
         search: 0,
     };
-    let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR)?;
+    let entry = solver.request(
+        ctx,
+        facts,
+        function,
+        inputs,
+        flow::NO_ERROR,
+        &Context::plain(),
+    )?;
     while let Some(index) = solver.queue.data.pop() {
         ctx.charge(1)?;
         solver.current = index;
@@ -203,6 +219,21 @@ pub(super) fn analyze(
         let mut inputs = Buffer::empty();
         let job = &solver.jobs.data[index];
         inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
+        let context = job
+            .widened_context
+            .as_ref()
+            .unwrap_or(&job.context)
+            .snapshot(ctx)?;
+        let incoming = context.incoming(ctx)?;
+        let block = if let Kind::Invoked { given } = context.kind {
+            Some(blocks::Inputs {
+                arguments: &context.arguments.data,
+                captures: &context.captures.data,
+                given,
+            })
+        } else {
+            None
+        };
         let function = solver.jobs.data[index].function;
         let body = flow::Body {
             program: solver.world.program,
@@ -210,9 +241,10 @@ pub(super) fn analyze(
             function,
             inputs: &inputs.data,
             current_error: solver.jobs.data[index].current_error,
-            block: None,
+            block: block.as_ref(),
+            incoming: incoming.as_ref(),
         };
-        let report = flow::analyze_body(ctx, facts, body, &mut solver)?;
+        let mut report = flow::analyze_body(ctx, facts, body, &mut solver)?;
         let mut returns = report.returns;
         if returns != Atom::Never.fact() {
             if let Some(ty) = solver.world.program.functions[function].return_type {
@@ -227,7 +259,33 @@ pub(super) fn analyze(
             returns = facts.widen(ctx, previous, returns, depth)?;
         }
         let job = &mut solver.jobs.data[index];
-        let changed = job.returns != returns || job.throws != report.throws;
+        if job.cyclic {
+            if let Some(previous) = &job.report {
+                let depth = *job.return_depth.get_or_insert(facts.max_depth());
+                for exit in &mut report.block_exits.data {
+                    for before in &previous.block_exits.data {
+                        ctx.charge(1)?;
+                        if exit.pc == before.pc && exit.completion == before.completion {
+                            exit.widen(ctx, facts, before, depth)?;
+                        }
+                    }
+                }
+            }
+        }
+        let mut changed = job.returns != returns || job.throws != report.throws;
+        if let Some(previous) = &job.report {
+            changed |= previous.block_exits.data.len() != report.block_exits.data.len();
+            for (a, b) in previous
+                .block_exits
+                .data
+                .iter()
+                .zip(&report.block_exits.data)
+            {
+                changed |= !a.equal(ctx, b)?;
+            }
+        } else {
+            changed |= !report.block_exits.data.is_empty();
+        }
         job.returns = returns;
         job.throws = report.throws;
         job.report = Some(report);
@@ -326,12 +384,14 @@ impl Solver<'_> {
         function: usize,
         inputs: &[Input],
         current_error: u16,
+        context: &Context,
     ) -> Result<usize> {
         ctx.charge(inputs.len() as u64 + 1)?;
         let mut hash = DefaultHasher::new();
         function.hash(&mut hash);
         inputs.hash(&mut hash);
         current_error.hash(&mut hash);
+        context.hash(ctx, &mut hash)?;
         let hash = hash.finish();
         if !self.buckets.data.is_empty() {
             let mut index = self.buckets.data[hash as usize & (self.buckets.data.len() - 1)];
@@ -342,6 +402,7 @@ impl Solver<'_> {
                     && job.function == function
                     && job.inputs.data == inputs
                     && job.error_key == current_error
+                    && job.context.equal(ctx, context)?
                 {
                     return Ok(index);
                 }
@@ -349,7 +410,7 @@ impl Solver<'_> {
             }
         }
         if self.functions.data[function] {
-            if let Some(path) = self.ancestor(ctx, Ancestor::Function(function))? {
+            if let Some(path) = self.ancestor(ctx, Ancestor::Function(function, context))? {
                 let index = path.data[0];
                 self.cycle(ctx, &path.data)?;
                 let depth = *self.jobs.data[index]
@@ -359,6 +420,12 @@ impl Solver<'_> {
                 let mut changed = self.jobs.data[index].current_error | current_error
                     != self.jobs.data[index].current_error;
                 self.jobs.data[index].current_error |= current_error;
+                let mut widened_context = self.jobs.data[index]
+                    .widened_context
+                    .as_ref()
+                    .unwrap_or(&self.jobs.data[index].context)
+                    .snapshot(ctx)?;
+                changed |= widened_context.widen(ctx, facts, context, depth)?;
                 for (i, &incoming) in inputs.iter().enumerate() {
                     ctx.charge(1)?;
                     let job = &self.jobs.data[index];
@@ -369,6 +436,7 @@ impl Solver<'_> {
                 }
                 if changed {
                     self.jobs.data[index].widened = Some(joined);
+                    self.jobs.data[index].widened_context = Some(widened_context);
                     self.enqueue(ctx, index)?;
                 }
                 return Ok(index);
@@ -393,6 +461,7 @@ impl Solver<'_> {
         }
         let mut copied = Buffer::empty();
         copied.extend(ctx, inputs)?;
+        let context = context.snapshot(ctx)?;
         let mut parents = Buffer::empty();
         // A newly created context cannot close a cycle. Record its first edge directly.
         if self.current != EMPTY {
@@ -408,6 +477,8 @@ impl Solver<'_> {
                 current_error,
                 inputs: copied,
                 widened: None,
+                context,
+                widened_context: None,
                 input_depth: None,
                 return_depth: None,
                 cyclic: false,
@@ -431,7 +502,7 @@ impl Solver<'_> {
     fn ancestor(
         &mut self,
         ctx: &mut CallContext,
-        target: Ancestor,
+        target: Ancestor<'_>,
     ) -> Result<Option<Buffer<usize>>> {
         ctx.checkpoint()?;
         if self.current == EMPTY {
@@ -453,7 +524,10 @@ impl Solver<'_> {
             ctx.charge(1)?;
             let index = pending.data[cursor].0;
             let matched = match target {
-                Ancestor::Function(function) => self.jobs.data[index].function == function,
+                Ancestor::Function(function, context) => {
+                    self.jobs.data[index].function == function
+                        && self.jobs.data[index].context.compatible(ctx, context)?
+                }
                 Ancestor::Job(job) => index == job,
             };
             if matched {
@@ -548,25 +622,50 @@ impl Calls for Solver<'_> {
             throws: 0,
             failures: Buffer::empty(),
             incomplete: false,
+            exits: Buffer::empty(),
         };
+        if args.block.is_some()
+            && !matches!(
+                target,
+                Target::Function(_) | Target::Block(_) | Target::Undefined | Target::NonCallable
+            )
+        {
+            outcome.incomplete = true;
+            return Ok(outcome);
+        }
         match target {
             Target::Builtin(builtin) => return super::builtins::invoke(ctx, facts, builtin, &args),
             Target::Offset(value) => {
                 return super::builtins::protected::invoke(ctx, facts, value, &args);
             }
-            Target::Function(function) => {
-                let bound = args.bind(
-                    ctx,
-                    facts,
-                    &self.world.program.functions[function].params,
-                    self.world.contracts,
-                )?;
-                if !bound.failures.data.is_empty() {
-                    outcome.failures = bound.failures;
-                    return Ok(outcome);
-                }
+            Target::Function(function) | Target::Block(function) => {
+                let mut context = args
+                    .block
+                    .as_ref()
+                    .map(|b| Context::receiving(ctx, b))
+                    .transpose()?
+                    .unwrap_or_else(Context::plain);
+                let inputs = if matches!(target, Target::Block(_)) {
+                    context.kind = Kind::Invoked {
+                        given: args.block.as_ref().unwrap().given,
+                    };
+                    context.arguments = args.positional;
+                    Buffer::empty()
+                } else {
+                    let bound = args.bind(
+                        ctx,
+                        facts,
+                        &self.world.program.functions[function].params,
+                        self.world.contracts,
+                    )?;
+                    if !bound.failures.data.is_empty() {
+                        outcome.failures = bound.failures;
+                        return Ok(outcome);
+                    }
+                    bound.inputs
+                };
                 let index =
-                    self.request(ctx, facts, function, &bound.inputs.data, current_error)?;
+                    self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
                 ctx.charge(self.dependencies.data.len() as u64)?;
                 if !self.dependencies.data.contains(&index) {
                     self.dependencies.push(ctx, index)?;
@@ -580,6 +679,15 @@ impl Calls for Solver<'_> {
                 }
                 outcome.value = self.jobs.data[index].returns;
                 outcome.throws = self.jobs.data[index].throws;
+                if context.kind != Kind::Plain {
+                    outcome.throws = 0;
+                    if let Some(report) = &self.jobs.data[index].report {
+                        for exit in &report.block_exits.data {
+                            let exit = exit.snapshot(ctx)?;
+                            outcome.exits.push(ctx, exit)?;
+                        }
+                    }
+                }
             }
             Target::Host(index) => {
                 let Some(host) = self.world.hosts.get(index) else {

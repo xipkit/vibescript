@@ -138,6 +138,46 @@ impl<T: Copy + Eq> Slots<T> {
         Ok(changed)
     }
 
+    pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        if self.len != other.len || self.empty != other.empty {
+            return Ok(false);
+        }
+        Self::equal_nodes(ctx, &self.root, &other.root, self.shift, self.empty)
+    }
+
+    fn equal_nodes(
+        ctx: &mut CallContext,
+        left: &Option<Arc<Node<T>>>,
+        right: &Option<Arc<Node<T>>>,
+        shift: u32,
+        empty: T,
+    ) -> Result<bool> {
+        ctx.charge(1)?;
+        if same(left, right) {
+            return Ok(true);
+        }
+        if shift == 0 {
+            let leaf = |node: &Option<Arc<Node<T>>>| match node.as_deref().map(|n| &n.data) {
+                Some(Data::Leaf(values)) => *values,
+                None => [empty; WIDTH],
+                _ => unreachable!(),
+            };
+            ctx.charge(WIDTH as u64)?;
+            return Ok(leaf(left) == leaf(right));
+        }
+        for i in 0..WIDTH {
+            let child = |node: &Option<Arc<Node<T>>>| match node.as_deref().map(|n| &n.data) {
+                Some(Data::Branch(children)) => children[i].clone(),
+                None => None,
+                _ => unreachable!(),
+            };
+            if !Self::equal_nodes(ctx, &child(left), &child(right), shift - BITS, empty)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     fn join(
         ctx: &mut CallContext,
         left: &Option<Arc<Node<T>>>,
