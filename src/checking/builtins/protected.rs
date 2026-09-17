@@ -24,7 +24,11 @@ fn fields(ctx: &mut CallContext, facts: &mut Facts, entries: &[(&str, Fact)]) ->
     facts.shape_fields(ctx, fields, false, Atom::String.fact(), true)
 }
 
-pub(super) fn match_data(ctx: &mut CallContext, facts: &mut Facts, regex: Fact) -> Result<Fact> {
+pub(in crate::checking) fn match_data(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    regex: Fact,
+) -> Result<Fact> {
     let string = Atom::String.fact();
     let capture = facts.nullable(ctx, string)?;
     let offset = facts.nullable(ctx, Atom::Int.fact())?;

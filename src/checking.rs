@@ -100,3 +100,6 @@ mod mutable_block_tests;
 
 #[cfg(test)]
 mod hash_block_tests;
+
+#[cfg(test)]
+mod text_block_tests;

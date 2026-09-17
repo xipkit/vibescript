@@ -44,6 +44,22 @@ impl Walker<'_> {
         args: Arguments,
     ) -> Result<Option<Edges>> {
         let name = &self.program.members[site.name];
+        if let Some(method) = collection_blocks::text::TextMethod::parse(name) {
+            if method.materializes() {
+                let mut strings = true;
+                for i in 0..self.facts.arm_count(receiver) {
+                    self.ctx.charge(1)?;
+                    strings &= self.facts.atom(self.facts.arm(receiver, i)) == Some(Atom::String);
+                }
+                if strings {
+                    let mut args = args;
+                    args.block = None;
+                    return self.member_without_collection(state, pc, receiver, site, &args);
+                }
+            }
+            self.text_block(state, pc, receiver, site, args, method)?;
+            return Ok(Some([None, None]));
+        }
         if let Some(method) = collection_blocks::Method::parse(name) {
             self.collection_block(state, pc, receiver, site, args, method)?;
             return Ok(Some([None, None]));

@@ -22,7 +22,11 @@ pub(super) fn supported(facts: &Facts, receiver: Fact, name: &str) -> bool {
     matches!(
         facts.atom(receiver),
         Some(Atom::Time | Atom::Duration | Atom::Money | Atom::Regex)
-    ) || (facts.atom(receiver) == Some(Atom::String) && matches!(name, "match" | "match?"))
+    ) || (facts.atom(receiver) == Some(Atom::String)
+        && matches!(
+            name,
+            "match" | "match?" | "chars" | "bytes" | "codepoints" | "lines"
+        ))
         || (unit(name)
             && matches!(
                 facts.atom(receiver),
@@ -121,6 +125,9 @@ pub(super) fn member(
         return Ok(result);
     }
     match kind {
+        Atom::String if matches!(name, "chars" | "bytes" | "codepoints" | "lines") => {
+            text_materializer(ctx, facts, receiver, name, args)
+        }
         Atom::String if matches!(name, "match" | "match?") => {
             protected::string_match(ctx, facts, receiver, name, args)
         }
@@ -130,6 +137,48 @@ pub(super) fn member(
         Atom::Regex => regex(ctx, facts, receiver, name, args),
         _ => reject(ctx, Failure::Undefined),
     }
+}
+
+fn text_materializer(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    receiver: Fact,
+    name: &str,
+    args: &Arguments,
+) -> Result<Outcome> {
+    if !args.positional.data.is_empty() {
+        return reject(ctx, Failure::BuiltinArity);
+    }
+    let value = if let Node::String(value) = facts.node(receiver) {
+        let method = match name {
+            "bytes" => crate::bytecode::Method::Bytes,
+            "chars" => crate::bytecode::Method::Chars,
+            "codepoints" => crate::bytecode::Method::Codepoints,
+            "lines" => crate::bytecode::Method::Lines,
+            _ => unreachable!(),
+        };
+        let values = crate::text::method(ctx, method, value.clone(), &[])?;
+        let values = values.as_array().unwrap();
+        let mut items = Buffer::with_capacity(ctx, values.len())?;
+        for value in values {
+            ctx.charge(1)?;
+            let fact = match &value.0 {
+                Kind::Int(n) => facts.integer(ctx, *n)?,
+                Kind::Bytes(bytes) => facts.string(ctx, &bytes.data)?,
+                _ => unreachable!(),
+            };
+            items.push(ctx, fact)?;
+        }
+        facts.tuple(ctx, &items.data)?
+    } else {
+        let element = if matches!(name, "bytes" | "codepoints") {
+            Atom::Int
+        } else {
+            Atom::String
+        };
+        facts.array(ctx, element.fact())?
+    };
+    Ok(outcome(value))
 }
 
 fn between(

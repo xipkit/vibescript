@@ -75,6 +75,7 @@ impl Graph {
                 | Op::TryEnd
                 | Op::EnsureEnd
                 | Op::Yield(_)
+                | Op::Method(_, _)
                 | Op::Invoke(_)
                 | Op::InvokeRoot(_) => {
                     leaders.data[pc + 1] = true;

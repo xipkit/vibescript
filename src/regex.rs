@@ -16,8 +16,8 @@ pub(crate) mod substitute;
 mod unicode;
 pub(crate) mod value;
 
-const MAX_PATTERN: usize = 16 << 10;
-const MAX_TEXT: usize = 1 << 20;
+pub(crate) const MAX_PATTERN: usize = 16 << 10;
+pub(crate) const MAX_TEXT: usize = 1 << 20;
 const MAX_INSTRUCTIONS: usize = 100_000;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

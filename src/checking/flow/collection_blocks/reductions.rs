@@ -213,7 +213,7 @@ impl Walker<'_> {
         )))
     }
 
-    fn collection_parameter(
+    pub(super) fn collection_parameter(
         &mut self,
         state: &State,
         pc: usize,

@@ -10,6 +10,7 @@ mod ordering;
 mod reductions;
 mod schedules;
 mod selections;
+pub(super) mod text;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Method {
