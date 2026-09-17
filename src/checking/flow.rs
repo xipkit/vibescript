@@ -9,11 +9,19 @@ use super::{
     slots::Slots,
 };
 use crate::{
-    CallContext, Result,
+    CallContext, ErrorClass, Result,
     budget::Buffer,
     bytecode::{ArgumentOp, CallSite, Function, Invocation, Method, Op, Program},
     value::Kind,
 };
+
+mod effects;
+mod handlers;
+use handlers::{Phase, Transfer};
+
+// Absence must survive joins with inherited rescued errors.
+pub(super) const NO_ERROR: u16 = 1 << 8;
+const INVALID_CLASS: u16 = 1 << 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
@@ -42,6 +50,9 @@ pub(super) enum IssueKind {
     },
     Regex {
         pattern: usize,
+    },
+    Raise {
+        value: Fact,
     },
     Call {
         target: Target,
@@ -84,6 +95,7 @@ pub(super) struct Issue {
 #[derive(Debug)]
 pub(super) struct Report {
     pub returns: Fact,
+    pub throws: u8,
     pub issues: Buffer<Issue>,
     pub incomplete: Buffer<usize>,
 }
@@ -111,6 +123,14 @@ struct Operand {
 }
 
 impl Operand {
+    fn invalidate(&mut self, slot: usize) {
+        if self.origin == Some(slot) {
+            self.origin = None;
+        }
+        if self.predicate.is_some_and(|p| p.slot == slot) {
+            self.predicate = None;
+        }
+    }
     fn new(value: Fact) -> Self {
         Self {
             value,
@@ -173,6 +193,7 @@ struct Loop {
     argument_base: usize,
     address_base: usize,
     attempt_base: usize,
+    raise_base: usize,
     expression: bool,
     source: Fact,
     repeat: Fact,
@@ -186,6 +207,11 @@ struct Attempt {
     stack: usize,
     arguments: usize,
     addresses: usize,
+    loops: usize,
+    raises: usize,
+    phase: Phase,
+    error: u8,
+    pending: Option<Transfer>,
 }
 
 #[derive(Debug)]
@@ -196,6 +222,7 @@ struct State {
     arguments: Buffer<Pending>,
     addresses: Buffer<Address>,
     attempts: Buffer<Attempt>,
+    raises: Buffer<u16>,
     widening: Option<usize>,
 }
 
@@ -231,6 +258,7 @@ impl State {
             arguments: Buffer::empty(),
             addresses: Buffer::empty(),
             attempts: Buffer::empty(),
+            raises: Buffer::empty(),
             widening: None,
         }
     }
@@ -243,11 +271,13 @@ impl State {
             arguments: Buffer::empty(),
             addresses: Buffer::empty(),
             attempts: Buffer::empty(),
+            raises: Buffer::empty(),
             widening: None,
         };
         state.stack.extend(ctx, &self.stack.data)?;
         state.loops.extend(ctx, &self.loops.data)?;
         state.attempts.extend(ctx, &self.attempts.data)?;
+        state.raises.extend(ctx, &self.raises.data)?;
         for pending in &self.arguments.data {
             ctx.charge(1)?;
             let arguments = pending.arguments.snapshot(ctx)?;
@@ -290,8 +320,20 @@ impl State {
         assert_eq!(self.loops.data.len(), other.loops.data.len());
         assert_eq!(self.arguments.data.len(), other.arguments.data.len());
         assert_eq!(self.addresses.data.len(), other.addresses.data.len());
-        ctx.charge(self.attempts.data.len() as u64)?;
-        assert_eq!(self.attempts.data, other.attempts.data);
+        for (a, b) in self.attempts.data.iter_mut().zip(&other.attempts.data) {
+            ctx.charge(1)?;
+            let error = a.error | b.error;
+            changed |= error != a.error;
+            a.error = error;
+            if let (Some(a), Some(b)) = (&mut a.pending, b.pending) {
+                changed |= a.join(ctx, facts, b, depth)?;
+            }
+        }
+        for (a, b) in self.raises.data.iter_mut().zip(&other.raises.data) {
+            ctx.charge(1)?;
+            changed |= *a != *a | *b;
+            *a |= *b;
+        }
         for (a, b) in self.addresses.data.iter_mut().zip(&other.addresses.data) {
             ctx.charge(1)?;
             changed |= a.join(ctx, facts, b, depth)?;
@@ -317,6 +359,7 @@ impl State {
                     && a.argument_base == b.argument_base
                     && a.address_base == b.address_base
                     && a.attempt_base == b.attempt_base
+                    && a.raise_base == b.raise_base
                     && a.expression == b.expression
             );
             let last = facts.joined(ctx, a.last, b.last, depth)?;
@@ -345,14 +388,12 @@ impl State {
         // An older operand can survive an assignment in its right-hand expression.
         for operand in &mut self.stack.data {
             ctx.charge(1)?;
-            if operand.origin == Some(slot) {
-                operand.origin = None;
-            }
-            if operand
-                .predicate
-                .is_some_and(|predicate| predicate.slot == slot)
-            {
-                operand.predicate = None;
+            operand.invalidate(slot);
+        }
+        for attempt in &mut self.attempts.data {
+            ctx.charge(1)?;
+            if let Some(Transfer::Value(operand)) = &mut attempt.pending {
+                operand.invalidate(slot);
             }
         }
         Ok(())
@@ -432,6 +473,7 @@ pub(super) fn analyze(
             function,
             contracts,
             inputs: &inputs.data,
+            current_error: NO_ERROR,
         },
         &mut super::calls::Unavailable,
     )
@@ -442,6 +484,7 @@ pub(super) struct Body<'a> {
     pub function: usize,
     pub contracts: &'a [Fact],
     pub inputs: &'a [Input],
+    pub current_error: u16,
 }
 
 pub(super) fn analyze_body(
@@ -455,11 +498,13 @@ pub(super) fn analyze_body(
         function,
         contracts,
         inputs,
+        current_error,
     } = body;
     let function_index = function;
     let function = &program.functions[function];
     let mut report = Report {
         returns: Atom::Never.fact(),
+        throws: 0,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
     };
@@ -506,15 +551,19 @@ pub(super) fn analyze_body(
         }
     }
     let mut entries = Buffer::with_capacity(ctx, graph.blocks.data.len())?;
-    let mut queued = Buffer::with_capacity(ctx, graph.blocks.data.len())?;
     let mut queue = Buffer::empty();
     for _ in &graph.blocks.data {
         ctx.charge(1)?;
-        entries.data.push([None, None, None]);
-        queued.data.push([false; 3]);
+        entries.data.push(Buffer::empty());
     }
-    entries.data[0][0] = Some(initial);
-    queued.data[0][0] = true;
+    entries.data[0].push(
+        ctx,
+        handlers::Entry {
+            state: initial,
+            polarity: 0,
+            queued: true,
+        },
+    )?;
     queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
         ctx,
@@ -523,32 +572,56 @@ pub(super) fn analyze_body(
         function,
         contracts,
         inputs,
+        current_error,
         calls,
         report: None,
+        extra: Buffer::empty(),
     };
     while let Some((index, polarity)) = queue.data.pop() {
         walker.ctx.charge(1)?;
-        queued.data[index][polarity] = false;
-        let state = entries.data[index][polarity]
-            .as_ref()
-            .unwrap()
+        entries.data[index].data[polarity].queued = false;
+        let state = entries.data[index].data[polarity]
+            .state
             .snapshot(walker.ctx)?;
         let edges = walker.block(&graph.blocks.data[index], state)?;
         for (pc, state) in edges.into_iter().flatten() {
+            walker.extra.push(walker.ctx, (pc, state))?;
+        }
+        while let Some((pc, state)) = walker.extra.data.pop() {
             let backedge = pc <= graph.blocks.data[index].start;
             let index = graph.at(walker.ctx, pc)?;
-            // Keep short-circuit results separate from still-unknown conditions. Otherwise
-            // a false left operand erases facts required by the right operand's true branch.
             let polarity = state.polarity(walker.ctx, walker.facts)?;
-            let changed = if let Some(entry) = &mut entries.data[index][polarity] {
-                entry.join(walker.ctx, walker.facts, &state, backedge)?
+            let mut selected = None;
+            for (i, entry) in entries.data[index].data.iter().enumerate() {
+                walker.ctx.charge(1)?;
+                if entry.polarity == polarity && entry.state.compatible(walker.ctx, &state)? {
+                    selected = Some(i);
+                    break;
+                }
+            }
+            let (selected, changed) = if let Some(selected) = selected {
+                let changed = entries.data[index].data[selected].state.join(
+                    walker.ctx,
+                    walker.facts,
+                    &state,
+                    backedge,
+                )?;
+                (selected, changed)
             } else {
-                entries.data[index][polarity] = Some(state);
-                true
+                let selected = entries.data[index].data.len();
+                entries.data[index].push(
+                    walker.ctx,
+                    handlers::Entry {
+                        state,
+                        polarity,
+                        queued: false,
+                    },
+                )?;
+                (selected, true)
             };
-            if changed && !queued.data[index][polarity] {
-                queue.push(walker.ctx, (index, polarity))?;
-                queued.data[index][polarity] = true;
+            if changed && !entries.data[index].data[selected].queued {
+                queue.push(walker.ctx, (index, selected))?;
+                entries.data[index].data[selected].queued = true;
             }
         }
     }
@@ -556,8 +629,9 @@ pub(super) fn analyze_body(
     walker.report = Some(&mut report);
     for (index, entry) in entries.data.into_iter().enumerate() {
         walker.ctx.charge(1)?;
-        for entry in entry.into_iter().flatten() {
-            walker.block(&graph.blocks.data[index], entry)?;
+        for entry in entry.data {
+            walker.block(&graph.blocks.data[index], entry.state)?;
+            walker.extra.data.clear();
         }
     }
     Ok(report)
@@ -570,8 +644,10 @@ struct Walker<'a> {
     function: &'a Function,
     contracts: &'a [Fact],
     inputs: &'a [Input],
+    current_error: u16,
     calls: &'a mut dyn Calls,
     report: Option<&'a mut Report>,
+    extra: Buffer<(usize, State)>,
 }
 
 impl Walker<'_> {
@@ -587,6 +663,7 @@ impl Walker<'_> {
             self.facts
                 .case_result(self.ctx, target.map(|t| t.value), matcher.value, splat)?;
         if result.rejected {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             self.issue(
                 pc,
                 IssueKind::CaseSplat {
@@ -627,10 +704,23 @@ impl Walker<'_> {
         target: Target,
         args: Arguments,
     ) -> Result<Option<Edges>> {
-        let result = self.calls.invoke(self.ctx, self.facts, target, args)?;
+        let current_error = state.current_error(self.ctx, self.current_error)?;
+        let result = self
+            .calls
+            .invoke(self.ctx, self.facts, target, args, current_error)?;
+        let mut classes = result.throws;
         for failure in result.failures.data {
+            classes |= handlers::bit(match failure {
+                Failure::Type { .. }
+                | Failure::NonCallable
+                | Failure::Undefined
+                | Failure::HostArity
+                | Failure::HostKeywords => ErrorClass::Runtime,
+                _ => ErrorClass::Argument,
+            });
             self.issue(pc, IssueKind::Call { target, failure })?;
         }
+        self.emit_error(state, pc, classes)?;
         if result.incomplete {
             return self.incomplete(pc).map(Some);
         }
@@ -784,6 +874,7 @@ impl Walker<'_> {
             self.facts
                 .collection_mutation_member(self.ctx, address.value, site, name, args)?;
         if result.rejected {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             let arguments = self.facts.tuple(self.ctx, args)?;
             self.issue(
                 pc,
@@ -864,12 +955,14 @@ impl Walker<'_> {
 
     fn index_outcome(
         &mut self,
+        state: &State,
         pc: usize,
         receiver: Fact,
         args: &[Fact],
         result: &super::scalar::Operation,
     ) -> Result<Option<Edges>> {
         if result.rejected {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             let arguments = self.facts.tuple(self.ctx, args)?;
             self.issue(
                 pc,
@@ -885,24 +978,12 @@ impl Walker<'_> {
         Ok((result.value == Atom::Never.fact()).then_some([None, None]))
     }
 
-    fn declare_attempt(&mut self, state: &mut State, pc: usize, spec: usize) -> Result<()> {
-        for &slot in &self.program.handlers[spec].body_locals {
-            self.ctx.charge(1)?;
-            let binding = state.locals.get(self.ctx, slot)?;
-            if binding.missing {
-                let value = self
-                    .facts
-                    .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
-                self.store(state, pc, slot, Operand::local(value, slot))?;
-            }
-        }
-        Ok(())
-    }
-
     fn block(&mut self, block: &Block, mut state: State) -> Result<Edges> {
         for pc in block.start..block.end {
             self.ctx.charge(1)?;
             let op = self.function.code[pc];
+            let errors = self.potential_errors(&state, op)?;
+            self.emit_error(&state, pc, errors)?;
             match op {
                 Op::Integer(..) => state.stack.push(self.ctx, Operand::new(Atom::Int.fact()))?,
                 Op::Nil => state.stack.push(self.ctx, Operand::new(Atom::Nil.fact()))?,
@@ -940,6 +1021,21 @@ impl Walker<'_> {
                         binding.value
                     };
                     state.stack.push(self.ctx, Operand::local(value, slot))?;
+                }
+                Op::Unbound(name) => {
+                    let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
+                    if target != Target::Undefined {
+                        return self.incomplete(pc);
+                    }
+                    self.issue(
+                        pc,
+                        IssueKind::Call {
+                            target,
+                            failure: Failure::Undefined,
+                        },
+                    )?;
+                    self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    return Ok([None, None]);
                 }
                 Op::ReceiverBound(slot, target) => {
                     let binding = state.locals.get(self.ctx, slot)?;
@@ -1071,6 +1167,7 @@ impl Walker<'_> {
                         if self.facts.relation(self.ctx, value, Atom::Int.fact())?
                             == Relation::Rejected
                         {
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                             self.issue(pc, IssueKind::Range { value })?;
                         }
                     }
@@ -1100,6 +1197,7 @@ impl Walker<'_> {
                         Ok(value) => self.facts.regex(self.ctx, value)?,
                         Err(_) => {
                             self.ctx.checkpoint()?;
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                             self.issue(pc, IssueKind::Regex { pattern })?;
                             return Ok([None, None]);
                         }
@@ -1135,6 +1233,7 @@ impl Walker<'_> {
                         .facts
                         .collection_index(self.ctx, receiver, &args.data)?;
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         let arguments = self.facts.tuple(self.ctx, &args.data)?;
                         self.issue(
                             pc,
@@ -1154,13 +1253,6 @@ impl Walker<'_> {
                     state.stack.push(self.ctx, Operand::new(result.value))?;
                 }
                 Op::TryBegin(spec) => {
-                    let handler = &self.program.handlers[spec];
-                    if !handler.rescues.is_empty()
-                        || handler.alternate.is_some()
-                        || handler.ensure.is_some()
-                    {
-                        return self.incomplete(pc);
-                    }
                     state.attempts.push(
                         self.ctx,
                         Attempt {
@@ -1168,17 +1260,125 @@ impl Walker<'_> {
                             stack: state.stack.data.len(),
                             arguments: state.arguments.data.len(),
                             addresses: state.addresses.data.len(),
+                            loops: state.loops.data.len(),
+                            raises: state.raises.data.len(),
+                            phase: Phase::Body,
+                            error: 0,
+                            pending: None,
                         },
                     )?;
                 }
-                Op::TryBody => {
-                    let attempt = state.attempts.data.pop().unwrap();
-                    let operand = state.stack.data.pop().unwrap();
-                    self.declare_attempt(&mut state, pc, attempt.spec)?;
-                    state.stack.data.truncate(attempt.stack);
-                    state.arguments.data.truncate(attempt.arguments);
-                    state.addresses.data.truncate(attempt.addresses);
-                    state.stack.push(self.ctx, operand)?;
+                Op::TryBody | Op::TryEnd => {
+                    return self.normal_attempt(state, pc, matches!(op, Op::TryBody));
+                }
+                Op::EnsureEnd => return self.end_ensure(state, pc),
+                Op::Retry => {
+                    self.ctx.charge(state.attempts.data.len() as u64)?;
+                    if let Some(index) = state
+                        .attempts
+                        .data
+                        .iter()
+                        .rposition(|h| matches!(h.phase, Phase::Rescue(_)))
+                    {
+                        return self.transfer(state, pc, Transfer::Retry(index));
+                    }
+                    if self.current_error & NO_ERROR != 0 {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    }
+                    return if self.current_error as u8 != 0 {
+                        self.transfer(state, pc, Transfer::InvalidRetry)
+                    } else {
+                        Ok([None, None])
+                    };
+                }
+                Op::RaiseStart(named, target) => {
+                    let class = if let Some((name, slot)) = named {
+                        let name = &self.program.members[name];
+                        self.ctx.work_bytes(name.len())?;
+                        let mut bound = slot
+                            .map(|slot| state.locals.get(self.ctx, slot))
+                            .transpose()?
+                            .is_some_and(|b| !b.missing)
+                            || self.calls.global(self.ctx, name)?
+                            || self.program.names.contains_key(name)
+                            || self.program.declaration_names.contains_key(name);
+                        if !bound {
+                            for host in &self.program.hosts {
+                                self.ctx.work_bytes(host.len().max(name.len()))?;
+                                if host == name {
+                                    bound = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if bound {
+                            None
+                        } else {
+                            ErrorClass::from_name(name)
+                        }
+                    } else {
+                        None
+                    };
+                    state
+                        .raises
+                        .push(self.ctx, class.map_or(0, |c| u16::from(handlers::bit(c))))?;
+                    return Ok([
+                        Some((if class.is_some() { target } else { pc + 1 }, state)),
+                        None,
+                    ]);
+                }
+                Op::RaiseValue => {
+                    let value = state.stack.data.pop().unwrap().value;
+                    let classes =
+                        if matches!(self.facts.atom(value), Some(Atom::Unknown | Atom::Any)) {
+                            511
+                        } else {
+                            256
+                        };
+                    *state.raises.data.last_mut().unwrap() = classes;
+                }
+                Op::Raise(count) => {
+                    let mut classes = 0;
+                    if count == 0 {
+                        let current = state.current_error(self.ctx, self.current_error)?;
+                        classes = current as u8;
+                        if current & NO_ERROR != 0 {
+                            classes |= handlers::bit(ErrorClass::Runtime);
+                        }
+                    } else {
+                        let value = state.stack.data.pop().unwrap().value;
+                        let target = if count == 2 {
+                            state.raises.data.pop().unwrap()
+                        } else {
+                            u16::from(handlers::bit(ErrorClass::Runtime))
+                        };
+                        let mut invalid = false;
+                        for i in 0..self.facts.arm_count(value) {
+                            self.ctx.charge(1)?;
+                            match self.facts.atom(self.facts.arm(value, i)) {
+                                Some(Atom::Never) => (),
+                                Some(Atom::String) => {
+                                    classes |= target as u8;
+                                    if target & INVALID_CLASS != 0 {
+                                        classes |= handlers::bit(ErrorClass::Type);
+                                        invalid = true;
+                                    }
+                                }
+                                Some(Atom::Unknown | Atom::Any) => {
+                                    classes |= target as u8 | handlers::bit(ErrorClass::Type)
+                                }
+                                _ => {
+                                    classes |= handlers::bit(ErrorClass::Type);
+                                    invalid = true;
+                                }
+                            }
+                        }
+                        if invalid {
+                            self.issue(pc, IssueKind::Raise { value })?;
+                        }
+                    }
+                    self.emit_error(&state, pc, classes)?;
+                    return Ok([None, None]);
                 }
                 Op::Shovel(site) => {
                     let value = state.stack.data.pop().unwrap().value;
@@ -1202,6 +1402,7 @@ impl Walker<'_> {
                         }
                     }
                     if rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
                             pc,
                             IssueKind::Binary {
@@ -1297,7 +1498,7 @@ impl Walker<'_> {
                     };
                     if let Some(result) = result {
                         if let Some(edges) =
-                            self.index_outcome(pc, receiver, &args.data, &result)?
+                            self.index_outcome(&state, pc, receiver, &args.data, &result)?
                         {
                             return Ok(edges);
                         }
@@ -1317,6 +1518,7 @@ impl Walker<'_> {
                             self.facts
                                 .collection_member(self.ctx, receiver, site, name, &[])?;
                         if result.rejected {
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                             let arguments = self.facts.tuple(self.ctx, &[])?;
                             self.issue(
                                 pc,
@@ -1344,6 +1546,7 @@ impl Walker<'_> {
                     }
                     let selectors = self.facts.tuple(self.ctx, &address.selectors.data)?;
                     let [key] = address.selectors.data.as_slice() else {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
                             pc,
                             IssueKind::Write {
@@ -1358,6 +1561,7 @@ impl Walker<'_> {
                         self.facts
                             .collection_write(self.ctx, address.value, *key, value.value)?;
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
                             pc,
                             IssueKind::Write {
@@ -1409,6 +1613,7 @@ impl Walker<'_> {
                         &self.program.members[site.name],
                     )?;
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         let arguments = self.facts.tuple(self.ctx, &[])?;
                         self.issue(
                             pc,
@@ -1493,7 +1698,9 @@ impl Walker<'_> {
                             self.facts,
                             &[key],
                         )?;
-                        if let Some(edges) = self.index_outcome(pc, receiver, &[key], &result)? {
+                        if let Some(edges) =
+                            self.index_outcome(&state, pc, receiver, &[key], &result)?
+                        {
                             return Ok(edges);
                         }
                     } else if crate::bytecode::mutating_member(name)
@@ -1507,6 +1714,7 @@ impl Walker<'_> {
                             self.facts
                                 .collection_member(self.ctx, receiver, site, name, &[])?;
                         if result.rejected {
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                             let arguments = self.facts.tuple(self.ctx, &[])?;
                             self.issue(
                                 pc,
@@ -1571,6 +1779,7 @@ impl Walker<'_> {
                 Op::ResolveCall(slot, name, _) => {
                     let target = self.target(&state, slot, name)?;
                     if target == Target::Undefined {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
                             pc,
                             IssueKind::Call {
@@ -1591,6 +1800,7 @@ impl Walker<'_> {
                 Op::CallName(slot, name) => {
                     let target = self.target(&state, slot, name)?;
                     if target == Target::Undefined {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
                             pc,
                             IssueKind::Call {
@@ -1655,6 +1865,11 @@ impl Walker<'_> {
                                     .extend(self.ctx, &values.data)?;
                             } else {
                                 if self.facts.known_primitive(self.ctx, operand.value)? {
+                                    self.emit_error(
+                                        &state,
+                                        pc,
+                                        handlers::bit(ErrorClass::Runtime),
+                                    )?;
                                     self.issue(
                                         pc,
                                         IssueKind::Splat {
@@ -1681,6 +1896,11 @@ impl Walker<'_> {
                                 }
                             } else {
                                 if self.facts.known_primitive(self.ctx, operand.value)? {
+                                    self.emit_error(
+                                        &state,
+                                        pc,
+                                        handlers::bit(ErrorClass::Runtime),
+                                    )?;
                                     self.issue(
                                         pc,
                                         IssueKind::Splat {
@@ -1732,6 +1952,7 @@ impl Walker<'_> {
                         return self.incomplete(pc);
                     }
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
                             pc,
                             IssueKind::Unary {
@@ -1755,6 +1976,9 @@ impl Walker<'_> {
                     if result.unsupported {
                         return self.incomplete(pc);
                     }
+                    let (errors, stops) =
+                        self.binary_errors(op, left.value, right.value, result.rejected)?;
+                    self.emit_error(&state, pc, errors)?;
                     if result.rejected {
                         self.issue(
                             pc,
@@ -1764,6 +1988,9 @@ impl Walker<'_> {
                                 right: right.value,
                             },
                         )?;
+                    }
+                    if stops {
+                        return Ok([None, None]);
                     }
                     let predicate = if matches!(op, "==" | "!=")
                         && !result.rejected
@@ -1828,6 +2055,7 @@ impl Walker<'_> {
                         &self.program.members[site.name],
                     )?;
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         let arguments = self.facts.tuple(self.ctx, &[])?;
                         self.issue(
                             pc,
@@ -1861,6 +2089,7 @@ impl Walker<'_> {
                         &args.data,
                     )?;
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         let arguments = self.facts.tuple(self.ctx, &args.data)?;
                         self.issue(
                             pc,
@@ -1894,6 +2123,7 @@ impl Walker<'_> {
                         &args.positional.data,
                     )?;
                     if result.rejected {
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         let arguments = self.facts.tuple(self.ctx, &args.positional.data)?;
                         self.issue(
                             pc,
@@ -1953,6 +2183,7 @@ impl Walker<'_> {
                         let value = state.stack.data.pop().unwrap().value;
                         let iteration = self.facts.iteration(self.ctx, value)?;
                         if iteration.rejected {
+                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                             self.issue(pc, IssueKind::Iterate { value })?;
                         }
                         if iteration.unsupported {
@@ -1969,6 +2200,7 @@ impl Walker<'_> {
                             argument_base: state.arguments.data.len(),
                             address_base: state.addresses.data.len(),
                             attempt_base: state.attempts.data.len(),
+                            raise_base: state.raises.data.len(),
                             expression,
                             source: iteration.as_ref().map_or(Atom::Nil.fact(), |i| i.source),
                             repeat: iteration.as_ref().map_or(Atom::Never.fact(), |i| i.repeat),
@@ -2044,20 +2276,16 @@ impl Walker<'_> {
                     if state.loops.data.is_empty() {
                         return self.incomplete(pc);
                     }
-                    let attempt_base = state.loops.data.last().unwrap().attempt_base;
-                    while state.attempts.data.len() > attempt_base {
-                        let attempt = state.attempts.data.pop().unwrap();
-                        self.declare_attempt(&mut state, pc, attempt.spec)?;
-                    }
                     let current = state.loops.data.last_mut().unwrap();
+                    let mut value = Atom::Never.fact();
                     match op {
                         Op::LoopBody => current.last = state.stack.data.pop().unwrap().value,
                         Op::Next(true) => {
                             state.stack.data.pop().unwrap();
                         }
-                        Op::Break(true) => current.result = state.stack.data.pop().unwrap().value,
+                        Op::Break(true) => value = state.stack.data.pop().unwrap().value,
                         Op::Break(false) => {
-                            current.result = if current.expression {
+                            value = if current.expression {
                                 Atom::Nil.fact()
                             } else {
                                 current.last
@@ -2065,33 +2293,32 @@ impl Walker<'_> {
                         }
                         _ => (),
                     }
-                    state.stack.data.truncate(current.base);
-                    state.arguments.data.truncate(current.argument_base);
-                    state.addresses.data.truncate(current.address_base);
                     let Exit::Jump(target) = block.exit else {
                         unreachable!()
                     };
-                    return Ok([Some((target, state)), None]);
+                    let index = state.loops.data.len() - 1;
+                    return self.transfer(
+                        state,
+                        pc,
+                        Transfer::Jump {
+                            target,
+                            index,
+                            breaking: matches!(op, Op::Break(_)),
+                            value,
+                        },
+                    );
                 }
                 Op::LoopEnd => {
                     let current = state.loops.data.pop().unwrap();
                     state.stack.data.truncate(current.base);
                     state.arguments.data.truncate(current.argument_base);
                     state.addresses.data.truncate(current.address_base);
+                    state.raises.data.truncate(current.raise_base);
                     state.stack.push(self.ctx, Operand::new(current.result))?;
                 }
                 Op::Return | Op::Finish => {
                     let actual = state.stack.data.pop().unwrap().value;
-                    if let Some(ty) = self.function.return_type {
-                        let expected = self.contracts[ty];
-                        if self.facts.relation(self.ctx, actual, expected)? == Relation::Rejected {
-                            self.issue(pc, IssueKind::Return { actual, expected })?;
-                        }
-                    }
-                    if let Some(report) = self.report.as_mut() {
-                        report.returns = self.facts.union(self.ctx, &[report.returns, actual])?;
-                    }
-                    return Ok([None, None]);
+                    return self.transfer(state, pc, Transfer::Return { pc, value: actual });
                 }
                 _ => return self.incomplete(pc),
             }

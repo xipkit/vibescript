@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-The checker is unfinished. Its type-fact store, boundary relations, control-flow walker, function-call analysis and collection inference currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
+The checker is unfinished. Its type-fact store, boundary relations, control-flow walker, function-call analysis, collection inference and exception flow currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
 
 ## Type facts
 
@@ -20,7 +20,7 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, rescue/ensure/retry handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
+The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
 
 ## Function calls
 
@@ -66,7 +66,7 @@ Twelve unit tests cover 5,580 mutation and indexed-write cases against runtime o
 
 The walker now publishes modeled array/hash mutations and indexed, compound and logical writes into local facts. Metered pending addresses preserve selected positions while argument expressions edit parents, detach fresh replacements, and keep copies and temporary results separate. Negative array selectors capture their selected absolute position. Literal value equality and shared type-fact IDs never establish shared runtime storage. Uncertain attachment retains both possible outcomes; paths whose dispatch or origin cannot be modeled remain explicitly incomplete.
 
-Mutation results remain distinct from updated receivers, including popped values and unchanged string receivers. Hash fields keep their lookup precedence, including names that resemble mutators. Safe navigation skips nil-receiver arguments. Plain `begin ... end` expressions preserve pending outer calls and writes, declare missing body locals on exit, and clean up abandoned state on loop control transfers. Rescue, ensure and retry are still unmodeled.
+Mutation results remain distinct from updated receivers, including popped values and unchanged string receivers. Hash fields keep their lookup precedence, including names that resemble mutators. Safe navigation skips nil-receiver arguments. `begin ... end` expressions preserve pending outer calls and writes, declare missing body locals on exit, and clean up abandoned state on loop control transfers. The exception flow below restores pending state before rescue and cleanup paths resume.
 
 Backward control-flow edges widen growing collection facts until they converge. Equal-length tuples retain positions; differently sized tuples become general element facts. Hash joins retain optional fields and ordinary-data provenance. Recursive collection growth becomes gradual beyond the fact depth present at the first backward join, including inputs and declared contracts. The work queue, widening memo and temporary buffers are metered and use the default Rust stack. Runtime limits are unchanged.
 
@@ -90,17 +90,31 @@ The walker models `case` with or without a target, ordered `when` alternatives, 
 
 Direct target bindings narrow on successful and failed matches. Matching retains possible integer and float kinds instead of treating mixed numeric equality as a type conversion, including large integer comparisons, fractional floats, signed zeros and NaN. Writes during matcher evaluation invalidate the old binding's predicate; immutable target facts still describe the value selected before the write. Copied bindings and stored booleans do not yet retain those correlations.
 
-Short-circuit flow keeps at most three states at a basic-block entry, separated by whether the top operand is known false, known true or unresolved. This prevents a skipped right operand from erasing facts required on the evaluated path. Joins and widening remain metered. Refining a retained operand requires bytecode that preserves or duplicates that same value; equal abstract facts cannot prove runtime identity.
+Short-circuit flow keeps at most three truth partitions for each compatible handler continuation at a basic-block entry, separated by whether the top operand is known false, known true or unresolved. This prevents a skipped right operand from erasing facts required on the evaluated path. Joins and widening remain metered. Refining a retained operand requires bytecode that preserves or duplicates that same value; equal abstract facts cannot prove runtime identity.
 
 Fourteen focused tests include 816 runtime matcher comparisons, checking the actual branch against literal, general-kind, unknown and `any` inputs. Further witnesses cover reassignment, pending writes and calls, nested loop exits, targetless conditions, short circuits and unrelated boolean values. Exact quotas, sampled allocation failures, cleanup, cancellation and deep shared facts run under normal limits on the default Rust stack. The signed-zero regression first reproduced a discarded valid branch before the fix.
 
 The [case reference corpus](../tests/checker-case.json) retains 53 Go v0.70.0 checker decisions with 29 explained differences, each supported by a Rust execution witness. Known impossible or matched branches avoid spurious warnings; invalid splats, open-ended iteration and incompatible result kinds remain diagnosed. Copy correlations and structural numeric matches can still produce conservative results. This is private analysis; public checking and diagnostic sorting/deduplication remain unfinished.
 
+## Exceptions and cleanup
+
+The walker now models ordered rescue selection, successful-body `else`, `ensure`, explicit raises and retry. An empty matching rescue clause propagates the error after cleanup. Rescue bindings shadow their outer names only within the clause; skipped declarations become nil at the same boundaries as execution. Bound error facts describe the class, message, source frame and backtrace fields without constructing runtime diagnostics or executing callbacks.
+
+Cleanup entries keep pending values, returns, loop transfers, retries and errors separate. An ordinary cleanup result leaves the pending outcome intact, while a new error or transfer replaces it. Writes invalidate saved predicates without changing captured values. Retry preserves completed writes and skips its own handler's ensure between attempts; nested ensures run when retry exits their regions. Cross-call retry runs the callee's cleanup before reporting LocalJumpError to its caller.
+
+Script-call summaries propagate possible escaping exception classes and requeue callers when those classes change. Bare raise inherits the currently rescued error through helper calls. Call contexts retain the absence of an ambient error separately when recursive inputs widen, so it cannot disappear beside known exception classes. Known missing-name reads and modeled operation failures enter the appropriate handler with earlier writes preserved and rejected native updates unpublished. Known type contradictions remain diagnostics even when rescue catches their runtime failures.
+
+Handler state, saved outcomes, work queues, call contexts and error-value facts use normal accounting and the default Rust stack. Actual checker cancellation, deadlines and quota failures propagate directly; they do not become abstract catchable errors. Registered host calls describe possible ordinary errors using signatures without invoking callbacks or validators.
+
+Eighteen focused tests cover 225 combinations of errors, returns, loop exits and cleanup, plus scope, retry, call summaries, inherited rethrows, saved predicates, receiver preservation and host-effect isolation. Exact quotas, sampled allocation failures, reclamation, cancellation and deadlines are checked. An out-of-range float-index regression first demonstrated a missing rescue path before its correction. Three previously incomplete syntax fixtures now have runtime witnesses; tests still retain reachable unmodeled handler bodies as incomplete.
+
+The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, protected error-object mutation and rendering, block/nonlocal-call contexts, general dispatch and public checking remain unfinished.
+
 ## Remaining integration
 
 Completion still requires:
 
-- Opaque iterable dispatch, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop and recursive-call precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Opaque iterable dispatch, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Class, module, builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.

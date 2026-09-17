@@ -19,6 +19,7 @@ pub(super) enum Target {
 
 pub(super) struct Outcome {
     pub value: Fact,
+    pub throws: u8,
     pub failures: Buffer<Failure>,
     pub incomplete: bool,
 }
@@ -32,6 +33,7 @@ pub(super) trait Calls {
         facts: &mut Facts,
         target: Target,
         args: Arguments,
+        current_error: u16,
     ) -> Result<Outcome>;
 }
 
@@ -52,10 +54,12 @@ impl Calls for Unavailable {
         _: &mut Facts,
         _: Target,
         _: Arguments,
+        _: u16,
     ) -> Result<Outcome> {
         ctx.checkpoint()?;
         Ok(Outcome {
             value: Atom::Never.fact(),
+            throws: 0,
             failures: Buffer::empty(),
             incomplete: true,
         })
@@ -122,6 +126,7 @@ pub(super) struct LocatedIssue {
 #[derive(Debug)]
 pub(super) struct Analysis {
     pub returns: Fact,
+    pub throws: u8,
     pub issues: Buffer<LocatedIssue>,
     pub incomplete: Buffer<(usize, usize)>,
     pub contexts: usize,
@@ -129,6 +134,8 @@ pub(super) struct Analysis {
 
 struct Job {
     function: usize,
+    error_key: u16,
+    current_error: u16,
     // The cache key stays exact even when recursive analysis needs broader inputs.
     inputs: Buffer<Input>,
     widened: Option<Buffer<Input>>,
@@ -142,6 +149,7 @@ struct Job {
     dependencies: Buffer<usize>,
     queued: bool,
     returns: Fact,
+    throws: u8,
     report: Option<Report>,
 }
 
@@ -184,7 +192,7 @@ pub(super) fn analyze(
         functions,
         search: 0,
     };
-    let entry = solver.request(ctx, facts, function, inputs)?;
+    let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR)?;
     while let Some(index) = solver.queue.data.pop() {
         ctx.charge(1)?;
         solver.current = index;
@@ -199,6 +207,7 @@ pub(super) fn analyze(
             contracts: solver.world.contracts,
             function,
             inputs: &inputs.data,
+            current_error: solver.jobs.data[index].current_error,
         };
         let report = flow::analyze_body(ctx, facts, body, &mut solver)?;
         let mut returns = report.returns;
@@ -215,8 +224,9 @@ pub(super) fn analyze(
             returns = facts.widen(ctx, previous, returns, depth)?;
         }
         let job = &mut solver.jobs.data[index];
-        let changed = job.returns != returns;
+        let changed = job.returns != returns || job.throws != report.throws;
         job.returns = returns;
+        job.throws = report.throws;
         job.report = Some(report);
         job.dependencies = std::mem::replace(&mut solver.dependencies, Buffer::empty());
         if changed {
@@ -229,6 +239,7 @@ pub(super) fn analyze(
     }
     let mut result = Analysis {
         returns: solver.jobs.data[entry].returns,
+        throws: solver.jobs.data[entry].throws,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
         contexts: solver.jobs.data.len(),
@@ -311,18 +322,24 @@ impl Solver<'_> {
         facts: &mut Facts,
         function: usize,
         inputs: &[Input],
+        current_error: u16,
     ) -> Result<usize> {
         ctx.charge(inputs.len() as u64 + 1)?;
         let mut hash = DefaultHasher::new();
         function.hash(&mut hash);
         inputs.hash(&mut hash);
+        current_error.hash(&mut hash);
         let hash = hash.finish();
         if !self.buckets.data.is_empty() {
             let mut index = self.buckets.data[hash as usize & (self.buckets.data.len() - 1)];
             while index != EMPTY {
                 ctx.charge(inputs.len() as u64 + 1)?;
                 let job = &self.jobs.data[index];
-                if job.hash == hash && job.function == function && job.inputs.data == inputs {
+                if job.hash == hash
+                    && job.function == function
+                    && job.inputs.data == inputs
+                    && job.error_key == current_error
+                {
                     return Ok(index);
                 }
                 index = job.next;
@@ -336,7 +353,9 @@ impl Solver<'_> {
                     .input_depth
                     .get_or_insert(facts.max_depth());
                 let mut joined = Buffer::empty();
-                let mut changed = false;
+                let mut changed = self.jobs.data[index].current_error | current_error
+                    != self.jobs.data[index].current_error;
+                self.jobs.data[index].current_error |= current_error;
                 for (i, &incoming) in inputs.iter().enumerate() {
                     ctx.charge(1)?;
                     let job = &self.jobs.data[index];
@@ -382,6 +401,8 @@ impl Solver<'_> {
             ctx,
             Job {
                 function,
+                error_key: current_error,
+                current_error,
                 inputs: copied,
                 widened: None,
                 input_depth: None,
@@ -394,6 +415,7 @@ impl Solver<'_> {
                 dependencies: Buffer::empty(),
                 queued: false,
                 returns: Atom::Never.fact(),
+                throws: 0,
                 report: None,
             },
         )?;
@@ -512,10 +534,12 @@ impl Calls for Solver<'_> {
         facts: &mut Facts,
         target: Target,
         args: Arguments,
+        current_error: u16,
     ) -> Result<Outcome> {
         ctx.checkpoint()?;
         let mut outcome = Outcome {
             value: Atom::Never.fact(),
+            throws: 0,
             failures: Buffer::empty(),
             incomplete: false,
         };
@@ -531,7 +555,8 @@ impl Calls for Solver<'_> {
                     outcome.failures = bound.failures;
                     return Ok(outcome);
                 }
-                let index = self.request(ctx, facts, function, &bound.inputs.data)?;
+                let index =
+                    self.request(ctx, facts, function, &bound.inputs.data, current_error)?;
                 ctx.charge(self.dependencies.data.len() as u64)?;
                 if !self.dependencies.data.contains(&index) {
                     self.dependencies.push(ctx, index)?;
@@ -544,6 +569,7 @@ impl Calls for Solver<'_> {
                     self.jobs.data[index].parents.push(ctx, self.current)?;
                 }
                 outcome.value = self.jobs.data[index].returns;
+                outcome.throws = self.jobs.data[index].throws;
             }
             Target::Host(index) => {
                 let Some(host) = self.world.hosts.get(index) else {
@@ -587,9 +613,13 @@ impl Calls for Solver<'_> {
                 }
                 if outcome.failures.data.is_empty() {
                     outcome.value = host.result;
+                    outcome.throws = u8::MAX;
                 }
             }
-            Target::Dynamic => outcome.value = Atom::Unknown.fact(),
+            Target::Dynamic => {
+                outcome.value = Atom::Unknown.fact();
+                outcome.throws = u8::MAX;
+            }
             Target::Unsupported => outcome.incomplete = true,
             Target::NonCallable => outcome.failures.push(ctx, Failure::NonCallable)?,
             Target::Undefined => outcome.failures.push(ctx, Failure::Undefined)?,

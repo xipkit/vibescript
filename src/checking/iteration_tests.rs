@@ -203,7 +203,7 @@ fn iterable_loops_keep_unsupported_reachable_paths_visible() {
     for source in [
         "def run; for x in [7]; x.no_such_method; end; end",
         "def run(h: hash<string,int>); for k,v in h; v; end; end",
-        "def run; for x in [7]; begin; x; ensure; 1; end; end; end",
+        "def run; for x in [7]; begin; x; ensure; JSON.parse(\"1\"); end; end; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

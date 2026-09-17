@@ -70,7 +70,11 @@ impl Graph {
                     .data
                     .last()
                     .map_or(Exit::Stop, |(next, _)| Exit::Jump(*next)),
-                Op::Return | Op::Finish | Op::Raise(_) | Op::RaiseValue | Op::Retry => Exit::Stop,
+                Op::TryBegin(_) | Op::TryBody | Op::TryEnd | Op::EnsureEnd => {
+                    leaders.data[pc + 1] = true;
+                    Exit::Next
+                }
+                Op::Return | Op::Finish | Op::Raise(_) | Op::Retry => Exit::Stop,
                 _ => Exit::Next,
             };
             if exit != Exit::Next {

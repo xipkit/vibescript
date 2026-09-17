@@ -411,7 +411,7 @@ fn unresolved_calls_types_and_mutable_global_bindings_stay_explicitly_incomplete
         "def f(**xs); xs; end; def run(xs: hash<string,int>); f(**xs); end",
         "def run; JSON.parse(\"7\"); end",
         "def run; [1].map { _1 }; end",
-        "def run; begin; 1; rescue; 2; end; end",
+        "def run; begin; 1; rescue; 2; ensure; JSON.parse(\"1\"); end; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

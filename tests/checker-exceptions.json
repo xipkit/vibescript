@@ -1,0 +1,481 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private exception and cleanup flow checking decisions; every case has a Rust execution witness, including caught errors with static contradictions.",
+  "cases": [
+    {
+      "source": "def run -> int; begin; 7; rescue; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; 7; rescue; missing; else; 8; ensure; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "8"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=1; result=begin; x=2; x; ensure; x=3; end; [result,x]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[2, 3]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; begin; 7; ensure; x=9; end; x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; raise \"bad\"; rescue; 7; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; raise TypeError, \"bad\"; rescue ArgumentError; missing; rescue TypeError; 7; rescue; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; raise LimitError, \"bad\"; rescue StandardError; missing; rescue RuntimeError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=1; begin; x=2; raise \"bad\"; rescue => error; [x,error.type]; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[2, RuntimeError]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; e=9; begin; raise \"bad\"; rescue => e; 7; end; e; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; begin; raise \"bad\"; rescue TypeError; x=2; rescue; x; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "nil"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; return 7; ensure; 9; end; missing; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; return \"bad\"; ensure; return 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; raise \"bad\"; ensure; return 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=0; for n in [1,2]; begin; break 7; ensure; x=9; end; end; x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=[]; for n in [1,2]; begin; next; ensure; x.push(n); end; end; x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[1, 2]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; begin; return 7; ensure; return 8; end; ensure; return 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; again=true; clean=0; result=begin; if again; again=false; raise \"again\"; end; 7; rescue; retry; ensure; clean+=1; end; [result,clean]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[7, 1]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; again=true; trace=[]; begin; if again; again=false; raise \"again\"; end; rescue; begin; retry; ensure; trace.push(1); end; ensure; trace.push(2); end; trace; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[1, 2]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def fail; raise TypeError, \"bad\"; end; def run -> int; begin; fail; missing; rescue TypeError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def fail; begin; raise \"bad\"; ensure; return 7; end; end; def run -> int; begin; fail; rescue; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 96
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "go_rejected": true,
+      "difference": "The callee returns from ensure and cannot throw the earlier error; Rust skips the unreachable rescue body."
+    },
+    {
+      "source": "def reraised; raise; end; def run -> int; begin; begin; raise TypeError, \"bad\"; rescue; reraised; end; rescue TypeError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def reraised; begin; raise; rescue TypeError; 7; rescue; 9; end; end; def run; a=reraised; b=begin; raise TypeError, \"bad\"; rescue; reraised; end; [a,b]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[9, 7]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=true; result=begin; x; ensure; x=false; end; [result,x]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[true, false]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; begin; 1; rescue; 2; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "1"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; begin; 1; rescue; 2; ensure; 3; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "1"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; for x in [7]; begin; x; ensure; 1; end; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; 7/0; missing; rescue ZeroDivisionError; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def fail; 7/0; end; def run -> int; begin; fail; missing; rescue ZeroDivisionError; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=1; begin; x=2; x=7/0; rescue; x; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "2"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[1]; begin; a.push(7/0); rescue; a; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[1]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[1]; begin; a[0]=7/0; rescue; a; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[1]"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; begin; raise TypeError, \"bad\"; rescue TypeError; rescue; missing; ensure; 1; end; rescue TypeError; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; begin; begin; 1; rescue; missing; else; raise \"bad\"; end; rescue; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[1]; begin; a[-9]=2; rescue; a; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "[1]"
+      },
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the known invalid array write even though rescue catches its runtime failure."
+    },
+    {
+      "source": "def run; a=[1]; begin; a.pop(\"bad\"); rescue; a; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "[1]"
+      },
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the known invalid pop argument even though rescue catches its runtime failure."
+    },
+    {
+      "source": "def f(x: int); x; end; def run; begin; f(\"bad\"); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 42
+          },
+          "Message": "call to f argument x expected int, got string",
+          "Source": ""
+        }
+      ],
+      "go_rejected": true
+    },
+    {
+      "source": "def f -> int; \"bad\"; end; def run; begin; f; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [
+        {
+          "Function": "f",
+          "Pos": {
+            "Line": 1,
+            "Column": 15
+          },
+          "Message": "return value expected int, got string",
+          "Source": ""
+        }
+      ],
+      "go_rejected": true
+    },
+    {
+      "source": "def run; begin; missing; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "go_rejected": true
+    },
+    {
+      "source": "def run; begin; raise 7; rescue TypeError; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the known non-string raise operand even though rescue catches the resulting TypeError."
+    },
+    {
+      "source": "def f(x); x; end; def run; begin; f(*7); rescue; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the known non-array argument splat even though rescue catches its runtime failure."
+    },
+    {
+      "source": "def helper; begin; retry; rescue; return 99; ensure; return 7; end; end; def run; begin; raise TypeError, \"bad\"; rescue; helper; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def helper; begin; retry; rescue; return 99; ensure; 1; end; end; def run; begin; begin; raise TypeError, \"bad\"; rescue; helper; end; rescue LocalJumpError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; begin; retry; rescue; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_warnings": [],
+      "go_rejected": false
+    }
+  ]
+}
