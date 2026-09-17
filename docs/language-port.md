@@ -626,3 +626,11 @@ Known ordinary hashes now carry representation metadata separate from key types.
 The new reference corpus has 92 scripts and 26 intentional checker differences, each supported by a Rust execution witness. Independent checks compare 1,080 index cases and 2,786 member cases with runtime results, alongside exact quota, cleanup and cancellation tests. The full-language goal remains active; performance passes remain deferred.
 
 All 291 library tests, including 65 checker tests, pass in native debug, all-feature release, portable release and Rust 1.85 builds. Both Clippy configurations, Go portable/SIMD reference tests and vet, formatting and the Go error-handling check pass. Source and HEAD remained unchanged during verification, and the drive monitor reported no new I/O errors. These internal-checker runs do not replace the preceding full runtime conformance evidence.
+
+## Internal checker mutation inference
+
+Collection mutation facts now distinguish updated receivers from expression results, preserve literal tuple positions and string receiver semantics, and retain ordinary-hash dispatch after dynamic-key writes. Large insert/fill windows generalize their element facts without building runtime-sized collections. Exact value facts support deletion without treating shared type-fact IDs as runtime storage identity.
+
+Twelve focused tests check 5,580 mutation/indexed-write cases against the runtime, along with snapshots, generalized inputs, invalid alternatives, optional fields, exact quotas, cleanup and cancellation. The implementation remains private and is not yet connected to pending addresses or local mutation flow. Property guards, collection-loop convergence, the public checker and the remaining full-language requirements are still unfinished. The full-language goal stays active, and performance passes remain deferred.
+
+All 303 library tests, including 77 checker tests, pass in native debug, all-feature release, portable release and Rust 1.85 builds. The ignored-host-control regression, both Clippy configurations, Go portable/SIMD tests and vet, formatting and the Go error-handling check also pass. Source and HEAD stayed fixed throughout verification, and the drive monitor reported no new I/O errors. These internal inference checks do not replace the preceding full runtime conformance evidence.

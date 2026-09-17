@@ -348,7 +348,7 @@ impl Facts {
                         }
                         (Node::Array(_), Node::Tuple(_)) => Relation::Gradual,
                         (Node::Hash(..), Node::Hash(..)) if pair.overlap => Relation::Gradual,
-                        (Node::Hash(sk, sv), Node::Hash(tk, tv)) => {
+                        (Node::Hash(sk, sv, _), Node::Hash(tk, tv, _)) => {
                             tasks.push(ctx, Task::All(2))?;
                             tasks.push(
                                 ctx,
@@ -370,7 +370,7 @@ impl Facts {
                             )?;
                             continue;
                         }
-                        (Node::Shape(source, open, source_keys, _), Node::Hash(key, value)) => {
+                        (Node::Shape(source, open, source_keys, _), Node::Hash(key, value, _)) => {
                             if source.data.is_empty() && !open {
                                 Relation::Accepted
                             } else {
@@ -415,7 +415,7 @@ impl Facts {
                                 continue;
                             }
                         }
-                        (Node::Hash(_, source), Node::Shape(target, ..)) => {
+                        (Node::Hash(_, source, _), Node::Shape(target, ..)) => {
                             ctx.charge(target.data.len() as u64)?;
                             let count = target.data.iter().filter(|field| !field.optional).count();
                             tasks.push(ctx, Task::All(count + 1))?;

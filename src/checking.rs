@@ -4,6 +4,7 @@ mod collections;
 mod facts;
 mod flow;
 mod graph;
+mod mutations;
 mod relation;
 mod scalar;
 mod slots;
@@ -17,3 +18,6 @@ mod tests;
 
 #[cfg(test)]
 mod collection_tests;
+
+#[cfg(test)]
+mod mutation_tests;

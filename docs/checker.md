@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-The checker is unfinished. Its type-fact store, boundary relations, control-flow walker and function-call analysis currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
+The checker is unfinished. Its type-fact store, boundary relations, control-flow walker, function-call analysis and collection inference currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
 
 ## Type facts
 
@@ -43,6 +43,14 @@ The walker models `length`, `size`, `bytesize`, `empty?`, `keys`, `values`, `rev
 Known ordinary hashes carry a separate representation flag. Structural annotations can also describe capability objects or protected match data, so they do not imply ordinary hash member/index dispatch. Unresolved object overrides and special capture indexing remain explicitly incomplete. Known hash fields keep their normal lookup and builtin-name precedence; missing members fail before argument analysis.
 
 Ninety-two reference scripts compare collection decisions with Go v0.70.0. Twenty-six intentional differences have Rust execution witnesses: retained literal facts exclude unreachable warnings, and known invalid operations or incompatible collection contents produce diagnostics. Independent inference checks compare 1,080 index cases and 2,786 pure-member cases with actual runtime results. Tests also cover raw bytes, shape optionality, call propagation, value snapshots, match-data inputs, exact memory/work limits, failed allocation cleanup and cached-path cancellation.
+
+## Collection mutation facts
+
+Independent mutation inference now separates an operation's updated receiver from its expression result. It models array indexed writes, push/prepend/insert, pop/shift, delete, clear and fill; ordinary hash writes, store/delete/replace/clear; and string prepend/insert/replace/clear. String methods preserve the original receiver. Literal tuples retain exact positions and bounded windows, while dynamic selectors and expanding windows produce conservative collection facts without allocating a runtime-sized array.
+
+Dynamic hash writes retain ordinary-data provenance separately from structural contracts, including through generalized hashes and subsequent reads. Protected or overridden object mutation remains explicitly incomplete. Deletion uses exact value facts where equality is known; sharing an abstract type fact never proves shared runtime storage. Known invalid alternatives survive joins with unknown inputs.
+
+Twelve unit tests cover 5,580 mutation and indexed-write cases against runtime outcomes, exact receiver/result facts, snapshots, optional fields, generalized collections, large windows, quotas, failed-allocation cleanup and cancellation. These are inference tests, not additional end-to-end checker or Go conformance fixtures. Pending-address tracking, publication into local flow state, property guards and convergence for collection-growing loops remain unfinished; the bytecode walker still reports reachable mutation as incomplete. There is no public checking gate.
 
 ## Remaining integration
 

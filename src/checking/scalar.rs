@@ -208,7 +208,7 @@ impl Facts {
                     Node::String(_) => 1 << Atom::String as u32,
                     Node::Symbol(_) => 1 << Atom::Symbol as u32,
                     Node::Array(_) | Node::Tuple(_) => 1 << 20,
-                    Node::Hash(_, _) | Node::Shape(..) => 1 << 21,
+                    Node::Hash(..) | Node::Shape(..) => 1 << 21,
                     Node::Union(_) => unreachable!(),
                 };
                 bits |= bit;

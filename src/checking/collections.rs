@@ -39,8 +39,11 @@ impl Facts {
         Ok(())
     }
 
-    fn plain_hash(&self, value: Fact) -> bool {
-        matches!(self.node(value), Node::Shape(_, _, _, true))
+    pub(super) fn plain_hash(&self, value: Fact) -> bool {
+        matches!(
+            self.node(value),
+            Node::Shape(_, _, _, true) | Node::Hash(_, _, true)
+        )
     }
 
     fn object_index(&self, ctx: &mut CallContext, value: Fact, member: &[u8]) -> Result<bool> {
@@ -55,11 +58,11 @@ impl Facts {
         }
     }
 
-    fn nullable(&mut self, ctx: &mut CallContext, value: Fact) -> Result<Fact> {
+    pub(super) fn nullable(&mut self, ctx: &mut CallContext, value: Fact) -> Result<Fact> {
         self.union(ctx, &[value, Atom::Nil.fact()])
     }
 
-    fn elements(&mut self, ctx: &mut CallContext, value: Fact) -> Result<Fact> {
+    pub(super) fn elements(&mut self, ctx: &mut CallContext, value: Fact) -> Result<Fact> {
         match self.node(value) {
             Node::Array(element) => Ok(*element),
             Node::Tuple(elements) => {
@@ -95,7 +98,12 @@ impl Facts {
         Ok(None)
     }
 
-    fn shape_values(&mut self, ctx: &mut CallContext, value: Fact, absent: bool) -> Result<Fact> {
+    pub(super) fn shape_values(
+        &mut self,
+        ctx: &mut CallContext,
+        value: Fact,
+        absent: bool,
+    ) -> Result<Fact> {
         let Node::Shape(fields, open, _, _) = self.node(value) else {
             unreachable!()
         };
@@ -173,7 +181,7 @@ impl Facts {
                 });
             }
             let value = match self.node(receiver) {
-                Node::Hash(_, value) => self.nullable(ctx, *value)?,
+                Node::Hash(_, value, _) => self.nullable(ctx, *value)?,
                 Node::Shape(_, open, _, _) => {
                     let open = *open;
                     if let Node::String(key) | Node::Symbol(key) = self.node(index) {
@@ -350,7 +358,7 @@ impl Facts {
                         None => return Ok(rejected()),
                     }
                 }
-                Node::Hash(_, value) => *value,
+                Node::Hash(_, value, _) => *value,
                 _ => unreachable!(),
             };
             return Ok(if site.auto {
@@ -412,16 +420,25 @@ impl Facts {
                 }))
             }
             "keys" | "values" if hash => {
-                let Node::Shape(fields, open, keys, _) = self.node(receiver) else {
-                    unreachable!()
-                };
-                if fields.data.is_empty() && !open {
-                    return Ok(outcome(self.tuple(ctx, &[])?));
-                }
-                let element = if name == "keys" {
-                    *keys
-                } else {
-                    self.shape_values(ctx, receiver, false)?
+                let element = match self.node(receiver) {
+                    Node::Shape(fields, open, keys, _) => {
+                        if fields.data.is_empty() && !open {
+                            return Ok(outcome(self.tuple(ctx, &[])?));
+                        }
+                        if name == "keys" {
+                            *keys
+                        } else {
+                            self.shape_values(ctx, receiver, false)?
+                        }
+                    }
+                    Node::Hash(keys, values, _) => {
+                        if name == "keys" {
+                            *keys
+                        } else {
+                            *values
+                        }
+                    }
+                    _ => unreachable!(),
                 };
                 Ok(outcome(self.array(ctx, element)?))
             }

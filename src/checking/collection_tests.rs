@@ -371,7 +371,7 @@ fn literal_and_collection_cache_hits_observe_cancellation_and_deadlines() {
     }
 }
 
-fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &crate::Value) -> Fact {
+pub(super) fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &crate::Value) -> Fact {
     use crate::value::Kind;
     match &value.0 {
         Kind::Nil => Atom::Nil.fact(),
@@ -409,7 +409,7 @@ fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &crate::Value) 
     }
 }
 
-fn literal_values() -> Vec<crate::Value> {
+pub(super) fn literal_values() -> Vec<crate::Value> {
     use crate::Value;
     vec![
         Value::nil(),

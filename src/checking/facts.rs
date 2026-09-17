@@ -50,8 +50,8 @@ pub(super) enum Node {
     Symbol(Value),
     Array(Fact),
     Tuple(Buffer<Fact>),
-    Hash(Fact, Fact),
     // The last flag identifies ordinary hashes; annotations may describe objects too.
+    Hash(Fact, Fact, bool),
     Shape(Buffer<Field>, bool, Fact, bool),
     Union(Buffer<Fact>),
     Named(Value),
@@ -72,6 +72,7 @@ struct Entry {
     string_key: Option<bool>,
     normalizes: bool,
     unresolved: bool,
+    singleton: bool,
 }
 
 #[derive(Debug)]
@@ -131,6 +132,10 @@ impl Facts {
         self.entries.data[fact.0].unresolved
     }
 
+    pub(super) fn singleton(&self, fact: Fact) -> bool {
+        self.entries.data[fact.0].singleton
+    }
+
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
         ctx.checkpoint()?;
         let hash = node.hash(ctx)?;
@@ -187,7 +192,7 @@ impl Facts {
         let normalizes = match &node {
             Node::Named(_) | Node::Nominal { .. } => true,
             Node::Array(element) => self.normalizes(*element),
-            Node::Hash(key, value) => self.normalizes(*key) || self.normalizes(*value),
+            Node::Hash(key, value, _) => self.normalizes(*key) || self.normalizes(*value),
             Node::Tuple(values) | Node::Union(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().any(|&value| self.normalizes(value))
@@ -201,7 +206,7 @@ impl Facts {
         let unresolved = match &node {
             Node::Named(_) => true,
             Node::Array(element) => self.unresolved(*element),
-            Node::Hash(key, value) => self.unresolved(*key) || self.unresolved(*value),
+            Node::Hash(key, value, _) => self.unresolved(*key) || self.unresolved(*value),
             Node::Tuple(values) | Node::Union(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().any(|&value| self.unresolved(value))
@@ -209,6 +214,25 @@ impl Facts {
             Node::Shape(fields, ..) => {
                 ctx.charge(fields.data.len() as u64)?;
                 fields.data.iter().any(|field| self.unresolved(field.value))
+            }
+            _ => false,
+        };
+        let singleton = match &node {
+            Node::Atom(Atom::Nil)
+            | Node::Boolean(_)
+            | Node::Integer(_)
+            | Node::String(_)
+            | Node::Symbol(_) => true,
+            Node::Tuple(values) => {
+                ctx.charge(values.data.len() as u64)?;
+                values.data.iter().all(|&value| self.singleton(value))
+            }
+            Node::Shape(fields, false, keys, true) if *keys == Atom::String.fact() => {
+                ctx.charge(fields.data.len() as u64)?;
+                fields
+                    .data
+                    .iter()
+                    .all(|field| !field.optional && self.singleton(field.value))
             }
             _ => false,
         };
@@ -222,6 +246,7 @@ impl Facts {
                 string_key,
                 normalizes,
                 unresolved,
+                singleton,
             },
         )?;
         self.buckets.data[bucket] = fact.0;
@@ -275,7 +300,17 @@ impl Facts {
     }
 
     pub fn hash(&mut self, ctx: &mut CallContext, key: Fact, value: Fact) -> Result<Fact> {
-        self.intern(ctx, Node::Hash(key, value))
+        self.hash_kind(ctx, key, value, false)
+    }
+
+    pub(super) fn hash_kind(
+        &mut self,
+        ctx: &mut CallContext,
+        key: Fact,
+        value: Fact,
+        plain: bool,
+    ) -> Result<Fact> {
+        self.intern(ctx, Node::Hash(key, value, plain))
     }
 
     pub fn shape(
@@ -300,7 +335,7 @@ impl Facts {
         self.shape_fields(ctx, values, open, Atom::String.fact(), true)
     }
 
-    fn shape_fields(
+    pub(super) fn shape_fields(
         &mut self,
         ctx: &mut CallContext,
         mut fields: Buffer<Field>,
@@ -671,7 +706,7 @@ impl Node {
                 bytes.hash(&mut hash);
             }
             Self::Array(element) => element.hash(&mut hash),
-            Self::Hash(key, value) => (key, value).hash(&mut hash),
+            Self::Hash(key, value, plain) => (key, value, plain).hash(&mut hash),
             Self::Tuple(values) | Self::Union(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.hash(&mut hash);
@@ -705,7 +740,7 @@ impl Node {
             | (Self::Symbol(a), Self::Symbol(b))
             | (Self::Named(a), Self::Named(b)) => same_bytes(ctx, a, b)?,
             (Self::Array(a), Self::Array(b)) => a == b,
-            (Self::Hash(ak, av), Self::Hash(bk, bv)) => ak == bk && av == bv,
+            (Self::Hash(ak, av, ap), Self::Hash(bk, bv, bp)) => ak == bk && av == bv && ap == bp,
             (Self::Tuple(a), Self::Tuple(b)) | (Self::Union(a), Self::Union(b)) => {
                 ctx.charge(a.data.len().min(b.data.len()) as u64)?;
                 a.data == b.data
