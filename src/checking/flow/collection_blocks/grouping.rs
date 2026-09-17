@@ -6,6 +6,21 @@ struct Key {
 }
 
 impl Walker<'_> {
+    pub(super) fn canonical_group_keys(
+        &mut self,
+        state: &State,
+        pc: usize,
+        site: CallSite,
+        value: Fact,
+    ) -> Result<Fact> {
+        let keys = self.group_keys(state, pc, site, value)?;
+        let mut values = Buffer::empty();
+        for key in keys.data {
+            values.push(self.ctx, key.canonical)?;
+        }
+        self.facts.union(self.ctx, &values.data)
+    }
+
     pub(super) fn group_append(&mut self, array: Fact, value: Fact) -> Result<Fact> {
         Ok(self
             .facts

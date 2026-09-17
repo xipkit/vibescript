@@ -97,3 +97,6 @@ mod pending_tests;
 
 #[cfg(test)]
 mod mutable_block_tests;
+
+#[cfg(test)]
+mod hash_block_tests;

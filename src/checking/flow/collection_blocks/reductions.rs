@@ -335,6 +335,15 @@ impl Walker<'_> {
             return self.mutable_filter_result(current, item, value, hash, keep, depth);
         }
         match method {
+            Merge => {
+                if self.wrapping_guard(value)? {
+                    self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
+                }
+                current.output = self
+                    .facts
+                    .collection_write(self.ctx, current.output, item.arguments[0], value)?
+                    .receiver;
+            }
             Sort | SortBy | Min | Max | Minmax | MinBy | MaxBy => {
                 return self.ordered_result(current, pc, driver, item, value, depth);
             }
@@ -459,7 +468,12 @@ impl Walker<'_> {
         }
     }
 
-    fn collection_terminal(&mut self, mut state: State, pc: usize, value: Fact) -> Result<()> {
+    pub(super) fn collection_terminal(
+        &mut self,
+        mut state: State,
+        pc: usize,
+        value: Fact,
+    ) -> Result<()> {
         state.stack.push(self.ctx, Operand::new(value))?;
         self.extra.push(self.ctx, (pc + 1, state))
     }

@@ -3,6 +3,7 @@ use crate::checking::facts::Node;
 use blocks::{Closure, Completion, Parent};
 
 mod grouping;
+mod hashes;
 mod loops;
 mod mutating;
 mod ordering;
@@ -66,6 +67,8 @@ pub(super) enum Method {
     Minmax,
     MinBy,
     MaxBy,
+    Merge,
+    DeepTransformKeys,
 }
 
 impl Method {
@@ -124,6 +127,8 @@ impl Method {
             "minmax" => Self::Minmax,
             "min_by" => Self::MinBy,
             "max_by" => Self::MaxBy,
+            "merge" => Self::Merge,
+            "deep_transform_keys" => Self::DeepTransformKeys,
             _ => return None,
         })
     }
@@ -242,6 +247,9 @@ impl Walker<'_> {
         args: Arguments,
         method: Method,
     ) -> Result<()> {
+        if matches!(method, Method::Merge | Method::DeepTransformKeys) {
+            return self.hash_block(state, pc, receiver, site, args, method);
+        }
         if method.ordered() {
             return self.ordered_block(state, pc, receiver, site, args, method);
         }
@@ -582,6 +590,11 @@ impl Walker<'_> {
         if method == Method::Reduce {
             args.positional
                 .extend(self.ctx, &[before.output, item.element])?;
+        } else if method == Method::Merge {
+            args.positional.extend(
+                self.ctx,
+                &[item.arguments[0], item.arguments[1], item.element],
+            )?;
         } else if matches!(method, Method::SliceWhen | Method::ChunkWhile) {
             args.positional
                 .extend(self.ctx, &[before.previous, item.element])?;
@@ -679,7 +692,7 @@ impl Walker<'_> {
         match method {
             Each | EachIndex | EachKey | EachValue | ReverseEach | EachSlice | EachCons | Cycle
             | Times | Upto | Downto | Step | Tap | Loop => Ok(output),
-            YieldSelf | Fetch => Ok(value),
+            YieldSelf | Fetch | DeepTransformKeys => Ok(value),
             Map | MapIndex | Grep | GrepV | FetchValues => Ok(self
                 .facts
                 .collection_mutate(self.ctx, output, crate::bytecode::Method::Push, &[value])?
@@ -734,7 +747,7 @@ impl Walker<'_> {
             Find | Index | Rindex | Reduce | Count | Any | All | NoneMatch | One | Sum
             | TakeWhile | DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash
             | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Uniq | Sort | SortBy
-            | Min | Max | Minmax | MinBy | MaxBy => unreachable!(),
+            | Min | Max | Minmax | MinBy | MaxBy | Merge => unreachable!(),
             FilterMap | Select | Reject => {
                 let keep = self
                     .facts
