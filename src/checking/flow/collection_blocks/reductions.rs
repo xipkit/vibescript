@@ -6,14 +6,15 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
     ) -> Result<()> {
-        let name = &self.program.members[site.name];
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
         let fields = matches!(self.facts.node(receiver), Node::Shape(..) | Node::Hash(..))
             && !crate::members::hash_builtin(name);
         let text = self.facts.atom(receiver) == Some(Atom::String)
-            && matches!(name.as_str(), "index" | "rindex" | "count" | "find_index");
+            && matches!(name, "index" | "rindex" | "count" | "find_index");
         let temporal = self.facts.atom(receiver) == Some(Atom::Time) && name == "min";
         if !fields && !text && !temporal {
             return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);
@@ -24,7 +25,7 @@ impl Walker<'_> {
                 self.extra.push(self.ctx, edge)?;
             }
         } else {
-            self.extra.push(self.ctx, (pc + 1, next))?;
+            self.native_continue(pc, next)?;
         }
         Ok(())
     }
@@ -34,7 +35,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        call: (Receiver, Method, CallSite),
+        call: (Receiver, Method, MemberSite),
         args: &'a Arguments,
     ) -> Result<Option<(Driver<'a>, Fact)>> {
         use Method::*;
@@ -213,12 +214,12 @@ impl Walker<'_> {
         )))
     }
 
-    pub(super) fn collection_parameter(
+    pub(in crate::checking::flow) fn collection_parameter(
         &mut self,
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
         pair: (Fact, Fact),
     ) -> Result<bool> {
@@ -233,7 +234,7 @@ impl Walker<'_> {
 
     pub(super) fn collection_input(
         &mut self,
-        current: &IterationState,
+        current: &mut IterationState,
         pc: usize,
         driver: Driver<'_>,
         item: Item,
@@ -252,6 +253,8 @@ impl Walker<'_> {
                 Ok(result.value)
             }
             Callback::Operation(operation) => {
+                let before = current.state.snapshot(self.ctx)?;
+                let mut after: Option<State> = None;
                 let mut output = Atom::Never.fact();
                 for i in 0..self.facts.arm_count(operation) {
                     self.ctx.charge(1)?;
@@ -264,27 +267,48 @@ impl Walker<'_> {
                         }
                     };
                     let op = match name {
-                        b"+" => "+",
-                        b"-" => "-",
-                        b"*" => "*",
-                        b"/" => "/",
-                        b"%" => "%",
-                        b"**" => "**",
-                        b"<<" => "<<",
-                        b"&" => "&",
-                        _ => {
-                            self.incomplete(pc)?;
-                            continue;
-                        }
+                        b"+" => Some("+"),
+                        b"-" => Some("-"),
+                        b"*" => Some("*"),
+                        b"/" => Some("/"),
+                        b"%" => Some("%"),
+                        b"**" => Some("**"),
+                        b"<<" => Some("<<"),
+                        b"&" => Some("&"),
+                        _ => None,
                     };
-                    let value = self.collection_binary(
-                        &current.state,
-                        pc,
-                        (op, false),
-                        current.output,
-                        item.element,
-                    )?;
-                    output = self.facts.union(self.ctx, &[output, value])?;
+                    let next = if let Some(op) = op {
+                        let value = self.collection_binary(
+                            &before,
+                            pc,
+                            (op, false),
+                            current.output,
+                            item.element,
+                        )?;
+                        if value == Atom::Never.fact() {
+                            None
+                        } else {
+                            Some((before.snapshot(self.ctx)?, value))
+                        }
+                    } else {
+                        self.native_reduction(
+                            &before,
+                            pc,
+                            driver.site.unwrap(),
+                            [current.output, arm, item.element],
+                        )?
+                    };
+                    if let Some((state, value)) = next {
+                        output = self.facts.union(self.ctx, &[output, value])?;
+                        if let Some(after) = &mut after {
+                            after.join(self.ctx, self.facts, &state, false)?;
+                        } else {
+                            after = Some(state);
+                        }
+                    }
+                }
+                if let Some(after) = after {
+                    current.state = after;
                 }
                 Ok(output)
             }
@@ -476,7 +500,7 @@ impl Walker<'_> {
         value: Fact,
     ) -> Result<()> {
         state.stack.push(self.ctx, Operand::new(value))?;
-        self.extra.push(self.ctx, (pc + 1, state))
+        self.native_continue(pc, state)
     }
 
     fn collection_binary(

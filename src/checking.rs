@@ -106,3 +106,6 @@ mod text_block_tests;
 
 #[cfg(test)]
 mod substitution_tests;
+
+#[cfg(test)]
+mod dispatch_tests;

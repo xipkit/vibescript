@@ -48,7 +48,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: Arguments,
         method: Method,
     ) -> Result<()> {
@@ -100,7 +100,11 @@ impl Walker<'_> {
                     }
                     if self
                         .facts
-                        .selected_field(self.ctx, view, self.program.members[site.name].as_bytes())?
+                        .selected_field(
+                            self.ctx,
+                            view,
+                            site.text(self.program, self.facts).as_str().as_bytes(),
+                        )?
                         .is_some()
                     {
                         self.collection_fallback(state, pc, arm, site, &args)?;
@@ -241,7 +245,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        call: (Fact, CallSite, &Arguments),
+        call: (Fact, MemberSite, &Arguments),
         value: Fact,
         domain: Domain,
         bounds: bool,

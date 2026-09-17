@@ -246,49 +246,7 @@ pub(crate) fn call_keywords(
         return call(ctx, site, name, receiver, &args.positional.data);
     }
     if !args.keywords.buffer.data.is_empty() {
-        use Method::*;
-        let rejects = match site.method {
-            Some(IsNil | Itself | Dup | ToString | ToInt | ToFloat) => true,
-            Some(method) => match &receiver.0 {
-                Kind::Array(_) => matches!(
-                    method,
-                    First
-                        | Last
-                        | At
-                        | Slice
-                        | ValuesAt
-                        | Reverse
-                        | Compact
-                        | Uniq
-                        | Transpose
-                        | ToHash
-                        | Push
-                        | Prepend
-                        | Pop
-                        | Shift
-                        | Delete
-                        | Insert
-                        | Clear
-                        | Fill
-                        | Sum
-                ),
-                Kind::Hash(_) => {
-                    matches!(
-                        method,
-                        ToArray | Flatten | Store | Delete | Replace | Clear | ValuesAt
-                    )
-                }
-                Kind::Bytes(_) => {
-                    matches!(
-                        method,
-                        ByteSlice | GetByte | Bytes | Chars | Lines | Codepoints
-                    )
-                }
-                Kind::Range(_) => true,
-                _ => false,
-            },
-            None => false,
-        };
+        let rejects = names::Receiver::of(&receiver).rejects_keywords(site.method);
         if rejects {
             return Err(Error::new(
                 ErrorKind::Argument,

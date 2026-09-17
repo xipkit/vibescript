@@ -59,6 +59,7 @@ pub(super) enum Failure {
     HostArity,
     HostKeywords,
     BuiltinArity,
+    BuiltinBlock,
     BuiltinKeywords,
     BuiltinKeyword(Fact),
     BuiltinKeywordType {

@@ -77,7 +77,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: Arguments,
         method: Method,
     ) -> Result<()> {
@@ -216,7 +216,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        call: (Fact, CallSite, &Arguments),
+        call: (Fact, MemberSite, &Arguments),
         kind: Receiver,
         key: Fact,
     ) -> Result<Fact> {

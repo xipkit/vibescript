@@ -434,7 +434,7 @@ fn value_methods_keep_known_bad_inputs_beside_gradual_alternatives() {
 fn temporal_blocks_forwarding_and_introspection_remain_explicitly_incomplete() {
     for source in [
         "def run; Time.at(0).respond_to?(:year); end",
-        "def run; Time.at(0).send(:strftime,\"%Y\"); end",
+        "def run(name:string); Time.at(0).send(name,\"%Y\"); end",
         "def run; Duration.build(7).after {7}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

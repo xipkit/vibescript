@@ -7,7 +7,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
         method: TextMethod,
     ) -> Result<()> {
@@ -171,7 +171,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
     ) -> Result<Buffer<Fact>> {
         let mut offsets = Buffer::empty();

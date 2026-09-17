@@ -517,9 +517,7 @@ fn member_arm(
     let builtin = *builtin;
     if site.auto {
         if site.scope {
-            let mut result = outcome(Atom::Never.fact());
-            result.incomplete = true;
-            return Ok(Some(result));
+            return Ok(Some(outcome(field)));
         }
         if !builtin.auto() {
             let mut result = outcome(Atom::Never.fact());

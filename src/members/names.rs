@@ -1,350 +1,588 @@
 use crate::{Value, value::Kind};
 
-pub(crate) fn typed(value: &Value, name: &str) -> Option<&'static str> {
-    match &value.0 {
-        Kind::Bytes(_)
-            if matches!(
-                name,
-                "size"
-                    | "length"
-                    | "bytesize"
-                    | "ord"
-                    | "chr"
-                    | "getbyte"
-                    | "byteslice"
-                    | "hex"
-                    | "oct"
-                    | "empty?"
-                    | "clear"
-                    | "concat"
-                    | "prepend"
-                    | "insert"
-                    | "replace"
-                    | "start_with?"
-                    | "end_with?"
-                    | "include?"
-                    | "count"
-                    | "casecmp"
-                    | "casecmp?"
-                    | "between?"
-                    | "match"
-                    | "match?"
-                    | "scan"
-                    | "index"
-                    | "rindex"
-                    | "slice"
-                    | "strip"
-                    | "strip!"
-                    | "squish"
-                    | "squish!"
-                    | "lstrip"
-                    | "lstrip!"
-                    | "rstrip"
-                    | "rstrip!"
-                    | "chomp"
-                    | "chomp!"
-                    | "chop"
-                    | "chop!"
-                    | "delete"
-                    | "delete!"
-                    | "delete_prefix"
-                    | "delete_prefix!"
-                    | "delete_suffix"
-                    | "delete_suffix!"
-                    | "tr"
-                    | "tr!"
-                    | "squeeze"
-                    | "squeeze!"
-                    | "upcase"
-                    | "upcase!"
-                    | "downcase"
-                    | "downcase!"
-                    | "capitalize"
-                    | "capitalize!"
-                    | "swapcase"
-                    | "swapcase!"
-                    | "reverse"
-                    | "reverse!"
-                    | "sub"
-                    | "sub!"
-                    | "gsub"
-                    | "gsub!"
-                    | "split"
-                    | "partition"
-                    | "rpartition"
-                    | "chars"
-                    | "lines"
-                    | "bytes"
-                    | "codepoints"
-                    | "each_char"
-                    | "each_line"
-                    | "each_byte"
-                    | "each_codepoint"
-                    | "template"
-                    | "center"
-                    | "ljust"
-                    | "rjust"
-                    | "clamp"
-                    | "inspect"
-                    | "to_sym"
-                    | "intern"
-                    | "to_s"
-                    | "string"
-                    | "to_i"
-                    | "to_f"
-            ) =>
-        {
-            Some("string")
+#[derive(Clone, Copy)]
+pub(crate) enum Receiver {
+    Bytes,
+    Array,
+    Hash,
+    Int,
+    Big,
+    Float,
+    Bool,
+    Nil,
+    Symbol,
+    Regex,
+    Range,
+    Money,
+    Duration,
+    Time,
+    Zoned,
+    Enum,
+    EnumMember,
+    Other,
+}
+
+impl Receiver {
+    pub(crate) fn of(value: &Value) -> Self {
+        match value.0 {
+            Kind::Bytes(_) => Self::Bytes,
+            Kind::Array(_) => Self::Array,
+            Kind::Hash(_) => Self::Hash,
+            Kind::Int(_) => Self::Int,
+            Kind::Big(_) => Self::Big,
+            Kind::Float(_) => Self::Float,
+            Kind::Bool(_) => Self::Bool,
+            Kind::Nil => Self::Nil,
+            Kind::Symbol(_) => Self::Symbol,
+            Kind::Regex(_) => Self::Regex,
+            Kind::Range(_) => Self::Range,
+            Kind::Money(_) => Self::Money,
+            Kind::Duration(_) => Self::Duration,
+            Kind::Time(_) => Self::Time,
+            Kind::Zoned(_) => Self::Zoned,
+            Kind::Enum(_) => Self::Enum,
+            Kind::EnumMember(_) => Self::EnumMember,
+            _ => Self::Other,
         }
-        Kind::Array(_)
-            if matches!(
-                name,
-                "size"
-                    | "length"
-                    | "empty?"
-                    | "each"
-                    | "each_with_index"
-                    | "each_slice"
-                    | "each_cons"
-                    | "reverse_each"
-                    | "cycle"
-                    | "map"
-                    | "map_with_index"
-                    | "flat_map"
-                    | "collect_concat"
-                    | "filter_map"
-                    | "select"
-                    | "reject"
-                    | "find"
-                    | "find_index"
-                    | "reduce"
-                    | "include?"
-                    | "index"
-                    | "rindex"
-                    | "at"
-                    | "slice"
-                    | "fetch"
-                    | "values_at"
-                    | "dig"
-                    | "count"
-                    | "any?"
-                    | "all?"
-                    | "none?"
-                    | "one?"
-                    | "take_while"
-                    | "drop_while"
-                    | "grep"
-                    | "grep_v"
-                    | "slice_when"
-                    | "chunk_while"
-                    | "push"
-                    | "append"
-                    | "prepend"
-                    | "unshift"
-                    | "pop"
-                    | "shift"
-                    | "delete"
-                    | "insert"
-                    | "clear"
-                    | "delete_if"
-                    | "keep_if"
-                    | "uniq"
-                    | "first"
-                    | "last"
-                    | "sum"
-                    | "compact"
-                    | "flatten"
-                    | "fill"
-                    | "chunk"
-                    | "window"
-                    | "join"
-                    | "reverse"
-                    | "to_h"
-                    | "take"
-                    | "drop"
-                    | "zip"
-                    | "transpose"
-                    | "union"
-                    | "difference"
-                    | "sample"
-                    | "shuffle"
-                    | "rotate"
-                    | "product"
-                    | "combination"
-                    | "permutation"
-                    | "repeated_combination"
-                    | "repeated_permutation"
-                    | "sort"
-                    | "sort_by"
-                    | "partition"
-                    | "group_by"
-                    | "group_by_stable"
-                    | "tally"
-                    | "min"
-                    | "max"
-                    | "minmax"
-                    | "min_by"
-                    | "max_by"
-                    | "inspect"
-                    | "to_s"
-                    | "string"
-            ) =>
-        {
-            Some("array")
-        }
-        Kind::Hash(_)
-            if matches!(
-                name,
-                "size"
-                    | "length"
-                    | "empty?"
-                    | "key?"
-                    | "has_key?"
-                    | "member?"
-                    | "include?"
-                    | "value?"
-                    | "has_value?"
-                    | "keys"
-                    | "values"
-                    | "values_at"
-                    | "fetch"
-                    | "fetch_values"
-                    | "dig"
-                    | "each"
-                    | "each_with_index"
-                    | "each_key"
-                    | "each_value"
-                    | "to_a"
-                    | "merge"
-                    | "replace"
-                    | "store"
-                    | "delete"
-                    | "clear"
-                    | "delete_if"
-                    | "keep_if"
-                    | "slice"
-                    | "except"
-                    | "flatten"
-                    | "select"
-                    | "reject"
-                    | "map"
-                    | "map_with_index"
-                    | "transform_keys"
-                    | "deep_transform_keys"
-                    | "remap_keys"
-                    | "transform_values"
-                    | "compact"
-                    | "inspect"
-            ) =>
-        {
-            Some("hash")
-        }
-        Kind::Int(_) | Kind::Big(_)
-            if matches!(
-                name,
-                "abs"
-                    | "clamp"
-                    | "between?"
-                    | "even?"
-                    | "odd?"
-                    | "times"
-                    | "upto"
-                    | "downto"
-                    | "step"
-                    | "zero?"
-                    | "positive?"
-                    | "negative?"
-                    | "nonzero?"
-                    | "next"
-                    | "succ"
-                    | "pred"
-                    | "round"
-                    | "floor"
-                    | "ceil"
-                    | "div"
-                    | "divmod"
-                    | "fdiv"
-                    | "remainder"
-                    | "modulo"
-                    | "to_s"
-                    | "string"
-                    | "to_i"
-                    | "to_f"
-                    | "inspect"
-            ) =>
-        {
-            Some("int")
-        }
-        Kind::Float(_)
-            if matches!(
-                name,
-                "abs"
-                    | "clamp"
-                    | "between?"
-                    | "round"
-                    | "floor"
-                    | "ceil"
-                    | "zero?"
-                    | "positive?"
-                    | "negative?"
-                    | "nonzero?"
-                    | "nan?"
-                    | "infinite?"
-                    | "finite?"
-                    | "div"
-                    | "divmod"
-                    | "fdiv"
-                    | "remainder"
-                    | "modulo"
-                    | "to_s"
-                    | "string"
-                    | "to_i"
-                    | "to_f"
-                    | "inspect"
-            ) =>
-        {
-            Some("float")
-        }
-        Kind::Bool(_) if matches!(name, "inspect" | "to_s" | "string") => Some("bool"),
-        Kind::Nil if matches!(name, "inspect" | "to_s" | "string") => Some("nil"),
-        Kind::Symbol(_) if matches!(name, "inspect" | "id2name" | "to_s" | "string" | "to_sym") => {
-            Some("symbol")
-        }
-        Kind::Regex(_) if matches!(name, "match" | "match?" | "source" | "flags" | "inspect") => {
-            Some("regex")
-        }
-        Kind::Range(_)
-            if matches!(
-                name,
-                "cover?"
-                    | "include?"
-                    | "member?"
-                    | "first"
-                    | "last"
-                    | "size"
-                    | "exclude_end?"
-                    | "to_a"
-                    | "each"
-                    | "step"
-                    | "map"
-                    | "select"
-                    | "reject"
-                    | "find"
-                    | "reduce"
-                    | "count"
-                    | "sum"
-                    | "min"
-                    | "max"
-                    | "to_s"
-                    | "string"
-                    | "inspect"
-            ) =>
-        {
-            Some("range")
-        }
-        Kind::Money(_) if matches!(name, "format" | "between?") => Some("money"),
-        _ => None,
     }
+
+    pub(crate) fn rejects_keywords(self, method: Option<crate::bytecode::Method>) -> bool {
+        use crate::bytecode::Method::*;
+        match method {
+            Some(IsNil | Itself | Dup | ToString | ToInt | ToFloat) => true,
+            Some(method) => match self {
+                Self::Array => matches!(
+                    method,
+                    First
+                        | Last
+                        | At
+                        | Slice
+                        | ValuesAt
+                        | Reverse
+                        | Compact
+                        | Uniq
+                        | Transpose
+                        | ToHash
+                        | Push
+                        | Prepend
+                        | Pop
+                        | Shift
+                        | Delete
+                        | Insert
+                        | Clear
+                        | Fill
+                        | Sum
+                ),
+                Self::Hash => matches!(
+                    method,
+                    ToArray | Flatten | Store | Delete | Replace | Clear | ValuesAt
+                ),
+                Self::Bytes => matches!(
+                    method,
+                    ByteSlice | GetByte | Bytes | Chars | Lines | Codepoints
+                ),
+                Self::Range => true,
+                _ => false,
+            },
+            None => false,
+        }
+    }
+
+    pub(crate) fn typed(self, name: &str) -> Option<&'static str> {
+        match self {
+            Self::Bytes
+                if matches!(
+                    name,
+                    "size"
+                        | "length"
+                        | "bytesize"
+                        | "ord"
+                        | "chr"
+                        | "getbyte"
+                        | "byteslice"
+                        | "hex"
+                        | "oct"
+                        | "empty?"
+                        | "clear"
+                        | "concat"
+                        | "prepend"
+                        | "insert"
+                        | "replace"
+                        | "start_with?"
+                        | "end_with?"
+                        | "include?"
+                        | "count"
+                        | "casecmp"
+                        | "casecmp?"
+                        | "between?"
+                        | "match"
+                        | "match?"
+                        | "scan"
+                        | "index"
+                        | "rindex"
+                        | "slice"
+                        | "strip"
+                        | "strip!"
+                        | "squish"
+                        | "squish!"
+                        | "lstrip"
+                        | "lstrip!"
+                        | "rstrip"
+                        | "rstrip!"
+                        | "chomp"
+                        | "chomp!"
+                        | "chop"
+                        | "chop!"
+                        | "delete"
+                        | "delete!"
+                        | "delete_prefix"
+                        | "delete_prefix!"
+                        | "delete_suffix"
+                        | "delete_suffix!"
+                        | "tr"
+                        | "tr!"
+                        | "squeeze"
+                        | "squeeze!"
+                        | "upcase"
+                        | "upcase!"
+                        | "downcase"
+                        | "downcase!"
+                        | "capitalize"
+                        | "capitalize!"
+                        | "swapcase"
+                        | "swapcase!"
+                        | "reverse"
+                        | "reverse!"
+                        | "sub"
+                        | "sub!"
+                        | "gsub"
+                        | "gsub!"
+                        | "split"
+                        | "partition"
+                        | "rpartition"
+                        | "chars"
+                        | "lines"
+                        | "bytes"
+                        | "codepoints"
+                        | "each_char"
+                        | "each_line"
+                        | "each_byte"
+                        | "each_codepoint"
+                        | "template"
+                        | "center"
+                        | "ljust"
+                        | "rjust"
+                        | "clamp"
+                        | "inspect"
+                        | "to_sym"
+                        | "intern"
+                        | "to_s"
+                        | "string"
+                        | "to_i"
+                        | "to_f"
+                ) =>
+            {
+                Some("string")
+            }
+            Self::Array
+                if matches!(
+                    name,
+                    "size"
+                        | "length"
+                        | "empty?"
+                        | "each"
+                        | "each_with_index"
+                        | "each_slice"
+                        | "each_cons"
+                        | "reverse_each"
+                        | "cycle"
+                        | "map"
+                        | "map_with_index"
+                        | "flat_map"
+                        | "collect_concat"
+                        | "filter_map"
+                        | "select"
+                        | "reject"
+                        | "find"
+                        | "find_index"
+                        | "reduce"
+                        | "include?"
+                        | "index"
+                        | "rindex"
+                        | "at"
+                        | "slice"
+                        | "fetch"
+                        | "values_at"
+                        | "dig"
+                        | "count"
+                        | "any?"
+                        | "all?"
+                        | "none?"
+                        | "one?"
+                        | "take_while"
+                        | "drop_while"
+                        | "grep"
+                        | "grep_v"
+                        | "slice_when"
+                        | "chunk_while"
+                        | "push"
+                        | "append"
+                        | "prepend"
+                        | "unshift"
+                        | "pop"
+                        | "shift"
+                        | "delete"
+                        | "insert"
+                        | "clear"
+                        | "delete_if"
+                        | "keep_if"
+                        | "uniq"
+                        | "first"
+                        | "last"
+                        | "sum"
+                        | "compact"
+                        | "flatten"
+                        | "fill"
+                        | "chunk"
+                        | "window"
+                        | "join"
+                        | "reverse"
+                        | "to_h"
+                        | "take"
+                        | "drop"
+                        | "zip"
+                        | "transpose"
+                        | "union"
+                        | "difference"
+                        | "sample"
+                        | "shuffle"
+                        | "rotate"
+                        | "product"
+                        | "combination"
+                        | "permutation"
+                        | "repeated_combination"
+                        | "repeated_permutation"
+                        | "sort"
+                        | "sort_by"
+                        | "partition"
+                        | "group_by"
+                        | "group_by_stable"
+                        | "tally"
+                        | "min"
+                        | "max"
+                        | "minmax"
+                        | "min_by"
+                        | "max_by"
+                        | "inspect"
+                        | "to_s"
+                        | "string"
+                ) =>
+            {
+                Some("array")
+            }
+            Self::Hash
+                if matches!(
+                    name,
+                    "size"
+                        | "length"
+                        | "empty?"
+                        | "key?"
+                        | "has_key?"
+                        | "member?"
+                        | "include?"
+                        | "value?"
+                        | "has_value?"
+                        | "keys"
+                        | "values"
+                        | "values_at"
+                        | "fetch"
+                        | "fetch_values"
+                        | "dig"
+                        | "each"
+                        | "each_with_index"
+                        | "each_key"
+                        | "each_value"
+                        | "to_a"
+                        | "merge"
+                        | "replace"
+                        | "store"
+                        | "delete"
+                        | "clear"
+                        | "delete_if"
+                        | "keep_if"
+                        | "slice"
+                        | "except"
+                        | "flatten"
+                        | "select"
+                        | "reject"
+                        | "map"
+                        | "map_with_index"
+                        | "transform_keys"
+                        | "deep_transform_keys"
+                        | "remap_keys"
+                        | "transform_values"
+                        | "compact"
+                        | "inspect"
+                ) =>
+            {
+                Some("hash")
+            }
+            Self::Int | Self::Big
+                if matches!(
+                    name,
+                    "abs"
+                        | "clamp"
+                        | "between?"
+                        | "even?"
+                        | "odd?"
+                        | "times"
+                        | "upto"
+                        | "downto"
+                        | "step"
+                        | "zero?"
+                        | "positive?"
+                        | "negative?"
+                        | "nonzero?"
+                        | "next"
+                        | "succ"
+                        | "pred"
+                        | "round"
+                        | "floor"
+                        | "ceil"
+                        | "div"
+                        | "divmod"
+                        | "fdiv"
+                        | "remainder"
+                        | "modulo"
+                        | "to_s"
+                        | "string"
+                        | "to_i"
+                        | "to_f"
+                        | "inspect"
+                ) =>
+            {
+                Some("int")
+            }
+            Self::Float
+                if matches!(
+                    name,
+                    "abs"
+                        | "clamp"
+                        | "between?"
+                        | "round"
+                        | "floor"
+                        | "ceil"
+                        | "zero?"
+                        | "positive?"
+                        | "negative?"
+                        | "nonzero?"
+                        | "nan?"
+                        | "infinite?"
+                        | "finite?"
+                        | "div"
+                        | "divmod"
+                        | "fdiv"
+                        | "remainder"
+                        | "modulo"
+                        | "to_s"
+                        | "string"
+                        | "to_i"
+                        | "to_f"
+                        | "inspect"
+                ) =>
+            {
+                Some("float")
+            }
+            Self::Bool if matches!(name, "inspect" | "to_s" | "string") => Some("bool"),
+            Self::Nil if matches!(name, "inspect" | "to_s" | "string") => Some("nil"),
+            Self::Symbol
+                if matches!(name, "inspect" | "id2name" | "to_s" | "string" | "to_sym") =>
+            {
+                Some("symbol")
+            }
+            Self::Regex if matches!(name, "match" | "match?" | "source" | "flags" | "inspect") => {
+                Some("regex")
+            }
+            Self::Range
+                if matches!(
+                    name,
+                    "cover?"
+                        | "include?"
+                        | "member?"
+                        | "first"
+                        | "last"
+                        | "size"
+                        | "exclude_end?"
+                        | "to_a"
+                        | "each"
+                        | "step"
+                        | "map"
+                        | "select"
+                        | "reject"
+                        | "find"
+                        | "reduce"
+                        | "count"
+                        | "sum"
+                        | "min"
+                        | "max"
+                        | "to_s"
+                        | "string"
+                        | "inspect"
+                ) =>
+            {
+                Some("range")
+            }
+            Self::Money if matches!(name, "format" | "between?") => Some("money"),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn available(self, name: &str) -> bool {
+        if self.typed(name).is_some() || self.temporal_method(name) {
+            return true;
+        }
+        let unit = duration_unit(name);
+        match self {
+            Self::Int => unit,
+            Self::Money => matches!(name, "currency" | "cents" | "amount"),
+            Self::Duration => {
+                unit || matches!(
+                    name,
+                    "in_seconds"
+                        | "in_minutes"
+                        | "in_hours"
+                        | "in_days"
+                        | "in_weeks"
+                        | "in_months"
+                        | "in_years"
+                        | "to_i"
+                        | "iso8601"
+                        | "parts"
+                        | "format"
+                )
+            }
+            Self::Time | Self::Zoned => matches!(
+                name,
+                "getutc"
+                    | "getgm"
+                    | "utc"
+                    | "gmtime"
+                    | "nsec"
+                    | "tv_nsec"
+                    | "usec"
+                    | "tv_usec"
+                    | "subsec"
+                    | "hash"
+                    | "to_i"
+                    | "tv_sec"
+                    | "to_f"
+                    | "to_r"
+                    | "year"
+                    | "month"
+                    | "mon"
+                    | "day"
+                    | "mday"
+                    | "hour"
+                    | "min"
+                    | "sec"
+                    | "wday"
+                    | "yday"
+                    | "utc_offset"
+                    | "gmt_offset"
+                    | "gmtoff"
+                    | "zone"
+                    | "utc?"
+                    | "gmt?"
+                    | "dst?"
+                    | "isdst"
+                    | "sunday?"
+                    | "monday?"
+                    | "tuesday?"
+                    | "wednesday?"
+                    | "thursday?"
+                    | "friday?"
+                    | "saturday?"
+                    | "to_a"
+            ),
+            Self::Enum => matches!(name, "name" | "to_s" | "string" | "inspect"),
+            Self::EnumMember => matches!(
+                name,
+                "name" | "symbol" | "enum" | "to_s" | "string" | "inspect"
+            ),
+            _ => false,
+        }
+    }
+
+    pub(crate) fn property(self, name: &str) -> bool {
+        match self {
+            Self::Int | Self::Big => duration_unit(name),
+            Self::Money | Self::Duration | Self::Time | Self::Zoned => {
+                self.available(name) && self.typed(name).is_none() && !self.temporal_method(name)
+            }
+            Self::Enum => name == "name",
+            Self::EnumMember => matches!(name, "name" | "symbol" | "enum"),
+            _ => false,
+        }
+    }
+
+    pub(crate) fn temporal_method(self, name: &str) -> bool {
+        match self {
+            Self::Money => matches!(name, "to_s" | "string" | "inspect"),
+            Self::Duration => matches!(
+                name,
+                "to_s"
+                    | "string"
+                    | "inspect"
+                    | "eql?"
+                    | "between?"
+                    | "after"
+                    | "since"
+                    | "from_now"
+                    | "ago"
+                    | "before"
+                    | "until"
+            ),
+            Self::Time | Self::Zoned => matches!(
+                name,
+                "<=>"
+                    | "eql?"
+                    | "between?"
+                    | "to_s"
+                    | "string"
+                    | "inspect"
+                    | "iso8601"
+                    | "xmlschema"
+                    | "rfc3339"
+                    | "httpdate"
+                    | "rfc2822"
+                    | "rfc822"
+                    | "format"
+                    | "strftime"
+                    | "getlocal"
+                    | "localtime"
+                    | "round"
+                    | "ceil"
+                    | "floor"
+            ),
+            _ => false,
+        }
+    }
+}
+
+pub(crate) fn typed(value: &Value, name: &str) -> Option<&'static str> {
+    Receiver::of(value).typed(name)
+}
+
+pub(crate) fn available(value: &Value, name: &str) -> bool {
+    Receiver::of(value).available(name)
+}
+
+pub(crate) fn property(value: &Value, name: &str) -> bool {
+    Receiver::of(value).property(name)
+}
+
+pub(crate) fn temporal_method(value: &Value, name: &str) -> bool {
+    Receiver::of(value).temporal_method(name)
 }
 
 pub(crate) fn universal(name: &str) -> bool {
@@ -370,94 +608,6 @@ pub(crate) fn universal(name: &str) -> bool {
     )
 }
 
-pub(crate) fn available(value: &Value, name: &str) -> bool {
-    if typed(value, name).is_some() || temporal_method(value, name) {
-        return true;
-    }
-    let unit = duration_unit(name);
-    match value.0 {
-        Kind::Int(_) => unit,
-        Kind::Money(_) => matches!(name, "currency" | "cents" | "amount"),
-        Kind::Duration(_) => {
-            unit || matches!(
-                name,
-                "in_seconds"
-                    | "in_minutes"
-                    | "in_hours"
-                    | "in_days"
-                    | "in_weeks"
-                    | "in_months"
-                    | "in_years"
-                    | "to_i"
-                    | "iso8601"
-                    | "parts"
-                    | "format"
-            )
-        }
-        Kind::Time(_) | Kind::Zoned(_) => matches!(
-            name,
-            "getutc"
-                | "getgm"
-                | "utc"
-                | "gmtime"
-                | "nsec"
-                | "tv_nsec"
-                | "usec"
-                | "tv_usec"
-                | "subsec"
-                | "hash"
-                | "to_i"
-                | "tv_sec"
-                | "to_f"
-                | "to_r"
-                | "year"
-                | "month"
-                | "mon"
-                | "day"
-                | "mday"
-                | "hour"
-                | "min"
-                | "sec"
-                | "wday"
-                | "yday"
-                | "utc_offset"
-                | "gmt_offset"
-                | "gmtoff"
-                | "zone"
-                | "utc?"
-                | "gmt?"
-                | "dst?"
-                | "isdst"
-                | "sunday?"
-                | "monday?"
-                | "tuesday?"
-                | "wednesday?"
-                | "thursday?"
-                | "friday?"
-                | "saturday?"
-                | "to_a"
-        ),
-        Kind::Enum(_) => matches!(name, "name" | "to_s" | "string" | "inspect"),
-        Kind::EnumMember(_) => matches!(
-            name,
-            "name" | "symbol" | "enum" | "to_s" | "string" | "inspect"
-        ),
-        _ => false,
-    }
-}
-
-pub(crate) fn property(value: &Value, name: &str) -> bool {
-    match value.0 {
-        Kind::Int(_) | Kind::Big(_) => duration_unit(name),
-        Kind::Money(_) | Kind::Duration(_) | Kind::Time(_) | Kind::Zoned(_) => {
-            available(value, name) && typed(value, name).is_none() && !temporal_method(value, name)
-        }
-        Kind::Enum(_) => name == "name",
-        Kind::EnumMember(_) => matches!(name, "name" | "symbol" | "enum"),
-        _ => false,
-    }
-}
-
 fn duration_unit(name: &str) -> bool {
     matches!(
         name,
@@ -472,47 +622,4 @@ fn duration_unit(name: &str) -> bool {
             | "week"
             | "weeks"
     )
-}
-
-pub(crate) fn temporal_method(value: &Value, name: &str) -> bool {
-    match value.0 {
-        Kind::Money(_) => matches!(name, "to_s" | "string" | "inspect"),
-        Kind::Duration(_) => matches!(
-            name,
-            "to_s"
-                | "string"
-                | "inspect"
-                | "eql?"
-                | "between?"
-                | "after"
-                | "since"
-                | "from_now"
-                | "ago"
-                | "before"
-                | "until"
-        ),
-        Kind::Time(_) | Kind::Zoned(_) => matches!(
-            name,
-            "<=>"
-                | "eql?"
-                | "between?"
-                | "to_s"
-                | "string"
-                | "inspect"
-                | "iso8601"
-                | "xmlschema"
-                | "rfc3339"
-                | "httpdate"
-                | "rfc2822"
-                | "rfc822"
-                | "format"
-                | "strftime"
-                | "getlocal"
-                | "localtime"
-                | "round"
-                | "ceil"
-                | "floor"
-        ),
-        _ => false,
-    }
 }

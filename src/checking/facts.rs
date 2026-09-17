@@ -81,7 +81,6 @@ struct Entry {
     normalizes: bool,
     unresolved: bool,
     singleton: bool,
-    detached_builtin: bool,
     depth: usize,
 }
 
@@ -155,10 +154,6 @@ impl Facts {
 
     pub(super) fn max_depth(&self) -> usize {
         self.max_depth
-    }
-
-    pub(super) fn detached_builtin(&self, fact: Fact) -> bool {
-        self.entries.data[fact.0].detached_builtin
     }
 
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
@@ -294,25 +289,6 @@ impl Facts {
             }
             _ => 0,
         };
-        let detached_builtin = match &node {
-            Node::Builtin(_) => true,
-            Node::Array(value) | Node::Hash(_, value, true) => self.detached_builtin(*value),
-            Node::Tuple(values) | Node::Union(values) => {
-                ctx.charge(values.data.len() as u64)?;
-                values
-                    .data
-                    .iter()
-                    .any(|&value| self.detached_builtin(value))
-            }
-            Node::Shape(fields, _, _, true) => {
-                ctx.charge(fields.data.len() as u64)?;
-                fields
-                    .data
-                    .iter()
-                    .any(|field| self.detached_builtin(field.value))
-            }
-            _ => false,
-        };
         self.entries.push(
             ctx,
             Entry {
@@ -324,7 +300,6 @@ impl Facts {
                 normalizes,
                 unresolved,
                 singleton,
-                detached_builtin,
                 depth,
             },
         )?;

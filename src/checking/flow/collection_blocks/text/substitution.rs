@@ -30,7 +30,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
         method: TextMethod,
     ) -> Result<()> {

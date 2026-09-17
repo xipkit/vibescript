@@ -379,6 +379,7 @@ pub(super) fn literal_fact(ctx: &mut CallContext, facts: &mut Facts, value: &cra
         Kind::Big(_) => Atom::Int.fact(),
         Kind::Float(_) => Atom::Float.fact(),
         Kind::Regex(_) => Atom::Regex.fact(),
+        Kind::Builtin(builtin) => facts.builtin(ctx, *builtin).unwrap(),
         Kind::Offset(_) => {
             let value = facts.nullable(ctx, Atom::Int.fact()).unwrap();
             let values = facts.array(ctx, value).unwrap();

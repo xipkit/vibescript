@@ -15,11 +15,13 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        site: CallSite,
+        site: impl Into<MemberSite>,
         args: &Arguments,
     ) -> Result<()> {
         let receiver = state.addresses.data.last().unwrap().value;
-        let name = self.program.members[site.name].as_str();
+        let site = site.into();
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let source = self.facts.arm(receiver, i);
@@ -68,7 +70,7 @@ impl Walker<'_> {
                     .mutate(&mut state, pc, site, &args.positional.data, false, false)?
                     .is_none()
                 {
-                    self.extra.push(self.ctx, (pc + 1, state))?;
+                    self.native_continue(pc, state)?;
                 }
                 continue;
             }
@@ -261,7 +263,7 @@ impl Walker<'_> {
     fn mutable_value(&mut self, mut state: State, pc: usize, value: Fact) -> Result<()> {
         state.addresses.data.pop().unwrap();
         state.stack.push(self.ctx, Operand::new(value))?;
-        self.extra.push(self.ctx, (pc + 1, state))
+        self.native_continue(pc, state)
     }
 
     fn mutable_commit(
@@ -285,7 +287,7 @@ impl Walker<'_> {
             return Ok(());
         }
         state.stack.push(self.ctx, Operand::new(value))?;
-        self.extra.push(self.ctx, (pc + 1, state))
+        self.native_continue(pc, state)
     }
 
     fn delete_keys(&mut self, receiver: Fact, keys: Fact) -> Result<Fact> {

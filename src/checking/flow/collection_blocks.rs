@@ -176,7 +176,7 @@ struct Driver<'a> {
     pattern: Option<Fact>,
     count_overflow: bool,
     exact: bool,
-    site: Option<CallSite>,
+    site: Option<MemberSite>,
 }
 
 impl<'a> Driver<'a> {
@@ -245,7 +245,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: Arguments,
         method: Method,
     ) -> Result<()> {
@@ -442,12 +442,12 @@ impl Walker<'_> {
         Ok(depth)
     }
 
-    fn collection_error(
+    pub(in crate::checking::flow) fn collection_error(
         &mut self,
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
         class: ErrorClass,
     ) -> Result<()> {
@@ -576,7 +576,7 @@ impl Walker<'_> {
             return Ok(Some(before));
         }
         let Some(block) = driver.block() else {
-            let value = self.collection_input(&before, pc, driver, item)?;
+            let value = self.collection_input(&mut before, pc, driver, item)?;
             if let Some(next) = self.collection_result(before, pc, driver, item, value, depth)? {
                 if let Some(after) = &mut after {
                     after.join(self.ctx, self.facts, &next, false, depth)?;
@@ -630,7 +630,7 @@ impl Walker<'_> {
                         state.addresses.data.pop().unwrap();
                     }
                     state.stack.push(self.ctx, Operand::new(exit.value))?;
-                    self.extra.push(self.ctx, (pc + 1, state))?;
+                    self.native_continue(pc, state)?;
                 }
                 Completion::Value => {
                     let next = IterationState {
@@ -807,6 +807,6 @@ impl Walker<'_> {
             self.collection_identity(method, current.output)?
         };
         current.state.stack.push(self.ctx, Operand::new(value))?;
-        self.extra.push(self.ctx, (pc + 1, current.state))
+        self.native_continue(pc, current.state)
     }
 }

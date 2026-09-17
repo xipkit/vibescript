@@ -23,6 +23,7 @@ mod effects;
 mod handlers;
 mod native;
 use handlers::{Phase, Transfer};
+use native::MemberSite;
 
 // Absence must survive joins with inherited rescued errors.
 pub(super) const NO_ERROR: u16 = 1 << 8;
@@ -251,6 +252,7 @@ struct State {
 #[derive(Debug)]
 struct Pending {
     target: Target,
+    receiver: Option<Fact>,
     arguments: Arguments,
 }
 
@@ -315,6 +317,7 @@ impl State {
                 ctx,
                 Pending {
                     target: pending.target,
+                    receiver: pending.receiver,
                     arguments,
                 },
             )?;
@@ -377,6 +380,15 @@ impl State {
             if a.target != b.target {
                 changed |= a.target != Target::Unsupported;
                 a.target = Target::Unsupported;
+            }
+            match (&mut a.receiver, b.receiver) {
+                (Some(a), Some(b)) => {
+                    let value = facts.joined(ctx, *a, b, depth)?;
+                    changed |= *a != value;
+                    *a = value;
+                }
+                (None, None) => (),
+                _ => unreachable!("forwarded receiver presence is fixed by bytecode"),
             }
             changed |= a.arguments.join(ctx, facts, &b.arguments)?;
         }
@@ -681,6 +693,8 @@ pub(super) fn analyze_body(
         calls,
         report: None,
         extra: Buffer::empty(),
+        native_results: None,
+        native_frame: None,
     };
     while let Some((index, polarity)) = queue.data.pop() {
         walker.ctx.charge(1)?;
@@ -757,6 +771,8 @@ struct Walker<'a> {
     calls: &'a mut dyn Calls,
     report: Option<&'a mut Report>,
     extra: Buffer<(usize, State)>,
+    native_results: Option<Buffer<State>>,
+    native_frame: Option<native::NativeFrame>,
 }
 
 impl Walker<'_> {
@@ -817,6 +833,35 @@ impl Walker<'_> {
             self.native_loop(state, pc, args)?;
             return Ok(Some([None, None]));
         }
+        if args.block.is_some() {
+            use crate::builtin::Builtin;
+            match target {
+                Target::Builtin(
+                    Builtin::Assert
+                    | Builtin::Time(_)
+                    | Builtin::Now
+                    | Builtin::DurationBuild
+                    | Builtin::DurationParse
+                    | Builtin::Money
+                    | Builtin::MoneyCents,
+                ) => args.block = None,
+                Target::Builtin(Builtin::Output(_) | Builtin::Format(_) | Builtin::Require) => {
+                    return self.incomplete(pc).map(Some);
+                }
+                Target::Builtin(_) | Target::Offset(_) => {
+                    self.issue(
+                        pc,
+                        IssueKind::Call {
+                            target,
+                            failure: Failure::BuiltinBlock,
+                        },
+                    )?;
+                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    return Ok(Some([None, None]));
+                }
+                _ => (),
+            }
+        }
         let current_error = state.current_error(self.ctx, self.current_error)?;
         if let Some(block) = &mut args.block {
             self.prepare_callback(state, block)?;
@@ -846,6 +891,7 @@ impl Walker<'_> {
                 | Failure::HostArity
                 | Failure::HostKeywords
                 | Failure::BuiltinArity
+                | Failure::BuiltinBlock
                 | Failure::BuiltinKeywords
                 | Failure::BuiltinKeyword(_)
                 | Failure::BuiltinKeywordType { .. }
@@ -1027,22 +1073,21 @@ impl Walker<'_> {
         &mut self,
         state: &mut State,
         pc: usize,
-        site: CallSite,
+        site: impl Into<MemberSite>,
         args: &[Fact],
         address_result: bool,
         fresh: bool,
     ) -> Result<Option<Edges>> {
-        if matches!(
-            self.program.members[site.name].as_str(),
-            "delete_if" | "keep_if"
-        ) {
+        let site = site.into();
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
+        if matches!(name, "delete_if" | "keep_if") {
             let mut arguments = Arguments::new();
             arguments.positional.extend(self.ctx, args)?;
             self.mutable_block(state, pc, site, &arguments)?;
             return Ok(Some([None, None]));
         }
         let address = state.addresses.data.pop().unwrap();
-        let name = &self.program.members[site.name];
         let protection = address.protection(self.ctx, self.facts)?;
         if protection != Attached::No {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -1074,9 +1119,13 @@ impl Walker<'_> {
         if !address.supported {
             return self.incomplete(pc).map(Some);
         }
-        let result =
-            self.facts
-                .collection_mutation_member(self.ctx, address.value, site, name, args)?;
+        let result = self.facts.collection_mutation_member(
+            self.ctx,
+            address.value,
+            site.call,
+            name,
+            args,
+        )?;
         if result.rejected {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             let arguments = self.facts.tuple(self.ctx, args)?;
@@ -1262,6 +1311,7 @@ impl Walker<'_> {
                         self.ctx,
                         Pending {
                             target,
+                            receiver: None,
                             arguments: Arguments::new(),
                         },
                     )?;
@@ -1291,11 +1341,36 @@ impl Walker<'_> {
                         binding.value
                     };
                     let mut readable = Buffer::empty();
+                    let mut retains_origin = true;
                     for index in 0..self.facts.arm_count(value) {
                         self.ctx.charge(1)?;
                         let arm = self.facts.arm(value, index);
-                        if matches!(self.facts.node(arm), super::facts::Node::Offset(_)) {
-                            let target = Target::Offset(arm);
+                        let unreadable = match *self.facts.node(arm) {
+                            super::facts::Node::Offset(_) => Some(Target::Offset(arm)),
+                            super::facts::Node::Builtin(builtin) if !builtin.auto() => {
+                                Some(Target::Builtin(builtin))
+                            }
+                            super::facts::Node::Builtin(builtin) => {
+                                let mut next = state.snapshot(self.ctx)?;
+                                if let Some(edges) = self.invoke(
+                                    &mut next,
+                                    pc,
+                                    Target::Builtin(builtin),
+                                    Arguments::new(),
+                                )? {
+                                    for edge in edges.into_iter().flatten() {
+                                        self.extra.push(self.ctx, edge)?;
+                                    }
+                                } else {
+                                    let value = next.stack.data.pop().unwrap().value;
+                                    readable.push(self.ctx, value)?;
+                                    retains_origin = false;
+                                }
+                                continue;
+                            }
+                            _ => None,
+                        };
+                        if let Some(target) = unreadable {
                             self.issue(
                                 pc,
                                 IssueKind::Call {
@@ -1312,7 +1387,13 @@ impl Walker<'_> {
                     if value == Atom::Never.fact() {
                         return Ok([None, None]);
                     }
-                    state.stack.push(self.ctx, Operand::local(value, slot))?;
+                    // An auto-called builtin's result is separate from its stored descriptor.
+                    let value = if retains_origin {
+                        Operand::local(value, slot)
+                    } else {
+                        Operand::new(value)
+                    };
+                    state.stack.push(self.ctx, value)?;
                 }
                 Op::Unbound(name) => {
                     let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
@@ -1569,10 +1650,7 @@ impl Walker<'_> {
                             },
                         )?;
                     }
-                    if result.unsupported
-                        || (self.facts.detached_builtin(result.value)
-                            && !matches!(self.function.code.get(pc + 1), Some(Op::CallValue)))
-                    {
+                    if result.unsupported {
                         return self.incomplete(pc);
                     }
                     if result.value == Atom::Never.fact() {
@@ -2006,7 +2084,18 @@ impl Walker<'_> {
                     }
                 }
                 Op::Invoke(Invocation::Member(site, true)) => {
-                    let args = state.arguments.data.pop().unwrap().arguments;
+                    let pending = state.arguments.data.pop().unwrap();
+                    if let Some(receiver) = pending.receiver {
+                        self.forwarded_member(
+                            &state,
+                            pc,
+                            receiver,
+                            site.into(),
+                            &pending.arguments,
+                        )?;
+                        return Ok([None, None]);
+                    }
+                    let args = pending.arguments;
                     if args.block.is_some() {
                         self.mutable_block(&state, pc, site, &args)?;
                         return Ok([None, None]);
@@ -2216,6 +2305,17 @@ impl Walker<'_> {
                         self.ctx,
                         Pending {
                             target,
+                            receiver: None,
+                            arguments: Arguments::new(),
+                        },
+                    )?;
+                }
+                Op::ForwardArguments => {
+                    state.arguments.push(
+                        self.ctx,
+                        Pending {
+                            target: Target::Unsupported,
+                            receiver: Some(state.addresses.data.last().unwrap().value),
                             arguments: Arguments::new(),
                         },
                     )?;
@@ -2224,6 +2324,7 @@ impl Walker<'_> {
                     self.ctx,
                     Pending {
                         target: Target::Unsupported,
+                        receiver: None,
                         arguments: Arguments::new(),
                     },
                 )?,
@@ -2244,6 +2345,7 @@ impl Walker<'_> {
                         self.ctx,
                         Pending {
                             target,
+                            receiver: None,
                             arguments: Arguments::new(),
                         },
                     )?;

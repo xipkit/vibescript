@@ -388,12 +388,8 @@ fn root_overrides_do_not_reuse_builtin_implementations_or_namespace_facts() {
 }
 
 #[test]
-fn escaped_builtin_values_and_unmodeled_dispatch_remain_explicitly_incomplete() {
+fn unmodeled_builtins_and_shadowed_calls_remain_explicitly_incomplete() {
     for source in [
-        "def run; f=JSON[:parse]; f(\"7\"); end",
-        "def run; JSON::parse; end",
-        "def run; JSON.values; end",
-        "def run; JSON.send(:parse,\"7\"); end",
         "def run; JSON.parse(\"7\") { 1 }; end",
         "def run; require(\"missing\"); end",
         "def run; JSON={parse:7}; JSON.parse; end",

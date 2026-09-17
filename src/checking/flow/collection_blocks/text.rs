@@ -94,7 +94,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: Arguments,
         method: TextMethod,
     ) -> Result<()> {
@@ -162,7 +162,7 @@ impl Walker<'_> {
         state: &State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
         method: TextMethod,
     ) -> Result<()> {
@@ -182,7 +182,8 @@ impl Walker<'_> {
         if !regex && !fields && !materializer {
             return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);
         }
-        let name = &self.program.members[site.name];
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
         if args.block.is_some() && builtins::namespace_call(self.ctx, self.facts, receiver, name)? {
             return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);
         }
@@ -197,7 +198,7 @@ impl Walker<'_> {
                 self.extra.push(self.ctx, edge)?;
             }
         } else {
-            self.extra.push(self.ctx, (pc + 1, next))?;
+            self.native_continue(pc, next)?;
         }
         Ok(())
     }

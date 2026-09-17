@@ -237,7 +237,7 @@ fn block_contexts_distinguish_capture_types_presence_and_recursive_calls() {
 fn unsupported_native_blocks_stay_incomplete() {
     for source in [
         "def run; [1].map! {|x| x}; end",
-        "def run; Time.at(0).send(:year) {7}; end",
+        "def run(value); value.send(:size) {7}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

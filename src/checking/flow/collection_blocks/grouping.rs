@@ -10,7 +10,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        site: CallSite,
+        site: MemberSite,
         value: Fact,
     ) -> Result<Fact> {
         let keys = self.group_keys(state, pc, site, value)?;
@@ -43,7 +43,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        site: CallSite,
+        site: MemberSite,
         actual: Fact,
         expected: Fact,
     ) -> Result<()> {
@@ -62,7 +62,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        site: CallSite,
+        site: MemberSite,
         value: Fact,
     ) -> Result<Buffer<Key>> {
         let expected = self
@@ -307,7 +307,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        site: CallSite,
+        site: MemberSite,
         value: Fact,
     ) -> Result<Option<(Fact, Fact)>> {
         match self.facts.node(value) {

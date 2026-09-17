@@ -261,7 +261,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        call: (Fact, CallSite, &Arguments),
+        call: (Fact, MemberSite, &Arguments),
         value: Fact,
     ) -> Result<Option<Bound>> {
         let value = match self.facts.node(value) {

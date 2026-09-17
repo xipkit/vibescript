@@ -404,6 +404,7 @@ impl Facts {
             "length" | "size" | "bytesize" | "empty?" | "keys" | "values" | "reverse"
             | "itself" | "dup" | "nil?" => 0..=0,
             "at" | "getbyte" | "take" | "drop" => 1..=1,
+            "include?" | "member?" if array => 1..=1,
             "first" | "last" => 0..=1,
             "slice" if !hash => 1..=2,
             _ => return Ok(unsupported()),
@@ -415,6 +416,25 @@ impl Facts {
             return Ok(outcome(Atom::Unknown.fact()));
         }
         match name {
+            "include?" | "member?" if array => {
+                let Node::Tuple(values) = self.node(receiver) else {
+                    return Ok(outcome(Atom::Bool.fact()));
+                };
+                let mut possible = false;
+                for &value in &values.data {
+                    ctx.charge(1)?;
+                    match self.definitely_equal(value, args[0]) {
+                        Some(true) => return Ok(outcome(self.boolean(ctx, true)?)),
+                        Some(false) => (),
+                        None => possible = true,
+                    }
+                }
+                Ok(outcome(if possible {
+                    Atom::Bool.fact()
+                } else {
+                    self.boolean(ctx, false)?
+                }))
+            }
             "itself" | "dup" => Ok(outcome(receiver)),
             "nil?" => Ok(outcome(self.test_result(ctx, receiver, Test::Nil)?)),
             "length" | "size" if array || hash || string => Ok(outcome(Atom::Int.fact())),

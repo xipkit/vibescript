@@ -478,7 +478,7 @@ fn reducer_analysis_preserves_latched_cancellation_and_deadlines() {
 fn remaining_dispatch_and_pending_address_effects_are_explicit() {
     for source in [
         "def run(op:string); [1,2].reduce(0,op); end",
-        "def run; [1,2].reduce(0,\"custom\"); end",
+        "def run(value); [value,2].reduce(\"custom\"); end",
         "def run; [1,2].map! {|n| n}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

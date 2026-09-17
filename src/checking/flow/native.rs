@@ -1,6 +1,20 @@
 use super::*;
 
+mod forwarding;
+mod reduction;
+pub(super) use reduction::NativeFrame;
+mod site;
+pub(super) use site::MemberSite;
+
 impl Walker<'_> {
+    pub(super) fn native_continue(&mut self, pc: usize, state: State) -> Result<()> {
+        if let Some(results) = &mut self.native_results {
+            results.push(self.ctx, state)
+        } else {
+            self.extra.push(self.ctx, (pc + 1, state))
+        }
+    }
+
     pub(super) fn type_shadowed(&mut self, state: &State, guard: usize) -> Result<(bool, bool)> {
         let mut possible = false;
         for name in &self.program.type_guards[guard] {
@@ -40,10 +54,12 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: impl Into<MemberSite>,
         args: Arguments,
     ) -> Result<Option<Edges>> {
-        let name = &self.program.members[site.name];
+        let site = site.into();
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
         if let Some(method) = collection_blocks::text::TextMethod::parse(name) {
             if method.materializes() {
                 let mut strings = true;
@@ -72,15 +88,16 @@ impl Walker<'_> {
         state: &mut State,
         pc: usize,
         receiver: Fact,
-        site: CallSite,
+        site: MemberSite,
         args: &Arguments,
     ) -> Result<Option<Edges>> {
         if args.block.is_some() {
             return self.incomplete(pc).map(Some);
         }
-        let name = &self.program.members[site.name];
+        let selected = site.text(self.program, self.facts);
+        let name = selected.as_str();
         let (value, rejected, incomplete, throws) = if let Some(result) =
-            builtins::member(self.ctx, self.facts, receiver, site, name, args)?
+            builtins::member(self.ctx, self.facts, receiver, site.call, name, args)?
         {
             (
                 result.value,
@@ -95,7 +112,7 @@ impl Walker<'_> {
             let result = self.facts.collection_member(
                 self.ctx,
                 receiver,
-                site,
+                site.call,
                 name,
                 &args.positional.data,
             )?;
@@ -122,7 +139,7 @@ impl Walker<'_> {
                 },
             )?;
         }
-        if incomplete || self.facts.detached_builtin(value) {
+        if incomplete {
             return self.incomplete(pc).map(Some);
         }
         if value == Atom::Never.fact() {
