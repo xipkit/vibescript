@@ -580,7 +580,7 @@ fn unmodeled_receivers_callbacks_and_pending_addresses_stay_explicit() {
         "def run(v); v.tap {|n| n}; end",
         "def run(h:hash<string,int>); h.tap {|n| n}; end",
         "def run; {tap:7}.tap {missing}; end",
-        "def run; [7,9].sort_by {|n| n}; end",
+        "def run; [7,9].fill {|n| n}; end",
         "def run; [7,9].delete_if {|n| n}; end",
         "def run; [7,9].map! {|n| n}; end",
         "def run; a=[1]; a.push(7.yield_self {a.clear; 9}); a; end",

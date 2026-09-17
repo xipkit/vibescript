@@ -11,14 +11,14 @@ pub(crate) enum Action {
     Done,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum SearchKind {
     Left,
     Right,
     Middle,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Search {
     a: usize,
     m: usize,
@@ -28,6 +28,7 @@ struct Search {
     kind: SearchKind,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum Task {
     Insert {
         a: usize,
@@ -73,6 +74,42 @@ pub(crate) struct Sort {
 }
 
 impl Sort {
+    #[cfg(test)]
+    pub(crate) fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
+        ctx.charge(1)?;
+        let mut tasks = Buffer::empty();
+        tasks.extend(ctx, &self.tasks.data)?;
+        Ok(Self {
+            len: self.len,
+            base: self.base,
+            width: self.width,
+            inserting: self.inserting,
+            tasks,
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fingerprint(&self, ctx: &mut CallContext) -> Result<u64> {
+        use std::hash::{Hash, Hasher};
+        ctx.charge(1 + self.tasks.data.len() as u64)?;
+        let mut hasher = std::hash::DefaultHasher::new();
+        (self.len, self.base, self.width, self.inserting).hash(&mut hasher);
+        self.tasks.data.hash(&mut hasher);
+        Ok(hasher.finish())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn same(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        ctx.charge(1)?;
+        if (self.len, self.base, self.width, self.inserting)
+            != (other.len, other.base, other.width, other.inserting)
+        {
+            return Ok(false);
+        }
+        ctx.charge(self.tasks.data.len().min(other.tasks.data.len()) as u64)?;
+        Ok(self.tasks.data == other.tasks.data)
+    }
+
     pub fn new(len: usize) -> Self {
         Self {
             len,

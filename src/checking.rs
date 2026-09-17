@@ -12,6 +12,7 @@ mod graph;
 mod iteration;
 mod lexical;
 mod mutations;
+mod ordering;
 mod relation;
 mod scalar;
 mod slots;
@@ -86,3 +87,6 @@ mod schedule_tests;
 
 #[cfg(test)]
 mod selection_tests;
+
+#[cfg(test)]
+mod order_tests;

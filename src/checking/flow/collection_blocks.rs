@@ -3,6 +3,8 @@ use crate::checking::facts::Node;
 use blocks::{Closure, Completion, Parent};
 
 mod grouping;
+mod loops;
+mod ordering;
 mod reductions;
 mod schedules;
 mod selections;
@@ -55,6 +57,14 @@ pub(super) enum Method {
     Uniq,
     Fetch,
     FetchValues,
+    Loop,
+    Sort,
+    SortBy,
+    Min,
+    Max,
+    Minmax,
+    MinBy,
+    MaxBy,
 }
 
 impl Method {
@@ -106,6 +116,13 @@ impl Method {
             "uniq" => Self::Uniq,
             "fetch" => Self::Fetch,
             "fetch_values" => Self::FetchValues,
+            "sort" => Self::Sort,
+            "sort_by" => Self::SortBy,
+            "min" => Self::Min,
+            "max" => Self::Max,
+            "minmax" => Self::Minmax,
+            "min_by" => Self::MinBy,
+            "max_by" => Self::MaxBy,
             _ => return None,
         })
     }
@@ -150,7 +167,7 @@ struct Driver<'a> {
     pattern: Option<Fact>,
     count_overflow: bool,
     exact: bool,
-    site: CallSite,
+    site: Option<CallSite>,
 }
 
 impl<'a> Driver<'a> {
@@ -223,6 +240,9 @@ impl Walker<'_> {
         args: Arguments,
         method: Method,
     ) -> Result<()> {
+        if method.ordered() {
+            return self.ordered_block(state, pc, receiver, site, args, method);
+        }
         if matches!(method, Method::Fetch | Method::FetchValues) {
             return self.lookup_block(state, pc, receiver, site, args, method);
         }
@@ -666,7 +686,7 @@ impl Walker<'_> {
         use self::Method::*;
         match method {
             Each | EachIndex | EachKey | EachValue | ReverseEach | EachSlice | EachCons | Cycle
-            | Times | Upto | Downto | Step | Tap => Ok(output),
+            | Times | Upto | Downto | Step | Tap | Loop => Ok(output),
             YieldSelf | Fetch => Ok(value),
             Map | MapIndex | Grep | GrepV | FetchValues => Ok(self
                 .facts
@@ -721,7 +741,8 @@ impl Walker<'_> {
             }
             Find | Index | Rindex | Reduce | Count | Any | All | NoneMatch | One | Sum
             | TakeWhile | DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash
-            | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Uniq => unreachable!(),
+            | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Uniq | Sort | SortBy
+            | Min | Max | Minmax | MinBy | MaxBy => unreachable!(),
             FilterMap | Select | Reject => {
                 let keep = self
                     .facts

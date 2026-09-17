@@ -554,7 +554,7 @@ fn unmodeled_dispatch_callbacks_and_pending_capture_addresses_remain_explicit() 
         "def run(h:hash<string,int>); h.transform_values {|n| n}; end",
         "def run(xs); xs.group_by {:a}; end",
         "def run; [7,9].delete_if {|n| n}; end",
-        "def run; [7,9].sort_by {|n| n}; end",
+        "def run; [7,9].fill {|n| n}; end",
         "def run; [7,9].map! {|n| n}; end",
         "def run; \"ab\".gsub(/a/) {\"b\"}; end",
         "def run; a=[1]; a.push([7].group_by {a.clear; :a}); a; end",

@@ -120,7 +120,7 @@ impl Walker<'_> {
                 pattern: None,
                 count_overflow: false,
                 exact: true,
-                site,
+                site: Some(site),
             };
             let initial = IterationState {
                 state: state.snapshot(self.ctx)?,

@@ -1,0 +1,672 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private checker native loop, sorting and extrema. All 68 Go checker decisions have independent Rust execution witnesses. Mutating/text/regex callbacks, general dispatch and public checking remain unfinished. These are Go checker decisions, not Go execution results.",
+  "cases": [
+    {
+      "source": "def run; loop {break 7}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; loop {break}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; loop {|a,b| break [a,b]}; end",
+      "runtime": {
+        "display": "[nil, nil]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; loop {return 7}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; loop {begin; break 7; ensure; return 9; end}; missing; end",
+      "runtime": {
+        "display": "9"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; x=[]; result=loop {begin; break 7; ensure; x.push(9); end}; [x,result]; end",
+      "runtime": {
+        "display": "[[9], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11,7].sort; end",
+      "runtime": {
+        "display": "[7, 7, 9, 11]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [false,true,false].sort; end",
+      "runtime": {
+        "display": "[false, false, true]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [nil,nil].sort; end",
+      "runtime": {
+        "display": "[nil, nil]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [\"z\",\"a\",\"b\"].sort; end",
+      "runtime": {
+        "display": "[a, b, z]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [:z,:a,:b].sort; end",
+      "runtime": {
+        "display": "[a, b, z]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [[2,7],[1,8],[2,9]].sort_by {|row| row[0]}; end",
+      "runtime": {
+        "display": "[[1, 8], [2, 7], [2, 9]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [[2,7],[1,8],[2,9]].min_by {|row| row[0]}; end",
+      "runtime": {
+        "display": "[1, 8]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [[2,7],[1,8],[2,9]].max_by {|row| row[0]}; end",
+      "runtime": {
+        "display": "[2, 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11,7].min; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11,7].max; end",
+      "runtime": {
+        "display": "11"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11,7].minmax; end",
+      "runtime": {
+        "display": "[7, 11]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [].min; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [].max; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [].minmax; end",
+      "runtime": {
+        "display": "[nil, nil]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].sort_by {{a:1}}; end",
+      "runtime": {
+        "display": "[7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].min_by {{a:1}}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].max_by {{a:1}}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7,9].min_by {nil}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7,9].max_by {nil}; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7,9].sort_by {nil}; end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [[2],[1,9],[1,7],[]].sort; end",
+      "runtime": {
+        "display": "[[], [1, 7], [1, 9], [2]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [[2],[1,9],[1,7],[]].minmax; end",
+      "runtime": {
+        "display": "[[], [2]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; result=[9,7,11].sort {|l,r| a.push([l,r]); 0}; [a,result]; end",
+      "runtime": {
+        "display": "[[[7, 9], [11, 7]], [9, 7, 11]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[]; result=[9,7,11].sort_by {|n| a.push(n); n}; [a,result]; end",
+      "runtime": {
+        "display": "[[9, 7, 11], [7, 9, 11]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[9,7,11]; result=a.sort_by {|n| a.clear; n}; [a,result]; end",
+      "runtime": {
+        "display": "[[], [7, 9, 11]]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; a=[9,7,11]; result=a.min_by {|n| a.clear; n}; [a,result]; end",
+      "runtime": {
+        "display": "[[], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [].sort {missing}; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; [7].sort {|l:string,r:string| missing}; end",
+      "runtime": {
+        "display": "[7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; [].sort_by {missing}; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; [].min_by {missing}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; [].max_by {missing}; end",
+      "runtime": {
+        "display": "nil"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; [7,9].sort(ignored:3); end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7,9].sort_by(ignored:3) {|n| n}; end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7,9].minmax(ignored:3); end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; x=[]; begin; loop; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [
+        "loop is a method and cannot be used as a value; call it with loop(...)"
+      ],
+      "go_rejected": true
+    },
+    {
+      "source": "def run; x=[]; begin; loop(7) {x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; loop(bad:7) {x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; loop {|n:int| x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].sort(1) {x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].sort_by; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].min_by; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].max_by; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].min {x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].max {x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [].minmax {x.push(9)}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9].sort {|l:string,r| x.push(3); 0}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [nil,7].sort; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [{},{}].min; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [nil,7].max; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [nil,7].minmax; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9].sort {x.push(3); nil}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[3]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9,11].sort_by {|n| x.push(n); {a:7}}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[7, 9, 11]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9,11].min_by {|n| x.push(n); {a:7}}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; x=[]; begin; [7,9,11].max_by {|n| x.push(n); {a:7}}; rescue RuntimeError; x; end; end",
+      "runtime": {
+        "display": "[7, 9]"
+      },
+      "rust_rejected": true,
+      "go_warnings": [],
+      "go_rejected": false,
+      "difference": "Rust diagnoses the invalid native call, callback parameter/result or noncomparable keys, while preserving the runtime rescue path."
+    },
+    {
+      "source": "def run; [9,7,11].sort {return 7}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; x=[]; result=[9,7,11].sort {begin; break 7; ensure; x.push(9); end}; [x,result]; end",
+      "runtime": {
+        "display": "[[9], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11].sort_by {return 7}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; x=[]; result=[9,7,11].sort_by {begin; break 7; ensure; x.push(9); end}; [x,result]; end",
+      "runtime": {
+        "display": "[[9], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11].min_by {return 7}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; x=[]; result=[9,7,11].min_by {begin; break 7; ensure; x.push(9); end}; [x,result]; end",
+      "runtime": {
+        "display": "[[9], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [9,7,11].max_by {return 7}; missing; end",
+      "runtime": {
+        "display": "7"
+      },
+      "rust_rejected": false,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "go_rejected": true,
+      "difference": "Rust excludes an unreachable missing-name read after a nonlocal return or in a skipped callback."
+    },
+    {
+      "source": "def run; x=[]; result=[9,7,11].max_by {begin; break 7; ensure; x.push(9); end}; [x,result]; end",
+      "runtime": {
+        "display": "[[9], 7]"
+      },
+      "rust_rejected": false,
+      "go_warnings": [],
+      "go_rejected": false
+    }
+  ]
+}

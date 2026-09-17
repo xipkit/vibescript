@@ -159,7 +159,7 @@ impl Walker<'_> {
                 if driver.method != Tally && self.wrapping_depth(item.element, layers)? {
                     self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
                 }
-                let keys = self.group_keys(&current.state, pc, driver.site, value)?;
+                let keys = self.group_keys(&current.state, pc, driver.site.unwrap(), value)?;
                 let mut output = Atom::Never.fact();
                 let mut order = Atom::Never.fact();
                 for key in keys.data {
@@ -217,11 +217,11 @@ impl Walker<'_> {
                     self.ctx.charge(1)?;
                     let arm = self.facts.arm(value, i);
                     let Some((key, value)) =
-                        self.group_pair(&current.state, pc, driver.site, arm)?
+                        self.group_pair(&current.state, pc, driver.site.unwrap(), arm)?
                     else {
                         continue;
                     };
-                    let keys = self.group_keys(&current.state, pc, driver.site, key)?;
+                    let keys = self.group_keys(&current.state, pc, driver.site.unwrap(), key)?;
                     for key in keys.data {
                         if self.wrapping_guard(value)? {
                             self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Limit))?;
@@ -234,7 +234,7 @@ impl Walker<'_> {
             }
             TransformKeys => {
                 let (_, original) = item.pair.unwrap();
-                let keys = self.group_keys(&current.state, pc, driver.site, value)?;
+                let keys = self.group_keys(&current.state, pc, driver.site.unwrap(), value)?;
                 let mut output = Atom::Never.fact();
                 for key in keys.data {
                     let next = self.group_write(current.output, key.canonical, original)?;

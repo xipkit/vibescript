@@ -678,7 +678,7 @@ fn unsupported_selection_receivers_and_retained_addresses_remain_explicit() {
         "def run(xs); xs.grep(7) {|n| n}; end",
         "def run(h:hash<string,int>); h.fetch(:a) {7}; end",
         "def run(h:hash<string,int>); h.fetch_values(:a) {7}; end",
-        "def run; [7,9].sort_by {|n| n}; end",
+        "def run; [7,9].fill {|n| n}; end",
         "def run; [7,9].map! {|n| n}; end",
         "def run; a=[1]; a.push({}.fetch(:a) {a.clear; 7}); a; end",
     ] {

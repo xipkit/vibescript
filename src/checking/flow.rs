@@ -31,6 +31,11 @@ const INVALID_CLASS: u16 = 1 << 8;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
     MissingBlock,
+    Ordering {
+        name: usize,
+        left: Fact,
+        right: Fact,
+    },
     BlockGivenArguments,
     CallbackResult {
         name: usize,
@@ -804,6 +809,10 @@ impl Walker<'_> {
         target: Target,
         args: Arguments,
     ) -> Result<Option<Edges>> {
+        if target == Target::Builtin(crate::builtin::Builtin::Loop) {
+            self.native_loop(state, pc, args)?;
+            return Ok(Some([None, None]));
+        }
         let current_error = state.current_error(self.ctx, self.current_error)?;
         let attached = args
             .block

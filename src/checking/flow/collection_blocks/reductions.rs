@@ -14,7 +14,8 @@ impl Walker<'_> {
             && !crate::members::hash_builtin(name);
         let text = self.facts.atom(receiver) == Some(Atom::String)
             && matches!(name.as_str(), "index" | "rindex" | "count" | "find_index");
-        if !fields && !text {
+        let temporal = self.facts.atom(receiver) == Some(Atom::Time) && name == "min";
+        if !fields && !text && !temporal {
             return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);
         }
         let mut next = state.snapshot(self.ctx)?;
@@ -205,7 +206,7 @@ impl Walker<'_> {
                 pattern: matches!(method, Grep | GrepV).then(|| args.positional.data[0]),
                 count_overflow,
                 exact: matches!(self.facts.node(receiver), Node::Tuple(_)),
-                site,
+                site: Some(site),
             },
             output,
         )))
@@ -330,6 +331,9 @@ impl Walker<'_> {
             return Ok(None);
         }
         match method {
+            Sort | SortBy | Min | Max | Minmax | MinBy | MaxBy => {
+                return self.ordered_result(current, pc, driver, item, value, depth);
+            }
             Uniq => return self.unique_result(current, item, value, depth),
             DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash | TransformKeys
             | TransformValues | SliceWhen | ChunkWhile => {

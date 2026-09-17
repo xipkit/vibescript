@@ -210,7 +210,7 @@ impl Walker<'_> {
                 pattern: None,
                 count_overflow: false,
                 exact: matches!(self.facts.node(view), Node::Tuple(_)),
-                site,
+                site: Some(site),
             };
             let initial = IterationState {
                 state: state.snapshot(self.ctx)?,
@@ -435,7 +435,7 @@ impl Walker<'_> {
                 self.issue(
                     pc,
                     IssueKind::Member {
-                        name: driver.site.name,
+                        name: driver.site.unwrap().name,
                         receiver: source,
                         arguments,
                     },
