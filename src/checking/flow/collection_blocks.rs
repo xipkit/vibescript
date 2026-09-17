@@ -5,6 +5,7 @@ use blocks::{Closure, Completion, Parent};
 mod grouping;
 mod reductions;
 mod schedules;
+mod selections;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Method {
@@ -49,6 +50,11 @@ pub(super) enum Method {
     Step,
     Tap,
     YieldSelf,
+    Grep,
+    GrepV,
+    Uniq,
+    Fetch,
+    FetchValues,
 }
 
 impl Method {
@@ -95,6 +101,11 @@ impl Method {
             "step" => Self::Step,
             "tap" => Self::Tap,
             "yield_self" => Self::YieldSelf,
+            "grep" => Self::Grep,
+            "grep_v" => Self::GrepV,
+            "uniq" => Self::Uniq,
+            "fetch" => Self::Fetch,
+            "fetch_values" => Self::FetchValues,
             _ => return None,
         })
     }
@@ -136,6 +147,7 @@ enum Callback<'a> {
 struct Driver<'a> {
     method: Method,
     callback: Callback<'a>,
+    pattern: Option<Fact>,
     count_overflow: bool,
     exact: bool,
     site: CallSite,
@@ -211,6 +223,9 @@ impl Walker<'_> {
         args: Arguments,
         method: Method,
     ) -> Result<()> {
+        if matches!(method, Method::Fetch | Method::FetchValues) {
+            return self.lookup_block(state, pc, receiver, site, args, method);
+        }
         if method.scheduled() {
             return self.scheduled_block(state, pc, receiver, site, args, method);
         }
@@ -275,7 +290,9 @@ impl Walker<'_> {
                 state: state.snapshot(self.ctx)?,
                 output,
                 auxiliary: match method {
-                    GroupStable | SliceWhen | ChunkWhile => self.facts.tuple(self.ctx, &[])?,
+                    GroupStable | SliceWhen | ChunkWhile | Uniq => {
+                        self.facts.tuple(self.ctx, &[])?
+                    }
                     DropWhile => self.facts.boolean(self.ctx, true)?,
                     _ => Atom::Never.fact(),
                 },
@@ -467,7 +484,7 @@ impl Walker<'_> {
         mut before: IterationState,
         pc: usize,
         driver: Driver<'_>,
-        item: Item,
+        mut item: Item,
         depth: usize,
     ) -> Result<Option<IterationState>> {
         let method = driver.method;
@@ -479,6 +496,31 @@ impl Walker<'_> {
             return Ok(Some(before));
         }
         let mut after = None;
+        if matches!(method, Method::Grep | Method::GrepV) {
+            let pattern = driver.pattern.unwrap();
+            let keep = self.facts.case_filter(
+                self.ctx,
+                item.element,
+                pattern,
+                false,
+                method == Method::Grep,
+            )?;
+            let discard = self.facts.case_filter(
+                self.ctx,
+                item.element,
+                pattern,
+                false,
+                method != Method::Grep,
+            )?;
+            if discard != Atom::Never.fact() {
+                after = Some(before.snapshot(self.ctx)?);
+            }
+            if keep == Atom::Never.fact() {
+                return Ok(after);
+            }
+            item.element = keep;
+            item.arguments[0] = keep;
+        }
         if method == Method::DropWhile {
             let skipping = self
                 .facts
@@ -503,10 +545,14 @@ impl Walker<'_> {
         }
         let Some(block) = driver.block() else {
             let value = self.collection_input(&before, pc, driver, item)?;
-            if value == Atom::Never.fact() {
-                return Ok(None);
+            if let Some(next) = self.collection_result(before, pc, driver, item, value, depth)? {
+                if let Some(after) = &mut after {
+                    after.join(self.ctx, self.facts, &next, false, depth)?;
+                } else {
+                    after = Some(next);
+                }
             }
-            return self.collection_result(before, pc, driver, item, value, depth);
+            return Ok(after);
         };
         let mut callback = block.snapshot(self.ctx)?;
         for link in &mut callback.captures.data {
@@ -584,7 +630,10 @@ impl Walker<'_> {
     fn collection_guard(&mut self, method: Method, value: Fact) -> Result<bool> {
         use self::Method::*;
         self.ctx.charge(1)?;
-        if !matches!(method, Map | MapIndex | FlatMap | FilterMap) {
+        if !matches!(
+            method,
+            Map | MapIndex | FlatMap | FilterMap | Grep | GrepV | FetchValues
+        ) {
             return Ok(false);
         }
         for i in 0..self.facts.arm_count(value) {
@@ -618,8 +667,8 @@ impl Walker<'_> {
         match method {
             Each | EachIndex | EachKey | EachValue | ReverseEach | EachSlice | EachCons | Cycle
             | Times | Upto | Downto | Step | Tap => Ok(output),
-            YieldSelf => Ok(value),
-            Map | MapIndex => Ok(self
+            YieldSelf | Fetch => Ok(value),
+            Map | MapIndex | Grep | GrepV | FetchValues => Ok(self
                 .facts
                 .collection_mutate(self.ctx, output, crate::bytecode::Method::Push, &[value])?
                 .receiver),
@@ -672,7 +721,7 @@ impl Walker<'_> {
             }
             Find | Index | Rindex | Reduce | Count | Any | All | NoneMatch | One | Sum
             | TakeWhile | DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash
-            | TransformKeys | TransformValues | SliceWhen | ChunkWhile => unreachable!(),
+            | TransformKeys | TransformValues | SliceWhen | ChunkWhile | Uniq => unreachable!(),
             FilterMap | Select | Reject => {
                 let keep = self
                     .facts

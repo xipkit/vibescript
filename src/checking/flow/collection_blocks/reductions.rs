@@ -42,7 +42,7 @@ impl Walker<'_> {
         let block = args.block.as_ref();
         let maximum = match method {
             Each | Map | Select if kind == Receiver::Array => usize::MAX,
-            Find | Count | Any | All | NoneMatch | Sum => 1,
+            Find | Count | Any | All | NoneMatch | Sum | Grep | GrepV => 1,
             Reduce if kind == Receiver::Array => 2,
             Reduce => 1,
             Index | Rindex if block.is_none() => 1,
@@ -64,9 +64,11 @@ impl Walker<'_> {
                     | ToHash
                     | SliceWhen
                     | ChunkWhile
+                    | Uniq
             )
             || (kind == Receiver::Hash && method == Map);
         if site.scope
+            || (matches!(method, Grep | GrepV) && count != 1)
             || count > maximum
             || (kind == Receiver::Range && matches!(method, Find | Count) && count != 0)
             || (rejects_keywords && !args.keywords.data.is_empty())
@@ -154,7 +156,7 @@ impl Walker<'_> {
         }
         let optional = matches!(
             method,
-            Count | Any | All | NoneMatch | One | Sum | Tally | ToHash
+            Count | Any | All | NoneMatch | One | Sum | Tally | ToHash | Grep | GrepV | Uniq
         ) || matches!(callback, Callback::Operation(_) | Callback::Equal(_));
         if block.is_none() && !optional {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
@@ -200,6 +202,7 @@ impl Walker<'_> {
             Driver {
                 method,
                 callback,
+                pattern: matches!(method, Grep | GrepV).then(|| args.positional.data[0]),
                 count_overflow,
                 exact: matches!(self.facts.node(receiver), Node::Tuple(_)),
                 site,
@@ -327,6 +330,7 @@ impl Walker<'_> {
             return Ok(None);
         }
         match method {
+            Uniq => return self.unique_result(current, item, value, depth),
             DropWhile | Partition | GroupBy | GroupStable | Tally | ToHash | TransformKeys
             | TransformValues | SliceWhen | ChunkWhile => {
                 return self.group_result(current, pc, driver, item, value, depth);

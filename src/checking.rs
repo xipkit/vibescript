@@ -5,6 +5,7 @@ mod builtins;
 mod calls;
 mod cases;
 mod collections;
+mod equality;
 mod facts;
 mod flow;
 mod graph;
@@ -82,3 +83,6 @@ mod grouping_tests;
 
 #[cfg(test)]
 mod schedule_tests;
+
+#[cfg(test)]
+mod selection_tests;

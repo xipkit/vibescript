@@ -239,7 +239,7 @@ fn native_blocks_and_retained_mutations_stay_incomplete() {
         "def once; yield; end; def run; a=[[1]]; a[0].push(once {a[0]=[2]; 7}); a; end",
         "def once; yield; end; def run; a=[1]; a[-1]+=once {a.push(2); 7}; a; end",
         "def once; yield; end; def run; a=[1]; a.push(once {a=a; 7}); a; end",
-        "def run; [1].uniq {|x| x}; end",
+        "def run; [1].map! {|x| x}; end",
         "def run; [1].sort_by {|x| x}; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

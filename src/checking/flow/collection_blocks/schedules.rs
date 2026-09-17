@@ -207,6 +207,7 @@ impl Walker<'_> {
             let driver = Driver {
                 method,
                 callback: Callback::Block(block),
+                pattern: None,
                 count_overflow: false,
                 exact: matches!(self.facts.node(view), Node::Tuple(_)),
                 site,
