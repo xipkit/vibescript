@@ -91,9 +91,6 @@ impl Walker<'_> {
         site: MemberSite,
         args: &Arguments,
     ) -> Result<Option<Edges>> {
-        if args.block.is_some() {
-            return self.incomplete(pc).map(Some);
-        }
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
         let (value, rejected, incomplete, throws) = if let Some(result) =
@@ -106,7 +103,7 @@ impl Walker<'_> {
                 result.throws,
             )
         } else {
-            if !args.keywords.data.is_empty() {
+            if !args.keywords.data.is_empty() || args.block.is_some() {
                 return self.incomplete(pc).map(Some);
             }
             let result = self.facts.collection_member(

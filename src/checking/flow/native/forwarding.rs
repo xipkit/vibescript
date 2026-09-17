@@ -127,7 +127,9 @@ impl Walker<'_> {
         name: &str,
         args: &mut Arguments,
     ) -> Result<bool> {
-        if crate::iteration::method(name) {
+        if crate::iteration::method(name)
+            || builtins::primitive_member(self.ctx, self.facts, receiver, name)?
+        {
             return Ok(true);
         }
         let kind = self.native_receiver(receiver).unwrap();

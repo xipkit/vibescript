@@ -16,9 +16,19 @@ use crate::{
 const RUNTIME: u8 = 1 << ErrorClass::Runtime as u8;
 
 mod native;
+mod primitives;
 pub(super) mod protected;
 mod temporal;
 mod values;
+
+pub(super) fn primitive_member(
+    ctx: &mut CallContext,
+    facts: &Facts,
+    receiver: Fact,
+    name: &str,
+) -> Result<bool> {
+    primitives::supported(ctx, facts, receiver, name)
+}
 
 pub(super) fn value_member(
     ctx: &mut CallContext,
@@ -29,7 +39,10 @@ pub(super) fn value_member(
     for i in 0..facts.arm_count(receiver) {
         ctx.charge(1)?;
         let arm = facts.arm(receiver, i);
-        if !matches!(facts.node(arm), Node::Protected(..)) && !values::supported(facts, arm, name) {
+        if !matches!(facts.node(arm), Node::Protected(..))
+            && !values::supported(facts, arm, name)
+            && !primitives::supported(ctx, facts, arm, name)?
+        {
             return Ok(false);
         }
     }
@@ -384,6 +397,7 @@ pub(super) fn member(
         let arm = facts.arm(receiver, i);
         special |= matches!(facts.node(arm), Node::TypeValue(_) | Node::Protected(..))
             || values::supported(facts, arm, name)
+            || primitives::supported(ctx, facts, arm, name)?
             || namespace(ctx, facts, arm)?;
     }
     if !special {
@@ -395,7 +409,7 @@ pub(super) fn member(
         let arm = facts.arm(receiver, i);
         let next = if let Some(next) = member_arm(ctx, facts, arm, site, name, args)? {
             next
-        } else if !args.keywords.data.is_empty() {
+        } else if !args.keywords.data.is_empty() || args.block.is_some() {
             let mut next = outcome(Atom::Never.fact());
             next.incomplete = true;
             next
@@ -441,6 +455,14 @@ fn member_arm(
     name: &str,
     args: &Arguments,
 ) -> Result<Option<Outcome>> {
+    if primitives::supported(ctx, facts, receiver, name)? {
+        return primitives::member(ctx, facts, receiver, site, name, args).map(Some);
+    }
+    if args.block.is_some() {
+        let mut result = outcome(Atom::Never.fact());
+        result.incomplete = true;
+        return Ok(Some(result));
+    }
     if matches!(facts.node(receiver), Node::Protected(..)) {
         return protected::member(ctx, facts, receiver, site, name, args).map(Some);
     }

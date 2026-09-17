@@ -42,6 +42,19 @@ impl Walker<'_> {
                     continue;
                 }
             }
+            if builtins::primitive_member(self.ctx, self.facts, source, name)? {
+                state.addresses.data.pop().unwrap();
+                if let Some(edges) =
+                    self.member_without_collection(&mut state, pc, source, site, args)?
+                {
+                    for edge in edges.into_iter().flatten() {
+                        self.extra.push(self.ctx, edge)?;
+                    }
+                } else {
+                    self.native_continue(pc, state)?;
+                }
+                continue;
+            }
             let kind = match self.facts.node(source) {
                 Node::Tuple(_) | Node::Array(_) => Some(Receiver::Array),
                 Node::Shape(_, _, _, true) | Node::Hash(_, _, true) => Some(Receiver::Hash),

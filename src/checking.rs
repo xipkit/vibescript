@@ -57,6 +57,9 @@ mod builtin_tests;
 mod native_tests;
 
 #[cfg(test)]
+mod primitive_tests;
+
+#[cfg(test)]
 mod value_tests;
 
 #[cfg(test)]

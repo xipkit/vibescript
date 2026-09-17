@@ -201,7 +201,11 @@ impl Facts {
                     if op == "=~" {
                         self.nullable(ctx, Atom::Int.fact())?
                     } else if op == "**" && a == Atom::Int && b == Atom::Int {
-                        self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact()])?
+                        match self.node(right) {
+                            Node::Integer(exponent) if *exponent >= 0 => Atom::Int.fact(),
+                            Node::Integer(_) => Atom::Float.fact(),
+                            _ => self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact()])?,
+                        }
                     } else {
                         atom.fact()
                     }
@@ -254,7 +258,12 @@ impl Facts {
         for i in 0..self.arm_count(value) {
             ctx.charge(1)?;
             let arm = self.arm(value, i);
-            if !matches!(self.node(arm), Node::Protected(..)) && !self.known_primitive(ctx, arm)? {
+            if !matches!(
+                self.node(arm),
+                Node::Protected(..) | Node::Tuple(_) | Node::Array(_)
+            ) && !self.plain_hash(arm)
+                && !self.known_primitive(ctx, arm)?
+            {
                 return Ok(false);
             }
         }
