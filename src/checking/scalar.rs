@@ -5,6 +5,7 @@ use crate::{CallContext, Result, budget::Buffer};
 pub(super) enum Test {
     Truth,
     Nil,
+    Case { matcher: Fact, splat: bool },
 }
 
 pub(super) struct Operation {
@@ -21,6 +22,9 @@ impl Facts {
         test: Test,
         yes: bool,
     ) -> Result<Fact> {
+        if let Test::Case { matcher, splat } = test {
+            return self.case_filter(ctx, value, matcher, splat, yes);
+        }
         let mut kept = Buffer::empty();
         for index in 0..self.arm_count(value) {
             ctx.charge(1)?;
@@ -99,6 +103,8 @@ impl Facts {
                             Some(n) => self.integer(ctx, n)?,
                             None => atom.fact(),
                         }
+                    } else if let Node::Float(bits) = self.node(arm) {
+                        self.float(ctx, -f64::from_bits(*bits))?
                     } else {
                         atom.fact()
                     }
@@ -222,8 +228,11 @@ impl Facts {
                     Node::Atom(atom) => 1 << *atom as u32,
                     Node::Boolean(_) => 1 << Atom::Bool as u32,
                     Node::Integer(_) => 1 << Atom::Int as u32,
+                    Node::Float(_) => 1 << Atom::Int as u32,
                     Node::String(_) => 1 << Atom::String as u32,
                     Node::Symbol(_) => 1 << Atom::Symbol as u32,
+                    Node::Range(..) => 1 << Atom::Range as u32,
+                    Node::Regex(_) => 1 << Atom::Regex as u32,
                     Node::Array(_) | Node::Tuple(_) => 1 << 20,
                     Node::Hash(..) | Node::Shape(..) => 1 << 21,
                     Node::Union(_) => unreachable!(),
@@ -260,8 +269,11 @@ impl Facts {
             Node::Atom(atom) => Some(*atom),
             Node::Boolean(_) => Some(Atom::Bool),
             Node::Integer(_) => Some(Atom::Int),
+            Node::Float(_) => Some(Atom::Float),
             Node::String(_) => Some(Atom::String),
             Node::Symbol(_) => Some(Atom::Symbol),
+            Node::Range(..) => Some(Atom::Range),
+            Node::Regex(_) => Some(Atom::Regex),
             _ => None,
         }
     }

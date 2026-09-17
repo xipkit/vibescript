@@ -1,0 +1,871 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private case, matcher and conditional-flow checking decisions; every script has a Rust runtime witness.",
+  "cases": [
+    {
+      "source": "def run -> int; case 7; when 7; 9; else; \"bad\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; case 7; when 8; missing; when 7; 9; else; \"bad\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; case 7; when 7,missing; 9; else; \"bad\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; case 7; when 7; 9; when missing; \"bad\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; case 7; when 8; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; case; when false,nil; missing; when 0; 7; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 7
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; case true; when false; missing; else; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 7
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; case [7]; when [7]; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; case {a:7,b:8}; when {b:8,a:7}; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x: int | string) -> int; case x; when 7; x+1; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "value_json": 8
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x: int | string) -> string; case x; when \"yes\"; x; else; \"no\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          "yes"
+        ],
+        "value_json": "yes"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 37
+          },
+          "Message": "return value expected string, got int | string | string",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust retains the matched binding facts through the selected branch, including the short-circuit path where present. Go joins in an incompatible alternative; the Rust witness returns the annotated type."
+    },
+    {
+      "source": "def run(x: int?) -> int; case x; when nil; 7; else; x; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          9
+        ],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 26
+          },
+          "Message": "return value expected int, got int | int?",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust retains the matched binding facts through the selected branch, including the short-circuit path where present. Go joins in an incompatible alternative; the Rust witness returns the annotated type."
+    },
+    {
+      "source": "def run(x: bool) -> int; case x; when false; 7; when true; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          true
+        ],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 69
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run(x: int | string) -> int; case x; when 7; x+\"bad\"; else; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "error": "type"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust narrows the matched input to an integer and rejects its addition to a string. Go emits no checker warning; the Rust witness reaches the corresponding runtime error."
+    },
+    {
+      "source": "def run(x) -> int; case x; when 7; x; else; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [
+          7.0
+        ],
+        "error": "type"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Equality with an integer can match an equal float; Rust preserves that float possibility at the int return boundary. Go emits no checker warning; the Rust witness reaches the corresponding runtime error."
+    },
+    {
+      "source": "def run(x) -> number; case x; when 7; x; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7.0
+        ],
+        "value_json": 7
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x: int | string) -> int; y=x; case x; when 7; y; else; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "value_json": 7
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 39
+          },
+          "Message": "return value expected int, got int | string | int",
+          "Source": ""
+        }
+      ],
+      "precision": "Both checkers warn conservatively because the value copy is not correlated with the narrowed source binding. This runtime witness succeeds."
+    },
+    {
+      "source": "def run(x: bool) -> int; case; when x; 7; when !x; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          false
+        ],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 61
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run(x: int | string) -> int; case x; when 1..3; x; else; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          2
+        ],
+        "value_json": 2
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 34
+          },
+          "Message": "return value expected int, got int | string | int",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust retains the matched binding facts through the selected branch, including the short-circuit path where present. Go joins in an incompatible alternative; the Rust witness returns the annotated type."
+    },
+    {
+      "source": "def run(x) -> int; case x; when 1..3; x; else; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [
+          2.5
+        ],
+        "error": "type"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Range matches can select a float; Rust retains the float possibility at the int return boundary. Go emits no checker warning; the Rust witness reaches the corresponding runtime error."
+    },
+    {
+      "source": "def run(x) -> number; case x; when 1..3; x; else; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          2.5
+        ],
+        "value_json": 2.5
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; for x in 7..7; x; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 7
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "typed return int can implicitly return nil",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust recognizes the singleton range and excludes a zero-iteration result. Go warns about an implicit nil result."
+    },
+    {
+      "source": "def run -> int; for x in 7...7; missing; end; 9; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 33
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; for x in 7..; x; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "error": "argument"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust rejects iteration over a known endless range. Go emits no checker warning; the Rust witness reaches the corresponding runtime error."
+    },
+    {
+      "source": "def run -> int; case \"hello\"; when /el+/; 7; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 7
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 52
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run -> int; case \"ab\"; when /^a$/; missing; else; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 7
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 40
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run(x: int | string) -> string; case x; when /./; x; else; \"no\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          "yes"
+        ],
+        "value_json": "yes"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 37
+          },
+          "Message": "return value expected string, got int | string | string",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust retains the matched binding facts through the selected branch, including the short-circuit path where present. Go joins in an incompatible alternative; the Rust witness returns the annotated type."
+    },
+    {
+      "source": "def run(x) -> string; case x; when /./; x; else; \"no\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          "yes"
+        ],
+        "value_json": "yes"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; case 7; when *[8,7]; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 47
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run -> int; case 7; when *[]; missing; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 35
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run -> int; case; when *[false,nil]; missing; when *[0]; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 42
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run -> int; case 7; when *[[7],1..8]; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 52
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; case 7; when *7; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "error": "type"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust rejects a known non-array case splat. Go emits no checker warning; the Rust witness reaches the corresponding runtime error."
+    },
+    {
+      "source": "def run(xs: array<int>) -> int?; case 7; when *xs; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          [
+            7
+          ]
+        ],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; x=7; case x; when (begin; x=8; 7; end); x; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 8
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 59
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; x=[7]; case x; when x.push(8); missing; else; x; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": [
+          7,
+          8
+        ]
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 41
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; x=[7]; case x; when (begin; x[0]=8; [7]; end); x; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": [
+          8
+        ]
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 66
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; x=7; case x; when 8; missing; when (begin; x=9; 7; end); x; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 31
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run -> int; case 7.0; when 7; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x) -> float; case x; when 0.5; x; else; 9.0; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          0.5
+        ],
+        "value_json": 0.5
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x) -> int; case x; when 9007199254740993; x; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          9007199254740993
+        ],
+        "value_json": 9007199254740993
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x: float) -> int; case x; when 9007199254740993; missing; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          9007199254740992.0
+        ],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 58
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run(x: int) -> int; case x; when 0.5; missing; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 43
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run(x) -> int; case x; when 7...7; missing; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7.0
+        ],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 40
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run(x: int | string) -> int; if 7 === x; x+1; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "value_json": 8
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x: int | string) -> int; if !(7 === x); 9; else; x+1; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "value_json": 8
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(x: int | string) -> int; if (7 === x) && (x+1>0); x; else; 9; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [
+          7
+        ],
+        "value_json": 7
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 59
+          },
+          "Message": "return value expected int, got int | string",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust retains the matched binding facts through the selected branch, including the short-circuit path where present. Go joins in an incompatible alternative; the Rust witness returns the annotated type."
+    },
+    {
+      "source": "def run -> int; case 7; when 7,/(/; 9; else; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; case 7; when 7; 9; when /(/; missing; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; a=[7]; a[0]=case a[0]; when 7; 9; else; missing; end; a; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": [
+          9
+        ]
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; for x in [7]; case x; when 7; begin; break 9; end; else; missing; end; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 67
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; for x in [7]; case x; when 7; begin; next 9; end; else; missing; end; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": null
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 66
+          },
+          "Message": "undefined variable missing",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the reachable match or loop path and does not check the skipped undefined-variable expression. The Rust witness completes without evaluating it; Go reports it."
+    },
+    {
+      "source": "def run; while true; case 7; when 7; begin; return 9; end; else; missing; end; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "value_json": 9
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    }
+  ]
+}

@@ -26,6 +26,7 @@ pub(super) enum Atom {
     Time,
     Money,
     Range,
+    Regex,
 }
 
 impl Atom {
@@ -46,8 +47,11 @@ pub(super) enum Node {
     Atom(Atom),
     Boolean(bool),
     Integer(i64),
+    Float(u64),
     String(Value),
     Symbol(Value),
+    Range(Option<i64>, Option<i64>, bool),
+    Regex(Value),
     Array(Fact),
     Tuple(Buffer<Fact>),
     // The last flag identifies ordinary hashes; annotations may describe objects too.
@@ -104,6 +108,7 @@ impl Facts {
             Atom::Time,
             Atom::Money,
             Atom::Range,
+            Atom::Regex,
         ] {
             let fact = facts.intern(ctx, Node::Atom(atom))?;
             debug_assert_eq!(fact, atom.fact());
@@ -228,12 +233,16 @@ impl Facts {
             }
             _ => false,
         };
+        // Float literals stay outside canonical equality: mixed numeric equality and NaN
+        // cannot be decided by comparing fact IDs, including inside containers.
         let singleton = match &node {
             Node::Atom(Atom::Nil)
             | Node::Boolean(_)
             | Node::Integer(_)
             | Node::String(_)
-            | Node::Symbol(_) => true,
+            | Node::Symbol(_)
+            | Node::Range(..)
+            | Node::Regex(_) => true,
             Node::Tuple(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().all(|&value| self.singleton(value))
@@ -329,6 +338,24 @@ impl Facts {
 
     pub fn array(&mut self, ctx: &mut CallContext, element: Fact) -> Result<Fact> {
         self.intern(ctx, Node::Array(element))
+    }
+
+    pub(super) fn range(
+        &mut self,
+        ctx: &mut CallContext,
+        start: Option<i64>,
+        end: Option<i64>,
+        exclusive: bool,
+    ) -> Result<Fact> {
+        self.intern(ctx, Node::Range(start, end, exclusive))
+    }
+
+    pub(super) fn regex(&mut self, ctx: &mut CallContext, value: Value) -> Result<Fact> {
+        self.intern(ctx, Node::Regex(value))
+    }
+
+    pub(super) fn float(&mut self, ctx: &mut CallContext, value: f64) -> Result<Fact> {
+        self.intern(ctx, Node::Float(value.to_bits()))
     }
 
     pub fn tuple(&mut self, ctx: &mut CallContext, elements: &[Fact]) -> Result<Fact> {
@@ -461,7 +488,10 @@ impl Facts {
         let mut bools = 0;
         let mut symbols = false;
         let mut integers = false;
+        let mut floats = false;
         let mut strings = false;
+        let mut ranges = false;
+        let mut regexes = false;
         let mut any = false;
         for &fact in &arms.data {
             ctx.charge(1)?;
@@ -471,7 +501,10 @@ impl Facts {
                 Node::Boolean(true) => bools |= 2,
                 Node::Atom(Atom::Symbol) => symbols = true,
                 Node::Atom(Atom::Int) => integers = true,
+                Node::Atom(Atom::Float) => floats = true,
                 Node::Atom(Atom::String) => strings = true,
+                Node::Atom(Atom::Range) => ranges = true,
+                Node::Atom(Atom::Regex) => regexes = true,
                 Node::Atom(Atom::Any) => any = true,
                 _ => (),
             }
@@ -481,7 +514,10 @@ impl Facts {
             Node::Boolean(_) => bools != 3,
             Node::Symbol(_) => !symbols,
             Node::Integer(_) => !integers,
+            Node::Float(_) => !floats,
             Node::String(_) => !strings,
+            Node::Range(..) => !ranges,
+            Node::Regex(_) => !regexes,
             Node::Atom(Atom::Unknown) => !any,
             _ => true,
         });
@@ -738,6 +774,16 @@ impl Node {
             Self::Atom(value) => value.hash(&mut hash),
             Self::Boolean(value) => value.hash(&mut hash),
             Self::Integer(value) => value.hash(&mut hash),
+            Self::Float(value) => value.hash(&mut hash),
+            Self::Range(start, end, exclusive) => (start, end, exclusive).hash(&mut hash),
+            Self::Regex(value) => {
+                let crate::value::Kind::Regex(regex) = &value.0 else {
+                    unreachable!()
+                };
+                let bytes = regex.source.as_bytes().unwrap();
+                ctx.work_bytes(bytes.len())?;
+                (bytes, regex.flags()).hash(&mut hash);
+            }
             Self::String(value) | Self::Symbol(value) | Self::Named(value) => {
                 let bytes = value.as_bytes().unwrap();
                 ctx.work_bytes(bytes.len())?;
@@ -774,6 +820,15 @@ impl Node {
             (Self::Atom(a), Self::Atom(b)) => a == b,
             (Self::Boolean(a), Self::Boolean(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
+            (Self::Float(a), Self::Float(b)) => a == b,
+            (Self::Range(a, b, c), Self::Range(x, y, z)) => a == x && b == y && c == z,
+            (Self::Regex(a), Self::Regex(b)) => {
+                let (crate::value::Kind::Regex(a), crate::value::Kind::Regex(b)) = (&a.0, &b.0)
+                else {
+                    unreachable!()
+                };
+                a.equal(ctx, b)?
+            }
             (Self::String(a), Self::String(b))
             | (Self::Symbol(a), Self::Symbol(b))
             | (Self::Named(a), Self::Named(b)) => same_bytes(ctx, a, b)?,

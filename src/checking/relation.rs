@@ -294,10 +294,16 @@ impl Facts {
                             }
                         }
                         (Node::Integer(_), Node::Atom(Atom::Int))
+                        | (Node::Float(_), Node::Atom(Atom::Float))
+                        | (Node::Range(..), Node::Atom(Atom::Range))
+                        | (Node::Regex(_), Node::Atom(Atom::Regex))
                         | (Node::String(_), Node::Atom(Atom::String))
                         | (Node::Boolean(_), Node::Atom(Atom::Bool))
                         | (Node::Symbol(_), Node::Atom(Atom::Symbol)) => Relation::Accepted,
                         (Node::Atom(Atom::Int), Node::Integer(_))
+                        | (Node::Atom(Atom::Float), Node::Float(_))
+                        | (Node::Atom(Atom::Range), Node::Range(..))
+                        | (Node::Atom(Atom::Regex), Node::Regex(_))
                         | (Node::Atom(Atom::String), Node::String(_))
                         | (Node::Atom(Atom::Bool), Node::Boolean(_))
                         | (Node::Atom(Atom::Symbol), Node::Symbol(_)) => Relation::Gradual,

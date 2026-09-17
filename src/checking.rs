@@ -1,6 +1,7 @@
 mod addresses;
 mod arguments;
 mod calls;
+mod cases;
 mod collections;
 mod facts;
 mod flow;
@@ -36,3 +37,6 @@ mod recursion_tests;
 
 #[cfg(test)]
 mod iteration_tests;
+
+#[cfg(test)]
+mod case_tests;

@@ -28,6 +28,20 @@ impl Facts {
                 Node::Atom(Atom::Never) => continue,
                 Node::Atom(Atom::Unknown | Atom::Any) => (Atom::Unknown.fact(), true, true),
                 Node::Atom(Atom::Range) => (Atom::Int.fact(), true, true),
+                Node::Range(start, end, exclusive) => {
+                    let (Some(start), Some(end)) = (*start, *end) else {
+                        result.rejected = true;
+                        continue;
+                    };
+                    let length =
+                        (i128::from(start) - i128::from(end)).abs() + i128::from(!exclusive);
+                    let item = match length {
+                        0 => Atom::Never.fact(),
+                        1 => self.integer(ctx, start)?,
+                        _ => Atom::Int.fact(),
+                    };
+                    (item, length == 0, length > 1)
+                }
                 Node::Array(item) => (*item, true, true),
                 Node::Tuple(items) => {
                     let length = items.data.len();

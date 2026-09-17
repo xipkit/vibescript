@@ -463,7 +463,7 @@ impl Facts {
         Ok(Mutation::new(remaining, value))
     }
 
-    fn definitely_equal(&self, a: Fact, b: Fact) -> Option<bool> {
+    pub(super) fn definitely_equal(&self, a: Fact, b: Fact) -> Option<bool> {
         // Canonical IDs prove equal values only for singleton facts, never shared runtime storage.
         if self.singleton(a) && self.singleton(b) {
             return Some(a == b);

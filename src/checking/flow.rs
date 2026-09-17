@@ -37,6 +37,12 @@ pub(super) enum IssueKind {
     Iterate {
         value: Fact,
     },
+    CaseSplat {
+        value: Fact,
+    },
+    Regex {
+        pattern: usize,
+    },
     Call {
         target: Target,
         failure: Failure,
@@ -200,6 +206,17 @@ struct Pending {
 }
 
 impl State {
+    fn polarity(&self, ctx: &mut CallContext, facts: &mut Facts) -> Result<usize> {
+        let Some(operand) = self.stack.data.last() else {
+            return Ok(0);
+        };
+        let result = facts.test_result(ctx, operand.value, Test::Truth)?;
+        Ok(match facts.node(result) {
+            super::facts::Node::Boolean(false) => 1,
+            super::facts::Node::Boolean(true) => 2,
+            _ => 0,
+        })
+    }
     fn new(locals: usize) -> Self {
         Self {
             locals: Slots::new(
@@ -493,12 +510,12 @@ pub(super) fn analyze_body(
     let mut queue = Buffer::empty();
     for _ in &graph.blocks.data {
         ctx.charge(1)?;
-        entries.data.push(None);
-        queued.data.push(false);
+        entries.data.push([None, None, None]);
+        queued.data.push([false; 3]);
     }
-    entries.data[0] = Some(initial);
-    queued.data[0] = true;
-    queue.push(ctx, 0)?;
+    entries.data[0][0] = Some(initial);
+    queued.data[0][0] = true;
+    queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
         ctx,
         facts,
@@ -509,23 +526,29 @@ pub(super) fn analyze_body(
         calls,
         report: None,
     };
-    while let Some(index) = queue.data.pop() {
+    while let Some((index, polarity)) = queue.data.pop() {
         walker.ctx.charge(1)?;
-        queued.data[index] = false;
-        let state = entries.data[index].as_ref().unwrap().snapshot(walker.ctx)?;
+        queued.data[index][polarity] = false;
+        let state = entries.data[index][polarity]
+            .as_ref()
+            .unwrap()
+            .snapshot(walker.ctx)?;
         let edges = walker.block(&graph.blocks.data[index], state)?;
         for (pc, state) in edges.into_iter().flatten() {
             let backedge = pc <= graph.blocks.data[index].start;
             let index = graph.at(walker.ctx, pc)?;
-            let changed = if let Some(entry) = &mut entries.data[index] {
+            // Keep short-circuit results separate from still-unknown conditions. Otherwise
+            // a false left operand erases facts required by the right operand's true branch.
+            let polarity = state.polarity(walker.ctx, walker.facts)?;
+            let changed = if let Some(entry) = &mut entries.data[index][polarity] {
                 entry.join(walker.ctx, walker.facts, &state, backedge)?
             } else {
-                entries.data[index] = Some(state);
+                entries.data[index][polarity] = Some(state);
                 true
             };
-            if changed && !queued.data[index] {
-                queue.push(walker.ctx, index)?;
-                queued.data[index] = true;
+            if changed && !queued.data[index][polarity] {
+                queue.push(walker.ctx, (index, polarity))?;
+                queued.data[index][polarity] = true;
             }
         }
     }
@@ -533,7 +556,7 @@ pub(super) fn analyze_body(
     walker.report = Some(&mut report);
     for (index, entry) in entries.data.into_iter().enumerate() {
         walker.ctx.charge(1)?;
-        if let Some(entry) = entry {
+        for entry in entry.into_iter().flatten() {
             walker.block(&graph.blocks.data[index], entry)?;
         }
     }
@@ -552,6 +575,51 @@ struct Walker<'a> {
 }
 
 impl Walker<'_> {
+    fn case_compare(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        target: Option<Operand>,
+        matcher: Operand,
+        splat: bool,
+    ) -> Result<Option<Edges>> {
+        let result =
+            self.facts
+                .case_result(self.ctx, target.map(|t| t.value), matcher.value, splat)?;
+        if result.rejected {
+            self.issue(
+                pc,
+                IssueKind::CaseSplat {
+                    value: matcher.value,
+                },
+            )?;
+        }
+        if result.value == Atom::Never.fact() {
+            return Ok(Some([None, None]));
+        }
+        let predicate = if let Some(target) = target {
+            target.origin.map(|slot| Predicate {
+                slot,
+                test: Test::Case {
+                    matcher: matcher.value,
+                    splat,
+                },
+                yes: true,
+            })
+        } else if !splat {
+            matcher.predicate()
+        } else {
+            None
+        };
+        state.stack.push(
+            self.ctx,
+            Operand {
+                predicate,
+                ..Operand::new(result.value)
+            },
+        )?;
+        Ok(None)
+    }
     fn invoke(
         &mut self,
         state: &mut State,
@@ -844,7 +912,7 @@ impl Walker<'_> {
                         Kind::Bool(value) => self.facts.boolean(self.ctx, *value)?,
                         Kind::Int(value) => self.facts.integer(self.ctx, *value)?,
                         Kind::Big(_) => Atom::Int.fact(),
-                        Kind::Float(_) => Atom::Float.fact(),
+                        Kind::Float(value) => self.facts.float(self.ctx, *value)?,
                         Kind::Bytes(value) => self.facts.string(self.ctx, &value.data)?,
                         Kind::Symbol(value) => self.facts.symbol(self.ctx, &value.data)?,
                         Kind::Duration(_) => Atom::Duration.fact(),
@@ -994,18 +1062,67 @@ impl Walker<'_> {
                         },
                     )?;
                 }
-                Op::Range(start, end, _) => {
-                    for _ in 0..usize::from(start) + usize::from(end) {
-                        let value = state.stack.data.pop().unwrap().value;
+                Op::Range(start, end, exclusive) => {
+                    let end = end.then(|| state.stack.data.pop().unwrap().value);
+                    let start = start.then(|| state.stack.data.pop().unwrap().value);
+                    let mut known = true;
+                    for value in start.into_iter().chain(end) {
+                        known &= matches!(self.facts.node(value), super::facts::Node::Integer(_));
                         if self.facts.relation(self.ctx, value, Atom::Int.fact())?
                             == Relation::Rejected
                         {
                             self.issue(pc, IssueKind::Range { value })?;
                         }
                     }
-                    state
-                        .stack
-                        .push(self.ctx, Operand::new(Atom::Range.fact()))?;
+                    let value = if known {
+                        let endpoint = |value: Option<Fact>| {
+                            value.map(|value| {
+                                let super::facts::Node::Integer(n) = self.facts.node(value) else {
+                                    unreachable!()
+                                };
+                                *n
+                            })
+                        };
+                        self.facts
+                            .range(self.ctx, endpoint(start), endpoint(end), exclusive)?
+                    } else {
+                        Atom::Range.fact()
+                    };
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::Regex(pattern, flags) => {
+                    let regex = crate::regex::value::Regex::compile(
+                        self.ctx,
+                        self.program.constants[pattern].clone(),
+                        flags,
+                    );
+                    let value = match regex {
+                        Ok(value) => self.facts.regex(self.ctx, value)?,
+                        Err(_) => {
+                            self.ctx.checkpoint()?;
+                            self.issue(pc, IssueKind::Regex { pattern })?;
+                            return Ok([None, None]);
+                        }
+                    };
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::CaseCompare(target, splat) => {
+                    let matcher = state.stack.data.pop().unwrap();
+                    let target = target.then(|| state.stack.data.pop().unwrap());
+                    if let Some(edges) =
+                        self.case_compare(&mut state, pc, target, matcher, splat)?
+                    {
+                        return Ok(edges);
+                    }
+                }
+                Op::Binary("===") => {
+                    let target = state.stack.data.pop().unwrap();
+                    let matcher = state.stack.data.pop().unwrap();
+                    if let Some(edges) =
+                        self.case_compare(&mut state, pc, Some(target), matcher, false)?
+                    {
+                        return Ok(edges);
+                    }
                 }
                 Op::Index(count) => {
                     let base = state.stack.data.len() - count - 1;
@@ -1803,14 +1920,28 @@ impl Walker<'_> {
                     } else {
                         state.stack.data.pop().unwrap()
                     };
-                    return self.branch(
-                        state,
-                        operand,
-                        if nil { Test::Nil } else { Test::Truth },
-                        !matches!(op, Op::JumpFalse(_)),
-                        target,
-                        pc + 1,
-                    );
+                    let test = if nil { Test::Nil } else { Test::Truth };
+                    let yes = !matches!(op, Op::JumpFalse(_));
+                    let mut edges = self.branch(state, operand, test, yes, target, pc + 1)?;
+                    // Only the bytecode's retained operand or an explicit Dup proves identity.
+                    if nil
+                        || matches!(
+                            pc.checked_sub(1).map(|pc| self.function.code[pc]),
+                            Some(Op::Dup)
+                        )
+                    {
+                        for (index, edge) in edges.iter_mut().enumerate() {
+                            if let Some((_, state)) = edge {
+                                state.stack.data.last_mut().unwrap().value = self.facts.filter(
+                                    self.ctx,
+                                    operand.value,
+                                    test,
+                                    if index == 0 { yes } else { !yes },
+                                )?;
+                            }
+                        }
+                    }
+                    return Ok(edges);
                 }
                 Op::LoopStart {
                     iterable,

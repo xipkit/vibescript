@@ -380,7 +380,9 @@ fn stored(
                         Attached::No
                     }
                 }
-                (Node::Array(_) | Node::Tuple(_), Node::Atom(Atom::Range)) => Attached::No,
+                (Node::Array(_) | Node::Tuple(_), Node::Atom(Atom::Range) | Node::Range(..)) => {
+                    Attached::No
+                }
                 (Node::Array(_) | Node::Tuple(_), _) => Attached::Maybe,
                 (Node::Shape(fields, open, _, _), Node::String(key) | Node::Symbol(key)) => {
                     let mut found = None;
