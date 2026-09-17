@@ -2,7 +2,7 @@ use super::*;
 use crate::checking::facts::Node;
 
 impl Walker<'_> {
-    fn dynamic(&mut self, value: Fact) -> Result<bool> {
+    pub(super) fn dynamic(&mut self, value: Fact) -> Result<bool> {
         self.ctx.charge(self.facts.arm_count(value) as u64)?;
         Ok((0..self.facts.arm_count(value)).any(|i| {
             matches!(
@@ -12,10 +12,65 @@ impl Walker<'_> {
         }))
     }
 
+    pub(super) fn wrapping_guard(&mut self, value: Fact) -> Result<bool> {
+        self.ctx.charge(1)?;
+        if self.facts.depth(value) >= crate::budget::MAX_VALUE_DEPTH {
+            return Ok(true);
+        }
+        let mut pending = Buffer::empty();
+        pending.push(self.ctx, value)?;
+        let mut visited = Slots::new(self.facts.len(), false);
+        while let Some(value) = pending.data.pop() {
+            self.ctx.charge(1)?;
+            if visited.get(self.ctx, value.0)? {
+                continue;
+            }
+            visited.set(self.ctx, value.0, true)?;
+            match self.facts.node(value) {
+                Node::Atom(Atom::Unknown | Atom::Any)
+                | Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Shape(_, true, _, _) => return Ok(true),
+                Node::Array(element) | Node::Hash(_, element, _) | Node::Protected(element, _) => {
+                    pending.push(self.ctx, *element)?
+                }
+                Node::Tuple(values) | Node::Union(values) => {
+                    pending.extend(self.ctx, &values.data)?
+                }
+                Node::Shape(fields, ..) => {
+                    for field in &fields.data {
+                        self.ctx.charge(1)?;
+                        pending.push(self.ctx, field.value)?;
+                    }
+                }
+                _ => (),
+            }
+        }
+        Ok(false)
+    }
+
     pub(super) fn potential_errors(&mut self, state: &State, op: Op) -> Result<u8> {
         let runtime = handlers::bit(ErrorClass::Runtime);
         let top = || state.stack.data.last().map(|v| v.value);
         let values = match op {
+            Op::Array(count) => {
+                let base = state.stack.data.len() - count;
+                for operand in &state.stack.data[base..] {
+                    if self.wrapping_guard(operand.value)? {
+                        return Ok(handlers::bit(ErrorClass::Limit));
+                    }
+                }
+                return Ok(0);
+            }
+            Op::Hash(count) => {
+                let base = state.stack.data.len() - count * 2;
+                for pair in state.stack.data[base..].chunks_exact(2) {
+                    if self.wrapping_guard(pair[1].value)? {
+                        return Ok(handlers::bit(ErrorClass::Limit));
+                    }
+                }
+                return Ok(0);
+            }
             Op::Normalize(ty, _) => {
                 return Ok(
                     if self

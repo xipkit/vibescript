@@ -36,7 +36,8 @@ pub(super) fn inferred_runtime(source: &str, args: &[Value], rejected: bool) -> 
         .unwrap_or_else(|error| panic!("{source}: {error}"));
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let result = analyze(&mut ctx, &mut facts, source).unwrap();
+    let result =
+        analyze(&mut ctx, &mut facts, source).unwrap_or_else(|error| panic!("{source}: {error}"));
     assert!(result.incomplete.data.is_empty(), "{source}: {result:?}");
     assert_eq!(
         !result.issues.data.is_empty(),

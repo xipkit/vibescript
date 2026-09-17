@@ -73,3 +73,6 @@ mod forwarding_tests;
 
 #[cfg(test)]
 mod collection_block_tests;
+
+#[cfg(test)]
+mod reduction_tests;
