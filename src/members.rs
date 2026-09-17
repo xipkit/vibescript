@@ -5,6 +5,7 @@ use crate::{
     value::Kind,
 };
 
+mod conversion;
 pub(crate) mod equality;
 pub(crate) mod forwarding;
 pub(crate) mod introspection;
@@ -55,6 +56,16 @@ pub(crate) fn call_keywords(
         &args.positional.data,
         !args.keywords.buffer.data.is_empty(),
         args.block.is_some(),
+    )? {
+        return Ok((receiver, value));
+    }
+    if let Some(value) = conversion::call(
+        ctx,
+        site,
+        name,
+        &receiver,
+        &args.positional.data,
+        (!args.keywords.buffer.data.is_empty(), args.block.is_some()),
     )? {
         return Ok((receiver, value));
     }
@@ -278,6 +289,9 @@ pub(crate) fn call(
         return Ok((receiver, value));
     }
     if let Some(value) = lifecycle::call(ctx, site, name, &receiver, args, false, false)? {
+        return Ok((receiver, value));
+    }
+    if let Some(value) = conversion::call(ctx, site, name, &receiver, args, (false, false))? {
         return Ok((receiver, value));
     }
     if let Some(result) = crate::text::basic::call(ctx, name, &receiver, args, false, false)? {

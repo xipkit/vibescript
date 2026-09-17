@@ -60,6 +60,9 @@ mod native_tests;
 mod primitive_tests;
 
 #[cfg(test)]
+mod introspection_tests;
+
+#[cfg(test)]
 mod value_tests;
 
 #[cfg(test)]

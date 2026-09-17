@@ -1,16 +1,41 @@
 use super::*;
 
+mod introspection;
 mod number;
 mod text;
+
+pub(super) fn receiver(facts: &Facts, value: Fact) -> Option<crate::members::names::Receiver> {
+    use crate::members::names::Receiver;
+    Some(match facts.node(value) {
+        Node::Tuple(_) | Node::Array(_) => Receiver::Array,
+        Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => Receiver::Hash,
+        Node::Builtin(_) | Node::Offset(_) | Node::TypeValue(_) => Receiver::Other,
+        _ => match facts.atom(value)? {
+            Atom::Never | Atom::Unknown | Atom::Any => return None,
+            Atom::Nil => Receiver::Nil,
+            Atom::Bool => Receiver::Bool,
+            Atom::Int => Receiver::Int,
+            Atom::Float => Receiver::Float,
+            Atom::String => Receiver::Bytes,
+            Atom::Symbol => Receiver::Symbol,
+            Atom::Duration => Receiver::Duration,
+            Atom::Time => Receiver::Time,
+            Atom::Money => Receiver::Money,
+            Atom::Range => Receiver::Range,
+            Atom::Regex => Receiver::Regex,
+        },
+    })
+}
 
 const LIMIT: u8 = 1 << ErrorClass::Limit as u8;
 const ZERO: u8 = 1 << ErrorClass::ZeroDivision as u8;
 
 fn universal(name: &str) -> bool {
-    matches!(
-        name,
-        "nil?" | "itself" | "dup" | "clone" | "freeze" | "frozen?" | "eql?" | "equal?"
-    )
+    crate::members::introspection::supported(name)
+        || matches!(
+            name,
+            "nil?" | "itself" | "dup" | "clone" | "freeze" | "frozen?" | "eql?" | "equal?"
+        )
 }
 
 pub(super) fn supported(
@@ -32,9 +57,9 @@ pub(super) fn supported(
     Ok(match facts.atom(receiver) {
         Some(Atom::Int | Atom::Float) => number::supported(name),
         Some(Atom::String) => text::supported(name),
-        Some(Atom::Nil | Atom::Bool) => matches!(name, "inspect" | "to_s" | "string"),
+        Some(Atom::Nil | Atom::Bool | Atom::Range) => matches!(name, "inspect" | "to_s" | "string"),
         Some(Atom::Symbol) => {
-            matches!(name, "inspect" | "to_s" | "string")
+            matches!(name, "inspect" | "to_s" | "string" | "id2name" | "to_sym")
         }
         _ => false,
     })
@@ -61,7 +86,7 @@ pub(super) fn member(
     let kind = facts.atom(receiver);
     let common = universal(name);
     let strict = common
-        || name == "inspect"
+        || matches!(name, "inspect" | "to_s" | "string" | "id2name" | "to_sym")
         || matches!(kind, Some(Atom::Int | Atom::Float | Atom::String))
             && matches!(
                 name,
@@ -95,7 +120,10 @@ pub(super) fn member(
         return reject(ctx, Failure::BuiltinBlock);
     }
     let count = args.positional.data.len();
-    let arity = if common {
+    let predicate = crate::members::introspection::Predicate::parse(name);
+    let arity = if let Some(predicate) = predicate {
+        count == 1 || predicate == crate::members::introspection::Predicate::Respond && count == 2
+    } else if common {
         count == usize::from(matches!(name, "eql?" | "equal?"))
     } else {
         match kind {
@@ -106,6 +134,29 @@ pub(super) fn member(
     };
     if !arity {
         return reject(ctx, Failure::BuiltinArity);
+    }
+    if let Some(predicate) = predicate {
+        return introspection::member(ctx, facts, receiver, predicate, args);
+    }
+    if kind == Some(Atom::Symbol) && name == "to_sym"
+        || kind == Some(Atom::String) && matches!(name, "to_s" | "string")
+    {
+        return Ok(outcome(receiver));
+    }
+    let converted = match facts.node(receiver) {
+        Node::String(value) if matches!(name, "to_sym" | "intern") => Some((value.clone(), true)),
+        Node::Symbol(value) if matches!(name, "id2name" | "to_s" | "string") => {
+            Some((value.clone(), false))
+        }
+        _ => None,
+    };
+    if let Some((value, symbol)) = converted {
+        let value = if symbol {
+            facts.symbol(ctx, value.as_bytes().unwrap())?
+        } else {
+            facts.string(ctx, value.as_bytes().unwrap())?
+        };
+        return Ok(outcome(value));
     }
     if common {
         let value = match name {
@@ -131,7 +182,11 @@ pub(super) fn member(
     match kind {
         Some(Atom::Int | Atom::Float) => number::member(ctx, facts, receiver, name, args),
         Some(Atom::String) => text::member(ctx, facts, receiver, name, args),
-        _ => Ok(outcome(Atom::String.fact())),
+        _ => Ok(outcome(if name == "to_sym" {
+            receiver
+        } else {
+            Atom::String.fact()
+        })),
     }
 }
 

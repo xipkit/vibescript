@@ -19,25 +19,7 @@ struct Forward {
 
 impl Walker<'_> {
     fn native_receiver(&self, value: Fact) -> Option<Receiver> {
-        Some(match self.facts.node(value) {
-            Node::Tuple(_) | Node::Array(_) => Receiver::Array,
-            Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => Receiver::Hash,
-            Node::Builtin(_) | Node::Offset(_) | Node::TypeValue(_) => Receiver::Other,
-            _ => match self.facts.atom(value)? {
-                Atom::Never | Atom::Unknown | Atom::Any => return None,
-                Atom::Nil => Receiver::Nil,
-                Atom::Bool => Receiver::Bool,
-                Atom::Int => Receiver::Int,
-                Atom::Float => Receiver::Float,
-                Atom::String => Receiver::Bytes,
-                Atom::Symbol => Receiver::Symbol,
-                Atom::Duration => Receiver::Duration,
-                Atom::Time => Receiver::Time,
-                Atom::Money => Receiver::Money,
-                Atom::Range => Receiver::Range,
-                Atom::Regex => Receiver::Regex,
-            },
-        })
+        builtins::native_receiver(self.facts, value)
     }
 
     fn forward_lookup(

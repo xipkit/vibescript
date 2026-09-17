@@ -14,6 +14,8 @@ result = text.concat("llo", "!")
 
 `to_s` and `string` return the string itself. `to_sym` and `intern` return a symbol with the same bytes, including empty strings, invalid UTF-8 and embedded zero bytes. Symbols remain distinct from strings in equality. These four conversions accept no arguments, keywords or blocks.
 
+On a symbol, `id2name`, `to_s` and `string` return its bytes as a string; `to_sym` returns the symbol itself. These methods also accept no arguments, keywords or blocks. Conversions share immutable storage within a call and retain its memory charge until the last owner is released.
+
 ```vibescript
 text = "status"
 symbol = text.intern

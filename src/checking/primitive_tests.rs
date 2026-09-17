@@ -306,9 +306,6 @@ fn ignored_primitive_blocks_stay_inert_for_every_dispatch_form() {
         ("\"abc\"", "partition", "\"b\""),
         ("1.seconds", "eql?", "1.seconds"),
         ("Time.at(0)", "eql?", "Time.at(0)"),
-        ("nil", "to_s", ""),
-        ("true", "string", ""),
-        (":abc", "to_s", ""),
     ] {
         for call in forms(receiver, method, arguments) {
             witness(
@@ -323,6 +320,12 @@ fn ignored_primitive_blocks_stay_inert_for_every_dispatch_form() {
 #[test]
 fn primitive_flags_reject_before_block_entry_and_keep_keyword_rules() {
     for (receiver, method, arguments) in [
+        ("nil", "to_s", ""),
+        ("true", "string", ""),
+        (":abc", "to_s", ""),
+        (":abc", "id2name", ""),
+        (":abc", "to_sym", ""),
+        ("1..3", "to_s", ""),
         ("7", "to_s", ""),
         ("7", "to_i", ""),
         ("7", "clamp", "1,9"),

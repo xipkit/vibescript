@@ -1,6 +1,6 @@
 use crate::{Value, value::Kind};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Receiver {
     Bytes,
     Array,

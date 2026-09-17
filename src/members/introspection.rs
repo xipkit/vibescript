@@ -200,6 +200,33 @@ pub(crate) struct Atom<'a> {
 }
 
 impl<'a> Atom<'a> {
+    /// Matches a primitive type atom without resolving a nominal declaration.
+    pub(crate) fn native_match(&self, kind: super::names::Receiver) -> Option<bool> {
+        use super::names::Receiver;
+        if self.nominal {
+            return None;
+        }
+        if self.nullable && kind == Receiver::Nil {
+            return Some(true);
+        }
+        Some(match self.name {
+            "nil" => kind == Receiver::Nil,
+            "bool" => kind == Receiver::Bool,
+            "int" => matches!(kind, Receiver::Int | Receiver::Big),
+            "float" => kind == Receiver::Float,
+            "number" => matches!(kind, Receiver::Int | Receiver::Big | Receiver::Float),
+            "string" => kind == Receiver::Bytes,
+            "symbol" => kind == Receiver::Symbol,
+            "array" => kind == Receiver::Array,
+            "hash" | "object" => kind == Receiver::Hash,
+            "range" => kind == Receiver::Range,
+            "duration" => kind == Receiver::Duration,
+            "time" => matches!(kind, Receiver::Time | Receiver::Zoned),
+            "money" => kind == Receiver::Money,
+            _ => unreachable!(),
+        })
+    }
+
     fn parse(ctx: &mut CallContext, text: &'a [u8]) -> Result<Self> {
         if text.len() > 256 {
             return Err(Error::new(
@@ -261,26 +288,8 @@ impl<'a> Atom<'a> {
         resolved: Option<&Value>,
     ) -> Result<bool> {
         ctx.charge(1)?;
-        if !self.nominal {
-            if self.nullable && matches!(receiver.0, Kind::Nil) {
-                return Ok(true);
-            }
-            return Ok(match self.name {
-                "nil" => matches!(receiver.0, Kind::Nil),
-                "bool" => matches!(receiver.0, Kind::Bool(_)),
-                "int" => matches!(receiver.0, Kind::Int(_) | Kind::Big(_)),
-                "float" => matches!(receiver.0, Kind::Float(_)),
-                "number" => matches!(receiver.0, Kind::Int(_) | Kind::Big(_) | Kind::Float(_)),
-                "string" => matches!(receiver.0, Kind::Bytes(_)),
-                "symbol" => matches!(receiver.0, Kind::Symbol(_)),
-                "array" => matches!(receiver.0, Kind::Array(_)),
-                "hash" | "object" => matches!(receiver.0, Kind::Hash(_)),
-                "range" => matches!(receiver.0, Kind::Range(_)),
-                "duration" => matches!(receiver.0, Kind::Duration(_)),
-                "time" => matches!(receiver.0, Kind::Time(_) | Kind::Zoned(_)),
-                "money" => matches!(receiver.0, Kind::Money(_)),
-                _ => unreachable!(),
-            });
+        if let Some(result) = self.native_match(super::names::Receiver::of(receiver)) {
+            return Ok(result);
         }
         if let Some(resolved) = resolved {
             let name = match &resolved.0 {

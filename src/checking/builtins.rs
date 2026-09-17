@@ -21,6 +21,13 @@ pub(super) mod protected;
 mod temporal;
 mod values;
 
+pub(super) fn native_receiver(
+    facts: &Facts,
+    value: Fact,
+) -> Option<crate::members::names::Receiver> {
+    primitives::receiver(facts, value)
+}
+
 pub(super) fn primitive_member(
     ctx: &mut CallContext,
     facts: &Facts,
