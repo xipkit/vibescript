@@ -5,6 +5,7 @@ mod collections;
 mod facts;
 mod flow;
 mod graph;
+mod iteration;
 mod mutations;
 mod relation;
 mod scalar;
@@ -32,3 +33,6 @@ mod address_tests;
 
 #[cfg(test)]
 mod recursion_tests;
+
+#[cfg(test)]
+mod iteration_tests;

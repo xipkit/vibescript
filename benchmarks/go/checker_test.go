@@ -214,3 +214,46 @@ func TestCheckerRecursionReference(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckerIterationReference(t *testing.T) {
+	raw, err := os.ReadFile("../../tests/checker-iteration.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures struct {
+		Cases []struct {
+			Source     string
+			GoRejected bool `json:"go_rejected"`
+		}
+		SyntaxDifferences []struct {
+			Source         string
+			GoCompileError string `json:"go_compile_error"`
+		} `json:"syntax_differences"`
+	}
+	if err := json.Unmarshal(raw, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixtures.Cases) != 49 || len(fixtures.SyntaxDifferences) != 1 {
+		t.Fatalf("checker iteration corpus has %d decisions and %d syntax differences, want 49 and 1", len(fixtures.Cases), len(fixtures.SyntaxDifferences))
+	}
+	engine, err := vibes.NewEngine(vibes.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures.Cases {
+		script, err := engine.Compile(fixture.Source)
+		if err != nil {
+			t.Fatalf("Compile(%q): %v", fixture.Source, err)
+		}
+		warnings := script.CheckWarningsForFunction("run")
+		if rejected := len(warnings) != 0; rejected != fixture.GoRejected {
+			t.Errorf("CheckWarningsForFunction(run) in %q rejected=%t, want %t: %v", fixture.Source, rejected, fixture.GoRejected, warnings)
+		}
+	}
+	for _, fixture := range fixtures.SyntaxDifferences {
+		_, err := engine.Compile(fixture.Source)
+		if err == nil || err.Error() != fixture.GoCompileError {
+			t.Errorf("Compile(%q) error=%v, want %s", fixture.Source, err, fixture.GoCompileError)
+		}
+	}
+}

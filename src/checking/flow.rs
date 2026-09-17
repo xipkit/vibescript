@@ -34,6 +34,9 @@ pub(super) enum IssueKind {
     Range {
         value: Fact,
     },
+    Iterate {
+        value: Fact,
+    },
     Call {
         target: Target,
         failure: Failure,
@@ -165,6 +168,8 @@ struct Loop {
     address_base: usize,
     attempt_base: usize,
     expression: bool,
+    source: Fact,
+    repeat: Fact,
     last: Fact,
     result: Fact,
 }
@@ -299,9 +304,14 @@ impl State {
             );
             let last = facts.joined(ctx, a.last, b.last, depth)?;
             let result = facts.joined(ctx, a.result, b.result, depth)?;
-            changed |= a.last != last || a.result != result;
+            let source = facts.joined(ctx, a.source, b.source, depth)?;
+            let repeat = facts.joined(ctx, a.repeat, b.repeat, depth)?;
+            changed |=
+                a.last != last || a.result != result || a.source != source || a.repeat != repeat;
             a.last = last;
             a.result = result;
+            a.source = source;
+            a.repeat = repeat;
         }
         Ok(changed)
     }
@@ -1803,10 +1813,24 @@ impl Walker<'_> {
                     );
                 }
                 Op::LoopStart {
-                    iterable: false,
+                    iterable,
                     expression,
-                    ..
+                    next,
+                    end,
                 } => {
+                    let iteration = if iterable {
+                        let value = state.stack.data.pop().unwrap().value;
+                        let iteration = self.facts.iteration(self.ctx, value)?;
+                        if iteration.rejected {
+                            self.issue(pc, IssueKind::Iterate { value })?;
+                        }
+                        if iteration.unsupported {
+                            return self.incomplete(pc);
+                        }
+                        Some(iteration)
+                    } else {
+                        None
+                    };
                     state.loops.push(
                         self.ctx,
                         Loop {
@@ -1815,10 +1839,58 @@ impl Walker<'_> {
                             address_base: state.addresses.data.len(),
                             attempt_base: state.attempts.data.len(),
                             expression,
+                            source: iteration.as_ref().map_or(Atom::Nil.fact(), |i| i.source),
+                            repeat: iteration.as_ref().map_or(Atom::Never.fact(), |i| i.repeat),
                             last: Atom::Nil.fact(),
                             result: Atom::Never.fact(),
                         },
                     )?;
+                    if let Some(iteration) = iteration {
+                        let empty = if iteration.empty != Atom::Never.fact() {
+                            let mut empty = state.snapshot(self.ctx)?;
+                            empty.loops.data.last_mut().unwrap().result = if expression {
+                                iteration.empty
+                            } else {
+                                Atom::Nil.fact()
+                            };
+                            Some((end, empty))
+                        } else {
+                            None
+                        };
+                        // Keep zero iterations separate from the first body. The backedge then
+                        // carries only states that actually passed through an iteration.
+                        let body = if iteration.item != Atom::Never.fact() {
+                            state.stack.push(self.ctx, Operand::new(iteration.item))?;
+                            Some((next + 1, state))
+                        } else {
+                            None
+                        };
+                        return Ok([empty, body]);
+                    }
+                }
+                Op::Extract(selection) => {
+                    let source = state.stack.data.last().unwrap().value;
+                    let value = self.facts.extract(self.ctx, source, selection)?;
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::IterNext => {
+                    let Exit::Branch(end) = block.exit else {
+                        unreachable!()
+                    };
+                    let current = *state.loops.data.last().unwrap();
+                    let mut done = state.snapshot(self.ctx)?;
+                    done.loops.data.last_mut().unwrap().result = if current.expression {
+                        current.source
+                    } else {
+                        current.last
+                    };
+                    let body = if current.repeat != Atom::Never.fact() {
+                        state.stack.push(self.ctx, Operand::new(current.repeat))?;
+                        Some((pc + 1, state))
+                    } else {
+                        None
+                    };
+                    return Ok([Some((end, done)), body]);
                 }
                 Op::LoopTest => {
                     let Exit::Branch(target) = block.exit else {

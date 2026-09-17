@@ -14,13 +14,13 @@ The current reference corpus contains 1,156 boundary pairs generated from 34 typ
 
 ## Control flow
 
-The internal walker now builds basic blocks directly from the existing bytecode. It tracks local bindings, scalar expressions, parameter-default branches, nil/truth guards, short-circuit expressions, ordinary branches, nested `while` loops, `break`, `next` and explicit/implicit function returns. Inputs converge before the walker collects diagnostics, which retain their bytecode source positions. It does not retain a second syntax tree or execute script effects.
+The internal walker now builds basic blocks directly from the existing bytecode. It tracks local bindings, scalar expressions, parameter-default branches, nil/truth guards, short-circuit expressions, ordinary branches, nested `while` and `for` loops, `break`, `next` and explicit/implicit function returns. Inputs converge before the walker collects diagnostics, which retain their bytecode source positions. It does not retain a second syntax tree or execute script effects.
 
 Local-state snapshots share metered radix-tree nodes. Assignments copy only shared paths; joins skip identical subtrees. Missing local bindings remain distinct from bound `nil` until the compiler's declaration instruction fills the absent path. Operand origins support direct local guards, and writes invalidate older stack predicates, including writes inside loop expressions. These origins do not yet describe stored boolean predicates or container correlations.
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. General members, iterable loops, rescue/ensure/retry handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
+The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, rescue/ensure/retry handlers, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
 
 ## Function calls
 
@@ -74,11 +74,21 @@ Precision is still limited: generalizing differently sized arrays loses prefix p
 
 Nine addressed-flow tests compare 268 parent-mutation executions, twelve branch/result executions and ten selected-position witnesses with inferred results. They also cover exact quotas, sampled allocation-failure boundaries, cleanup and cancellation. Six widening tests cover recursive growth, optional hash fields, preserved scalar contradictions, shared 2,000-level facts, quotas and the default stack. The reference corpus contains 66 Go v0.70.0 decisions: fifteen differences diagnose runtime-invalid code that Go accepts, while two reflect Go's separate temporary-update lint warnings. All seventeen have Rust runtime witnesses. These checks do not establish a public deployment gate.
 
+## Iterable loops and destructuring
+
+The walker models `for` over literal and inferred arrays, ordinary hashes and integer ranges. It distinguishes zero iterations from the first body, so known nonempty collections do not invent an unassigned binding or nil loop result. Singleton collections cannot repeat. Later iterations use joined element facts and the existing metered widening; nested loops converge without executing the script or materializing range elements.
+
+The iteration source remains an immutable value snapshot when the body changes its binding, collection or nested values. Hash iterations yield key/value pairs without treating sorted type fields as insertion order. Destructuring keeps literal positions, rest windows and trailing nil padding; non-array values occupy one position. These operations also support ordinary destructuring assignments. Break payloads, bare break, next, return and normal statement/expression results follow the selected runtime semantics, including hash-loop break values.
+
+Thirteen tests include 200 destructuring and 192 loop-control comparisons with runtime values, source/binding mutations, optional hash fields, nested growth, integer endpoints, exact quotas, failure cleanup and cancellation. Fifty reference scripts retain 49 Go checker decisions, with 22 explained differences, plus one separate Go parser rejection for a nested binding. Every reference script has a Rust execution witness. One checker difference retains the existing type-changing reassignment warning for a script that succeeds at runtime; it is not described as a runtime type error.
+
+Iteration order and exact trip counts beyond a singleton are not tracked. Range facts currently preserve the integer element type but not endpoints or emptiness. Generalized array lengths, optional fields and joined iteration states can lose correlations and produce conservative diagnostics. Opaque hash/capability iteration and unsupported body operations remain explicitly incomplete. Public checking is still unavailable.
+
 ## Remaining integration
 
 Completion still requires:
 
-- Iterable loops, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop and recursive-call precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Opaque iterable dispatch, exception/ensure/retry edges, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop and recursive-call precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Class, module, builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
