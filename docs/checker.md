@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-The checker is unfinished. Its type-fact store, boundary relations, control-flow walker, function-call analysis, collection inference and exception flow currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
+The checker is unfinished. Its type-fact store, boundary relations, control-flow walker, function-call analysis, collection inference, exception flow and core builtin analysis currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
 
 ## Type facts
 
@@ -110,12 +110,24 @@ Eighteen focused tests cover 225 combinations of errors, returns, loop exits and
 
 The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, protected error-object mutation and rendering, block/nonlocal-call contexts, general dispatch and public checking remain unfinished.
 
+## Builtins and type literals
+
+The private checker resolves `JSON.parse`, `JSON.parse_as`, `JSON.stringify`, `to_int`, `to_float`, Math functions, `Hash.new` and `assert`. JSON parsing without validation remains gradual; `parse_as` carries the declared contract through local bindings, collection lookups and script calls. Type literals are distinct from the values they describe, retain metered metadata, and follow the runtime's binding guards instead of treating a shadowed name as a builtin type.
+
+Builtin namespaces use the compiler's existing member metadata. Direct, scoped, fixed-splat, computed-member and immediate indexed calls preserve receiver selection before arguments run. Host signatures and root overrides retain precedence, and checking never runs callbacks, validators, parsers, serializers or script effects. Namespace value reads, supported introspection and ordinary-error summaries feed the existing flow walker. Known invalid argument types, literal numeric domains, missing members and non-callable fields remain diagnostics even when rescued. A JSON graph with entirely known encodable values does not create an ordinary-error path; uncertain data can still fail at runtime.
+
+Nineteen focused tests include 160 runtime comparisons covering numeric domains, signed zero, infinities and NaN. Further tests cover overrides, reusable and shadowed type literals, exceptions, immediate indexed calls, the original incomplete handler fixtures, exact quotas, sampled failures, cleanup and latched cancellation. An iterative, metered JSON compatibility walk handles 4,000 shared array layers without serializing them or using recursive Rust frames. The [builtin reference corpus](../tests/checker-builtins.json) records 67 Go v0.70.0 decisions, all with Rust execution witnesses. Fourteen explained differences follow reachable assertion failures and diagnose known missing members, non-callable values, unsupported JSON values and numeric domains that Go omits.
+
+The comparison also exposed a runtime argument mismatch: `JSON.parse` accepted symbols through a shared string/symbol byte accessor. It now requires strings as documented and as Go does. Direct, scoped, computed-member, indexed and forwarded calls have regression coverage, alongside the already strict `parse_as` path.
+
+Remaining builtin work includes the other native helpers, blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module/capability member dispatch and public checking remain unfinished. Successful internal summaries do not yet establish a deployment gate.
+
 ## Remaining integration
 
 Completion still requires:
 
 - Opaque iterable dispatch, nonlocal block returns, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
-- Class, module, builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
+- Class, module, remaining builtin and namespaced host calls, variable-size splats, block binding and attached-method restrictions. Plain script calls and registered positional host signatures are implemented internally; public entry binding and whole-program integration remain required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Host-value facts, per-call capability descriptors, strict-effects validation and checker accounting across every entry point. Signature metadata must be inspected without invoking callbacks or validators.

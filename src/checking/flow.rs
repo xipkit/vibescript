@@ -1,6 +1,7 @@
 use super::{
     addresses::{Address, Attached, Change},
     arguments::{self, Arguments, Failure, Input},
+    builtins,
     calls::{Calls, Target},
     facts::{Atom, Fact, Facts},
     graph::{Block, Exit, Graph},
@@ -17,6 +18,7 @@ use crate::{
 
 mod effects;
 mod handlers;
+mod native;
 use handlers::{Phase, Transfer};
 
 // Absence must survive joins with inherited rescued errors.
@@ -705,9 +707,12 @@ impl Walker<'_> {
         args: Arguments,
     ) -> Result<Option<Edges>> {
         let current_error = state.current_error(self.ctx, self.current_error)?;
-        let result = self
-            .calls
-            .invoke(self.ctx, self.facts, target, args, current_error)?;
+        let result = if let Target::Builtin(builtin) = target {
+            builtins::invoke(self.ctx, self.facts, builtin, &args)?
+        } else {
+            self.calls
+                .invoke(self.ctx, self.facts, target, args, current_error)?
+        };
         let mut classes = result.throws;
         for failure in result.failures.data {
             classes |= handlers::bit(match failure {
@@ -715,7 +720,13 @@ impl Walker<'_> {
                 | Failure::NonCallable
                 | Failure::Undefined
                 | Failure::HostArity
-                | Failure::HostKeywords => ErrorClass::Runtime,
+                | Failure::HostKeywords
+                | Failure::BuiltinArity
+                | Failure::BuiltinKeywords
+                | Failure::BuiltinValue
+                | Failure::TypeLiteral(_)
+                | Failure::BuiltinDomain(_)
+                | Failure::JsonValue(_) => ErrorClass::Runtime,
                 _ => ErrorClass::Argument,
             });
             self.issue(pc, IssueKind::Call { target, failure })?;
@@ -745,6 +756,9 @@ impl Walker<'_> {
     }
 
     fn value_target(&mut self, value: Fact) -> Result<Target> {
+        if let super::facts::Node::Builtin(builtin) = self.facts.node(value) {
+            return Ok(Target::Builtin(*builtin));
+        }
         if self.facts.known_non_callable(self.ctx, value)? {
             Ok(Target::NonCallable)
         } else if matches!(
@@ -999,6 +1013,15 @@ impl Walker<'_> {
                         Kind::Duration(_) => Atom::Duration.fact(),
                         Kind::Time(_) | Kind::Zoned(_) => Atom::Time.fact(),
                         Kind::Money(_) => Atom::Money.fact(),
+                        Kind::Shape(shape) => {
+                            let ty =
+                                self.facts
+                                    .annotation(self.ctx, &shape.definition.ty, |_, _| Ok(None))?;
+                            if self.facts.unresolved(ty) {
+                                return self.incomplete(pc);
+                            }
+                            self.facts.type_value(self.ctx, ty)?
+                        }
                         _ => return self.incomplete(pc),
                     };
                     state.stack.push(
@@ -1008,6 +1031,63 @@ impl Walker<'_> {
                             ..Operand::new(value)
                         },
                     )?;
+                }
+                Op::Global(index) | Op::GlobalReceiver(index, _) => {
+                    let (global, value) = &self.program.globals[index];
+                    if self.calls.global(self.ctx, global.name())? {
+                        return self.incomplete(pc);
+                    }
+                    if let Kind::Builtin(builtin) = value.0 {
+                        let read = !matches!(op, Op::GlobalReceiver(_, false)) || !builtin.auto();
+                        if read {
+                            if !builtin.auto() {
+                                self.issue(
+                                    pc,
+                                    IssueKind::Call {
+                                        target: Target::Builtin(builtin),
+                                        failure: Failure::BuiltinValue,
+                                    },
+                                )?;
+                                self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                                return Ok([None, None]);
+                            }
+                            if let Some(edges) = self.invoke(
+                                &mut state,
+                                pc,
+                                Target::Builtin(builtin),
+                                Arguments::new(),
+                            )? {
+                                return Ok(edges);
+                            }
+                            continue;
+                        }
+                    }
+                    let value = builtins::global(self.ctx, self.facts, value)?;
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::ResolveGlobalCall(index) => {
+                    let name = self.program.globals[index].0.name();
+                    let target = self.calls.resolve(self.ctx, name)?;
+                    state.arguments.push(
+                        self.ctx,
+                        Pending {
+                            target,
+                            arguments: Arguments::new(),
+                        },
+                    )?;
+                }
+                Op::TypeShadowed(guard, target) => {
+                    let (certain, possible) = self.type_shadowed(&state, guard)?;
+                    return Ok(if certain {
+                        [Some((target, state)), None]
+                    } else if possible {
+                        [
+                            Some((target, state.snapshot(self.ctx)?)),
+                            Some((pc + 1, state)),
+                        ]
+                    } else {
+                        [Some((pc + 1, state)), None]
+                    });
                 }
                 Op::Load(slot) | Op::LoadOptional(slot, _) => {
                     let binding = state.locals.get(self.ctx, slot)?;
@@ -1243,7 +1323,10 @@ impl Walker<'_> {
                             },
                         )?;
                     }
-                    if result.unsupported {
+                    if result.unsupported
+                        || (self.facts.detached_builtin(result.value)
+                            && !matches!(self.function.code.get(pc + 1), Some(Op::CallValue)))
+                    {
                         return self.incomplete(pc);
                     }
                     if result.value == Atom::Never.fact() {
@@ -1812,6 +1895,42 @@ impl Walker<'_> {
                     }
                     state.arguments.data.last_mut().unwrap().target = target;
                 }
+                Op::CallMember(site) => {
+                    let receiver = state.stack.data.pop().unwrap().value;
+                    let name = &self.program.members[site.name];
+                    let field = if name == "call"
+                        && matches!(self.facts.node(receiver), super::facts::Node::Builtin(_))
+                    {
+                        Some(receiver)
+                    } else if matches!(
+                        self.facts.node(receiver),
+                        super::facts::Node::Shape(_, false, _, false)
+                    ) {
+                        self.facts
+                            .selected_field(self.ctx, receiver, name.as_bytes())?
+                            .and_then(|(value, optional)| (!optional).then_some(value))
+                    } else {
+                        return self.incomplete(pc);
+                    };
+                    let Some(field) = field else {
+                        if !site.scope
+                            && (crate::members::hash_builtin(name)
+                                || crate::members::names::universal(name))
+                        {
+                            return self.incomplete(pc);
+                        }
+                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
+                        self.issue(
+                            pc,
+                            IssueKind::Call {
+                                target: Target::Undefined,
+                                failure: Failure::Undefined,
+                            },
+                        )?;
+                        return Ok([None, None]);
+                    };
+                    state.arguments.data.last_mut().unwrap().target = self.value_target(field)?;
+                }
                 Op::CallValue => {
                     let operand = state.stack.data.pop().unwrap();
                     state.arguments.data.last_mut().unwrap().target =
@@ -2026,7 +2145,17 @@ impl Walker<'_> {
                 Op::PrepareMember(site, false)
                     if !site.scope && matches!(site.method, Some(Method::IsNil)) => {}
                 Op::Method(site, 0)
-                    if !site.scope && matches!(site.method, Some(Method::IsNil)) =>
+                    if !site.scope
+                        && matches!(site.method, Some(Method::IsNil))
+                        && !matches!(
+                            self.facts.node(state.stack.data.last().unwrap().value),
+                            super::facts::Node::TypeValue(_)
+                        )
+                        && !builtins::namespace(
+                            self.ctx,
+                            self.facts,
+                            state.stack.data.last().unwrap().value,
+                        )? =>
                 {
                     let operand = state.stack.data.pop().unwrap();
                     // Nominal receivers may implement their own method; that dispatch is unfinished.
@@ -2077,70 +2206,21 @@ impl Walker<'_> {
                 Op::Method(site, count) => {
                     let base = state.stack.data.len() - count - 1;
                     let receiver = state.stack.data[base].value;
-                    let mut args = Buffer::empty();
+                    let mut args = Arguments::new();
                     for operand in &state.stack.data[base + 1..] {
-                        args.push(self.ctx, operand.value)?;
-                    }
-                    let result = self.facts.collection_member(
-                        self.ctx,
-                        receiver,
-                        site,
-                        &self.program.members[site.name],
-                        &args.data,
-                    )?;
-                    if result.rejected {
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        let arguments = self.facts.tuple(self.ctx, &args.data)?;
-                        self.issue(
-                            pc,
-                            IssueKind::Member {
-                                name: site.name,
-                                receiver,
-                                arguments,
-                            },
-                        )?;
-                    }
-                    if result.unsupported {
-                        return self.incomplete(pc);
-                    }
-                    if result.value == Atom::Never.fact() {
-                        return Ok([None, None]);
+                        args.positional.push(self.ctx, operand.value)?;
                     }
                     state.stack.data.truncate(base);
-                    state.stack.push(self.ctx, Operand::new(result.value))?;
+                    if let Some(edges) = self.member(&mut state, pc, receiver, site, args)? {
+                        return Ok(edges);
+                    }
                 }
                 Op::Invoke(Invocation::Member(site, false)) => {
                     let args = state.arguments.data.pop().unwrap().arguments;
-                    if !args.keywords.data.is_empty() {
-                        return self.incomplete(pc);
-                    }
                     let receiver = state.stack.data.pop().unwrap().value;
-                    let result = self.facts.collection_member(
-                        self.ctx,
-                        receiver,
-                        site,
-                        &self.program.members[site.name],
-                        &args.positional.data,
-                    )?;
-                    if result.rejected {
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        let arguments = self.facts.tuple(self.ctx, &args.positional.data)?;
-                        self.issue(
-                            pc,
-                            IssueKind::Member {
-                                name: site.name,
-                                receiver,
-                                arguments,
-                            },
-                        )?;
+                    if let Some(edges) = self.member(&mut state, pc, receiver, site, args)? {
+                        return Ok(edges);
                     }
-                    if result.unsupported {
-                        return self.incomplete(pc);
-                    }
-                    if result.value == Atom::Never.fact() {
-                        return Ok([None, None]);
-                    }
-                    state.stack.push(self.ctx, Operand::new(result.value))?;
                 }
                 Op::Jump(target) => return Ok([Some((target, state)), None]),
                 Op::JumpFalse(target) | Op::JumpTrue(target) | Op::JumpNil(target) => {

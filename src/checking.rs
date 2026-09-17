@@ -1,5 +1,6 @@
 mod addresses;
 mod arguments;
+mod builtins;
 mod calls;
 mod cases;
 mod collections;
@@ -43,3 +44,6 @@ mod case_tests;
 
 #[cfg(test)]
 mod exception_tests;
+
+#[cfg(test)]
+mod builtin_tests;

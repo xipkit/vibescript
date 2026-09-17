@@ -9,6 +9,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Target {
+    Builtin(crate::builtin::Builtin),
     Function(usize),
     Host(usize),
     NonCallable,
@@ -518,11 +519,14 @@ impl Calls for Solver<'_> {
                 return Ok(Target::Host(index));
             }
         }
-        // Builtin resolution and receiving-file exports are not wired in yet.
-        for (global, _) in &program.globals {
+        for (global, value) in &program.globals {
             ctx.work_bytes(global.name().len().max(name.len()))?;
             if global.name() == name {
-                return Ok(Target::Unsupported);
+                return Ok(if let crate::value::Kind::Builtin(builtin) = value.0 {
+                    Target::Builtin(builtin)
+                } else {
+                    Target::NonCallable
+                });
             }
         }
         Ok(Target::Undefined)
@@ -544,6 +548,7 @@ impl Calls for Solver<'_> {
             incomplete: false,
         };
         match target {
+            Target::Builtin(builtin) => return super::builtins::invoke(ctx, facts, builtin, &args),
             Target::Function(function) => {
                 let bound = args.bind(
                     ctx,

@@ -1,0 +1,840 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private builtin, namespace and type-literal checking decisions. Every case has a Rust execution witness; known contradictions remain diagnostics when runtime errors are rescued.",
+  "cases": [
+    {
+      "source": "def run -> int; JSON.parse_as(\"7\", int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; JSON.parse_as(\"{\\\"x\\\":7}\", {x:int}).x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def id(x); x; end; def run -> array<int>; t=id(array<int>); JSON.parse_as(\"[1,2]\", t); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[1, 2]"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; JSON.parse(\"{\\\"x\\\":7}\")[\"x\"]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; JSON.stringify({x:7}); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "{\"x\":7}"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; JSON::parse_as(\"7\", int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; JSON.parse_as(*[\"7\"], int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; j=JSON; j.parse_as(\"7\", int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; to_int(\"7\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; to_float(\"7.5\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7.5"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Math.sqrt(9); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "3"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> hash; Hash.new(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "{}"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> hash; Hash.new; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "{}"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; begin; assert(false); rescue AssertionError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 24
+          },
+          "Message": "return value expected int, got nil",
+          "Source": ""
+        }
+      ],
+      "difference": "Rust follows the guaranteed AssertionError into rescue; Go retains an unreachable nil result from the assertion."
+    },
+    {
+      "source": "def run -> int; assert(true); 7; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; begin; JSON.parse(\"bad\"); rescue; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; JSON.parse(\"7\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; begin; 1; rescue; 2; ensure; JSON.parse(\"1\"); end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "1"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; for x in [7]; begin; x; ensure; JSON.parse(\"1\"); end; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def id(x); x; end; def run -> int; t=id(int); JSON.parse_as(\"7\",t); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; int=7; begin; JSON.parse_as(\"7\",int); rescue; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 49
+          },
+          "Message": "call to JSON.parse_as expects a type literal as its second argument, got int",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run -> int; int=7; t={x:int}; t.x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; t={x:int}; JSON.parse_as(\"{\\\"x\\\":7}\",t.dup).x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; t={x:int}; t.nil?; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "false"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> array<int>; JSON.parse_as(\"[1,2]\",array<int>); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[1, 2]"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> hash<string,int>; JSON.parse_as(\"{\\\"x\\\":7}\",hash<string,int>); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "{x: 7}"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int?; JSON.parse_as(\"null\",int?); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "nil"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; x=0; begin; JSON.nope((while true; x=1; break 0; end)); rescue; x; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "0"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known missing namespace member at lookup, even when rescued, and keeps its arguments unevaluated; Go omits this contradiction."
+    },
+    {
+      "source": "def run; x=0; begin; (JSON.nope)((while true; x=1; break 0; end)); rescue; x; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "0"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known missing namespace member at lookup, even when rescued, and keeps its arguments unevaluated; Go omits this contradiction."
+    },
+    {
+      "source": "def run; j=JSON; t={x:int}; j.parse_as(\"{\\\"x\\\":7}\", (while true; j=nil; break t; end)).x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; (JSON.parse_as)(\"7\",int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; (JSON::parse_as)(\"7\",int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; JSON[:parse_as](\"7\",int); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Math::PI; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "3.141592653589793"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Math::sqrt(*[9]); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "3"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; JSON.keys; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[parse, parse_as, stringify]"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; (JSON.keys)(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "[parse, parse_as, stringify]"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; JSON.dup.size; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "3"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; JSON.nil?; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "false"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; begin; JSON.parse(:\"7\"); rescue; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 28
+          },
+          "Message": "call to JSON.parse argument 1 expected string, got symbol",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def decode(j,raw); j.parse_as(raw,{x:int}); end; def run -> int; decode(JSON,\"{\\\"x\\\":7}\").x; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; JSON.stringify(JSON.parse_as(\"{}\",{name?:string})); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "{}"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def to_int(x); \"script\"; end; def run -> string; to_int(7); end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "script"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(to_int:int=7); begin; to_int(\"7\"); rescue; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust resolves the actual binding or namespace field and diagnoses the known non-callable value; Go omits this contradiction."
+    },
+    {
+      "source": "def run(JSON:{parse:int}={parse:7}); JSON.parse; end",
+      "rust_rejected": false,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run(JSON:{parse:int}={parse:7}); begin; JSON.parse(\"7\"); rescue; 9; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "9"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust resolves the actual binding or namespace field and diagnoses the known non-callable value; Go omits this contradiction."
+    },
+    {
+      "source": "def run; begin; JSON.nope; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known missing namespace member at lookup, even when rescued, and keeps its arguments unevaluated; Go omits this contradiction."
+    },
+    {
+      "source": "def run; begin; JSON::nope; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known missing namespace member at lookup, even when rescued, and keeps its arguments unevaluated; Go omits this contradiction."
+    },
+    {
+      "source": "def run; begin; JSON.parse; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "parse is a method and cannot be used as a value; call it with parse(...)",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON.parse(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "call to JSON.parse has too few arguments: got 0, want at least 1",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON.parse(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 28
+          },
+          "Message": "call to JSON.parse argument 1 expected string, got int",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON.parse(\"7\",bad:1); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "call to JSON.parse does not accept keyword arguments",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON.parse_as(\"7\",\"int\"); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 35
+          },
+          "Message": "call to JSON.parse_as expects a type literal as its second argument, got string",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON.parse_as(:seven,int); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 31
+          },
+          "Message": "call to JSON.parse_as expects a JSON string as its first argument, got symbol",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON.stringify(int); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses known values that JSON cannot encode, including nested regexes and type literals; Go omits this contradiction."
+    },
+    {
+      "source": "def run; begin; JSON.stringify([1,/x/]); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses known values that JSON cannot encode, including nested regexes and type literals; Go omits this contradiction."
+    },
+    {
+      "source": "def run; begin; to_int(false); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 24
+          },
+          "Message": "call to to_int argument 1 expected int | float | string, got bool",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; to_int(2.5); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the literal argument outside the builtin conversion or mathematical domain; Go checks its broad numeric type only."
+    },
+    {
+      "source": "def run; begin; to_float([]); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 26
+          },
+          "Message": "call to to_float argument 1 expected int | float | string, got array",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; Math.sqrt(-1); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the literal argument outside the builtin conversion or mathematical domain; Go checks its broad numeric type only."
+    },
+    {
+      "source": "def run; begin; Math.log(1,-2); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the literal argument outside the builtin conversion or mathematical domain; Go checks its broad numeric type only."
+    },
+    {
+      "source": "def run; begin; Math.sin(\"bad\"); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 26
+          },
+          "Message": "call to Math.sin argument 1 expected number, got string",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; Math.PI(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust resolves the actual binding or namespace field and diagnoses the known non-callable value; Go omits this contradiction."
+    },
+    {
+      "source": "def run; begin; Hash.new(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "call to Hash.new has too many arguments: got 1, want at most 0",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; assert(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "call to assert has too few arguments: got 0, want at least 1",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; to_int; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        {
+          "Function": "run",
+          "Pos": {
+            "Line": 1,
+            "Column": 17
+          },
+          "Message": "to_int is a method and cannot be used as a value; call it with to_int(...)",
+          "Source": ""
+        }
+      ]
+    },
+    {
+      "source": "def run; begin; JSON(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "args": [],
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust resolves the actual binding or namespace field and diagnoses the known non-callable value; Go omits this contradiction."
+    }
+  ]
+}

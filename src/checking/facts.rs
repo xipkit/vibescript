@@ -52,6 +52,8 @@ pub(super) enum Node {
     Symbol(Value),
     Range(Option<i64>, Option<i64>, bool),
     Regex(Value),
+    Builtin(crate::builtin::Builtin),
+    TypeValue(Fact),
     Array(Fact),
     Tuple(Buffer<Fact>),
     // The last flag identifies ordinary hashes; annotations may describe objects too.
@@ -77,6 +79,7 @@ struct Entry {
     normalizes: bool,
     unresolved: bool,
     singleton: bool,
+    detached_builtin: bool,
     depth: usize,
 }
 
@@ -152,6 +155,10 @@ impl Facts {
         self.max_depth
     }
 
+    pub(super) fn detached_builtin(&self, fact: Fact) -> bool {
+        self.entries.data[fact.0].detached_builtin
+    }
+
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
         ctx.checkpoint()?;
         let hash = node.hash(ctx)?;
@@ -221,6 +228,7 @@ impl Facts {
         };
         let unresolved = match &node {
             Node::Named(_) => true,
+            Node::TypeValue(ty) => self.unresolved(*ty),
             Node::Array(element) => self.unresolved(*element),
             Node::Hash(key, value, _) => self.unresolved(*key) || self.unresolved(*value),
             Node::Tuple(values) | Node::Union(values) => {
@@ -281,6 +289,25 @@ impl Facts {
             }
             _ => 0,
         };
+        let detached_builtin = match &node {
+            Node::Builtin(_) => true,
+            Node::Array(value) | Node::Hash(_, value, true) => self.detached_builtin(*value),
+            Node::Tuple(values) | Node::Union(values) => {
+                ctx.charge(values.data.len() as u64)?;
+                values
+                    .data
+                    .iter()
+                    .any(|&value| self.detached_builtin(value))
+            }
+            Node::Shape(fields, _, _, true) => {
+                ctx.charge(fields.data.len() as u64)?;
+                fields
+                    .data
+                    .iter()
+                    .any(|field| self.detached_builtin(field.value))
+            }
+            _ => false,
+        };
         self.entries.push(
             ctx,
             Entry {
@@ -292,6 +319,7 @@ impl Facts {
                 normalizes,
                 unresolved,
                 singleton,
+                detached_builtin,
                 depth,
             },
         )?;
@@ -320,6 +348,18 @@ impl Facts {
 
     pub fn boolean(&mut self, ctx: &mut CallContext, value: bool) -> Result<Fact> {
         self.intern(ctx, Node::Boolean(value))
+    }
+
+    pub fn builtin(
+        &mut self,
+        ctx: &mut CallContext,
+        value: crate::builtin::Builtin,
+    ) -> Result<Fact> {
+        self.intern(ctx, Node::Builtin(value))
+    }
+
+    pub fn type_value(&mut self, ctx: &mut CallContext, ty: Fact) -> Result<Fact> {
+        self.intern(ctx, Node::TypeValue(ty))
     }
 
     pub fn integer(&mut self, ctx: &mut CallContext, value: i64) -> Result<Fact> {
@@ -775,6 +815,8 @@ impl Node {
             Self::Boolean(value) => value.hash(&mut hash),
             Self::Integer(value) => value.hash(&mut hash),
             Self::Float(value) => value.hash(&mut hash),
+            Self::Builtin(value) => value.name().hash(&mut hash),
+            Self::TypeValue(value) => value.hash(&mut hash),
             Self::Range(start, end, exclusive) => (start, end, exclusive).hash(&mut hash),
             Self::Regex(value) => {
                 let crate::value::Kind::Regex(regex) = &value.0 else {
@@ -821,6 +863,8 @@ impl Node {
             (Self::Boolean(a), Self::Boolean(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::Float(a), Self::Float(b)) => a == b,
+            (Self::Builtin(a), Self::Builtin(b)) => a == b,
+            (Self::TypeValue(a), Self::TypeValue(b)) => a == b,
             (Self::Range(a, b, c), Self::Range(x, y, z)) => a == x && b == y && c == z,
             (Self::Regex(a), Self::Regex(b)) => {
                 let (crate::value::Kind::Regex(a), crate::value::Kind::Regex(b)) = (&a.0, &b.0)

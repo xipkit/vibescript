@@ -185,7 +185,11 @@ impl Facts {
             let arm = self.arm(value, index);
             if matches!(
                 self.node(arm),
-                Node::Array(_) | Node::Tuple(_) | Node::Hash(..) | Node::Shape(..)
+                Node::Array(_)
+                    | Node::Tuple(_)
+                    | Node::Hash(..)
+                    | Node::Shape(..)
+                    | Node::TypeValue(_)
             ) {
                 continue;
             }
@@ -235,6 +239,8 @@ impl Facts {
                     Node::Regex(_) => 1 << Atom::Regex as u32,
                     Node::Array(_) | Node::Tuple(_) => 1 << 20,
                     Node::Hash(..) | Node::Shape(..) => 1 << 21,
+                    Node::Builtin(_) => 1 << 22,
+                    Node::TypeValue(_) => 1 << 23,
                     Node::Union(_) => unreachable!(),
                 };
                 bits |= bit;
