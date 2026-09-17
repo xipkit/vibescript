@@ -120,7 +120,17 @@ Nineteen focused tests include 160 runtime comparisons covering numeric domains,
 
 The comparison also exposed a runtime argument mismatch: `JSON.parse` accepted symbols through a shared string/symbol byte accessor. It now requires strings as documented and as Go does. Direct, scoped, computed-member, indexed and forwarded calls have regression coverage, alongside the already strict `parse_as` path.
 
-Remaining builtin work includes the other native helpers, blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module/capability member dispatch and public checking remain unfinished. Successful internal summaries do not yet establish a deployment gate.
+Native helper contracts also cover Regex/Regexp, time, duration, money, randomness, formatting and output. Remaining builtin work includes blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module/capability member dispatch and public checking remain unfinished. Successful internal summaries do not yet establish a deployment gate.
+
+## Native value methods
+
+Time, duration, money and regex values retain their result types through property reads, calls, primitive operators and rescue/ensure. The checker follows the runtime's distinction between properties and callable methods: `time.year` is valid, while `time.year()` is diagnosed. Time tuples and duration-part hashes preserve individual field types, and mutating a temporary parts hash leaves the original duration unchanged. Receiver selection remains fixed when argument evaluation changes the original binding.
+
+Method summaries cover formatting, time zones, duration anchors, currency fields, immutable value helpers, regex metadata and match predicates. Known invalid arity, keywords, operand types and precision domains remain diagnostics beside gradual alternatives. Size guards produce ordinary LimitError paths; actual checker memory/work exhaustion and cancellation remain latched. Native parsers, formatters and matchers are not executed during analysis. Match-data protection, blocks and general forwarding remain explicitly incomplete.
+
+Primitive `<=>` carries narrower integer or nil results for known operand kinds. Regex matching operators return optional offsets or booleans. Temporal comparisons and arithmetic preserve their actual ordinary exception classes, including the difference between money and duration division by zero, without inventing zero-division failures for comparisons. Time construction and parsing retain their own possible errors.
+
+Eighteen focused tests include 10,314 native-method comparisons against runtime values and ordinary errors, 2,366 primitive-operator comparisons, receiver and temporary-mutation regressions, exact quotas, allocation-failure cleanup, cancellation and deadlines. The [native value reference corpus](../tests/checker-values.json) records 113 Go v0.70.0 decisions with 35 explained differences and Rust execution witnesses. These internal summaries do not yet provide public checking or a deployment gate.
 
 ## Remaining integration
 

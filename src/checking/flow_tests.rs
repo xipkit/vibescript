@@ -222,7 +222,7 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
         "def run(x: hash); x::nil?; end",
         "def run(x: hash); x::nil?(); end",
         "def run; begin; missing; rescue; 7; end; end",
-        "def run; 1 <=> 2; end",
+        "def run; [1] <=> [2]; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

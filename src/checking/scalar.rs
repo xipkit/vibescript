@@ -137,7 +137,20 @@ impl Facts {
         };
         if !matches!(
             op,
-            "+" | "-" | "*" | "/" | "%" | "**" | "==" | "!=" | "<" | "<=" | ">" | ">="
+            "+" | "-"
+                | "*"
+                | "/"
+                | "%"
+                | "**"
+                | "=="
+                | "!="
+                | "<"
+                | "<="
+                | ">"
+                | ">="
+                | "<=>"
+                | "=~"
+                | "!~"
         ) {
             result.unsupported = true;
             return Ok(result);
@@ -163,8 +176,22 @@ impl Facts {
                     } else {
                         Atom::Bool.fact()
                     }
+                } else if op == "<=>" {
+                    if a == Atom::Nil && b == Atom::Nil {
+                        self.integer(ctx, 0)?
+                    } else if primitive_binary("<", a, b).is_some() {
+                        if matches!(a, Atom::Money | Atom::Float) || b == Atom::Float {
+                            self.nullable(ctx, Atom::Int.fact())?
+                        } else {
+                            Atom::Int.fact()
+                        }
+                    } else {
+                        Atom::Nil.fact()
+                    }
                 } else if let Some(atom) = primitive_binary(op, a, b) {
-                    if op == "**" && a == Atom::Int && b == Atom::Int {
+                    if op == "=~" {
+                        self.nullable(ctx, Atom::Int.fact())?
+                    } else if op == "**" && a == Atom::Int && b == Atom::Int {
                         self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact()])?
                     } else {
                         atom.fact()
@@ -291,11 +318,18 @@ fn primitive_binary(op: &str, a: Atom, b: Atom) -> Option<Atom> {
     let printable = |atom| {
         matches!(
             atom,
-            Bool | Int | Float | String | Symbol | Duration | Time | Money
+            Bool | Int | Float | String | Symbol | Duration | Time | Money | Regex
         )
     };
     let numeric = if a == Int && b == Int { Int } else { Float };
     Some(match op {
+        "=~" | "!~" if (a == Regex && b == String) || (a == String && b == Regex) => {
+            if op == "=~" {
+                Int
+            } else {
+                Bool
+            }
+        }
         "+" | "-" | "*" | "/" | "**" if number(a) && number(b) => numeric,
         "%" if a == Int && b == Int => Int,
         "+" if (a == String || b == String) && printable(a) && printable(b) => String,

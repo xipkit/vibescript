@@ -17,6 +17,22 @@ const RUNTIME: u8 = 1 << ErrorClass::Runtime as u8;
 
 mod native;
 mod temporal;
+mod values;
+
+pub(super) fn value_member(
+    ctx: &mut CallContext,
+    facts: &Facts,
+    receiver: Fact,
+    name: &str,
+) -> Result<bool> {
+    for i in 0..facts.arm_count(receiver) {
+        ctx.charge(1)?;
+        if !values::supported(facts, facts.arm(receiver, i), name) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 
 fn outcome(value: Fact) -> Outcome {
     Outcome {
@@ -361,7 +377,9 @@ pub(super) fn member(
     for i in 0..facts.arm_count(receiver) {
         ctx.charge(1)?;
         let arm = facts.arm(receiver, i);
-        special |= matches!(facts.node(arm), Node::TypeValue(_)) || namespace(ctx, facts, arm)?;
+        special |= matches!(facts.node(arm), Node::TypeValue(_))
+            || values::supported(facts, arm, name)
+            || namespace(ctx, facts, arm)?;
     }
     if !special {
         return Ok(None);
@@ -401,6 +419,9 @@ fn member_arm(
     name: &str,
     args: &Arguments,
 ) -> Result<Option<Outcome>> {
+    if values::supported(facts, receiver, name) {
+        return values::member(ctx, facts, receiver, site, name, args).map(Some);
+    }
     if let Node::TypeValue(_) = facts.node(receiver) {
         let mut result = outcome(Atom::Never.fact());
         if site.scope || !matches!(name, "nil?" | "itself" | "dup") {

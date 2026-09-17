@@ -883,7 +883,9 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let address = state.addresses.data.pop().unwrap();
         let name = &self.program.members[site.name];
-        if builtins::namespace_call(self.ctx, self.facts, address.value, name)? {
+        if builtins::namespace_call(self.ctx, self.facts, address.value, name)?
+            || builtins::value_member(self.ctx, self.facts, address.value, name)?
+        {
             let mut arguments = Arguments::new();
             arguments.positional.extend(self.ctx, args)?;
             let edges = self.member(state, pc, address.value, site, arguments)?;
@@ -1763,6 +1765,11 @@ impl Walker<'_> {
                         self.facts,
                         receiver,
                         &self.program.members[site.name],
+                    )? || builtins::value_member(
+                        self.ctx,
+                        self.facts,
+                        receiver,
+                        &self.program.members[site.name],
                     )? {
                         state.addresses.data.pop().unwrap();
                         if let Some(edges) = self.member(&mut state, pc, receiver, site, args)? {
@@ -1782,6 +1789,17 @@ impl Walker<'_> {
                 Op::AddressMember(site) | Op::AddressNamespaceField(site) => {
                     let name = &self.program.members[site.name];
                     let receiver = state.addresses.data.last().unwrap().value;
+                    if builtins::value_member(self.ctx, self.facts, receiver, name)? {
+                        state.addresses.data.pop().unwrap();
+                        if let Some(edges) =
+                            self.member(&mut state, pc, receiver, site, Arguments::new())?
+                        {
+                            return Ok(edges);
+                        }
+                        let value = state.stack.data.pop().unwrap().value;
+                        state.addresses.push(self.ctx, Address::new(None, value))?;
+                        continue;
+                    }
                     let (mut fields, mut absent) = (false, false);
                     for i in 0..self.facts.arm_count(receiver) {
                         self.ctx.charge(1)?;

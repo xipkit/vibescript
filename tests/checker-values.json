@@ -1,0 +1,1088 @@
+{
+  "reference": "Go Vibescript v0.70.0 at 5cba216c33bea8890787d64efb2ab926a761fb1b",
+  "scope": "Private checker native value methods and primitive comparisons. Every case has a Rust execution witness; temporal values are generally checked by type to avoid timezone and clock assumptions. Known invalid inputs remain diagnostics even when runtime short-circuiting or rescue permits a successful result.",
+  "cases": [
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").year; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").month; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").day; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").hour; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").nsec; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").usec; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Time.at(0,in:\"UTC\").subsec; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").to_i; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Time.at(0,in:\"UTC\").to_f; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").zone; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Time.at(0,in:\"UTC\").utc_offset; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; Time.at(0,in:\"UTC\").utc?; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; Time.at(0,in:\"UTC\").sunday?; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; Time.at(0,in:\"UTC\").to_a[8]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Time.at(0,in:\"UTC\").getutc; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").to_s(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").iso8601(3); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").xmlschema; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").rfc3339; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").httpdate; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").rfc2822; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").strftime(\"%Y\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Time.at(0,in:\"UTC\").format(\"2006\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Time.at(0,in:\"UTC\").getlocal(\"UTC\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Time.at(0,in:\"UTC\").round(2); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Time.at(0,in:\"UTC\").ceil; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Time.at(0,in:\"UTC\").floor; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; Time.at(0,in:\"UTC\").between?(Time.at(-1),Time.at(1)); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; (Time.at(0,in:\"UTC\").to_s)(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "1970-01-01T00:00:00Z"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Duration.build(7).seconds; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Duration.build(7).hours; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Duration.build(7).in_seconds; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> float; Duration.build(7).in_years; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Duration.build(7).to_i; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; Duration.build(7).parts[:seconds]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Duration.build(7).iso8601; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Duration.build(7).format; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Duration.build(7).to_s(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Duration.build(7).after(Time.at(0)); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Duration.build(7).before(\"1970-01-01T00:00:00Z\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> time; Duration.build(7).from_now(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; Duration.build(7).between?(Duration.build(1),Duration.build(10)); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; money_cents(125,\"USD\").currency; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; money_cents(125,\"USD\").amount; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int; money_cents(125,\"USD\").cents; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; money_cents(125,\"USD\").format; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; money_cents(125,\"USD\").format(7,bad:true); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; money_cents(125,\"USD\").to_s(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; money_cents(125,\"USD\").between?(money_cents(1,\"USD\"),money_cents(999,\"USD\")); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; /a+/im.source; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; /a+/im.flags; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; /a/.source(); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; /a/.flags(ignored:true); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; /a/.string; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "unknown regex member string"
+      ],
+      "difference": "Rust models the runtime regex.string conversion; Go checker reports an unknown member."
+    },
+    {
+      "source": "def run -> string; /a/.inspect; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; /^a$/.match?(\"ab\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int?; /a/ =~ \"ba\"; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> int?; \"x\" =~ /a/; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> bool; /a/ !~ \"x\"; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; /a/+\"x\"; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> string; Regexp.new(\"a\").source; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> duration; 7.second; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> duration; 7.minutes; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> duration; 7.hours; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run -> duration; 7.weeks; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": null
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; begin; Time.at(0).year(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).to_a(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).format; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).format(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).iso8601(-1); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).round(1.5); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).ceil(1); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).getlocal(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).iso8601(bad:true); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Duration.build(7).parts(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Duration.build(7).to_i(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Duration.build(7).after; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Duration.build(7).after(nil); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Duration.build(7).after(bad:1); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; money_cents(7,\"USD\").currency(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; money_cents(7,\"USD\").to_s(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "call to money.to_s has too many arguments: got 1, want at most 0"
+      ]
+    },
+    {
+      "source": "def run; begin; 7.0.days; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "unknown float member days"
+      ]
+    },
+    {
+      "source": "def run; begin; false.days; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "unknown bool member days"
+      ]
+    },
+    {
+      "source": "def run; begin; 7.days(); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; /a/.match?(7); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; /a/.match?; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; /a/.match?(\"a\",bad:true); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; /a/.string(bad:true); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "unknown regex member string"
+      ]
+    },
+    {
+      "source": "def run; begin; /a/.nil?(bad:true); rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "call to nil? does not accept keyword arguments"
+      ]
+    },
+    {
+      "source": "def run; begin; /a/.to_s; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "unknown regex member to_s"
+      ]
+    },
+    {
+      "source": "def run; begin; Time.at(0).clear; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0)::year; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; 7 =~ /a/; rescue; 7; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    },
+    {
+      "source": "def run; begin; Time.at(0).iso8601(101); rescue LimitError; \"caught\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "caught"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; begin; Time.at(0).strftime(\"%1048577Y\"); rescue LimitError; \"caught\"; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "caught"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; Time.at(0).between?(Time.at(1),nil); end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "false"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust retains a known-invalid upper-bound diagnostic even when the lower comparison can short-circuit; its result facts still include the runtime false value."
+    },
+    {
+      "source": "def run; Duration.build(0).between?(Duration.build(1),nil); end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "false"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust retains a known-invalid upper-bound diagnostic even when the lower comparison can short-circuit; its result facts still include the runtime false value."
+    },
+    {
+      "source": "def run; money_cents(0,\"USD\").between?(money_cents(1,\"USD\"),nil); end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "false"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust retains a known-invalid upper-bound diagnostic even when the lower comparison can short-circuit; its result facts still include the runtime false value."
+    },
+    {
+      "source": "def run -> int; 1 <=> 2; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "-1"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "return value expected int, got int | nil"
+      ],
+      "difference": "Rust retains the narrower result for these known primitive operand kinds; Go reports a general int-or-nil result and rejects the declared return type."
+    },
+    {
+      "source": "def run -> int; nil <=> nil; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "0"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "return value expected int, got int | nil"
+      ],
+      "difference": "Rust retains the narrower result for these known primitive operand kinds; Go reports a general int-or-nil result and rejects the declared return type."
+    },
+    {
+      "source": "def run -> nil; true <=> false; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "nil"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "return value expected nil, got int | nil"
+      ],
+      "difference": "Rust retains the narrower result for these known primitive operand kinds; Go reports a general int-or-nil result and rejects the declared return type."
+    },
+    {
+      "source": "def run -> nil; 1 <=> \"x\"; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "nil"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "return value expected nil, got int | nil"
+      ],
+      "difference": "Rust retains the narrower result for these known primitive operand kinds; Go reports a general int-or-nil result and rejects the declared return type."
+    },
+    {
+      "source": "def run -> int; Time.at(0) <=> Time.at(1); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "-1"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "return value expected int, got int | nil"
+      ],
+      "difference": "Rust retains the narrower result for these known primitive operand kinds; Go reports a general int-or-nil result and rejects the declared return type."
+    },
+    {
+      "source": "def run -> int; Duration.build(0) <=> Duration.build(1); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "-1"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "return value expected int, got int | nil"
+      ],
+      "difference": "Rust retains the narrower result for these known primitive operand kinds; Go reports a general int-or-nil result and rejects the declared return type."
+    },
+    {
+      "source": "def run -> int?; money_cents(7,\"USD\") <=> money_cents(8,\"EUR\"); end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "nil"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; d=Duration.build(7); parts=d.parts; parts[:seconds]=9; [parts.seconds,d.seconds]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "[9, 7]"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; d=Duration.build(7); d.parts[:seconds]+=1; d.seconds; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; t=Time.at(0,in:\"UTC\"); s=t.strftime((while true; t=nil; break \"%Y\"; end)); [s,t]; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "[1970, nil]"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; a=money_cents(7,\"USD\"); begin; a/0; rescue ZeroDivisionError; missing; rescue; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "difference": "Rust uses the actual native operator exception class and omits an unreachable rescue; Go diagnoses the unreachable missing-variable read."
+    },
+    {
+      "source": "def run; a=money_cents(7,\"USD\"); b=money_cents(8,\"EUR\"); begin; a<b; rescue ArgumentError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; d=Duration.build(7); begin; d/0; rescue ZeroDivisionError; 7; end; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": false,
+      "go_warnings": []
+    },
+    {
+      "source": "def run; t=Time.at(0); u=Time.at(1); begin; t<u; rescue; missing; end; 7; end",
+      "rust_rejected": false,
+      "runtime": {
+        "display": "7"
+      },
+      "go_rejected": true,
+      "go_warnings": [
+        "undefined variable missing"
+      ],
+      "difference": "Rust uses the actual native operator exception class and omits an unreachable rescue; Go diagnoses the unreachable missing-variable read."
+    },
+    {
+      "source": "def run; t=Time.at(0); x=0; begin; t.year((while true; x=1; break 7; end)); rescue; x; end; end",
+      "rust_rejected": true,
+      "runtime": {
+        "display": "1"
+      },
+      "go_rejected": false,
+      "go_warnings": [],
+      "difference": "Rust diagnoses the known invalid value-method call or operand contract even when rescue catches the runtime error; Go omits that diagnostic."
+    }
+  ]
+}

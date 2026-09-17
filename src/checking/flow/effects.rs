@@ -55,6 +55,14 @@ impl Walker<'_> {
             Op::Method(site, count) => {
                 let base = state.stack.data.len() - count - 1;
                 let receiver = state.stack.data[base].value;
+                if builtins::value_member(
+                    self.ctx,
+                    self.facts,
+                    receiver,
+                    &self.program.members[site.name],
+                )? {
+                    return Ok(0);
+                }
                 if self.dynamic(receiver)? {
                     return Ok(u8::MAX);
                 }
@@ -77,6 +85,14 @@ impl Walker<'_> {
                 &state.stack.data[base + 1..]
             }
             Op::Mutate(site, count) => {
+                if builtins::value_member(
+                    self.ctx,
+                    self.facts,
+                    state.addresses.data.last().unwrap().value,
+                    &self.program.members[site.name],
+                )? {
+                    return Ok(0);
+                }
                 if self.dynamic(state.addresses.data.last().unwrap().value)? {
                     return Ok(u8::MAX);
                 }
@@ -88,13 +104,21 @@ impl Walker<'_> {
                 }
                 &state.stack.data[state.stack.data.len() - count..]
             }
-            Op::Invoke(Invocation::Member(_, addressed)) => {
+            Op::Invoke(Invocation::Member(site, addressed)) => {
                 let receiver = if addressed {
                     state.addresses.data.last().map(|a| a.value)
                 } else {
                     top()
                 };
                 if let Some(receiver) = receiver {
+                    if builtins::value_member(
+                        self.ctx,
+                        self.facts,
+                        receiver,
+                        &self.program.members[site.name],
+                    )? {
+                        return Ok(0);
+                    }
                     if self.dynamic(receiver)? {
                         return Ok(u8::MAX);
                     }
@@ -185,10 +209,42 @@ impl Walker<'_> {
                         _ => errors |= zero,
                     }
                 }
-                if matches!(x, Some(Atom::Duration | Atom::Time | Atom::Money))
-                    || matches!(y, Some(Atom::Duration | Atom::Time | Atom::Money))
+                if x == Some(Atom::Money)
+                    && y == Some(Atom::Money)
+                    && matches!(op, "<" | "<=" | ">" | ">=")
                 {
-                    errors |= runtime | zero;
+                    errors |= handlers::bit(ErrorClass::Argument);
+                }
+                if matches!(op, "+" | "-" | "*" | "/" | "%")
+                    && (matches!(x, Some(Atom::Time | Atom::Duration | Atom::Money))
+                        || matches!(y, Some(Atom::Time | Atom::Duration | Atom::Money)))
+                    && x != Some(Atom::String)
+                    && y != Some(Atom::String)
+                {
+                    errors |= runtime;
+                    if x == Some(Atom::Duration) && matches!(op, "/" | "%") {
+                        let known = match self.facts.node(b) {
+                            Node::Integer(n) => Some(*n == 0),
+                            Node::Float(bits) => Some(f64::from_bits(*bits) == 0.0),
+                            _ => None,
+                        };
+                        if known != Some(false) {
+                            errors |= zero;
+                        }
+                        stops |= known == Some(true);
+                    }
+                    if x == Some(Atom::Money)
+                        && op == "/"
+                        && matches!(self.facts.node(b), Node::Integer(0))
+                    {
+                        stops = true;
+                    }
+                }
+                if matches!(op, "=~" | "!~")
+                    && ((x == Some(Atom::Regex) && y == Some(Atom::String))
+                        || (x == Some(Atom::String) && y == Some(Atom::Regex)))
+                {
+                    errors |= handlers::bit(ErrorClass::Limit);
                 }
                 if op == "**" {
                     errors |= runtime | handlers::bit(ErrorClass::Limit);

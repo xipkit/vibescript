@@ -22,7 +22,7 @@ fn engine() -> Engine {
     engine
 }
 
-fn witness(source: &str, expected: Option<&str>, rejected: bool) {
+pub(super) fn witness(source: &str, expected: Option<&str>, rejected: bool) {
     witness_with(&engine(), source, expected, rejected);
 }
 
