@@ -1,0 +1,279 @@
+use super::facts::{Atom, Fact, Facts, Node};
+use crate::{CallContext, Result, budget::Buffer};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Test {
+    Truth,
+    Nil,
+}
+
+pub(super) struct Operation {
+    pub value: Fact,
+    pub rejected: bool,
+    pub unsupported: bool,
+}
+
+impl Facts {
+    pub fn filter(
+        &mut self,
+        ctx: &mut CallContext,
+        value: Fact,
+        test: Test,
+        yes: bool,
+    ) -> Result<Fact> {
+        let mut kept = Buffer::empty();
+        for index in 0..self.arm_count(value) {
+            ctx.charge(1)?;
+            let arm = self.arm(value, index);
+            let filtered = match (self.node(arm), test) {
+                (Node::Atom(Atom::Never), _) => Atom::Never.fact(),
+                (Node::Atom(Atom::Nil), _) => {
+                    if yes == (test == Test::Nil) {
+                        arm
+                    } else {
+                        Atom::Never.fact()
+                    }
+                }
+                (Node::Boolean(value), Test::Truth) => {
+                    if *value == yes {
+                        arm
+                    } else {
+                        Atom::Never.fact()
+                    }
+                }
+                (Node::Atom(Atom::Bool), Test::Truth) => self.boolean(ctx, yes)?,
+                (Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_), _) => {
+                    if test == Test::Nil && yes {
+                        Atom::Nil.fact()
+                    } else if test == Test::Truth && !yes {
+                        let no = self.boolean(ctx, false)?;
+                        self.union(ctx, &[no, Atom::Nil.fact()])?
+                    } else {
+                        arm
+                    }
+                }
+                _ => {
+                    if yes == (test == Test::Truth) {
+                        arm
+                    } else {
+                        Atom::Never.fact()
+                    }
+                }
+            };
+            kept.push(ctx, filtered)?;
+        }
+        self.union(ctx, &kept.data)
+    }
+
+    pub fn test_result(&mut self, ctx: &mut CallContext, value: Fact, test: Test) -> Result<Fact> {
+        if self.filter(ctx, value, test, true)? == Atom::Never.fact() {
+            self.boolean(ctx, false)
+        } else if self.filter(ctx, value, test, false)? == Atom::Never.fact() {
+            self.boolean(ctx, true)
+        } else {
+            Ok(Atom::Bool.fact())
+        }
+    }
+
+    pub fn scalar_unary(
+        &mut self,
+        ctx: &mut CallContext,
+        op: &str,
+        value: Fact,
+    ) -> Result<Operation> {
+        let mut result = Operation {
+            value: Atom::Never.fact(),
+            rejected: false,
+            unsupported: false,
+        };
+        for index in 0..self.arm_count(value) {
+            ctx.charge(1)?;
+            let arm = self.arm(value, index);
+            let next = match (op, self.atom(arm)) {
+                (_, Some(Atom::Never)) => Atom::Never.fact(),
+                (_, Some(Atom::Unknown | Atom::Any)) => Atom::Unknown.fact(),
+                ("+" | "-", Some(Atom::Int | Atom::Float)) | ("+", Some(Atom::String)) => arm,
+                (_, None) => {
+                    result.unsupported = true;
+                    Atom::Unknown.fact()
+                }
+                _ => {
+                    result.rejected = true;
+                    Atom::Unknown.fact()
+                }
+            };
+            result.value = self.union(ctx, &[result.value, next])?;
+        }
+        Ok(result)
+    }
+
+    pub fn scalar_binary(
+        &mut self,
+        ctx: &mut CallContext,
+        op: &str,
+        left: Fact,
+        right: Fact,
+    ) -> Result<Operation> {
+        let mut result = Operation {
+            value: Atom::Never.fact(),
+            rejected: false,
+            unsupported: false,
+        };
+        if !matches!(
+            op,
+            "+" | "-" | "*" | "/" | "%" | "**" | "==" | "!=" | "<" | "<=" | ">" | ">="
+        ) {
+            result.unsupported = true;
+            return Ok(result);
+        }
+        for a in 0..self.arm_count(left) {
+            for b in 0..self.arm_count(right) {
+                ctx.charge(1)?;
+                let left = self.arm(left, a);
+                let right = self.arm(right, b);
+                let (Some(a), Some(b)) = (self.atom(left), self.atom(right)) else {
+                    result.unsupported = true;
+                    continue;
+                };
+                let next = if a == Atom::Never || b == Atom::Never {
+                    Atom::Never.fact()
+                } else if matches!(a, Atom::Any | Atom::Unknown)
+                    || matches!(b, Atom::Any | Atom::Unknown)
+                {
+                    Atom::Unknown.fact()
+                } else if matches!(op, "==" | "!=") {
+                    if a == Atom::Nil || b == Atom::Nil {
+                        self.boolean(ctx, (a == b) == (op == "=="))?
+                    } else {
+                        Atom::Bool.fact()
+                    }
+                } else if let Some(atom) = primitive_binary(op, a, b) {
+                    if op == "**" && a == Atom::Int && b == Atom::Int {
+                        self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact()])?
+                    } else {
+                        atom.fact()
+                    }
+                } else {
+                    result.rejected = true;
+                    Atom::Unknown.fact()
+                };
+                result.value = self.union(ctx, &[result.value, next])?;
+            }
+        }
+        Ok(result)
+    }
+
+    pub fn known_primitive(&self, ctx: &mut CallContext, value: Fact) -> Result<bool> {
+        for index in 0..self.arm_count(value) {
+            ctx.charge(1)?;
+            if matches!(
+                self.atom(self.arm(value, index)),
+                None | Some(Atom::Unknown | Atom::Any)
+            ) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    pub fn reassignment_conflicts(
+        &self,
+        ctx: &mut CallContext,
+        before: Fact,
+        after: Fact,
+    ) -> Result<bool> {
+        let kinds = |value| -> Result<Option<u32>> {
+            let mut bits = 0;
+            for index in 0..self.arm_count(value) {
+                ctx.charge(1)?;
+                let bit = match self.node(self.arm(value, index)) {
+                    Node::Atom(Atom::Never | Atom::Nil) => 0,
+                    Node::Atom(Atom::Unknown | Atom::Any)
+                    | Node::Named(_)
+                    | Node::Nominal { .. } => return Ok(None),
+                    Node::Atom(Atom::Int | Atom::Float) => 1 << Atom::Int as u32,
+                    Node::Atom(atom) => 1 << *atom as u32,
+                    Node::Boolean(_) => 1 << Atom::Bool as u32,
+                    Node::Symbol(_) => 1 << Atom::Symbol as u32,
+                    Node::Array(_) | Node::Tuple(_) => 1 << 20,
+                    Node::Hash(_, _) | Node::Shape(_, _, _) => 1 << 21,
+                    Node::Union(_) => unreachable!(),
+                };
+                bits |= bit;
+            }
+            Ok(Some(bits))
+        };
+        let mut kinds = kinds;
+        let (Some(before), Some(after)) = (kinds(before)?, kinds(after)?) else {
+            return Ok(false);
+        };
+        Ok(before != 0 && after != 0 && before & after == 0)
+    }
+
+    fn arm_count(&self, value: Fact) -> usize {
+        if let Node::Union(arms) = self.node(value) {
+            arms.data.len()
+        } else {
+            1
+        }
+    }
+
+    fn arm(&self, value: Fact, index: usize) -> Fact {
+        if let Node::Union(arms) = self.node(value) {
+            arms.data[index]
+        } else {
+            value
+        }
+    }
+
+    fn atom(&self, value: Fact) -> Option<Atom> {
+        match self.node(value) {
+            Node::Atom(atom) => Some(*atom),
+            Node::Boolean(_) => Some(Atom::Bool),
+            Node::Symbol(_) => Some(Atom::Symbol),
+            _ => None,
+        }
+    }
+}
+
+fn primitive_binary(op: &str, a: Atom, b: Atom) -> Option<Atom> {
+    use Atom::*;
+    let number = |atom| matches!(atom, Int | Float);
+    let printable = |atom| {
+        matches!(
+            atom,
+            Bool | Int | Float | String | Symbol | Duration | Time | Money
+        )
+    };
+    let numeric = if a == Int && b == Int { Int } else { Float };
+    Some(match op {
+        "+" | "-" | "*" | "/" | "**" if number(a) && number(b) => numeric,
+        "%" if a == Int && b == Int => Int,
+        "+" if (a == String || b == String) && printable(a) && printable(b) => String,
+        "*" if a == String && b == Int => String,
+        "%" if a == String => String,
+        "+" if (a == Time && (b == Duration || number(b)))
+            || (b == Time && (a == Duration || number(a))) =>
+        {
+            Time
+        }
+        "-" if a == Time && b == Time => Float,
+        "-" if a == Time && (b == Duration || number(b)) => Time,
+        "+" | "-" if a == Duration && (b == Duration || number(b)) => Duration,
+        "+" if number(a) && b == Duration => Duration,
+        "*" if (a == Duration && number(b)) || (number(a) && b == Duration) => Duration,
+        "/" if a == Duration && b == Duration => Float,
+        "/" if a == Duration && number(b) => Duration,
+        "%" if a == Duration && b == Duration => Duration,
+        "+" | "-" if a == Money && b == Money => Money,
+        "*" if (a == Money && b == Int) || (a == Int && b == Money) => Money,
+        "/" if a == Money && b == Int => Money,
+        "<" | "<=" | ">" | ">="
+            if (number(a) && number(b))
+                || (a == b && matches!(a, String | Symbol | Money | Duration | Time)) =>
+        {
+            Bool
+        }
+        _ => return None,
+    })
+}
