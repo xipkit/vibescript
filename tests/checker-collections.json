@@ -1,0 +1,581 @@
+{
+  "reference": "Go v0.70.0 CheckWarningsForFunction(\"run\")",
+  "cases": [
+    {
+      "source": "def run -> int; [7, \"bad\"][0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; [7, \"bad\"][1]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run -> string; [7, \"yes\"][-1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; index = 0; [7, \"bad\"][index]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def run -> int; [7, \"bad\"][id(0)]; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "value": 7
+      },
+      "difference": "Rust retains literal facts through calls and pure predicates, excluding unreachable incompatible results."
+    },
+    {
+      "source": "def run -> int?; [7][99]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; [7][99]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run -> int?; [7][-99]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int?; [7][0.5]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7][true]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; [7][[0]]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; [7][\"0\"]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> int; key = \"x\"; {x:7, y:\"bad\"}[key]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; {x:7, y:\"yes\"}[:y]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def id(x); x; end; def run -> int; {x:7, y:\"bad\"}[id(\"x\")]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; {x:\"bad\", x:7}[:x]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; {x:7}[:missing]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run -> int?; {x:7}[:missing]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; {x:7}[1]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> string; \"é水\"[-1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; \"a\\xff\"[1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string?; \"é\"[9]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; \"abc\"[\"a\"]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; 7[0]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run(x: {name: string}) -> string; x[\"name\"]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: {name: string}) -> int; x[\"name\"]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run(x: {name?: string}) -> string?; x[:name]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: {name?: string}) -> string; x[:name]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run(x: {name: string, ...}) -> int; x[:other]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: array<int>, i: int) -> int?; x[i]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: array<int>, i: int) -> string?; x[i]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run(x: hash<string,int>, k: string) -> int?; x[k]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: hash<string,int>, k: string) -> string?; x[k]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run(x, i) -> int; x[i]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: int | any) -> int; x[0]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type",
+        "args": [
+          7
+        ]
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run(x: array<int> | nil) -> int?; x[0]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type",
+        "args": [
+          null
+        ]
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run(flag: bool) -> int; a = flag ? [7] : [8]; a[0]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(flag: bool) -> int; a = flag ? [7] : [\"bad\"]; a[0]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run(flag: bool) -> int; key = flag ? :x : :y; {x:7,y:8}[key]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(flag: bool) -> int; key = flag ? :x : :y; {x:7,y:\"bad\"}[key]; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run -> array<int>; [7, 8, \"bad\"][0,2]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; [7, \"bad\"][0,2]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> array<string>; [7, \"yes\"][-1,1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; [7][1,8]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>?; [7][2,8]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>?; [7][0,-1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>?; [7,8][0..1]; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7][0,true]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; {x:7}[0,1]; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> int; [7,\"bad\"].first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; [7,\"yes\"].last; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int?; [].first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; [7,\"bad\"].first(1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<string>; [7,\"yes\"].last(1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; [7,\"bad\"].take(1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<string>; [7,\"yes\"].drop(1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].first(-1); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "argument"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; [7].first(\"bad\"); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> string; [7,\"yes\"].reverse.first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; a = [7,\"bad\"]; b = a.reverse; a.first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; [7,\"bad\"].at(0); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; [7,\"bad\"].at(*[0]); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].at(0..1); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> array<int>; [7,\"bad\"].slice(0,1); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string?; \"abc\".slice(\"b\"); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(flag: bool) -> string?; \"abc\".slice(flag ? \"b\" : 0); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int?; \"abc\".getbyte(0); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; [7].size; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; \"é\".bytesize; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; if [].empty?; 7; else; \"bad\"; end; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "value": 7
+      },
+      "difference": "Rust retains literal facts through calls and pure predicates, excluding unreachable incompatible results."
+    },
+    {
+      "source": "def run -> int; if [1].empty?; \"bad\"; else; 7; end; end",
+      "rust_rejected": false,
+      "go_rejected": true,
+      "runtime": {
+        "value": 7
+      },
+      "difference": "Rust retains literal facts through calls and pure predicates, excluding unreachable incompatible results."
+    },
+    {
+      "source": "def run -> array<string>; {x:7,y:true}.keys; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; {x:7,y:8}.values; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> array<int>; {x:7,y:\"bad\"}.values; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> int; {z:\"bad\",a:7}.values.first; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> int; [7].dup.first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; [7].itself.first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; [7].length(1); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "argument"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; 7.length; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    },
+    {
+      "source": "def run -> int; {x:7}.x; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> string; {first:\"yes\"}.first; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; {size:\"not size\"}.size; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run -> int; {x:7}.size(); end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run; {x:7}.x(); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; {x:7}.missing; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "name"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; {x:7}.missing(JSON.parse(\"1\")); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "name"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run; {x:7}::x; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type"
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run(x: int); x::nil?; end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type",
+        "args": [
+          7
+        ]
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run(x: int); x::nil?(); end",
+      "rust_rejected": true,
+      "go_rejected": false,
+      "runtime": {
+        "error": "type",
+        "args": [
+          7
+        ]
+      },
+      "difference": "Rust retains collection contents and rejects known invalid receivers, indexes, arguments or member accesses."
+    },
+    {
+      "source": "def run -> string; {x:{name:\"yes\"}}.x.name; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: {name: string}) -> string; x.name; end",
+      "rust_rejected": false,
+      "go_rejected": false
+    },
+    {
+      "source": "def run(x: {name: string}) -> int; x.name; end",
+      "rust_rejected": true,
+      "go_rejected": true
+    }
+  ]
+}

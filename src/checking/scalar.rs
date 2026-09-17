@@ -92,7 +92,17 @@ impl Facts {
             let next = match (op, self.atom(arm)) {
                 (_, Some(Atom::Never)) => Atom::Never.fact(),
                 (_, Some(Atom::Unknown | Atom::Any)) => Atom::Unknown.fact(),
-                ("+" | "-", Some(Atom::Int | Atom::Float)) | ("+", Some(Atom::String)) => arm,
+                ("+", Some(Atom::Int | Atom::Float | Atom::String)) => arm,
+                ("-", Some(atom @ (Atom::Int | Atom::Float))) => {
+                    if let Node::Integer(n) = self.node(arm) {
+                        match n.checked_neg() {
+                            Some(n) => self.integer(ctx, n)?,
+                            None => atom.fact(),
+                        }
+                    } else {
+                        atom.fact()
+                    }
+                }
                 (_, None) => {
                     result.unsupported = true;
                     Atom::Unknown.fact()
@@ -194,9 +204,11 @@ impl Facts {
                     Node::Atom(Atom::Int | Atom::Float) => 1 << Atom::Int as u32,
                     Node::Atom(atom) => 1 << *atom as u32,
                     Node::Boolean(_) => 1 << Atom::Bool as u32,
+                    Node::Integer(_) => 1 << Atom::Int as u32,
+                    Node::String(_) => 1 << Atom::String as u32,
                     Node::Symbol(_) => 1 << Atom::Symbol as u32,
                     Node::Array(_) | Node::Tuple(_) => 1 << 20,
-                    Node::Hash(_, _) | Node::Shape(_, _, _) => 1 << 21,
+                    Node::Hash(_, _) | Node::Shape(..) => 1 << 21,
                     Node::Union(_) => unreachable!(),
                 };
                 bits |= bit;
@@ -210,7 +222,7 @@ impl Facts {
         Ok(before != 0 && after != 0 && before & after == 0)
     }
 
-    fn arm_count(&self, value: Fact) -> usize {
+    pub(super) fn arm_count(&self, value: Fact) -> usize {
         if let Node::Union(arms) = self.node(value) {
             arms.data.len()
         } else {
@@ -218,7 +230,7 @@ impl Facts {
         }
     }
 
-    fn arm(&self, value: Fact, index: usize) -> Fact {
+    pub(super) fn arm(&self, value: Fact, index: usize) -> Fact {
         if let Node::Union(arms) = self.node(value) {
             arms.data[index]
         } else {
@@ -226,10 +238,12 @@ impl Facts {
         }
     }
 
-    fn atom(&self, value: Fact) -> Option<Atom> {
+    pub(super) fn atom(&self, value: Fact) -> Option<Atom> {
         match self.node(value) {
             Node::Atom(atom) => Some(*atom),
             Node::Boolean(_) => Some(Atom::Bool),
+            Node::Integer(_) => Some(Atom::Int),
+            Node::String(_) => Some(Atom::String),
             Node::Symbol(_) => Some(Atom::Symbol),
             _ => None,
         }

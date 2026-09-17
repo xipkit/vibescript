@@ -25,13 +25,13 @@ fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) -> Result<Rep
     flow::analyze(ctx, facts, &program, program.names["run"], &contracts.data)
 }
 
-fn check(source: &str, rejected: usize) -> Fact {
+fn check(source: &str, rejected: usize) -> Option<Atom> {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let report = analyze(&mut ctx, &mut facts, source).unwrap();
     assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
     assert_eq!(report.issues.data.len(), rejected, "{source}: {report:?}");
-    report.returns
+    facts.atom(report.returns)
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn unreachable_scalar_branches_and_statements_produce_no_issues() {
         "def run -> int; return 7; 1 - \"x\"; end",
         "def run -> int; if false; [1].push(2); end; 7; end",
     ] {
-        assert_eq!(check(source, 0), Atom::Int.fact());
+        assert_eq!(check(source, 0), Some(Atom::Int));
     }
 }
 
@@ -219,9 +219,9 @@ fn incomplete_analysis_never_looks_like_a_clean_complete_check() {
         "def run; for x in 1..3; x; end; end",
         "def run; missing; end",
         "def run(x); x.nil?; end",
-        "def run(x: int); x::nil?; end",
-        "def run(x: int); x::nil?(); end",
-        "def run(*args); args[0]; end",
+        "def run(x: hash); x::nil?; end",
+        "def run(x: hash); x::nil?(); end",
+        "def run(*args); args.push(1); end",
         "def run; 1 <=> 2; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());

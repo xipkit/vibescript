@@ -281,7 +281,7 @@ fn long_call_chains_use_the_work_queue_on_the_default_stack() {
     let result = analyze(&mut ctx, &mut facts, &source).unwrap();
     assert!(result.issues.data.is_empty(), "{result:?}");
     assert!(result.incomplete.data.is_empty());
-    assert_eq!(result.returns, Atom::Int.fact());
+    assert_eq!(facts.atom(result.returns), Some(Atom::Int));
     assert_eq!(result.contexts, 1001);
     drop((facts, result));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
@@ -553,7 +553,7 @@ fn abstract_binding_matches_runtime_values_and_rejections() {
                                 assert_eq!(fact, fact_of(value));
                             }
                         }
-                        Node::Shape(fields, false, _) => {
+                        Node::Shape(fields, false, _, _) => {
                             let values = value.as_hash().unwrap();
                             assert_eq!(fields.data.len(), values.len());
                             for field in &fields.data {

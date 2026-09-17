@@ -552,7 +552,7 @@ pub(crate) fn field_call(
     ))
 }
 
-fn hash_builtin(name: &str) -> bool {
+pub(crate) fn hash_builtin(name: &str) -> bool {
     matches!(
         name,
         "size"

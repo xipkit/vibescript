@@ -115,3 +115,36 @@ func TestCheckerCallReference(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckerCollectionReference(t *testing.T) {
+	raw, err := os.ReadFile("../../tests/checker-collections.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures struct {
+		Cases []struct {
+			Source     string
+			GoRejected bool `json:"go_rejected"`
+		}
+	}
+	if err := json.Unmarshal(raw, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixtures.Cases) != 92 {
+		t.Fatalf("checker collection corpus has %d cases, want 92", len(fixtures.Cases))
+	}
+	engine, err := vibes.NewEngine(vibes.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures.Cases {
+		script, err := engine.Compile(fixture.Source)
+		if err != nil {
+			t.Fatalf("Compile(%q): %v", fixture.Source, err)
+		}
+		warnings := script.CheckWarningsForFunction("run")
+		if rejected := len(warnings) != 0; rejected != fixture.GoRejected {
+			t.Errorf("CheckWarningsForFunction(run) in %q rejected=%t, want %t: %v", fixture.Source, rejected, fixture.GoRejected, warnings)
+		}
+	}
+}

@@ -278,12 +278,28 @@ impl Facts {
                             Node::Atom(Atom::String | Atom::Symbol),
                             Node::Atom(Atom::String | Atom::Symbol),
                         ) if pair.keys => Relation::Accepted,
-                        (Node::Symbol(_), Node::Atom(Atom::String)) if pair.keys => {
+                        (Node::Symbol(_), Node::Atom(Atom::String))
+                        | (Node::String(_), Node::Atom(Atom::Symbol))
+                            if pair.keys =>
+                        {
                             Relation::Accepted
                         }
-                        (Node::Boolean(_), Node::Atom(Atom::Bool))
+                        (Node::String(a), Node::Symbol(b)) | (Node::Symbol(a), Node::String(b))
+                            if pair.keys =>
+                        {
+                            if super::facts::same_bytes(ctx, a, b)? {
+                                Relation::Accepted
+                            } else {
+                                Relation::Rejected
+                            }
+                        }
+                        (Node::Integer(_), Node::Atom(Atom::Int))
+                        | (Node::String(_), Node::Atom(Atom::String))
+                        | (Node::Boolean(_), Node::Atom(Atom::Bool))
                         | (Node::Symbol(_), Node::Atom(Atom::Symbol)) => Relation::Accepted,
-                        (Node::Atom(Atom::Bool), Node::Boolean(_))
+                        (Node::Atom(Atom::Int), Node::Integer(_))
+                        | (Node::Atom(Atom::String), Node::String(_))
+                        | (Node::Atom(Atom::Bool), Node::Boolean(_))
                         | (Node::Atom(Atom::Symbol), Node::Symbol(_)) => Relation::Gradual,
                         (Node::Array(_), Node::Array(_)) if pair.overlap => Relation::Gradual,
                         (Node::Array(source), Node::Array(target)) => {
@@ -354,7 +370,7 @@ impl Facts {
                             )?;
                             continue;
                         }
-                        (Node::Shape(source, open, source_keys), Node::Hash(key, value)) => {
+                        (Node::Shape(source, open, source_keys, _), Node::Hash(key, value)) => {
                             if source.data.is_empty() && !open {
                                 Relation::Accepted
                             } else {
@@ -399,7 +415,7 @@ impl Facts {
                                 continue;
                             }
                         }
-                        (Node::Hash(_, source), Node::Shape(target, _, _)) => {
+                        (Node::Hash(_, source), Node::Shape(target, ..)) => {
                             ctx.charge(target.data.len() as u64)?;
                             let count = target.data.iter().filter(|field| !field.optional).count();
                             tasks.push(ctx, Task::All(count + 1))?;
@@ -418,8 +434,8 @@ impl Facts {
                             continue;
                         }
                         (
-                            Node::Shape(source, source_open, _),
-                            Node::Shape(target, target_open, _),
+                            Node::Shape(source, source_open, _, _),
+                            Node::Shape(target, target_open, _, _),
                         ) => {
                             let mut matched = Buffer::empty();
                             let mut result = Relation::Accepted;

@@ -1,5 +1,6 @@
 mod arguments;
 mod calls;
+mod collections;
 mod facts;
 mod flow;
 mod graph;
@@ -13,3 +14,6 @@ mod call_tests;
 mod flow_tests;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod collection_tests;

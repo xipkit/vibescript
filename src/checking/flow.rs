@@ -16,6 +16,18 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
+    Index {
+        receiver: Fact,
+        arguments: Fact,
+    },
+    Member {
+        name: usize,
+        receiver: Fact,
+        arguments: Fact,
+    },
+    Range {
+        value: Fact,
+    },
     Call {
         target: Target,
         failure: Failure,
@@ -567,9 +579,10 @@ impl Walker<'_> {
                     let value = match &self.program.constants[index].0 {
                         Kind::Nil => Atom::Nil.fact(),
                         Kind::Bool(value) => self.facts.boolean(self.ctx, *value)?,
-                        Kind::Int(_) | Kind::Big(_) => Atom::Int.fact(),
+                        Kind::Int(value) => self.facts.integer(self.ctx, *value)?,
+                        Kind::Big(_) => Atom::Int.fact(),
                         Kind::Float(_) => Atom::Float.fact(),
-                        Kind::Bytes(_) => Atom::String.fact(),
+                        Kind::Bytes(value) => self.facts.string(self.ctx, &value.data)?,
                         Kind::Symbol(value) => self.facts.symbol(self.ctx, &value.data)?,
                         Kind::Duration(_) => Atom::Duration.fact(),
                         Kind::Time(_) | Kind::Zoned(_) => Atom::Time.fact(),
@@ -704,6 +717,48 @@ impl Walker<'_> {
                     state.stack.data.truncate(base);
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
+                Op::Range(start, end, _) => {
+                    for _ in 0..usize::from(start) + usize::from(end) {
+                        let value = state.stack.data.pop().unwrap().value;
+                        if self.facts.relation(self.ctx, value, Atom::Int.fact())?
+                            == Relation::Rejected
+                        {
+                            self.issue(pc, IssueKind::Range { value })?;
+                        }
+                    }
+                    state
+                        .stack
+                        .push(self.ctx, Operand::new(Atom::Range.fact()))?;
+                }
+                Op::Index(count) => {
+                    let base = state.stack.data.len() - count - 1;
+                    let receiver = state.stack.data[base].value;
+                    let mut args = Buffer::empty();
+                    for operand in &state.stack.data[base + 1..] {
+                        args.push(self.ctx, operand.value)?;
+                    }
+                    let result = self
+                        .facts
+                        .collection_index(self.ctx, receiver, &args.data)?;
+                    if result.rejected {
+                        let arguments = self.facts.tuple(self.ctx, &args.data)?;
+                        self.issue(
+                            pc,
+                            IssueKind::Index {
+                                receiver,
+                                arguments,
+                            },
+                        )?;
+                    }
+                    if result.unsupported {
+                        return self.incomplete(pc);
+                    }
+                    if result.value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    state.stack.data.truncate(base);
+                    state.stack.push(self.ctx, Operand::new(result.value))?;
+                }
                 Op::RootCall(name, _) => {
                     let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
                     state.arguments.push(
@@ -822,7 +877,7 @@ impl Walker<'_> {
                         }
                         ArgumentOp::KeywordSplat => {
                             let mut keywords = Buffer::empty();
-                            if let super::facts::Node::Shape(fields, false, _) =
+                            if let super::facts::Node::Shape(fields, false, _, _) =
                                 self.facts.node(operand.value)
                             {
                                 for field in &fields.data {
@@ -972,6 +1027,98 @@ impl Walker<'_> {
                             ..Operand::new(value)
                         },
                     )?;
+                }
+                Op::PrepareMember(site, false) => {
+                    let receiver = state.stack.data.last().unwrap().value;
+                    let result = self.facts.prepare_collection_member(
+                        self.ctx,
+                        receiver,
+                        &self.program.members[site.name],
+                    )?;
+                    if result.rejected {
+                        let arguments = self.facts.tuple(self.ctx, &[])?;
+                        self.issue(
+                            pc,
+                            IssueKind::Member {
+                                name: site.name,
+                                receiver,
+                                arguments,
+                            },
+                        )?;
+                    }
+                    if result.unsupported {
+                        return self.incomplete(pc);
+                    }
+                    if result.value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    state.stack.data.last_mut().unwrap().value = result.value;
+                }
+                Op::Method(site, count) => {
+                    let base = state.stack.data.len() - count - 1;
+                    let receiver = state.stack.data[base].value;
+                    let mut args = Buffer::empty();
+                    for operand in &state.stack.data[base + 1..] {
+                        args.push(self.ctx, operand.value)?;
+                    }
+                    let result = self.facts.collection_member(
+                        self.ctx,
+                        receiver,
+                        site,
+                        &self.program.members[site.name],
+                        &args.data,
+                    )?;
+                    if result.rejected {
+                        let arguments = self.facts.tuple(self.ctx, &args.data)?;
+                        self.issue(
+                            pc,
+                            IssueKind::Member {
+                                name: site.name,
+                                receiver,
+                                arguments,
+                            },
+                        )?;
+                    }
+                    if result.unsupported {
+                        return self.incomplete(pc);
+                    }
+                    if result.value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    state.stack.data.truncate(base);
+                    state.stack.push(self.ctx, Operand::new(result.value))?;
+                }
+                Op::Invoke(Invocation::Member(site, false)) => {
+                    let args = state.arguments.data.pop().unwrap().arguments;
+                    if !args.keywords.data.is_empty() {
+                        return self.incomplete(pc);
+                    }
+                    let receiver = state.stack.data.pop().unwrap().value;
+                    let result = self.facts.collection_member(
+                        self.ctx,
+                        receiver,
+                        site,
+                        &self.program.members[site.name],
+                        &args.positional.data,
+                    )?;
+                    if result.rejected {
+                        let arguments = self.facts.tuple(self.ctx, &args.positional.data)?;
+                        self.issue(
+                            pc,
+                            IssueKind::Member {
+                                name: site.name,
+                                receiver,
+                                arguments,
+                            },
+                        )?;
+                    }
+                    if result.unsupported {
+                        return self.incomplete(pc);
+                    }
+                    if result.value == Atom::Never.fact() {
+                        return Ok([None, None]);
+                    }
+                    state.stack.push(self.ctx, Operand::new(result.value))?;
                 }
                 Op::Jump(target) => return Ok([Some((target, state)), None]),
                 Op::JumpFalse(target) | Op::JumpTrue(target) | Op::JumpNil(target) => {

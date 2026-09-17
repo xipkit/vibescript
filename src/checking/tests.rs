@@ -150,7 +150,7 @@ fn closed_shapes_keep_last_duplicate_keys_and_canonical_field_order() {
         )
         .unwrap();
     assert_eq!(source, expected);
-    let Node::Shape(fields, open, _) = facts.node(source) else {
+    let Node::Shape(fields, open, _, _) = facts.node(source) else {
         panic!()
     };
     assert!(!open);

@@ -45,11 +45,14 @@ pub(super) struct Field {
 pub(super) enum Node {
     Atom(Atom),
     Boolean(bool),
+    Integer(i64),
+    String(Value),
     Symbol(Value),
     Array(Fact),
     Tuple(Buffer<Fact>),
     Hash(Fact, Fact),
-    Shape(Buffer<Field>, bool, Fact),
+    // The last flag identifies ordinary hashes; annotations may describe objects too.
+    Shape(Buffer<Field>, bool, Fact, bool),
     Union(Buffer<Fact>),
     Named(Value),
     Nominal {
@@ -149,13 +152,13 @@ impl Facts {
         let fact = Fact(self.entries.data.len());
         ctx.charge(match &node {
             Node::Tuple(values) => values.data.len() as u64,
-            Node::Shape(fields, _, _) => fields.data.len() as u64,
+            Node::Shape(fields, ..) => fields.data.len() as u64,
             _ => 1,
         })?;
         let choices = match &node {
             Node::Union(_) => true,
             Node::Tuple(values) => values.data.iter().any(|&value| self.has_choices(value)),
-            Node::Shape(fields, _, _) => fields
+            Node::Shape(fields, ..) => fields
                 .data
                 .iter()
                 .any(|field| field.optional || self.has_choices(field.value)),
@@ -163,7 +166,9 @@ impl Facts {
         };
         let string_key = match &node {
             Node::Atom(Atom::Unknown) | Node::Named(_) | Node::Nominal { .. } => None,
-            Node::Atom(Atom::String | Atom::Symbol | Atom::Any) | Node::Symbol(_) => Some(true),
+            Node::Atom(Atom::String | Atom::Symbol | Atom::Any)
+            | Node::String(_)
+            | Node::Symbol(_) => Some(true),
             Node::Union(arms) => {
                 let mut matches = false;
                 let mut known = true;
@@ -187,7 +192,7 @@ impl Facts {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().any(|&value| self.normalizes(value))
             }
-            Node::Shape(fields, _, _) => {
+            Node::Shape(fields, ..) => {
                 ctx.charge(fields.data.len() as u64)?;
                 fields.data.iter().any(|field| self.normalizes(field.value))
             }
@@ -201,7 +206,7 @@ impl Facts {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().any(|&value| self.unresolved(value))
             }
-            Node::Shape(fields, _, _) => {
+            Node::Shape(fields, ..) => {
                 ctx.charge(fields.data.len() as u64)?;
                 fields.data.iter().any(|field| self.unresolved(field.value))
             }
@@ -245,6 +250,15 @@ impl Facts {
         self.intern(ctx, Node::Boolean(value))
     }
 
+    pub fn integer(&mut self, ctx: &mut CallContext, value: i64) -> Result<Fact> {
+        self.intern(ctx, Node::Integer(value))
+    }
+
+    pub fn string(&mut self, ctx: &mut CallContext, value: &[u8]) -> Result<Fact> {
+        let value = ctx.bytes(value)?;
+        self.intern(ctx, Node::String(value))
+    }
+
     pub fn symbol(&mut self, ctx: &mut CallContext, value: &[u8]) -> Result<Fact> {
         let value = ctx.bytes(value)?;
         self.intern(ctx, Node::Symbol(value))
@@ -283,7 +297,7 @@ impl Facts {
                 },
             )?;
         }
-        self.shape_fields(ctx, values, open, Atom::String.fact())
+        self.shape_fields(ctx, values, open, Atom::String.fact(), true)
     }
 
     fn shape_fields(
@@ -292,6 +306,7 @@ impl Facts {
         mut fields: Buffer<Field>,
         open: bool,
         keys: Fact,
+        plain: bool,
     ) -> Result<Fact> {
         let mut work = 0usize;
         for field in &fields.data {
@@ -319,7 +334,7 @@ impl Facts {
         for (_, field) in ordered.data.drain(..) {
             fields.push(ctx, field)?;
         }
-        self.intern(ctx, Node::Shape(fields, open, keys))
+        self.intern(ctx, Node::Shape(fields, open, keys, plain))
     }
 
     pub fn nominal(
@@ -372,6 +387,8 @@ impl Facts {
         arms.data.dedup();
         let mut bools = 0;
         let mut symbols = false;
+        let mut integers = false;
+        let mut strings = false;
         let mut any = false;
         for &fact in &arms.data {
             ctx.charge(1)?;
@@ -380,6 +397,8 @@ impl Facts {
                 Node::Boolean(false) => bools |= 1,
                 Node::Boolean(true) => bools |= 2,
                 Node::Atom(Atom::Symbol) => symbols = true,
+                Node::Atom(Atom::Int) => integers = true,
+                Node::Atom(Atom::String) => strings = true,
                 Node::Atom(Atom::Any) => any = true,
                 _ => (),
             }
@@ -388,6 +407,8 @@ impl Facts {
         arms.data.retain(|&fact| match self.node(fact) {
             Node::Boolean(_) => bools != 3,
             Node::Symbol(_) => !symbols,
+            Node::Integer(_) => !integers,
+            Node::String(_) => !strings,
             Node::Atom(Atom::Unknown) => !any,
             _ => true,
         });
@@ -502,7 +523,7 @@ impl Facts {
                         )?;
                     }
                     values.data.truncate(start);
-                    self.shape_fields(ctx, result, open, Atom::Unknown.fact())?
+                    self.shape_fields(ctx, result, open, Atom::Unknown.fact(), false)?
                 }
                 Task::Union(count) => {
                     let start = values.data.len() - count;
@@ -544,7 +565,7 @@ impl Facts {
                     path.push(ctx, (current, index))?;
                     current = element;
                 }
-                Node::Shape(fields, _, _) => {
+                Node::Shape(fields, ..) => {
                     let mut found = None;
                     for (index, field) in fields.data.iter().enumerate() {
                         ctx.charge(1)?;
@@ -590,7 +611,7 @@ impl Facts {
                 values.data[index] = replacement.unwrap();
                 Node::Tuple(values)
             }
-            Node::Shape(fields, open, keys) => {
+            Node::Shape(fields, open, keys, plain) => {
                 let mut values = Buffer::with_capacity(ctx, fields.data.len())?;
                 for (i, field) in fields.data.iter().enumerate() {
                     ctx.charge(1)?;
@@ -610,7 +631,7 @@ impl Facts {
                         },
                     )?;
                 }
-                Node::Shape(values, *open, *keys)
+                Node::Shape(values, *open, *keys, *plain)
             }
             _ => unreachable!(),
         };
@@ -643,7 +664,8 @@ impl Node {
         match self {
             Self::Atom(value) => value.hash(&mut hash),
             Self::Boolean(value) => value.hash(&mut hash),
-            Self::Symbol(value) | Self::Named(value) => {
+            Self::Integer(value) => value.hash(&mut hash),
+            Self::String(value) | Self::Symbol(value) | Self::Named(value) => {
                 let bytes = value.as_bytes().unwrap();
                 ctx.work_bytes(bytes.len())?;
                 bytes.hash(&mut hash);
@@ -654,7 +676,8 @@ impl Node {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.hash(&mut hash);
             }
-            Self::Shape(fields, open, keys) => {
+            Self::Shape(fields, open, keys, plain) => {
+                plain.hash(&mut hash);
                 open.hash(&mut hash);
                 keys.hash(&mut hash);
                 fields.data.len().hash(&mut hash);
@@ -677,17 +700,18 @@ impl Node {
         Ok(match (self, other) {
             (Self::Atom(a), Self::Atom(b)) => a == b,
             (Self::Boolean(a), Self::Boolean(b)) => a == b,
-            (Self::Symbol(a), Self::Symbol(b)) | (Self::Named(a), Self::Named(b)) => {
-                same_bytes(ctx, a, b)?
-            }
+            (Self::Integer(a), Self::Integer(b)) => a == b,
+            (Self::String(a), Self::String(b))
+            | (Self::Symbol(a), Self::Symbol(b))
+            | (Self::Named(a), Self::Named(b)) => same_bytes(ctx, a, b)?,
             (Self::Array(a), Self::Array(b)) => a == b,
             (Self::Hash(ak, av), Self::Hash(bk, bv)) => ak == bk && av == bv,
             (Self::Tuple(a), Self::Tuple(b)) | (Self::Union(a), Self::Union(b)) => {
                 ctx.charge(a.data.len().min(b.data.len()) as u64)?;
                 a.data == b.data
             }
-            (Self::Shape(a, ao, ak), Self::Shape(b, bo, bk)) => {
-                if ao != bo || ak != bk || a.data.len() != b.data.len() {
+            (Self::Shape(a, ao, ak, ap), Self::Shape(b, bo, bk, bp)) => {
+                if ao != bo || ak != bk || ap != bp || a.data.len() != b.data.len() {
                     return Ok(false);
                 }
                 for (a, b) in a.data.iter().zip(&b.data) {
