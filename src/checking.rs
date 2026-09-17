@@ -17,6 +17,7 @@ mod pending;
 mod relation;
 mod scalar;
 mod slots;
+mod type_bindings;
 mod widening;
 
 #[cfg(test)]
@@ -115,3 +116,6 @@ mod substitution_tests;
 
 #[cfg(test)]
 mod dispatch_tests;
+
+#[cfg(test)]
+mod type_binding_tests;

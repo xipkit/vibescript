@@ -91,6 +91,16 @@ impl Host {
         facts: &mut Facts,
         signature: Option<&crate::signature::Compiled>,
     ) -> Result<Self> {
+        Self::resolved(ctx, facts, signature, |_, _| Ok(None))
+    }
+
+    /// Builds host type facts against an explicitly supplied binding snapshot.
+    pub fn resolved(
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        signature: Option<&crate::signature::Compiled>,
+        mut resolve: impl FnMut(&mut CallContext, &str) -> Result<Option<Fact>>,
+    ) -> Result<Self> {
         ctx.checkpoint()?;
         let mut host = Self {
             params: Buffer::empty(),
@@ -105,13 +115,13 @@ impl Host {
                 ctx.charge(1)?;
                 let fact = param
                     .as_ref()
-                    .map(|ty| facts.annotation(ctx, ty, |_, _| Ok(None)))
+                    .map(|ty| facts.annotation(ctx, ty, &mut resolve))
                     .transpose()?;
                 host.unresolved |= fact.is_some_and(|fact| facts.unresolved(fact));
                 host.params.push(ctx, fact)?;
             }
             if let Some(ty) = &signature.result {
-                host.result = facts.annotation(ctx, ty, |_, _| Ok(None))?;
+                host.result = facts.annotation(ctx, ty, &mut resolve)?;
             }
             host.unresolved |= facts.unresolved(host.result);
         }

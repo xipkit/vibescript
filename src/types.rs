@@ -6,6 +6,20 @@ mod diagnostics;
 pub(crate) use diagnostics::Context;
 pub(crate) use diagnostics::host_resolution;
 
+/// Compares nominal binding spellings using the runtime's exact or folded lookup.
+pub(crate) fn binding_name_matches(
+    ctx: &mut CallContext,
+    candidate: &[u8],
+    binding: &[u8],
+    fold: bool,
+) -> Result<bool> {
+    if fold {
+        crate::text::case::equal(ctx, candidate, binding)
+    } else {
+        Ok(crate::enums::compare_names(ctx, candidate, binding)? == std::cmp::Ordering::Equal)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Scalar {
     Any,

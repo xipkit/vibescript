@@ -3296,14 +3296,7 @@ fn type_name_matches(
     binding: &str,
     fold: bool,
 ) -> Result<bool> {
-    if fold {
-        crate::text::case::equal(ctx, candidate.as_bytes(), binding.as_bytes())
-    } else {
-        Ok(
-            crate::enums::compare_names(ctx, candidate.as_bytes(), binding.as_bytes())?
-                == std::cmp::Ordering::Equal,
-        )
-    }
+    crate::types::binding_name_matches(ctx, candidate.as_bytes(), binding.as_bytes(), fold)
 }
 
 fn type_candidate(
