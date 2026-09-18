@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. `check_function` analyzes a named function using its declared parameter types and optional defaults without concrete arguments. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. Whole-file checking remains unfinished. The CLI exposes exact-call analysis through `--check` and guarded execution through `--checked`. Ordinary calls retain their runtime contracts.
+Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. `check_function` analyzes a named function or method using its declared parameter types and optional defaults without concrete arguments. `check` analyzes the top-level statements and all effective function and method declarations. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. The CLI exposes these scopes through `vibes check [--function NAME] FILE`, exact-call analysis through the flat `--check` flag and guarded execution through `--checked`. Ordinary calls retain their runtime contracts.
 
 ## Type facts
 
@@ -108,7 +108,7 @@ Handler state, saved outcomes, work queues, call contexts and error-value facts 
 
 Eighteen focused tests cover 225 combinations of errors, returns, loop exits and cleanup, plus scope, retry, call summaries, inherited rethrows, saved predicates, receiver preservation and host-effect isolation. Exact quotas, sampled allocation failures, reclamation, cancellation and deadlines are checked. An out-of-range float-index regression first demonstrated a missing rescue path before its correction. Three previously incomplete syntax fixtures now have runtime witnesses; tests still retain reachable unmodeled handler bodies as incomplete.
 
-The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, block/nonlocal-call contexts, general dispatch and whole-file checking remain unfinished. Known error-object protection is modeled as described below.
+The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, general dispatch and required-file checking need further work; later sections describe the implemented block and whole-file scopes. Known error-object protection is modeled as described below.
 
 ## Builtins and type literals
 
@@ -162,7 +162,7 @@ Native namespace reads, supported collection callbacks and hash mutators use the
 
 Pending calls with different targets and pending addresses with different roots or paths remain separate until they can be joined safely. Forwarded reads keep their selected receiver while mutators observe their live address. Chained writes retain the documented [addressable field rules](value-helpers.md): `h.clone.clear` can update a stored field, while `h.clone().clear` uses a temporary copy. Analysis does not execute host callbacks or factories.
 
-The executed witnesses cover overrides, conditional fields, argument ordering, direct and forwarded mutations, callback control transfers, computed descriptors, object/plain-hash output distinctions, protected replacement, and retained nested writes. Exact and sampled work/memory limits, allocation cleanup, cancellation and deadlines exercise the same paths. Remaining hash helpers, mutable host/root bindings, differing live type identities, class/module initialization and dispatch, required-file and host effects, whole-file checking and CLI gates, native async callbacks, compiler allocation accounting and platform validation remain part of the full-language goal.
+The executed witnesses cover overrides, conditional fields, argument ordering, direct and forwarded mutations, callback control transfers, computed descriptors, object/plain-hash output distinctions, protected replacement, and retained nested writes. Exact and sampled work/memory limits, allocation cleanup, cancellation and deadlines exercise the same paths. Remaining hash helpers, mutable host/root bindings, differing live type identities, class/module initialization and dispatch, required-file and host effects, native async callbacks, compiler allocation accounting and platform validation remain part of the full-language goal. Whole-file checking and CLI scopes are described below.
 
 ## Host block schedules
 
@@ -222,7 +222,7 @@ Each diagnostic includes its containing function, optional filename, byte offset
 
 Report construction, sorting, source lookup and retained message storage are metered. Dropping analysis releases its facts and callable metadata; retaining a report retains no compiled code, input values or callbacks. Eighteen public test families cover input binding, source locations, effect-free rejection, gradual values, ordinary execution errors, grants, control transfers, raw bytes, strict validation, lazy globals, namespace methods and initialization, constructors, operators, forwarding, and exact or sampled quotas. Two internal report tests exercise deep/shared descriptions, larger diagnostic sorts and allocation cleanup. Unsupported paths, including integer `chr`, remain explicit and cannot be approved by the gate.
 
-The [CLI](cli.md) exposes exact-call analysis through `--check --function NAME` and guarded execution through `--checked --function NAME`, with positional and keyword JSON inputs. Known contradictions and incomplete analysis produce separate diagnostics and a nonzero exit before script output. These modes do not perform whole-file checking.
+The [CLI](cli.md) exposes exact-call analysis through `--check --function NAME` and guarded execution through `--checked --function NAME`, with positional and keyword JSON inputs. Known contradictions and incomplete analysis produce separate diagnostics and a nonzero exit before script output. These flat flags retain exact-call scope. `vibes check FILE` performs whole-file checking, and `vibes check --function NAME FILE` checks one declaration without supplied values.
 
 ## Namespace initialization, methods and state
 
@@ -272,11 +272,11 @@ Named types resolve against the live bindings after namespace initialization and
 
 Selecting `__main__` checks the top-level entrypoint and whatever it reaches. Module and class bodies initialize where their declarations occur in the source; named calls retain their initialization prelude. Top-level argument errors occur before source initializers. Checked execution rejects contradictions and unfinished analysis before effects. Generalized class inputs retain their source methods and property contracts. Some generalized collection operations remain explicitly incomplete.
 
-Neither scope checks every unused function or class method. Whole-file aggregation and general-function CLI selection remain pending; the existing CLI modes still use exact-call checking.
+Neither named-function nor top-level-entrypoint selection checks every unused function or class method. Use `Script::check` or `vibes check FILE` for whole-file aggregation. `vibes check --function NAME FILE` selects the general declaration scope.
 
 ## General methods and class inputs
 
-`Script::check_function` also selects declarations with `Class#method`, `Namespace.method` and `Class.new`, including nested module names such as `Outer::Inner.method`. Private methods can be checked directly, and overridden definitions are excluded. These selectors belong to the checking API; they do not add callable names to `Script::call` or the current CLI. Constructor checking ignores an initializer return annotation as construction does; selecting `Class#initialize` checks an ordinary invocation and enforces that annotation.
+`Script::check_function` also selects declarations with `Class#method`, `Namespace.method` and `Class.new`, including nested module names such as `Outer::Inner.method`. Private methods can be checked directly, and overridden definitions are excluded. These method and constructor selectors belong to the checking API and `vibes check --function`; they do not add callable names to `Script::call` or the flat CLI invocation forms. Constructor checking ignores an initializer return annotation as construction does; selecting `Class#initialize` checks an ordinary invocation and enforces that annotation.
 
 A method begins with symbolic receiver state rather than running a constructor to learn its fields. Effective property contracts constrain declared fields, while unwritten instance variables can still be nil and untyped fields remain gradual. Same-source class parameters retain method dispatch through nullable types, shapes and collections. Separate inputs may refer to the same object, so writes retain effects on possible aliases; newly constructed objects stay distinct from incoming objects. Collection elements represent multiple possible objects and use conservative updates. Direct field mutations retain pending targets through calls, negative indices and replacement, while collection getters continue to return value snapshots.
 
@@ -300,7 +300,7 @@ Each callable declaration is analyzed with an incoming block absent and present.
 
 Whole-file instance domains use constructor analysis to distinguish initialized properties from fields that a successful constructor can leave unset. This includes parameter binding, helper calls, conditional assignments, early returns, blocks and cleanup. Constructor analysis does not execute callbacks or writers. Existing class inputs remain gradual during constructor summaries, preventing a copy constructor from assuming its own output or inventing an unset field. Standalone `check_function` retains its existing conservative receiver domains; changing allocation counts and unsupported field relationships still produce incomplete analysis.
 
-Whole-file checking does not make the runtime statically typed or eliminate dynamic failures. Required-file environments, remaining helper and collection dispatch, and the other limits below still apply. The CLI currently exposes exact-call checking only.
+Whole-file checking does not make the runtime statically typed or eliminate dynamic failures. Required-file environments, remaining helper and collection dispatch, and the other limits below still apply. The CLI exposes this scope as `vibes check FILE`, with `vibes check --function NAME FILE` selecting general declaration checking. Both commands reject concrete argument flags before reading the source and preserve separate error and incomplete report entries. Step and memory limits, deadlines and analysis counters use the public checking context. The execution call-depth setting is accepted, but recursive analysis uses summaries under the work and memory budgets rather than execution frames.
 
 ## Remaining integration
 
@@ -311,7 +311,6 @@ Completion still requires:
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
-- Whole-file and general-function CLI selection. Whole-file, general reachable-function and exact-call library checking, exact-call CLI modes, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 
 The full-language goal remains active. The exact-call gate does not complete ADR-004 or the remaining runtime and platform work.

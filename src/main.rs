@@ -8,8 +8,8 @@ fn main() -> ExitCode {
         Err(failure) => return report(failure),
     };
     let result = match command {
-        cli::Command::Help => {
-            print!("{}", cli::HELP);
+        cli::Command::Help(text) => {
+            print!("{text}");
             Ok(())
         }
         cli::Command::Version => {
@@ -17,6 +17,7 @@ fn main() -> ExitCode {
             Ok(())
         }
         cli::Command::Run(invocation) => cli::run(*invocation),
+        cli::Command::Check(analysis) => cli::check(*analysis),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
