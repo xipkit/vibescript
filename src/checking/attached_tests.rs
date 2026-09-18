@@ -39,7 +39,32 @@ pub(super) fn admitted<'a>(
     hosts: &mut Buffer<Host<'a>>,
     value: &'a Value,
 ) -> Result<Fact> {
+    ctx.charge(1)?;
     Ok(match &value.0 {
+        Kind::Nil => Atom::Nil.fact(),
+        Kind::Int(value) => facts.integer(ctx, *value)?,
+        Kind::Big(_) => Atom::Int.fact(),
+        Kind::Float(_) => Atom::Float.fact(),
+        Kind::Regex(_) => Atom::Regex.fact(),
+        Kind::Bool(value) => facts.boolean(ctx, *value)?,
+        Kind::Bytes(value) => facts.string(ctx, &value.data)?,
+        Kind::Symbol(value) => facts.symbol(ctx, &value.data)?,
+        Kind::Builtin(value) => facts.builtin(ctx, *value)?,
+        Kind::Offset(_) => {
+            let value = facts.nullable(ctx, Atom::Int.fact())?;
+            let values = facts.array(ctx, value)?;
+            facts.offset(ctx, values)?
+        }
+        Kind::Time(_) | Kind::Zoned(_) => Atom::Time.fact(),
+        Kind::Duration(_) => Atom::Duration.fact(),
+        Kind::Money(_) => Atom::Money.fact(),
+        Kind::Range(_) => Atom::Range.fact(),
+        Kind::Enum(_) => facts.enumeration(ctx, value)?,
+        Kind::EnumMember(value) => {
+            let enumeration = Value(Kind::Enum(value.enumeration.clone()));
+            let enumeration = facts.enumeration(ctx, &enumeration)?;
+            facts.enum_member(ctx, enumeration, value.index)?
+        }
         Kind::Host(method) => {
             let index = hosts.data.len();
             let host = Host::new(ctx, facts, method.signature())?;
@@ -76,7 +101,7 @@ pub(super) fn admitted<'a>(
                     },
                 )?;
             }
-            facts.shape_fields(
+            let shape = facts.shape_fields(
                 ctx,
                 fields,
                 false,
@@ -86,9 +111,14 @@ pub(super) fn admitted<'a>(
                 } else {
                     HashKind::Plain
                 },
-            )?
+            )?;
+            if hash.tag.protected() {
+                facts.protected(ctx, shape, hash.tag)?
+            } else {
+                shape
+            }
         }
-        _ => observed(ctx, facts, program, value),
+        _ => panic!("unsupported admitted test value"),
     })
 }
 

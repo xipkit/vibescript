@@ -56,6 +56,10 @@ pub(super) enum Failure {
     HostArity,
     HostKeywords,
     HostBlock,
+    HostResult {
+        actual: Fact,
+        expected: Fact,
+    },
     HostTypeBinding {
         parameter: Option<usize>,
         expected: Fact,
@@ -91,6 +95,31 @@ pub(super) struct Bound {
 }
 
 impl Arguments {
+    /// Rejects detached methods before entering a script or host body.
+    pub fn admit(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        failures: &mut Buffer<Failure>,
+    ) -> Result<bool> {
+        for value in self.positional.data.iter_mut().chain(
+            self.keywords
+                .data
+                .iter_mut()
+                .map(|keyword| &mut keyword.value),
+        ) {
+            ctx.charge(1)?;
+            if facts.escapes(*value) {
+                failures.push(ctx, Failure::DetachedValue(*value))?;
+                *value = facts.exported(ctx, *value)?;
+                if *value == Atom::Never.fact() {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub fn new() -> Self {
         Self {
             positional: Buffer::empty(),

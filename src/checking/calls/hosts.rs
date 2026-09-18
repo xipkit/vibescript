@@ -46,11 +46,34 @@ impl Solver<'_> {
         globals: &Globals,
         outcome: &mut Outcome,
     ) -> Result<()> {
+        self.host_arguments(ctx, facts, index, args, globals, outcome)?;
+        if outcome.incomplete || outcome.value == Atom::Never.fact() {
+            return Ok(());
+        }
+        outcome.value = Atom::Never.fact();
+        if args.block.is_some() {
+            outcome.incomplete = true;
+            return Ok(());
+        }
+        self.host_result(ctx, facts, index, None, globals, outcome)
+    }
+
+    pub(super) fn host_arguments(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+        args: &Arguments,
+        globals: &Globals,
+        outcome: &mut Outcome,
+    ) -> Result<()> {
         ctx.checkpoint()?;
         let Some(host) = self.world.hosts.get(index) else {
             outcome.incomplete = true;
             return Ok(());
         };
+        // Opaque argument validators run before the declarative signature checks.
+        outcome.throws = u8::MAX;
         if host.constrained {
             let failure = if args.positional.data.len() < host.required
                 || args.positional.data.len() > host.params.data.len()
@@ -107,20 +130,73 @@ impl Solver<'_> {
                         expected,
                     },
                 )?;
-                return Ok(());
+                if !facts.overlaps(ctx, actual, expected)? {
+                    return Ok(());
+                }
             }
         }
-        if args.block.is_some() {
+        outcome.value = Atom::Nil.fact();
+        Ok(())
+    }
+
+    pub(super) fn host_result(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+        actual: Option<Fact>,
+        globals: &Globals,
+        outcome: &mut Outcome,
+    ) -> Result<()> {
+        ctx.checkpoint()?;
+        let Some(host) = self.world.hosts.get(index) else {
+            outcome.incomplete = true;
+            return Ok(());
+        };
+        if host.unresolved && host.source.is_none() {
             outcome.incomplete = true;
             return Ok(());
         }
-        // Callback failures precede the result contract and remain possible even
-        // when a successful callback would encounter a missing result type.
-        outcome.throws = u8::MAX;
+        let environment = if facts.unresolved(host.result) {
+            Some(self.host_environment(ctx, facts, globals)?)
+        } else {
+            None
+        };
+        let host = &self.world.hosts[index];
+        // A sticky break supplies its own result; the callback cannot replace it
+        // or raise a different error after the transfer.
+        if actual.is_none() {
+            outcome.throws = u8::MAX;
+        }
         if let Some(result) =
             host.contract(ctx, facts, environment.as_ref(), None, host.result, outcome)?
         {
-            outcome.value = facts.value_domain(ctx, result)?;
+            outcome.value = if let Some(actual) = actual {
+                let relation = facts.relation(ctx, actual, result)?;
+                if relation != Relation::Accepted {
+                    outcome.throws |= 1 << crate::ErrorClass::Runtime as u8;
+                }
+                if relation == Relation::Rejected {
+                    outcome.failures.push(
+                        ctx,
+                        Failure::HostResult {
+                            actual,
+                            expected: result,
+                        },
+                    )?;
+                }
+                if result == Atom::Unknown.fact() {
+                    actual
+                } else {
+                    facts.normalized(ctx, actual, result)?
+                }
+            } else {
+                facts.value_domain(ctx, result)?
+            };
+            if outcome.value != Atom::Never.fact() {
+                // Custom result validators are opaque and may reject a valid value.
+                outcome.throws = u8::MAX;
+            }
         }
         Ok(())
     }

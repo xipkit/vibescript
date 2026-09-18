@@ -474,7 +474,7 @@ fn host_arity_keywords_and_block_guards_precede_type_resolution() {
 }
 
 #[test]
-fn unknown_host_type_environments_and_valid_host_blocks_stay_incomplete() {
+fn unknown_host_type_environments_stay_incomplete() {
     for (source, ty, accepts_block, inputs) in [
         (
             "def run(flag); Math=if flag; Status; else; Review; end; echo(:draft); end",
@@ -486,12 +486,6 @@ fn unknown_host_type_environments_and_valid_host_blocks_stay_incomplete() {
             "module Box; echo(:draft); State=Status; end; def run; echo(:draft); end",
             "Box.State",
             false,
-            vec![],
-        ),
-        (
-            "def run; echo(:draft) { count=99 }; end",
-            "Status",
-            true,
             vec![],
         ),
     ] {
@@ -553,14 +547,7 @@ fn host_type_failures_identify_the_first_boundary_and_keep_callback_errors() {
         assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
         assert_eq!(report.returns, Atom::Never.fact());
         assert_eq!(report.contexts, 1);
-        assert_eq!(
-            report.throws,
-            if callback {
-                u8::MAX
-            } else {
-                1 << crate::ErrorClass::Runtime as u8
-            }
-        );
+        assert_eq!(report.throws, u8::MAX);
         assert_eq!(report.issues.data.len(), 1, "{source}: {report:?}");
         assert!(
             matches!(report.issues.data[0].issue.kind, IssueKind::Call { failure: Failure::HostTypeBinding { parameter, ambiguous: actual, .. }, .. } if parameter == expected_parameter && actual == ambiguous)

@@ -26,6 +26,7 @@ mod collection_blocks;
 mod effects;
 mod globals;
 mod handlers;
+mod host_blocks;
 mod member_addresses;
 mod native;
 mod roots;
@@ -919,6 +920,12 @@ impl Walker<'_> {
         target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if let Target::Host(index) = target {
+            if args.block.is_some() {
+                self.host_block(state, pc, index, args)?;
+                return Ok(Some([None, None]));
+            }
+        }
         if target == Target::Builtin(crate::builtin::Builtin::Loop) {
             self.native_loop(state, pc, args)?;
             return Ok(Some([None, None]));
@@ -974,31 +981,7 @@ impl Walker<'_> {
                     .invoke(self.ctx, self.facts, target, args, current_error, &globals)?
             }
         };
-        let mut classes = result.throws;
-        for failure in result.failures.data {
-            classes |= handlers::bit(match failure {
-                Failure::Type { .. }
-                | Failure::DetachedValue(_)
-                | Failure::NonCallable
-                | Failure::Undefined
-                | Failure::HostArity
-                | Failure::HostKeywords
-                | Failure::HostBlock
-                | Failure::HostTypeBinding { .. }
-                | Failure::BuiltinArity
-                | Failure::BuiltinBlock
-                | Failure::BuiltinKeywords
-                | Failure::BuiltinKeyword(_)
-                | Failure::BuiltinKeywordType { .. }
-                | Failure::BuiltinValue
-                | Failure::TypeLiteral(_)
-                | Failure::BuiltinDomain(_)
-                | Failure::JsonValue(_) => ErrorClass::Runtime,
-                _ => ErrorClass::Argument,
-            });
-            self.issue(pc, IssueKind::Call { target, failure })?;
-        }
-        self.emit_error(state, pc, classes)?;
+        self.call_effects(state, pc, target, &result)?;
         if result.incomplete {
             return self.incomplete(pc).map(Some);
         }
@@ -1018,6 +1001,42 @@ impl Walker<'_> {
         }
         state.stack.push(self.ctx, Operand::new(result.value))?;
         Ok(None)
+    }
+
+    fn call_effects(
+        &mut self,
+        state: &State,
+        pc: usize,
+        target: Target,
+        result: &super::calls::Outcome,
+    ) -> Result<()> {
+        let mut classes = result.throws;
+        for &failure in &result.failures.data {
+            self.ctx.charge(1)?;
+            classes |= handlers::bit(match failure {
+                Failure::Type { .. }
+                | Failure::DetachedValue(_)
+                | Failure::NonCallable
+                | Failure::Undefined
+                | Failure::HostArity
+                | Failure::HostKeywords
+                | Failure::HostBlock
+                | Failure::HostResult { .. }
+                | Failure::HostTypeBinding { .. }
+                | Failure::BuiltinArity
+                | Failure::BuiltinBlock
+                | Failure::BuiltinKeywords
+                | Failure::BuiltinKeyword(_)
+                | Failure::BuiltinKeywordType { .. }
+                | Failure::BuiltinValue
+                | Failure::TypeLiteral(_)
+                | Failure::BuiltinDomain(_)
+                | Failure::JsonValue(_) => ErrorClass::Runtime,
+                _ => ErrorClass::Argument,
+            });
+            self.issue(pc, IssueKind::Call { target, failure })?;
+        }
+        self.emit_error(state, pc, classes)
     }
 
     fn target(&mut self, state: &State, slot: usize, name: usize) -> Result<Target> {

@@ -37,7 +37,40 @@ pub(super) struct Outcome {
     pub exits: Buffer<blocks::Exit>,
 }
 
+pub(super) enum HostBoundary<'a> {
+    Arguments(&'a Arguments),
+    Result(Option<Fact>),
+}
+
+impl Outcome {
+    /// Creates a call summary with no known exits or diagnostics.
+    pub fn empty() -> Self {
+        Self {
+            value: Atom::Never.fact(),
+            throws: 0,
+            failures: Buffer::empty(),
+            incomplete: false,
+            exits: Buffer::empty(),
+        }
+    }
+}
+
 pub(super) trait Calls {
+    /// Checks one host boundary without invoking callbacks or attached blocks.
+    fn host_boundary(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: usize,
+        _: HostBoundary<'_>,
+        _: &Globals,
+    ) -> Result<Outcome> {
+        ctx.checkpoint()?;
+        Ok(Outcome {
+            incomplete: true,
+            ..Outcome::empty()
+        })
+    }
     /// Copies admitted root facts without evaluating host code.
     fn roots(&mut self, ctx: &mut CallContext, _: &mut Facts) -> Result<Buffer<Root>> {
         ctx.checkpoint()?;
@@ -665,6 +698,26 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn host_boundary(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+        boundary: HostBoundary<'_>,
+        globals: &Globals,
+    ) -> Result<Outcome> {
+        let mut outcome = Outcome::empty();
+        match boundary {
+            HostBoundary::Arguments(args) => {
+                self.host_arguments(ctx, facts, index, args, globals, &mut outcome)?
+            }
+            HostBoundary::Result(value) => {
+                self.host_result(ctx, facts, index, value, globals, &mut outcome)?
+            }
+        }
+        Ok(outcome)
+    }
+
     fn roots(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<Buffer<Root>> {
         let mut roots = Buffer::empty();
         for (name, target) in self.world.globals {
@@ -796,20 +849,8 @@ impl Calls for Solver<'_> {
             incomplete: false,
             exits: Buffer::empty(),
         };
-        for value in args.positional.data.iter_mut().chain(
-            args.keywords
-                .data
-                .iter_mut()
-                .map(|keyword| &mut keyword.value),
-        ) {
-            ctx.charge(1)?;
-            if facts.escapes(*value) {
-                outcome.failures.push(ctx, Failure::DetachedValue(*value))?;
-                *value = facts.exported(ctx, *value)?;
-                if *value == Atom::Never.fact() {
-                    return Ok(outcome);
-                }
-            }
+        if !args.admit(ctx, facts, &mut outcome.failures)? {
+            return Ok(outcome);
         }
         if args.block.is_some()
             && !matches!(
