@@ -22,6 +22,19 @@ pub(super) struct Call<'a> {
 pub(super) struct Check {
     pub facts: Facts,
     pub analysis: Analysis,
+    pub entry: bool,
+    pub pending: Option<Pending>,
+}
+
+pub(super) enum Pending {
+    Message(&'static str),
+    Capability(Value),
+}
+
+impl From<&'static str> for Pending {
+    fn from(message: &'static str) -> Self {
+        Self::Message(message)
+    }
 }
 
 impl std::fmt::Debug for Check {
@@ -46,9 +59,14 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
     let environment = Environment::new(ctx, &mut facts, call.script, call.options)?;
     for reason in &environment.incomplete.data {
         ctx.charge(1)?;
-        if matches!(reason, Incomplete::Capability(_) | Incomplete::File) {
-            return unfinished(ctx, facts, function);
-        }
+        let message = match reason {
+            Incomplete::Capability(name) => Pending::Capability(name.clone()),
+            Incomplete::File => {
+                Pending::Message("Required-file environment analysis is not implemented")
+            }
+            Incomplete::Initializer(_) => continue,
+        };
+        return unfinished(ctx, facts, function, message);
     }
     let world = environment.world();
     let mut values = Values::new();
@@ -56,7 +74,12 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
     for value in call.arguments {
         let value = values.argument(ctx, &mut facts, &world, value)?;
         if value.incomplete {
-            return unfinished(ctx, facts, function);
+            return unfinished(
+                ctx,
+                facts,
+                function,
+                "Analysis of this argument is not implemented",
+            );
         }
         if facts.escapes(value.value) {
             return detached(ctx, facts, function, value.value);
@@ -67,15 +90,25 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
         let name = facts.symbol(ctx, name.as_bytes())?;
         let value = values.argument(ctx, &mut facts, &world, value)?;
         if value.incomplete {
-            return unfinished(ctx, facts, function);
+            return unfinished(
+                ctx,
+                facts,
+                function,
+                "Analysis of this keyword argument is not implemented",
+            );
         }
         if facts.escapes(value.value) {
             return detached(ctx, facts, function, value.value);
         }
         args.keyword(ctx, name, value.value)?;
     }
-    if !environment.incomplete.data.is_empty() {
-        return unfinished(ctx, facts, function);
+    if let Some(Incomplete::Initializer(initializer)) = environment.incomplete.data.first() {
+        return unfinished(
+            ctx,
+            facts,
+            *initializer,
+            "Namespace initialization analysis is not implemented",
+        );
     }
     let bound = args.bind_host(ctx, &mut facts, &program.functions[function].params)?;
     if !bound.failures.data.is_empty() {
@@ -96,27 +129,50 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
                 },
             )?;
         }
-        return Ok(Check { facts, analysis });
+        return Ok(Check {
+            facts,
+            analysis,
+            entry: true,
+            pending: None,
+        });
     }
     let analysis =
         calls::analyze_with_values(ctx, &mut facts, world, function, &bound.inputs.data, values)?;
-    Ok(Check { facts, analysis })
+    Ok(Check {
+        facts,
+        analysis,
+        entry: false,
+        pending: None,
+    })
 }
 
-fn empty(returns: Fact, throws: u8) -> Analysis {
+fn empty(_returns: Fact, _throws: u8) -> Analysis {
     Analysis {
-        returns,
-        throws,
+        #[cfg(test)]
+        returns: _returns,
+        #[cfg(test)]
+        throws: _throws,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
+        #[cfg(test)]
         contexts: 0,
     }
 }
 
-fn unfinished(ctx: &mut CallContext, facts: Facts, function: usize) -> Result<Check> {
+fn unfinished(
+    ctx: &mut CallContext,
+    facts: Facts,
+    function: usize,
+    message: impl Into<Pending>,
+) -> Result<Check> {
     let mut analysis = empty(Atom::Unknown.fact(), u8::MAX);
     analysis.incomplete.push(ctx, (function, 0))?;
-    Ok(Check { facts, analysis })
+    Ok(Check {
+        facts,
+        analysis,
+        entry: true,
+        pending: Some(message.into()),
+    })
 }
 
 fn detached(ctx: &mut CallContext, facts: Facts, function: usize, value: Fact) -> Result<Check> {
@@ -131,5 +187,10 @@ fn detached(ctx: &mut CallContext, facts: Facts, function: usize, value: Fact) -
             },
         },
     )?;
-    Ok(Check { facts, analysis })
+    Ok(Check {
+        facts,
+        analysis,
+        entry: true,
+        pending: None,
+    })
 }

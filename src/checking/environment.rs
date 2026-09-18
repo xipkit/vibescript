@@ -1,6 +1,10 @@
+#[cfg(test)]
 use super::{
     arguments::Input,
-    calls::{self, Analysis, Host, Target, World},
+    calls::{self, Analysis},
+};
+use super::{
+    calls::{Host, Target, World},
     facts::{Atom, Fact, Facts},
 };
 use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer};
@@ -101,6 +105,7 @@ impl<'a> Environment<'a> {
     }
 
     /// Analyzes a prepared entry only when its initialization and input scope are modeled.
+    #[cfg(test)]
     pub fn analyze(
         &self,
         ctx: &mut CallContext,

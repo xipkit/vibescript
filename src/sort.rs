@@ -74,7 +74,6 @@ pub(crate) struct Sort {
 }
 
 impl Sort {
-    #[cfg(test)]
     pub(crate) fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         ctx.charge(1)?;
         let mut tasks = Buffer::empty();
@@ -88,7 +87,6 @@ impl Sort {
         })
     }
 
-    #[cfg(test)]
     pub(crate) fn fingerprint(&self, ctx: &mut CallContext) -> Result<u64> {
         use std::hash::{Hash, Hasher};
         ctx.charge(1 + self.tasks.data.len() as u64)?;
@@ -98,7 +96,6 @@ impl Sort {
         Ok(hasher.finish())
     }
 
-    #[cfg(test)]
     pub(crate) fn same(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge(1)?;
         if (self.len, self.base, self.width, self.inserting)

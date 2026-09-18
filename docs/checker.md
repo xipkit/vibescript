@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-The checker is unfinished. Its type-fact store, boundary relations, control-flow walker, function-call analysis, collection inference, exception flow and core builtin analysis currently compile only in unit-test builds. There is no public checking API or checked-execution gate yet. Ordinary scripts retain their existing runtime type contracts.
+Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. Whole-file checking, general function checks and CLI gates are not implemented. Ordinary calls retain their runtime contracts.
 
 ## Type facts
 
@@ -20,7 +20,7 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The implementation remains private until all required paths have analysis and public gates can enforce that distinction.
+The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
 
 ## Function calls
 
@@ -60,7 +60,7 @@ Independent mutation inference now separates an operation's updated receiver fro
 
 Dynamic hash writes retain ordinary-data provenance separately from structural contracts, including through generalized hashes and subsequent reads. Protected or overridden object mutation remains explicitly incomplete. Deletion uses exact value facts where equality is known; sharing an abstract type fact never proves shared runtime storage. Known invalid alternatives survive joins with unknown inputs.
 
-Twelve unit tests cover 5,580 mutation and indexed-write cases against runtime outcomes, exact receiver/result facts, snapshots, optional fields, generalized collections, large windows, quotas, failed-allocation cleanup and cancellation. These are inference tests, separate from the addressed-flow and Go fixtures below. Property guards and public checking remain unfinished.
+Twelve unit tests cover 5,580 mutation and indexed-write cases against runtime outcomes, exact receiver/result facts, snapshots, optional fields, generalized collections, large windows, quotas, failed-allocation cleanup and cancellation. These are inference tests, separate from the addressed-flow and Go fixtures below. Property guards remain unfinished.
 
 ## Addressed mutation and collection loops
 
@@ -70,7 +70,7 @@ Mutation results remain distinct from updated receivers, including popped values
 
 Backward control-flow edges widen growing collection facts until they converge. Equal-length tuples retain positions; differently sized tuples become general element facts. Hash joins retain optional fields and ordinary-data provenance. Recursive collection growth becomes gradual beyond the fact depth present at the first backward join, including inputs and declared contracts. The work queue, widening memo and temporary buffers are metered and use the default Rust stack. Runtime limits are unchanged.
 
-Precision is still limited: generalizing differently sized arrays loses prefix positions and minimum lengths, and uncertain attachment can include impossible combinations. These can produce conservative diagnostics for safe programs. The checker remains private while these limits and the other integration requirements are addressed.
+Precision is still limited: generalizing differently sized arrays loses prefix positions and minimum lengths, and uncertain attachment can include impossible combinations. These can produce conservative diagnostics for safe programs. The public report exposes these conservative diagnostics; the precision limits remain to be addressed.
 
 Nine addressed-flow tests compare 268 parent-mutation executions, twelve branch/result executions and ten selected-position witnesses with inferred results. They also cover exact quotas, sampled allocation-failure boundaries, cleanup and cancellation. Six widening tests cover recursive growth, optional hash fields, preserved scalar contradictions, shared 2,000-level facts, quotas and the default stack. The reference corpus contains 66 Go v0.70.0 decisions: fifteen differences diagnose runtime-invalid code that Go accepts, while two reflect Go's separate temporary-update lint warnings. All seventeen have Rust runtime witnesses. These checks do not establish a public deployment gate.
 
@@ -94,7 +94,7 @@ Short-circuit flow keeps at most three truth partitions for each compatible hand
 
 Fourteen focused tests include 816 runtime matcher comparisons, checking the actual branch against literal, general-kind, unknown and `any` inputs. Further witnesses cover reassignment, pending writes and calls, nested loop exits, targetless conditions, short circuits and unrelated boolean values. Exact quotas, sampled allocation failures, cleanup, cancellation and deep shared facts run under normal limits on the default Rust stack. The signed-zero regression first reproduced a discarded valid branch before the fix.
 
-The [case reference corpus](../tests/checker-case.json) retains 53 Go v0.70.0 checker decisions with 29 explained differences, each supported by a Rust execution witness. Known impossible or matched branches avoid spurious warnings; invalid splats, open-ended iteration and incompatible result kinds remain diagnosed. Copy correlations and structural numeric matches can still produce conservative results. This is private analysis; public checking and diagnostic sorting/deduplication remain unfinished.
+The [case reference corpus](../tests/checker-case.json) retains 53 Go v0.70.0 checker decisions with 29 explained differences, each supported by a Rust execution witness. Known impossible or matched branches avoid spurious warnings; invalid splats, open-ended iteration and incompatible result kinds remain diagnosed. Copy correlations and structural numeric matches can still produce conservative results. The public exact-call report sorts and deduplicates these diagnostics.
 
 ## Exceptions and cleanup
 
@@ -108,11 +108,11 @@ Handler state, saved outcomes, work queues, call contexts and error-value facts 
 
 Eighteen focused tests cover 225 combinations of errors, returns, loop exits and cleanup, plus scope, retry, call summaries, inherited rethrows, saved predicates, receiver preservation and host-effect isolation. Exact quotas, sampled allocation failures, reclamation, cancellation and deadlines are checked. An out-of-range float-index regression first demonstrated a missing rescue path before its correction. Three previously incomplete syntax fixtures now have runtime witnesses; tests still retain reachable unmodeled handler bodies as incomplete.
 
-The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, block/nonlocal-call contexts, general dispatch and public checking remain unfinished. Known error-object protection is modeled as described below.
+The [exception reference corpus](../tests/checker-exceptions.json) records 43 Go v0.70.0 checker decisions with five explained differences and Rust execution witnesses. One avoids an unreachable rescue after a callee returns from ensure; four retain known-invalid operation diagnostics that Go omits. This remains gradual analysis: generalized native inputs can conservatively reach extra error paths, and invalid typed returns can retain provisional success facts alongside their diagnostics. Precise error-message values, block/nonlocal-call contexts, general dispatch and whole-file checking remain unfinished. Known error-object protection is modeled as described below.
 
 ## Builtins and type literals
 
-The private checker resolves `JSON.parse`, `JSON.parse_as`, `JSON.stringify`, `to_int`, `to_float`, Math functions, `Hash.new` and `assert`. JSON parsing without validation remains gradual; `parse_as` carries the declared contract through local bindings, collection lookups and script calls. Type literals are distinct from the values they describe, retain metered metadata, and follow the runtime's binding guards instead of treating a shadowed name as a builtin type.
+The checker resolves `JSON.parse`, `JSON.parse_as`, `JSON.stringify`, `to_int`, `to_float`, Math functions, `Hash.new` and `assert`. JSON parsing without validation remains gradual; `parse_as` carries the declared contract through local bindings, collection lookups and script calls. Type literals are distinct from the values they describe, retain metered metadata, and follow the runtime's binding guards instead of treating a shadowed name as a builtin type.
 
 Builtin namespaces use the compiler's existing member metadata. Direct, scoped, fixed-splat, computed-member and immediate indexed calls preserve receiver selection before arguments run. Host signatures and root overrides retain precedence, and checking never runs callbacks, validators, parsers, serializers or script effects. Namespace value reads, supported introspection and ordinary-error summaries feed the existing flow walker. Known invalid argument types, literal numeric domains, missing members and non-callable fields remain diagnostics even when rescued. A JSON graph with entirely known encodable values does not create an ordinary-error path; uncertain data can still fail at runtime.
 
@@ -120,7 +120,7 @@ Nineteen focused tests include 160 runtime comparisons covering numeric domains,
 
 The comparison also exposed a runtime argument mismatch: `JSON.parse` accepted symbols through a shared string/symbol byte accessor. It now requires strings as documented and as Go does. Direct, scoped, computed-member, indexed and forwarded calls have regression coverage, alongside the already strict `parse_as` path.
 
-Native helper contracts also cover Regex/Regexp, time, duration, money, randomness, formatting and output. Remaining builtin work includes blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module/capability member dispatch and public checking remain unfinished. Successful internal summaries do not yet establish a deployment gate.
+Native helper contracts also cover Regex/Regexp, time, duration, money, randomness, formatting and output. Remaining builtin work includes blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module/capability member dispatch remain unfinished. Incomplete paths prevent checked execution.
 
 ## Native value methods
 
@@ -130,7 +130,7 @@ Method summaries cover formatting, time zones, duration anchors, currency fields
 
 Primitive `<=>` carries narrower integer or nil results for known operand kinds. Regex matching operators return optional offsets or booleans. Temporal comparisons and arithmetic preserve their actual ordinary exception classes, including the difference between money and duration division by zero, without inventing zero-division failures for comparisons. Time construction and parsing retain their own possible errors.
 
-Eighteen focused tests include 10,314 native-method comparisons against runtime values and ordinary errors, 2,366 primitive-operator comparisons, receiver and temporary-mutation regressions, exact quotas, allocation-failure cleanup, cancellation and deadlines. The [native value reference corpus](../tests/checker-values.json) records 113 Go v0.70.0 decisions with 35 explained differences and Rust execution witnesses. These internal summaries do not yet provide public checking or a deployment gate.
+Eighteen focused tests include 10,314 native-method comparisons against runtime values and ordinary errors, 2,366 primitive-operator comparisons, receiver and temporary-mutation regressions, exact quotas, allocation-failure cleanup, cancellation and deadlines. The [native value reference corpus](../tests/checker-values.json) records 113 Go v0.70.0 decisions with 35 explained differences and Rust execution witnesses. The public exact-call API exposes these summaries through diagnostics and incomplete locations.
 
 ## Protected match data and rescued errors
 
@@ -140,7 +140,7 @@ Protection belongs to an addressed ancestor. `m.captures.push(7)` is rejected, w
 
 Bare `hash` contracts check the container kind and preserve known fields and protection through parameters and returns. Offset methods retain their callable facts when selected by index or returned from a function, including possible non-callable alternatives. Bare method reads still fail where the runtime requires a call. Native matching input guards remain ordinary errors; checker cancellation, deadlines and exhausted execution budgets stay latched. Unsupported block calls, forwarding and remaining hash helpers still report incomplete analysis.
 
-Twenty focused tests include 7,688 direct member/runtime comparisons, 320 index comparisons, branch and call witnesses, exact quota thresholds, sampled allocation failures, cleanup and cancellation. The [protected-value reference corpus](../tests/checker-protected.json) records 108 Go v0.70.0 checker decisions with 51 explained differences and Rust execution witnesses. Regressions first exposed lost protection after branch joins, lost field metadata at bare-hash boundaries, and incomplete named-capture operations for dynamic patterns. These remain private checker summaries; they do not provide a public checking gate.
+Twenty focused tests include 7,688 direct member/runtime comparisons, 320 index comparisons, branch and call witnesses, exact quota thresholds, sampled allocation failures, cleanup and cancellation. The [protected-value reference corpus](../tests/checker-protected.json) records 108 Go v0.70.0 checker decisions with 51 explained differences and Rust execution witnesses. Regressions first exposed lost protection after branch joins, lost field metadata at bare-hash boundaries, and incomplete named-capture operations for dynamic patterns. These summaries feed the public exact-call report.
 
 ## Block body analysis
 
@@ -162,7 +162,7 @@ Native namespace reads, supported collection callbacks and hash mutators use the
 
 Pending calls with different targets and pending addresses with different roots or paths remain separate until they can be joined safely. Forwarded reads keep their selected receiver while mutators observe their live address. Chained writes retain the documented [addressable field rules](value-helpers.md): `h.clone.clear` can update a stored field, while `h.clone().clear` uses a temporary copy. Analysis does not execute host callbacks or factories.
 
-The executed witnesses cover overrides, conditional fields, argument ordering, direct and forwarded mutations, callback control transfers, computed descriptors, object/plain-hash output distinctions, protected replacement, and retained nested writes. Exact and sampled work/memory limits, allocation cleanup, cancellation and deadlines exercise the same paths. The checker remains private; remaining hash helpers, mutable host/root bindings, differing live type identities, class/module initialization and dispatch, required-file and host effects, public checking and checked execution, native async callbacks, compiler allocation accounting and platform validation remain part of the full-language goal.
+The executed witnesses cover overrides, conditional fields, argument ordering, direct and forwarded mutations, callback control transfers, computed descriptors, object/plain-hash output distinctions, protected replacement, and retained nested writes. Exact and sampled work/memory limits, allocation cleanup, cancellation and deadlines exercise the same paths. Remaining hash helpers, mutable host/root bindings, differing live type identities, class/module initialization and dispatch, required-file and host effects, whole-file checking and CLI gates, native async callbacks, compiler allocation accounting and platform validation remain part of the full-language goal.
 
 ## Host block schedules
 
@@ -210,18 +210,28 @@ Every supplied argument is described eagerly, including unused and excess values
 
 Callable metadata discovered inside argument objects remains available during body analysis and later lazy global loads. Fresh and expired grants retain their existing behavior, and host block drivers preserve ignored break and return transfers. Concrete facts select reachable paths, skip supplied defaults and retain collection isolation, enum rebinding and match-data protection. Unimplemented foreign worlds, nominal state and preludes produce an explicit incomplete result.
 
-Nineteen test families compare supported entry paths with execution and verify rejection ordering, callback nonexecution, exact and sampled work/memory limits, cancellation, deadlines and allocation cleanup. This entry remains private; it does not yet expose a public checking or checked-call API.
+Nineteen test families compare supported entry paths with execution and verify rejection ordering, callback nonexecution, exact and sampled work/memory limits, cancellation, deadlines and allocation cleanup. The public exact-call APIs use this entry.
+
+## Public exact-call reports and checked execution
+
+`check_call(name, args, &options)` and `check_call_with_keywords(name, args, keywords, &options)` inspect the reachable call without running script code, callbacks, validators, factories or initializers. They use the supplied argument facts, globals and published host contracts. Unused functions are outside this scope. Reports distinguish known contradictions in `diagnostics` from unfinished analysis in `incomplete`; `is_clean()` requires both lists to be empty. Dynamic unknowns retain the gradual contract and do not alone make analysis incomplete.
+
+`checked_call` and its keyword variant return `CheckedOutcome::Executed(Outcome)` or `CheckedOutcome::Rejected(CheckReport)`. Rejection happens before any script or host effects. Admission errors, exhausted limits, cancellation, deadlines and execution failures return an ordinary `Error`. Checking and execution receive independent instances of the supplied limits, sharing the same cancellation token and absolute deadline. The executed outcome contains execution counters; callers can retain a separate check report when they also need analysis counters. Checking borrows the options instead of cloning unaccounted global collections.
+
+Each diagnostic includes its containing function, optional filename, byte offset, Unicode line/column position, message and bounded code frame. Function-entry failures point at the declaration; implicit-return failures point at the final statement. Diagnostics are sorted by source position and deduplicated across analyzed call contexts. Messages distinguish different nominal declarations, escape raw key bytes and bound type descriptions to 16 levels, 16 entries per collection and a 4 KiB message. These display limits do not truncate the underlying analysis.
+
+Report construction, sorting, source lookup and retained message storage are metered. Dropping analysis releases its facts and callable metadata; retaining a report retains no compiled code, input values or callbacks. Thirteen public test families cover input binding, source locations, effect-free rejection, gradual values, ordinary execution errors, grants, control transfers, raw bytes, strict validation, lazy globals and exact or sampled quotas. Two internal report tests exercise deep/shared descriptions, larger diagnostic sorts and allocation cleanup. Unsupported paths, including integer `chr`, remain explicit and cannot be approved by the gate.
 
 ## Remaining integration
 
 Completion still requires:
 
 - Opaque iterable dispatch, interprocedural block control, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
-- Class/module initialization and dispatch, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, namespace dispatch, live host signatures, conservative host block schedules and concrete host-call binding are implemented internally; public APIs and whole-program integration remain required.
+- Class/module initialization and dispatch, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, namespace dispatch, live host signatures, conservative host block schedules and concrete host-call binding are implemented internally; whole-program integration remains required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
-- Public integration of positional/keyword input admission, capability descriptors spanning multiple source environments and checker accounting across every public entry point. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
-- Sorted, deduplicated source diagnostics, whole-file checking, reachable-function checking, exact-call checking, checked invocation and CLI gates. A rejected check must not execute script effects.
+- Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
+- Whole-file checking, general reachable-function checking and CLI gates. Exact-call checking, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 
-The full-language goal remains active. This internal foundation does not establish a deployment gate or complete ADR-004.
+The full-language goal remains active. The exact-call gate does not complete ADR-004 or the remaining runtime and platform work.

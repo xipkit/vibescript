@@ -34,6 +34,7 @@ pub(super) enum Resolution {
 
 impl Resolution {
     /// Returns a type fact only when lookup has one definite identity.
+    #[cfg(test)]
     pub fn fact(self) -> Option<Fact> {
         if let Self::Known(fact) = self {
             Some(fact)
@@ -283,6 +284,7 @@ impl Bindings {
     }
 
     /// Copies binding state while sharing its immutable name storage.
+    #[cfg(test)]
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         ctx.checkpoint()?;
         let mut result = Self::new();

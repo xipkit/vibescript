@@ -196,13 +196,11 @@ impl HostMethod {
     }
 
     /// Supplies immutable compiled contracts to the internal checker.
-    #[cfg(test)]
     pub(crate) fn compiled_signature(&self) -> Option<&crate::signature::Compiled> {
         self.definition.signature.as_deref()
     }
 
     /// Reports whether this method can invoke an attached script block.
-    #[cfg(test)]
     pub(crate) fn supports_block(&self) -> bool {
         matches!(self.definition.callback, Callback::Block(_))
     }
@@ -260,7 +258,6 @@ pub(crate) struct Root {
 
 impl BoundMethod {
     /// Reports whether a descriptor can grant a method to a new invocation.
-    #[cfg(test)]
     pub(crate) fn fresh_grant(&self) -> bool {
         self.owner.is_none()
     }

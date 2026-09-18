@@ -350,6 +350,7 @@ pub(super) fn keyword_shape(
     facts.shape(ctx, &fields.data, false)
 }
 
+#[cfg(test)]
 pub(super) fn general_inputs(
     ctx: &mut CallContext,
     facts: &mut Facts,

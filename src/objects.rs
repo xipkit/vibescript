@@ -69,7 +69,6 @@ impl std::fmt::Debug for Instance {
 
 impl Instance {
     /// Supplies stable scope identity without retaining the mutable instance heap.
-    #[cfg(test)]
     pub(crate) fn checking_id(&self) -> u64 {
         self.identity.id
     }

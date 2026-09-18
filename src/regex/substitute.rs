@@ -389,10 +389,8 @@ pub(crate) struct Driver {
     pub waiting: bool,
 }
 
-#[cfg(test)]
 pub(crate) struct CallbackPattern(Matcher);
 
-#[cfg(test)]
 impl CallbackPattern {
     pub fn new(ctx: &mut CallContext, pattern: Value, regex: bool) -> Result<Self> {
         let spec = Spec {

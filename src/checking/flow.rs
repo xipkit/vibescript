@@ -1,6 +1,6 @@
 use super::{
     addresses::{Address, Attached, Change},
-    arguments::{self, Arguments, Failure, Input},
+    arguments::{Arguments, Failure, Input},
     blocks, builtins,
     calls::{Calls, Root, Target},
     facts::{Atom, Fact, Facts, HashKind},
@@ -568,6 +568,7 @@ impl State {
 
 type Edges = [Option<(usize, State)>; 2];
 
+#[cfg(test)]
 pub(super) fn analyze(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -575,8 +576,12 @@ pub(super) fn analyze(
     function: usize,
     contracts: &[Fact],
 ) -> Result<Report> {
-    let inputs =
-        arguments::general_inputs(ctx, facts, &program.functions[function].params, contracts)?;
+    let inputs = super::arguments::general_inputs(
+        ctx,
+        facts,
+        &program.functions[function].params,
+        contracts,
+    )?;
     analyze_body(
         ctx,
         facts,

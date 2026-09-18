@@ -121,6 +121,7 @@ pub(super) trait Calls {
     ) -> Result<Outcome>;
 }
 
+#[cfg(test)]
 pub(super) struct Unavailable;
 
 pub(super) struct Root {
@@ -129,6 +130,7 @@ pub(super) struct Root {
     pub missing: bool,
 }
 
+#[cfg(test)]
 impl Calls for Unavailable {
     fn global(&mut self, ctx: &mut CallContext, _: &str) -> Result<bool> {
         ctx.checkpoint()?;
@@ -297,10 +299,13 @@ pub(super) struct LocatedIssue {
 
 #[derive(Debug)]
 pub(super) struct Analysis {
+    #[cfg(test)]
     pub returns: Fact,
+    #[cfg(test)]
     pub throws: u8,
     pub issues: Buffer<LocatedIssue>,
     pub incomplete: Buffer<(usize, usize)>,
+    #[cfg(test)]
     pub contexts: usize,
 }
 
@@ -348,6 +353,7 @@ enum Ancestor<'a> {
 
 const EMPTY: usize = usize::MAX;
 
+#[cfg(test)]
 pub(super) fn analyze(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -407,6 +413,7 @@ pub(super) fn analyze_with_values<'a>(
         }
         admitted.push(ctx, next)?;
     }
+    #[cfg(test)]
     let admission_throws = if admission_issues.data.is_empty() {
         0
     } else {
@@ -414,10 +421,13 @@ pub(super) fn analyze_with_values<'a>(
     };
     if rejected {
         return Ok(Analysis {
+            #[cfg(test)]
             returns: Atom::Never.fact(),
+            #[cfg(test)]
             throws: admission_throws,
             issues: admission_issues,
             incomplete: Buffer::empty(),
+            #[cfg(test)]
             contexts: 0,
         });
     }
@@ -530,10 +540,13 @@ pub(super) fn analyze_with_values<'a>(
         }
     }
     let mut result = Analysis {
+        #[cfg(test)]
         returns: solver.jobs.data[entry].returns,
+        #[cfg(test)]
         throws: solver.jobs.data[entry].throws | admission_throws,
         issues: admission_issues,
         incomplete: Buffer::empty(),
+        #[cfg(test)]
         contexts: solver.jobs.data.len(),
     };
     let mut reached = Buffer::with_capacity(ctx, solver.jobs.data.len())?;

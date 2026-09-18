@@ -513,7 +513,8 @@ fn compile_mode(
         }
         c.declare(&def.body)?;
         c.block(&def.body)?;
-        c.emit(Op::Finish);
+        let finish = c.emit(Op::Finish);
+        c.locations[finish] = def.body.last().map_or(def.offset, |stmt| stmt.offset);
         let return_type = def
             .return_type
             .as_ref()
@@ -1793,7 +1794,8 @@ impl Compiler<'_> {
             }
         }
         child.block(&block.body)?;
-        child.emit(Op::Finish);
+        let finish = child.emit(Op::Finish);
+        child.locations[finish] = block.body.last().map_or(self.offset, |stmt| stmt.offset);
         debug_assert_eq!(child.code.len(), child.locations.len());
         let mut captures = vec![None; child.slots];
         for (name, &slot) in &child.locals {

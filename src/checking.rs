@@ -37,12 +37,16 @@ mod objects;
 mod optional_capture_tests;
 mod ordering;
 mod pending;
+mod public;
 mod relation;
+mod report;
 mod scalar;
 mod slots;
 mod sources;
 mod type_bindings;
 mod widening;
+
+pub use public::{CheckDiagnostic, CheckReport, CheckedOutcome};
 
 #[cfg(test)]
 mod call_tests;
