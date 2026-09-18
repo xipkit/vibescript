@@ -28,6 +28,7 @@ mod globals;
 mod handlers;
 mod host_blocks;
 mod member_addresses;
+mod namespaces;
 mod native;
 mod roots;
 mod types;
@@ -643,7 +644,11 @@ pub(super) fn analyze_body(
     ctx.charge(function.params.len() as u64)?;
     if function_index == 0
         || program.file
-        || function.namespace.is_some()
+        || function.instance
+        || function.initializer
+        || function
+            .namespace
+            .is_some_and(|module| program.namespaces[module].body.is_some())
         || (block.is_none() && (function.name == "<block>" || !function.captures.is_empty()))
     {
         report.incomplete.push(ctx, 0)?;
@@ -1045,17 +1050,33 @@ impl Walker<'_> {
         self.emit_error(state, pc, classes)
     }
 
-    fn target(&mut self, state: &State, slot: usize, name: usize) -> Result<Target> {
+    fn target(
+        &mut self,
+        state: &State,
+        pc: usize,
+        slot: usize,
+        name: usize,
+        named: bool,
+    ) -> Result<Option<Target>> {
         if slot != usize::MAX {
             let binding = state.locals.get(self.ctx, slot)?;
             if binding.value != Atom::Never.fact() {
                 if binding.missing {
-                    return Ok(Target::Unsupported);
+                    return Ok(Some(Target::Unsupported));
                 }
-                return self.value_target(binding.value);
+                return self.value_target(binding.value).map(Some);
             }
         }
-        self.root_target(state, &self.program.members[name])
+        let index = name;
+        let name = &self.program.members[name];
+        if let Some(value) = self.namespace_constant(name, named)? {
+            return self.value_target(value).map(Some);
+        }
+        let target = self.root_target(state, name)?;
+        if target == Target::Undefined && self.function.namespace.is_some() {
+            return self.implicit_namespace_target(state, pc, index);
+        }
+        Ok(Some(target))
     }
 
     fn value_target(&mut self, value: Fact) -> Result<Target> {
@@ -1237,7 +1258,7 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
-        if let Some(variants) = super::objects::variants(self.ctx, self.facts, receiver, name)? {
+        if let Some(variants) = self.member_variants(receiver, name)? {
             for receiver in variants.data {
                 self.ctx.charge(1)?;
                 let mut next = state.snapshot(self.ctx)?;
@@ -1246,6 +1267,11 @@ impl Walker<'_> {
                 self.member_edges(pc, next, edges)?;
             }
             return Ok(Some([None, None]));
+        }
+        if self.namespace_receiver(receiver)? {
+            let mut arguments = Arguments::new();
+            arguments.positional.extend(self.ctx, args)?;
+            return self.namespace_address_call(state, pc, site, arguments, address_result);
         }
         if matches!(
             super::objects::select(self.ctx, self.facts, receiver, site.call, name)?,
@@ -1481,11 +1507,32 @@ impl Walker<'_> {
                         }
                         continue;
                     }
-                    if self.calls.global(self.ctx, name)? || !matches!(value.0, Kind::Enum(_)) {
+                    if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    let value = self.facts.enumeration(self.ctx, value)?;
+                    if self.declaration_pending(index) {
+                        return self.incomplete(pc);
+                    }
+                    let value = self.declaration_value(index)?;
                     state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::NamespaceSelf(module) => {
+                    let value = self.namespace_value(module)?;
+                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::NamespaceConstant(name, next) => {
+                    if let Some(value) =
+                        self.namespace_constant(&self.program.members[name], false)?
+                    {
+                        state.stack.push(self.ctx, Operand::new(value))?;
+                        return Ok([Some((next, state)), None]);
+                    }
+                    return Ok([Some((pc + 1, state)), None]);
+                }
+                // Ambient bindings exist only beneath namespace initializers. Those
+                // frames remain incomplete until their state and prelude are modeled.
+                Op::AmbientValue(..) | Op::AmbientAddress(..) => {
+                    return Ok([Some((pc + 1, state)), None]);
                 }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
                     let Some(index) = self.global_index(index)? else {
@@ -1571,6 +1618,12 @@ impl Walker<'_> {
                     }
                 }
                 Op::Unbound(name) => {
+                    if self.function.namespace.is_some() {
+                        if !self.read_fallback(&mut state, pc, name)? {
+                            return Ok([None, None]);
+                        }
+                        continue;
+                    }
                     if let Some(index) = self.root_index(&self.program.members[name])? {
                         if !self.read_global(&mut state, pc, index, None)? {
                             return Ok([None, None]);
@@ -2327,6 +2380,14 @@ impl Walker<'_> {
                         return Ok([None, None]);
                     }
                     let args = pending.arguments;
+                    if self.namespace_receiver(state.addresses.data.last().unwrap().value)? {
+                        if let Some(edges) =
+                            self.namespace_address_call(&mut state, pc, site.into(), args, false)?
+                        {
+                            return Ok(edges);
+                        }
+                        continue;
+                    }
                     if args.block.is_some()
                         || super::objects::contains(
                             self.ctx,
@@ -2454,7 +2515,9 @@ impl Walker<'_> {
                     },
                 )?,
                 Op::ResolveCall(slot, name, _) => {
-                    let target = self.target(&state, slot, name)?;
+                    let Some(target) = self.target(&state, pc, slot, name, true)? else {
+                        return Ok([None, None]);
+                    };
                     if target == Target::Undefined {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(
@@ -2479,7 +2542,9 @@ impl Walker<'_> {
                     }
                 }
                 Op::CallName(slot, name) => {
-                    let target = self.target(&state, slot, name)?;
+                    let Some(target) = self.target(&state, pc, slot, name, false)? else {
+                        return Ok([None, None]);
+                    };
                     if target == Target::Undefined {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         self.issue(

@@ -76,9 +76,7 @@ impl Walker<'_> {
         let site = site.into();
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
-        if let Some(variants) =
-            super::super::objects::variants(self.ctx, self.facts, receiver, name)?
-        {
+        if let Some(variants) = self.member_variants(receiver, name)? {
             for receiver in variants.data {
                 self.ctx.charge(1)?;
                 let mut next = state.snapshot(self.ctx)?;
@@ -87,6 +85,9 @@ impl Walker<'_> {
                 self.member_edges(pc, next, edges)?;
             }
             return Ok(Some([None, None]));
+        }
+        if self.namespace_receiver(receiver)? {
+            return self.namespace_member(state, pc, receiver, site, args, false);
         }
         match crate::checking::objects::select(self.ctx, self.facts, receiver, site.call, name)? {
             Some(crate::checking::objects::Selection::Field(field)) => {

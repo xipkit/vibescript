@@ -89,7 +89,13 @@ impl Walker<'_> {
         Ok(true)
     }
 
-    fn read_fallback(&mut self, state: &mut State, pc: usize, name: usize) -> Result<bool> {
+    pub(super) fn read_fallback(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        name: usize,
+    ) -> Result<bool> {
+        let index = name;
         let name = &self.program.members[name];
         if let Some(index) = self.root_index(name)? {
             return self.read_global(state, pc, index, None);
@@ -100,12 +106,11 @@ impl Walker<'_> {
         }
         self.ctx.work_bytes(name.len())?;
         if let Some(&index) = self.program.declaration_names.get(name) {
-            let value = &self.program.declarations[index];
-            if !matches!(value.0, Kind::Enum(_)) {
+            if self.declaration_pending(index) {
                 self.incomplete(pc)?;
                 return Ok(false);
             }
-            let value = self.facts.enumeration(self.ctx, value)?;
+            let value = self.declaration_value(index)?;
             state.stack.push(self.ctx, Operand::new(value))?;
             return Ok(true);
         }
@@ -125,6 +130,25 @@ impl Walker<'_> {
             if global.name() == name {
                 return self.read_global(state, pc, index, None);
             }
+        }
+        if let Some(module) = self.function.namespace {
+            let receiver = self.namespace_value(module)?;
+            let site = CallSite {
+                name: index,
+                method: None,
+                auto: true,
+                scope: false,
+                parenthesized: false,
+            };
+            if let Some(edges) =
+                self.namespace_member(state, pc, receiver, site.into(), Arguments::new(), true)?
+            {
+                for edge in edges.into_iter().flatten() {
+                    self.extra.push(self.ctx, edge)?;
+                }
+                return Ok(false);
+            }
+            return Ok(true);
         }
         self.issue(
             pc,

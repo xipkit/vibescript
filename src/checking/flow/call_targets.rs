@@ -37,12 +37,7 @@ impl Walker<'_> {
         receiver: Fact,
         site: CallSite,
     ) -> Result<Option<Edges>> {
-        if let Some(variants) = super::super::objects::variants(
-            self.ctx,
-            self.facts,
-            receiver,
-            &self.program.members[site.name],
-        )? {
+        if let Some(variants) = self.member_variants(receiver, &self.program.members[site.name])? {
             for receiver in variants.data {
                 let mut next = state.snapshot(self.ctx)?;
                 let edges = self.call_member(&mut next, pc, receiver, site)?;
@@ -51,6 +46,9 @@ impl Walker<'_> {
             return Ok(Some([None, None]));
         }
         let name = &self.program.members[site.name];
+        if self.namespace_receiver(receiver)? {
+            return self.namespace_call_target(state, pc, receiver, site);
+        }
         if matches!(self.facts.node(receiver), Node::Offset(_)) {
             let target = Target::Offset(receiver);
             self.issue(

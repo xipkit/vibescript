@@ -11,9 +11,7 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let name = &self.program.members[site.name];
         let receiver = state.addresses.data.last().unwrap().value;
-        if let Some(variants) =
-            super::super::objects::variants(self.ctx, self.facts, receiver, name)?
-        {
+        if let Some(variants) = self.member_variants(receiver, name)? {
             for receiver in variants.data {
                 let mut next = state.snapshot(self.ctx)?;
                 next.addresses.data.last_mut().unwrap().value = receiver;
@@ -21,6 +19,12 @@ impl Walker<'_> {
                 self.member_edges(pc, next, edges)?;
             }
             return Ok(Some([None, None]));
+        }
+        if self.namespace_receiver(receiver)? {
+            if namespace {
+                return self.incomplete(pc).map(Some);
+            }
+            return self.namespace_address_call(state, pc, site.into(), Arguments::new(), true);
         }
         if matches!(self.facts.node(receiver), Node::Callable { .. }) {
             self.export_value(state, pc, receiver, false)?;

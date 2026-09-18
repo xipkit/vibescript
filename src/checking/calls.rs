@@ -938,14 +938,8 @@ impl Calls for Solver<'_> {
         }
         ctx.work_bytes(name.len())?;
         let program = self.world.program;
-        if let Some(&index) = program.declaration_names.get(name) {
-            return Ok(
-                if matches!(program.declarations[index].0, crate::value::Kind::Enum(_)) {
-                    Target::NonCallable
-                } else {
-                    Target::Unsupported
-                },
-            );
+        if program.declaration_names.contains_key(name) {
+            return Ok(Target::NonCallable);
         }
         if let Some(&index) = program.names.get(name) {
             return Ok(Target::Function(index));

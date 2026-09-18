@@ -29,6 +29,8 @@ mod lexical;
 #[cfg(test)]
 mod live_type_tests;
 mod mutations;
+#[cfg(test)]
+mod namespace_tests;
 mod normalization;
 #[cfg(test)]
 mod normalization_tests;

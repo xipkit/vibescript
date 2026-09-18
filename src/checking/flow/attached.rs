@@ -79,6 +79,15 @@ impl Walker<'_> {
                 {
                     return Ok(None);
                 }
+                if self
+                    .namespace_constant(
+                        &self.program.members[name],
+                        matches!(op, Op::ResolveCall(..)),
+                    )?
+                    .is_some()
+                {
+                    return Ok(None);
+                }
                 &self.program.members[name]
             }
             Op::AutoCall(function) => &self.program.functions[function].name,

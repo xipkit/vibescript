@@ -20,7 +20,7 @@ Local-state snapshots share metered radix-tree nodes. Assignments copy only shar
 
 The flow corpus contains 60 scripts checked by both implementations. Nine decisions intentionally differ from Go v0.70.0: Rust preserves known default and loop-assignment facts and follows reachable loop exits. Each difference includes a Rust execution witness, including default-quota exhaustion for an unconditional loop whose trailing return is unreachable. These are checker-decision fixtures, separate from the runtime compatibility audit. A further 972 scalar operand/operator combinations compare inferred outcomes with the Rust runtime.
 
-The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, blocks, required files and namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
+The walker reports incomplete analysis at reachable operations it cannot model. General members, opaque iterable dispatch, blocks, required files and stateful namespace scopes remain unfinished. A partial return summary or an empty diagnostic list is not sufficient to approve a script. The public exact-call gate enforces that distinction; unsupported paths prevent checked execution.
 
 ## Function calls
 
@@ -120,7 +120,7 @@ Nineteen focused tests include 160 runtime comparisons covering numeric domains,
 
 The comparison also exposed a runtime argument mismatch: `JSON.parse` accepted symbols through a shared string/symbol byte accessor. It now requires strings as documented and as Go does. Direct, scoped, computed-member, indexed and forwarded calls have regression coverage, alongside the already strict `parse_as` path.
 
-Native helper contracts also cover Regex/Regexp, time, duration, money, randomness, formatting and output. Remaining builtin work includes blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module/capability member dispatch remain unfinished. Incomplete paths prevent checked execution.
+Native helper contracts also cover Regex/Regexp, time, duration, money, randomness, formatting and output. Remaining builtin work includes blocks, general dynamic forwarding, mutable root globals and executable-value escape rules. Those paths remain explicitly incomplete. General type-literal operations, class/module initialization, instance methods and broader capability member dispatch remain unfinished. Incomplete paths prevent checked execution.
 
 ## Native value methods
 
@@ -220,14 +220,24 @@ Nineteen test families compare supported entry paths with execution and verify r
 
 Each diagnostic includes its containing function, optional filename, byte offset, Unicode line/column position, message and bounded code frame. Function-entry failures point at the declaration; implicit-return failures point at the final statement. Diagnostics are sorted by source position and deduplicated across analyzed call contexts. Messages distinguish different nominal declarations, escape raw key bytes and bound type descriptions to 16 levels, 16 entries per collection and a 4 KiB message. These display limits do not truncate the underlying analysis.
 
-Report construction, sorting, source lookup and retained message storage are metered. Dropping analysis releases its facts and callable metadata; retaining a report retains no compiled code, input values or callbacks. Thirteen public test families cover input binding, source locations, effect-free rejection, gradual values, ordinary execution errors, grants, control transfers, raw bytes, strict validation, lazy globals and exact or sampled quotas. Two internal report tests exercise deep/shared descriptions, larger diagnostic sorts and allocation cleanup. Unsupported paths, including integer `chr`, remain explicit and cannot be approved by the gate.
+Report construction, sorting, source lookup and retained message storage are metered. Dropping analysis releases its facts and callable metadata; retaining a report retains no compiled code, input values or callbacks. Fourteen public test families cover input binding, source locations, effect-free rejection, gradual values, ordinary execution errors, grants, control transfers, raw bytes, strict validation, lazy globals, static namespace methods and exact or sampled quotas. Two internal report tests exercise deep/shared descriptions, larger diagnostic sorts and allocation cleanup. Unsupported paths, including integer `chr`, remain explicit and cannot be approved by the gate.
+
+## Static namespace methods
+
+Source modules and classes without initializers can supply static methods to exact-call analysis. Namespace values retain their declaration identity through aliases, collections, arguments, returns and unions. Nested namespace fields, `self`, implicit calls and explicit method calls resolve in the owning source. Scoped access such as `M::name` selects fields; it does not detach a method. Constant lookup precedes supplied roots where execution requires it, and skipped roots remain unmaterialized.
+
+Methods preserve public, private and protected visibility, defaults, keyword/rest arguments, contracts, recursion, blocks and global effects. User methods override native names such as `map`, `push` and `nil?`. Computed selection and ordinary calls retain their execution order, including catchable lookup failures before or after argument evaluation. Returned collections remain isolated, and ignored host-block break/return transfers remain sticky.
+
+Thirteen focused test families compare the analysis with execution. A public checked-call test also verifies that callee type errors prevent host effects. Namespace identities keep stable ownership, while fact hashes use registration order instead of heap addresses so equivalent checks have repeatable collision work. A regression holds 32 fact arenas live to verify that distinction. Exact and sampled quotas, cleanup, cancellation and deadlines cover the new paths.
+
+Namespace initializers, mutable namespace fields and class variables, constructors and instance methods, foreign namespace worlds and native namespace helpers remain incomplete. Analysis never runs a namespace body or callback to discover its state.
 
 ## Remaining integration
 
 Completion still requires:
 
 - Opaque iterable dispatch, interprocedural block control, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
-- Class/module initialization and dispatch, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, namespace dispatch, live host signatures, conservative host block schedules and concrete host-call binding are implemented internally; whole-program integration remains required.
+- Class/module initialization, mutable namespace state and instance dispatch, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, static namespace dispatch, live host signatures, conservative host block schedules and concrete host-call binding are implemented; whole-program integration remains required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.

@@ -23,6 +23,50 @@ fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {
 }
 
 #[test]
+fn checked_namespace_calls_report_callee_types_before_host_effects() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let mut engine = Engine::new();
+    engine.register("effect", move |_, args| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(args[0].clone())
+    });
+    let script = engine
+        .compile(
+            "module M;def self.answer(x:int)->int;effect(x+1);end;end;def run(x);M.answer(x);end",
+        )
+        .unwrap();
+    assert!(
+        script
+            .check_call("run", &[Value::int(6)], &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    let outcome = executed(
+        script
+            .checked_call("run", &[Value::int(6)], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(outcome.value.as_int(), Some(7));
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("run", &[Value::boolean(false)], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("invalid namespace call executed")
+    };
+    assert!(report.incomplete.is_empty());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("int"))
+    );
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn public_calls_bind_keywords_defaults_rest_and_concrete_paths() {
     let script = Engine::new()
         .compile("def unused()->int;\"bad\";end;def run(a:int,b:2,**rest);[a,b,rest[:x]];end")
