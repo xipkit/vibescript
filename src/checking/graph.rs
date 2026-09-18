@@ -78,6 +78,7 @@ impl Graph {
                 | Op::Method(_, _)
                 | Op::CallMember(_)
                 | Op::CallValue
+                | Op::TextPart
                 | Op::ResolveCall(..)
                 | Op::ResolveGlobalCall(_)
                 | Op::CallName(..)

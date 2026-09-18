@@ -561,11 +561,10 @@ fn infallible_native_calls_do_not_make_dead_rescues_reachable() {
 }
 
 #[test]
-fn custom_string_conversions_and_remaining_dynamic_work_are_explicitly_incomplete() {
+fn opaque_string_conversions_and_remaining_dynamic_work_are_explicitly_incomplete() {
     for source in [
         "def run(x:any); format(\"%s\",x); end",
         "def run(x:any); puts(x); end",
-        "def run(x:{name:string}); sprintf(\"%s\",x); end",
         "def run; require(\"missing\"); end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
@@ -575,6 +574,12 @@ fn custom_string_conversions_and_remaining_dynamic_work_are_explicitly_incomplet
         drop((facts, report));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
+    check("def run(x:{name:string}); sprintf(\"%s\",x); end", false);
+    witness(
+        "def run; sprintf(\"%s\",{name:\"a\"}); end",
+        Some("{name: a}"),
+        false,
+    );
     check("def run(x:any); p(x); end", false);
     witness(
         "def run; begin; Regexp.new(\"x\") {7}; rescue; 9; end; end",

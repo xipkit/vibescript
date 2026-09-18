@@ -168,6 +168,11 @@ impl Facts {
                 ctx.charge(1)?;
                 let left = self.arm(left, a);
                 let right = self.arm(right, b);
+                if op == "%" && self.atom(left) == Some(Atom::String) && right != Atom::Never.fact()
+                {
+                    result.value = self.union(ctx, &[result.value, Atom::String.fact()])?;
+                    continue;
+                }
                 if matches!(op, "==" | "!=")
                     && (matches!(self.node(left), Node::Instance { .. } | Node::TypeValue(_))
                         || matches!(self.node(right), Node::Instance { .. } | Node::TypeValue(_)))

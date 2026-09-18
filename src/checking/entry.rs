@@ -69,6 +69,10 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
     }
     let world = environment.world();
     let mut values = Values::new();
+    values.writers = Some([
+        call.script.inner.output_writer.is_some(),
+        call.script.inner.error_writer.is_some(),
+    ]);
     let mut args = Arguments::new();
     for value in call.arguments {
         let value = values.argument(ctx, &mut facts, &world, value)?;

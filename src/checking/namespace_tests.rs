@@ -15,6 +15,7 @@ use std::sync::{
 mod instances;
 mod introspection;
 mod operators;
+mod rendering;
 mod state;
 
 fn check(
@@ -427,9 +428,13 @@ fn static_dispatch_is_metered_interruptible_and_releases_facts() {
 
 fn metered(source: &str) {
     let script = Engine::new().compile(source).unwrap();
+    metered_script(&script);
+}
+
+fn metered_script(script: &Script) {
     let options = CallOptions::default();
     let mut ctx = CallContext::new(options.clone());
-    let checked = check(&mut ctx, &script, &[], &options).unwrap();
+    let checked = check(&mut ctx, script, &[], &options).unwrap();
     assert!(checked.analysis.incomplete.data.is_empty());
     assert!(checked.analysis.issues.data.is_empty());
     let stats = ctx.stats();
@@ -444,7 +449,7 @@ fn metered(source: &str) {
         }
         let mut ctx = CallContext::new(options.clone());
         assert_eq!(
-            check(&mut ctx, &script, &[], &options).unwrap_err().kind,
+            check(&mut ctx, script, &[], &options).unwrap_err().kind,
             kind
         );
         assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);
@@ -461,7 +466,7 @@ fn metered(source: &str) {
                 ..CallOptions::default()
             };
             let mut ctx = CallContext::new(options.clone());
-            let result = check(&mut ctx, &script, &[], &options);
+            let result = check(&mut ctx, script, &[], &options);
             if sample == 16 {
                 assert!(result.is_ok(), "{result:?}");
                 drop(result);
@@ -481,7 +486,7 @@ fn metered(source: &str) {
         }
         let mut ctx = CallContext::new(options.clone());
         assert_eq!(
-            check(&mut ctx, &script, &[], &options).unwrap_err().kind,
+            check(&mut ctx, script, &[], &options).unwrap_err().kind,
             kind
         );
         assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);

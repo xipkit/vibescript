@@ -121,6 +121,7 @@ impl State {
             || self.arguments.data.len() != other.arguments.data.len()
             || self.addresses.data.len() != other.addresses.data.len()
             || self.raises.data.len() != other.raises.data.len()
+            || self.texts.data.len() != other.texts.data.len()
             || self.attempts.data.len() != other.attempts.data.len()
             || !self.global_pending.compatible(ctx, &other.global_pending)?
         {
@@ -147,6 +148,7 @@ impl State {
                 || a.arguments != b.arguments
                 || a.addresses != b.addresses
                 || a.raises != b.raises
+                || a.texts != b.texts
                 || !match (a.pending, b.pending) {
                     (None, None) => true,
                     (Some(a), Some(b)) => a.compatible(b),
@@ -165,6 +167,7 @@ impl State {
         self.arguments.data.truncate(attempt.arguments);
         self.addresses.data.truncate(attempt.addresses);
         self.raises.data.truncate(attempt.raises);
+        self.texts.data.truncate(attempt.texts);
     }
 
     pub(super) fn current_error(&self, ctx: &mut CallContext, ambient: u16) -> Result<u16> {
@@ -391,6 +394,7 @@ impl Walker<'_> {
                 state.arguments.data.truncate(current.argument_base);
                 state.addresses.data.truncate(current.address_base);
                 state.raises.data.truncate(current.raise_base);
+                state.texts.data.truncate(current.text_base);
                 Ok([Some((target, state)), None])
             }
             Transfer::Retry(index) => {

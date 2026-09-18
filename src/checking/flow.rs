@@ -31,6 +31,7 @@ mod member_addresses;
 mod namespaces;
 mod native;
 mod operators;
+mod rendering;
 mod roots;
 mod types;
 use handlers::{Phase, Transfer};
@@ -240,6 +241,7 @@ struct Loop {
     address_base: usize,
     attempt_base: usize,
     raise_base: usize,
+    text_base: usize,
     expression: bool,
     source: Fact,
     repeat: Fact,
@@ -255,6 +257,7 @@ struct Attempt {
     addresses: usize,
     loops: usize,
     raises: usize,
+    texts: usize,
     phase: Phase,
     error: u8,
     pending: Option<Transfer>,
@@ -277,6 +280,7 @@ struct State {
     addresses: Buffer<Address>,
     attempts: Buffer<Attempt>,
     raises: Buffer<u16>,
+    texts: Buffer<Fact>,
     widening: Option<usize>,
 }
 
@@ -322,6 +326,7 @@ impl State {
             addresses: Buffer::empty(),
             attempts: Buffer::empty(),
             raises: Buffer::empty(),
+            texts: Buffer::empty(),
             widening: None,
         }
     }
@@ -346,12 +351,14 @@ impl State {
             addresses: Buffer::empty(),
             attempts: Buffer::empty(),
             raises: Buffer::empty(),
+            texts: Buffer::empty(),
             widening: None,
         };
         state.stack.extend(ctx, &self.stack.data)?;
         state.loops.extend(ctx, &self.loops.data)?;
         state.attempts.extend(ctx, &self.attempts.data)?;
         state.raises.extend(ctx, &self.raises.data)?;
+        state.texts.extend(ctx, &self.texts.data)?;
         for pending in &self.arguments.data {
             ctx.charge(1)?;
             let arguments = pending.arguments.snapshot(ctx)?;
@@ -406,6 +413,13 @@ impl State {
         assert_eq!(self.loops.data.len(), other.loops.data.len());
         assert_eq!(self.arguments.data.len(), other.arguments.data.len());
         assert_eq!(self.addresses.data.len(), other.addresses.data.len());
+        assert_eq!(self.texts.data.len(), other.texts.data.len());
+        for (a, b) in self.texts.data.iter_mut().zip(&other.texts.data) {
+            ctx.charge(1)?;
+            let next = facts.joined(ctx, *a, *b, depth)?;
+            changed |= *a != next;
+            *a = next;
+        }
         for (a, b) in self.attempts.data.iter_mut().zip(&other.attempts.data) {
             ctx.charge(1)?;
             let error = a.error | b.error;
@@ -455,6 +469,7 @@ impl State {
                     && a.address_base == b.address_base
                     && a.attempt_base == b.attempt_base
                     && a.raise_base == b.raise_base
+                    && a.text_base == b.text_base
                     && a.expression == b.expression
             );
             let last = facts.joined(ctx, a.last, b.last, depth)?;
@@ -952,6 +967,12 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if let Target::Builtin(
+            builtin @ (crate::builtin::Builtin::Output(_) | crate::builtin::Builtin::Format(_)),
+        ) = target
+        {
+            return self.render_call(state, pc, builtin, args);
+        }
         if let Target::Helper {
             receiver,
             name,
@@ -1524,6 +1545,12 @@ impl Walker<'_> {
             match op {
                 Op::Integer(..) => state.stack.push(self.ctx, Operand::new(Atom::Int.fact()))?,
                 Op::Nil => state.stack.push(self.ctx, Operand::new(Atom::Nil.fact()))?,
+                Op::TextStart => {
+                    let empty = self.facts.string(self.ctx, b"")?;
+                    state.texts.push(self.ctx, empty)?;
+                }
+                Op::TextPart => return self.text_part(state, pc),
+                Op::TextEnd(symbol) => self.text_end(&mut state, symbol)?,
                 Op::Constant(index) => {
                     let value = match &self.program.constants[index].0 {
                         Kind::Nil => Atom::Nil.fact(),
@@ -2007,6 +2034,7 @@ impl Walker<'_> {
                             addresses: state.addresses.data.len(),
                             loops: state.loops.data.len(),
                             raises: state.raises.data.len(),
+                            texts: state.texts.data.len(),
                             phase: Phase::Body,
                             error: 0,
                             pending: None,
@@ -2761,6 +2789,7 @@ impl Walker<'_> {
                             address_base: state.addresses.data.len(),
                             attempt_base: state.attempts.data.len(),
                             raise_base: state.raises.data.len(),
+                            text_base: state.texts.data.len(),
                             expression,
                             source: iteration.as_ref().map_or(Atom::Nil.fact(), |i| i.source),
                             repeat: iteration.as_ref().map_or(Atom::Never.fact(), |i| i.repeat),
@@ -2892,6 +2921,7 @@ impl Walker<'_> {
                     state.arguments.data.truncate(current.argument_base);
                     state.addresses.data.truncate(current.address_base);
                     state.raises.data.truncate(current.raise_base);
+                    state.texts.data.truncate(current.text_base);
                     state.stack.push(self.ctx, Operand::new(current.result))?;
                 }
                 Op::Return | Op::Finish => {

@@ -23,6 +23,7 @@ impl Loaded {
 }
 
 pub(super) struct Values<'a> {
+    pub writers: Option<[bool; 2]>,
     loaded: Buffer<Option<Loaded>>,
     hosts: Buffer<Host<'a>>,
     methods: Buffer<(&'a crate::capability::BoundMethod, usize)>,
@@ -31,6 +32,7 @@ pub(super) struct Values<'a> {
 impl<'a> Values<'a> {
     pub fn new() -> Self {
         Self {
+            writers: None,
             loaded: Buffer::empty(),
             hosts: Buffer::empty(),
             methods: Buffer::empty(),

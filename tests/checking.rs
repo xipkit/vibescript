@@ -23,6 +23,56 @@ fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {
 }
 
 #[test]
+fn checked_rendering_rejects_bad_conversion_contracts_before_host_effects() {
+    for expression in [r##""#{c}""##, "format('%s',c)", "puts(c)"] {
+        let effects = Arc::new(AtomicUsize::new(0));
+        let writes = Arc::new(AtomicUsize::new(0));
+        let count = effects.clone();
+        let mut engine = Engine::new();
+        engine.register("effect", move |_, _| {
+            count.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::nil())
+        });
+        let count = writes.clone();
+        engine.set_output_writer(move |_, _| {
+            count.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        });
+        let script = engine.compile(&format!("class C;def initialize(@value);end;def to_s -> int;effect();@value;end;end;def run(value);c=C.new(value);{expression};'done';end")).unwrap();
+        let report = script
+            .check_call("run", &[Value::int(7)], &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{expression}: {report:?}");
+        assert_eq!(effects.load(Ordering::Relaxed), 0);
+        assert_eq!(writes.load(Ordering::Relaxed), 0);
+        let result = executed(
+            script
+                .checked_call("run", &[Value::int(7)], CallOptions::default())
+                .unwrap(),
+        );
+        assert_eq!(result.value.as_bytes(), Some(b"done".as_slice()));
+        assert_eq!(effects.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            writes.load(Ordering::Relaxed),
+            usize::from(expression == "puts(c)")
+        );
+        let CheckedOutcome::Rejected(report) = script
+            .checked_call("run", &[Value::boolean(false)], CallOptions::default())
+            .unwrap()
+        else {
+            panic!("bad conversion contract executed host effects");
+        };
+        assert!(report.incomplete.is_empty(), "{expression}: {report:?}");
+        assert!(!report.diagnostics.is_empty(), "{expression}: {report:?}");
+        assert_eq!(effects.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            writes.load(Ordering::Relaxed),
+            usize::from(expression == "puts(c)")
+        );
+    }
+}
+
+#[test]
 fn checked_forwarding_and_predicates_reject_bad_calls_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();

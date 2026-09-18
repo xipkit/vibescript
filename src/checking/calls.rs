@@ -69,6 +69,11 @@ impl Outcome {
 }
 
 pub(super) trait Calls {
+    /// Reports configured writer presence without retaining or invoking the callback.
+    fn writer(&mut self, ctx: &mut CallContext, _: crate::output::Kind) -> Result<Option<bool>> {
+        ctx.charge(1)?;
+        Ok(None)
+    }
     /// Describes a supplied root only when execution would materialize it.
     fn load_root(
         &mut self,
@@ -846,6 +851,13 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn writer(&mut self, ctx: &mut CallContext, kind: crate::output::Kind) -> Result<Option<bool>> {
+        ctx.charge(1)?;
+        Ok(self
+            .values
+            .writers
+            .map(|writers| writers[usize::from(kind == crate::output::Kind::Warn)]))
+    }
     fn load_root(
         &mut self,
         ctx: &mut CallContext,
