@@ -222,6 +222,8 @@ Each diagnostic includes its containing function, optional filename, byte offset
 
 Report construction, sorting, source lookup and retained message storage are metered. Dropping analysis releases its facts and callable metadata; retaining a report retains no compiled code, input values or callbacks. Eighteen public test families cover input binding, source locations, effect-free rejection, gradual values, ordinary execution errors, grants, control transfers, raw bytes, strict validation, lazy globals, namespace methods and initialization, constructors, operators, forwarding, and exact or sampled quotas. Two internal report tests exercise deep/shared descriptions, larger diagnostic sorts and allocation cleanup. Unsupported paths, including integer `chr`, remain explicit and cannot be approved by the gate.
 
+The [CLI](cli.md) exposes exact-call analysis through `--check --function NAME` and guarded execution through `--checked --function NAME`, with positional and keyword JSON inputs. Known contradictions and incomplete analysis produce separate diagnostics and a nonzero exit before script output. These modes do not perform whole-file checking.
+
 ## Namespace initialization, methods and state
 
 Source modules and classes can supply initializers and static methods to exact-call analysis. Namespace values retain their declaration identity through aliases, collections, arguments, returns and unions. Nested namespace fields, `self`, implicit calls and explicit method calls resolve in the owning source. Scoped access such as `M::name` selects fields; it does not detach a method. Constant lookup precedes supplied roots where execution requires it, and skipped roots remain unmaterialized.
@@ -261,7 +263,7 @@ Completion still requires:
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
-- Whole-file checking, general reachable-function checking and CLI gates. Exact-call checking, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
+- Whole-file checking, general reachable-function checking and their CLI integration. Exact-call checking, CLI modes, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 
 The full-language goal remains active. The exact-call gate does not complete ADR-004 or the remaining runtime and platform work.
