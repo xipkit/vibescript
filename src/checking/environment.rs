@@ -11,7 +11,6 @@ use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer};
 
 #[derive(Debug)]
 pub(super) enum Incomplete {
-    Initializer(usize),
     File,
     Capability(Value),
 }
@@ -59,12 +58,6 @@ impl<'a> Environment<'a> {
         }
         if code.program.file {
             result.incomplete.push(ctx, Incomplete::File)?;
-        }
-        for namespace in &code.program.namespaces {
-            ctx.charge(1)?;
-            if let Some(body) = namespace.body {
-                result.incomplete.push(ctx, Incomplete::Initializer(body))?;
-            }
         }
         for capability in &options.capabilities {
             let name = ctx.bytes(capability.name.as_bytes())?;

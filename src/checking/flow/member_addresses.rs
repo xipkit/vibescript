@@ -22,7 +22,7 @@ impl Walker<'_> {
         }
         if self.namespace_receiver(receiver)? {
             if namespace {
-                return self.incomplete(pc).map(Some);
+                return self.namespace_scope_address(state, pc, site);
             }
             return self.namespace_address_call(state, pc, site.into(), Arguments::new(), true);
         }

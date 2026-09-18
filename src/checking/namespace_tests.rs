@@ -12,6 +12,8 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+mod state;
+
 fn check(
     ctx: &mut CallContext,
     script: &Script,
@@ -381,11 +383,8 @@ fn checks_never_execute_method_bodies_or_host_callbacks() {
 }
 
 #[test]
-fn initializers_state_instances_and_foreign_namespaces_remain_incomplete() {
+fn instances_helpers_and_foreign_namespaces_remain_incomplete() {
     for source in [
-        "module M;C=7;def self.answer;C;end;end;def run;M.answer;end",
-        "module M;def self.answer;@@count=7;end;end;def run;M.answer;end",
-        "module M;def self.answer;@@count;end;end;def run;M.answer;end",
         "class M;def answer;7;end;end;def run;M.new.answer;end",
         "module M;end;def run;M.respond_to?(:missing);end",
     ] {
@@ -414,6 +413,10 @@ fn initializers_state_instances_and_foreign_namespaces_remain_incomplete() {
 #[test]
 fn static_dispatch_is_metered_interruptible_and_releases_facts() {
     let source = "module M;def self.answer(x:int);[x+1,x+2];end;end;def run;M.answer(3);end";
+    metered(source);
+}
+
+fn metered(source: &str) {
     let script = Engine::new().compile(source).unwrap();
     let options = CallOptions::default();
     let mut ctx = CallContext::new(options.clone());

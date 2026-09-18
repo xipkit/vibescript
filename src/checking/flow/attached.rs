@@ -81,6 +81,7 @@ impl Walker<'_> {
                 }
                 if self
                     .namespace_constant(
+                        state,
                         &self.program.members[name],
                         matches!(op, Op::ResolveCall(..)),
                     )?

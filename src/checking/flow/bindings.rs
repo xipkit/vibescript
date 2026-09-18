@@ -106,10 +106,6 @@ impl Walker<'_> {
         }
         self.ctx.work_bytes(name.len())?;
         if let Some(&index) = self.program.declaration_names.get(name) {
-            if self.declaration_pending(index) {
-                self.incomplete(pc)?;
-                return Ok(false);
-            }
             let value = self.declaration_value(index)?;
             state.stack.push(self.ctx, Operand::new(value))?;
             return Ok(true);

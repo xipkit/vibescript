@@ -437,7 +437,7 @@ fn opaque_factories_remain_pending_even_when_an_explicit_global_overrides_them()
 }
 
 #[test]
-fn initializers_and_used_nominal_state_remain_incomplete_after_strict_validation() {
+fn initializers_are_analyzed_but_foreign_nominal_state_remains_incomplete() {
     let mut engine = Engine::new();
     engine.register("mark", |_, _| panic!("initializer executed"));
     let script = engine
@@ -447,7 +447,16 @@ fn initializers_and_used_nominal_state_remain_incomplete_after_strict_validation
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let environment = Environment::new(&mut ctx, &mut facts, &script, &options).unwrap();
-    assert!(environment.incomplete.data.iter().any(|reason| matches!(reason, Incomplete::Initializer(index) if *index < script.inner.code.program.functions.len())));
+    assert!(environment.incomplete.data.is_empty());
+    let report = environment
+        .analyze(
+            &mut ctx,
+            &mut facts,
+            script.inner.code.program.names["run"],
+            &[],
+        )
+        .unwrap();
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
     let namespace = script.inner.code.program.declarations[0].clone();
     let consumer = Engine::new().compile("def run; Widget; end").unwrap();
     let globals = CallOptions {

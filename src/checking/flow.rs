@@ -645,10 +645,6 @@ pub(super) fn analyze_body(
     if function_index == 0
         || program.file
         || function.instance
-        || function.initializer
-        || function
-            .namespace
-            .is_some_and(|module| program.namespaces[module].body.is_some())
         || (block.is_none() && (function.name == "<block>" || !function.captures.is_empty()))
     {
         report.incomplete.push(ctx, 0)?;
@@ -678,7 +674,9 @@ pub(super) fn analyze_body(
     let mut initial = State::new(
         locals,
         function_index,
-        program.globals.len() + roots.data.len(),
+        program.globals.len()
+            + roots.data.len()
+            + program.namespaces.len() * super::namespaces::WIDTH,
     );
     let owned_globals;
     let globals = if let Some(globals) = globals {
@@ -686,6 +684,7 @@ pub(super) fn analyze_body(
     } else {
         let mut values = Globals::initial(ctx, facts, program)?;
         values.roots(ctx, &roots.data)?;
+        values.namespaces(ctx, facts, program, layouts.source_owner)?;
         owned_globals = values;
         &owned_globals
     };
@@ -1069,8 +1068,12 @@ impl Walker<'_> {
         }
         let index = name;
         let name = &self.program.members[name];
-        if let Some(value) = self.namespace_constant(name, named)? {
-            return self.value_target(value).map(Some);
+        if let Some(field) = self.namespace_constant(state, name, named)? {
+            return if field.missing || field.incomplete {
+                Ok(Some(Target::Unsupported))
+            } else {
+                self.value_target(field.value).map(Some)
+            };
         }
         let target = self.root_target(state, name)?;
         if target == Target::Undefined && self.function.namespace.is_some() {
@@ -1453,9 +1456,11 @@ impl Walker<'_> {
             let Some(op) = self.root_op(&state, self.function.code[pc])? else {
                 return self.incomplete(pc);
             };
-            if let Some(slot) = self.root_read_slot(&state, op)? {
-                if !self.import_root(&mut state, pc, slot)? {
-                    return Ok([None, None]);
+            if !matches!(op, Op::ResolveCall(..) | Op::CallName(..)) {
+                if let Some(slot) = self.root_read_slot(&state, op)? {
+                    if !self.import_root(&mut state, pc, slot)? {
+                        return Ok([None, None]);
+                    }
                 }
             }
             let errors = self.potential_errors(&state, op)?;
@@ -1510,9 +1515,6 @@ impl Walker<'_> {
                     if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    if self.declaration_pending(index) {
-                        return self.incomplete(pc);
-                    }
                     let value = self.declaration_value(index)?;
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
@@ -1521,16 +1523,30 @@ impl Walker<'_> {
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::NamespaceConstant(name, next) => {
-                    if let Some(value) =
-                        self.namespace_constant(&self.program.members[name], false)?
-                    {
-                        state.stack.push(self.ctx, Operand::new(value))?;
-                        return Ok([Some((next, state)), None]);
-                    }
-                    return Ok([Some((pc + 1, state)), None]);
+                    return self.namespace_constant_edges(state, pc, name, next);
                 }
-                // Ambient bindings exist only beneath namespace initializers. Those
-                // frames remain incomplete until their state and prelude are modeled.
+                Op::NamespaceVariable(name, optional) => {
+                    if !self.namespace_variable(&mut state, pc, name, optional)? {
+                        return Ok([None, None]);
+                    }
+                }
+                Op::NamespaceStore(name) => {
+                    if let Some(edges) = self.namespace_store(&mut state, pc, name)? {
+                        return Ok(edges);
+                    }
+                }
+                Op::NamespaceAddress(name, optional) => {
+                    if let Some(edges) = self.namespace_address(&mut state, pc, name, optional)? {
+                        return Ok(edges);
+                    }
+                }
+                Op::InitNamespace(module) => {
+                    if let Some(edges) = self.initialize_namespace(&mut state, pc, module)? {
+                        return Ok(edges);
+                    }
+                }
+                // Named entry initializers have no ambient frame. Nested initializers
+                // with parent locals stop at InitNamespace until captures are modeled.
                 Op::AmbientValue(..) | Op::AmbientAddress(..) => {
                     return Ok([Some((pc + 1, state)), None]);
                 }
@@ -1971,7 +1987,7 @@ impl Walker<'_> {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                     }
                     return if self.current_error as u8 != 0 {
-                        self.transfer(state, pc, Transfer::InvalidRetry)
+                        self.transfer(state, pc, Transfer::InvalidJump)
                     } else {
                         Ok([None, None])
                     };
@@ -2211,9 +2227,19 @@ impl Walker<'_> {
                     }
                 }
                 Op::AddressMemberTarget(site, read) => {
+                    let receiver = state.addresses.data.last().unwrap().value;
+                    if self.namespace_receiver(receiver)? {
+                        if let Some(edges) =
+                            self.namespace_member_target(&mut state, pc, site, read)?
+                        {
+                            return Ok(edges);
+                        }
+                        continue;
+                    }
                     let name = &self.program.members[site.name];
                     let key = self.facts.string(self.ctx, name.as_bytes())?;
                     let address = state.addresses.data.last_mut().unwrap();
+                    address.member = Some(site.name);
                     address.selectors.push(self.ctx, key)?;
                     let receiver = address.value;
                     if read {
@@ -2244,6 +2270,23 @@ impl Walker<'_> {
                 Op::AddressStore => {
                     let value = state.stack.data.pop().unwrap();
                     let address = state.addresses.data.pop().unwrap();
+                    if !address.supported {
+                        return self.incomplete(pc);
+                    }
+                    if let Some(name) = address.member {
+                        if self.namespace_receiver(address.value)? {
+                            if let Some(edges) = self.namespace_member_store(
+                                &mut state,
+                                pc,
+                                address.value,
+                                name,
+                                value,
+                            )? {
+                                return Ok(edges);
+                            }
+                            continue;
+                        }
+                    }
                     let protection = address.protection(self.ctx, self.facts)?;
                     if protection != Attached::No {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -2515,49 +2558,12 @@ impl Walker<'_> {
                     },
                 )?,
                 Op::ResolveCall(slot, name, _) => {
-                    let Some(target) = self.target(&state, pc, slot, name, true)? else {
-                        return Ok([None, None]);
-                    };
-                    if target == Target::Undefined {
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        self.issue(
-                            pc,
-                            IssueKind::Call {
-                                target,
-                                failure: Failure::Undefined,
-                            },
-                        )?;
-                        return Ok([None, None]);
-                    }
-                    state.arguments.push(
-                        self.ctx,
-                        Pending {
-                            target,
-                            receiver: None,
-                            arguments: Arguments::new(),
-                        },
-                    )?;
-                    if let Some(edges) = self.resolve_value_target(&mut state, pc)? {
+                    if let Some(edges) = self.resolve_name(&mut state, pc, slot, name, true)? {
                         return Ok(edges);
                     }
                 }
                 Op::CallName(slot, name) => {
-                    let Some(target) = self.target(&state, pc, slot, name, false)? else {
-                        return Ok([None, None]);
-                    };
-                    if target == Target::Undefined {
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        self.issue(
-                            pc,
-                            IssueKind::Call {
-                                target,
-                                failure: Failure::Undefined,
-                            },
-                        )?;
-                        return Ok([None, None]);
-                    }
-                    state.arguments.data.last_mut().unwrap().target = target;
-                    if let Some(edges) = self.resolve_value_target(&mut state, pc)? {
+                    if let Some(edges) = self.resolve_name(&mut state, pc, slot, name, false)? {
                         return Ok(edges);
                     }
                 }
@@ -3081,10 +3087,17 @@ impl Walker<'_> {
                 Op::Return | Op::Finish => {
                     let actual = state.stack.data.pop().unwrap().value;
                     let transfer = if self.block_inputs.is_some() && matches!(op, Op::Return) {
-                        Transfer::Block {
-                            pc,
-                            completion: blocks::Completion::Return(0),
-                            value: actual,
+                        if self
+                            .layouts
+                            .return_home(self.ctx, self.program, self.function_index)?
+                        {
+                            Transfer::Block {
+                                pc,
+                                completion: blocks::Completion::Return(0),
+                                value: actual,
+                            }
+                        } else {
+                            Transfer::InvalidJump
                         }
                     } else {
                         Transfer::Return { pc, value: actual }

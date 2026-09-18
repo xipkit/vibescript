@@ -1,10 +1,13 @@
 use super::*;
 use crate::checking::facts::{Node, NominalId};
+use crate::checking::namespaces::{self, Selected};
 use crate::syntax::modules::Visibility;
+
+mod state;
 
 enum Selection {
     Function(usize),
-    Field(Fact),
+    Field(Fact, bool),
     Rejected,
     Incomplete,
 }
@@ -40,17 +43,13 @@ impl Walker<'_> {
     }
 
     pub(super) fn namespace_value(&mut self, module: usize) -> Result<Fact> {
-        let definition = &self.program.namespaces[module];
-        self.ctx.work_bytes(definition.name.len())?;
-        let declaration = self.program.declaration_names[&definition.name];
-        let ty = self.facts.nominal(
+        namespaces::value(
             self.ctx,
+            self.facts,
+            self.program,
             self.layouts.source_owner,
-            declaration,
-            definition.name.as_bytes(),
-            None,
-        )?;
-        self.facts.type_value(self.ctx, ty)
+            module,
+        )
     }
 
     pub(super) fn declaration_value(&mut self, index: usize) -> Result<Fact> {
@@ -61,10 +60,6 @@ impl Walker<'_> {
                 .enumeration(self.ctx, &self.program.declarations[index]),
             _ => unreachable!(),
         }
-    }
-
-    pub(super) fn declaration_pending(&self, index: usize) -> bool {
-        matches!(&self.program.declarations[index].0, Kind::Namespace(namespace) if namespace.definition.body.is_some())
     }
 
     fn namespace_index(&self, receiver: Fact) -> Option<usize> {
@@ -87,19 +82,41 @@ impl Walker<'_> {
         }
     }
 
-    fn namespace_field(&mut self, module: usize, name: &str) -> Result<Option<Fact>> {
-        for (field, nested) in &self.program.namespaces[module].nested {
-            self.ctx.work_bytes(field.len().max(name.len()))?;
-            if field == name {
-                return self.namespace_value(*nested).map(Some);
-            }
-        }
-        Ok(None)
+    fn namespace_slot(&self, state: &State, module: usize) -> usize {
+        state.global_base + namespaces::slot(state.global_count, self.program, module)
+    }
+
+    fn namespace_field(&mut self, state: &State, module: usize, name: &str) -> Result<Selected> {
+        let fields = state
+            .locals
+            .get(self.ctx, self.namespace_slot(state, module))?
+            .value;
+        namespaces::field(self.ctx, self.facts, fields, name)
+    }
+
+    fn refine_namespace(
+        &mut self,
+        state: &mut State,
+        module: usize,
+        name: &str,
+        present: bool,
+    ) -> Result<()> {
+        let slot = self.namespace_slot(state, module);
+        let binding = state.locals.get(self.ctx, slot)?;
+        let value = namespaces::refine(self.ctx, self.facts, binding.value, name, present)?;
+        state
+            .locals
+            .set(self.ctx, slot, Binding { value, ..binding })
     }
 
     // Constants precede roots, except ordinary named calls prefer a declared function
     // or a namespace method with the same spelling. Computed identifier calls do not.
-    pub(super) fn namespace_constant(&mut self, name: &str, named: bool) -> Result<Option<Fact>> {
+    pub(super) fn namespace_constant(
+        &mut self,
+        state: &State,
+        name: &str,
+        named: bool,
+    ) -> Result<Option<Selected>> {
         let Some(module) = self.function.namespace else {
             return Ok(None);
         };
@@ -122,11 +139,13 @@ impl Walker<'_> {
                 }
             }
         }
-        self.namespace_field(module, name)
+        let field = self.namespace_field(state, module, name)?;
+        Ok((field.incomplete || field.value != Atom::Never.fact()).then_some(field))
     }
 
     fn namespace_selection(
         &mut self,
+        state: &State,
         receiver: Fact,
         name: &str,
         scope: bool,
@@ -137,13 +156,8 @@ impl Walker<'_> {
             return Ok(Selection::Incomplete);
         };
         let definition = &self.program.namespaces[module];
-        if definition.body.is_some() {
-            return Ok(Selection::Incomplete);
-        }
         if scope {
-            return Ok(self
-                .namespace_field(module, name)?
-                .map_or(Selection::Rejected, Selection::Field));
+            return self.namespace_field_selection(state, module, name);
         }
         if name == "new" && definition.constructor.is_some() {
             return Ok(Selection::Incomplete);
@@ -166,10 +180,23 @@ impl Walker<'_> {
         if crate::members::names::universal(name) {
             return Ok(Selection::Incomplete);
         }
-        if let Some(field) = self.namespace_field(module, name)? {
-            return Ok(Selection::Field(field));
-        }
-        Ok(Selection::Rejected)
+        self.namespace_field_selection(state, module, name)
+    }
+
+    fn namespace_field_selection(
+        &mut self,
+        state: &State,
+        module: usize,
+        name: &str,
+    ) -> Result<Selection> {
+        let field = self.namespace_field(state, module, name)?;
+        Ok(if field.incomplete {
+            Selection::Incomplete
+        } else if field.value == Atom::Never.fact() {
+            Selection::Rejected
+        } else {
+            Selection::Field(field.value, field.missing)
+        })
     }
 
     pub(super) fn implicit_namespace_target(
@@ -181,9 +208,20 @@ impl Walker<'_> {
         let module = self.function.namespace.unwrap();
         let receiver = self.namespace_value(module)?;
         Ok(Some(
-            match self.namespace_selection(receiver, &self.program.members[name], false, true)? {
+            match self.namespace_selection(
+                state,
+                receiver,
+                &self.program.members[name],
+                false,
+                true,
+            )? {
                 Selection::Function(function) => Target::Function(function),
-                Selection::Field(value) => self.value_target(value)?,
+                Selection::Field(value, missing) => {
+                    if missing {
+                        self.namespace_error(state, pc, receiver, name, &Arguments::new())?;
+                    }
+                    self.value_target(value)?
+                }
                 Selection::Incomplete => Target::Unsupported,
                 Selection::Rejected => {
                     self.namespace_error(state, pc, receiver, name, &Arguments::new())?;
@@ -221,12 +259,17 @@ impl Walker<'_> {
         site: CallSite,
     ) -> Result<Option<Edges>> {
         let name = &self.program.members[site.name];
-        match self.namespace_selection(receiver, name, site.scope, false)? {
+        match self.namespace_selection(state, receiver, name, site.scope, false)? {
             Selection::Function(function) => {
                 state.arguments.data.last_mut().unwrap().target = Target::Function(function);
                 Ok(None)
             }
-            Selection::Field(value) => self.set_call_target(state, pc, value),
+            Selection::Field(value, missing) => {
+                if missing {
+                    self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
+                }
+                self.set_call_target(state, pc, value)
+            }
             Selection::Incomplete => self.incomplete(pc).map(Some),
             Selection::Rejected => {
                 self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
@@ -245,14 +288,23 @@ impl Walker<'_> {
         implicit: bool,
     ) -> Result<Option<Edges>> {
         let selected = site.text(self.program, self.facts);
-        match self.namespace_selection(receiver, selected.as_str(), site.scope, implicit)? {
+        match self.namespace_selection(state, receiver, selected.as_str(), site.scope, implicit)? {
             Selection::Function(function) => {
                 self.invoke(state, pc, Target::Function(function), args)
             }
-            Selection::Field(value) => {
+            Selection::Field(value, missing) => {
+                if missing {
+                    self.namespace_error(state, pc, receiver, site.name, &args)?;
+                }
                 if site.auto {
-                    state.stack.push(self.ctx, Operand::new(value))?;
-                    Ok(None)
+                    if site.scope {
+                        state.stack.push(self.ctx, Operand::new(value))?;
+                        Ok(None)
+                    } else if self.dynamic(value)? {
+                        self.incomplete(pc).map(Some)
+                    } else {
+                        Ok((!self.read_value(state, pc, value, None)?).then_some([None, None]))
+                    }
                 } else {
                     let target = self.value_target(value)?;
                     self.invoke(state, pc, target, args)

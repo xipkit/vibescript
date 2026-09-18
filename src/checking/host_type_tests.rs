@@ -476,20 +476,12 @@ fn host_arity_keywords_and_block_guards_precede_type_resolution() {
 
 #[test]
 fn unknown_host_type_environments_stay_incomplete() {
-    for (source, ty, accepts_block, inputs) in [
-        (
-            "def run(flag); Math=if flag; Status; else; Review; end; echo(:draft); end",
-            "Math",
-            false,
-            vec![Input::Supplied(Atom::Bool.fact())],
-        ),
-        (
-            "module Box; echo(:draft); State=Status; end; def run; echo(:draft); end",
-            "Box.State",
-            false,
-            vec![],
-        ),
-    ] {
+    for (source, ty, accepts_block, inputs) in [(
+        "def run(flag); Math=if flag; Status; else; Review; end; echo(:draft); end",
+        "Math",
+        false,
+        vec![Input::Supplied(Atom::Bool.fact())],
+    )] {
         let fixture = Fixture::new(source, &[(ty, false)], ty, accepts_block);
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -499,6 +491,48 @@ fn unknown_host_type_environments_stay_incomplete() {
             assert_eq!(counter.load(Ordering::Relaxed), 0);
         }
     }
+}
+
+#[test]
+fn missing_host_type_members_fail_in_the_initializer_before_callbacks() {
+    let source = "module Box; echo(:draft); State=Status; end; def run; echo(:draft); end";
+    let fixture = Fixture::new(source, &[("Box.State", false)], "Box.State", false);
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = fixture.analyze(&mut ctx, &mut facts, &[]).unwrap();
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
+    assert_eq!(report.returns, Atom::Never.fact());
+    assert!(
+        report.issues.data.iter().any(|issue| matches!(
+            issue.issue.kind,
+            IssueKind::Call {
+                failure: Failure::HostTypeBinding { .. },
+                ..
+            }
+        )),
+        "{report:?}"
+    );
+    for counter in fixture.counters.iter() {
+        assert_eq!(counter.load(Ordering::Relaxed), 0);
+    }
+    assert!(
+        fixture
+            .script
+            .call(
+                "run",
+                &[],
+                CallOptions {
+                    globals: fixture.globals.iter().cloned().collect(),
+                    ..CallOptions::default()
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(fixture.counters[0].load(Ordering::Relaxed), 0);
+    assert_eq!(fixture.counters[1].load(Ordering::Relaxed), 1);
+    assert_eq!(fixture.counters[2].load(Ordering::Relaxed), 0);
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]

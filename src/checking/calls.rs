@@ -12,6 +12,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 mod context;
 mod hosts;
+mod initializers;
 use context::{Context, Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -343,6 +344,7 @@ struct Solver<'a> {
     dependencies: Buffer<usize>,
     functions: Buffer<bool>,
     search: usize,
+    entry_failures: Buffer<Failure>,
 }
 
 enum Ancestor<'a> {
@@ -368,6 +370,7 @@ pub(super) fn analyze(
         function,
         inputs,
         super::inputs::Values::new(),
+        &[],
     )
 }
 
@@ -379,6 +382,7 @@ pub(super) fn analyze_with_values<'a>(
     function: usize,
     inputs: &[Input],
     values: super::inputs::Values<'a>,
+    failures: &[Failure],
 ) -> Result<Analysis> {
     ctx.checkpoint()?;
     let mut admitted = Buffer::empty();
@@ -447,11 +451,26 @@ pub(super) fn analyze_with_values<'a>(
         dependencies: Buffer::empty(),
         functions,
         search: 0,
+        entry_failures: Buffer::empty(),
     };
+    solver.entry_failures.extend(ctx, failures)?;
     let mut context = Context::plain();
+    ctx.charge(solver.world.program.namespaces.len() as u64)?;
+    if solver
+        .world
+        .program
+        .namespaces
+        .iter()
+        .any(|namespace| namespace.body.is_some())
+    {
+        context.kind = Kind::Entry;
+    }
     context.globals = Globals::initial(ctx, facts, solver.world.program)?;
     let roots = solver.roots(ctx, facts)?;
     context.globals.roots(ctx, &roots.data)?;
+    context
+        .globals
+        .namespaces(ctx, facts, solver.world.program, solver.world.source_owner)?;
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     while let Some(index) = solver.queue.data.pop() {
         ctx.charge(1)?;
@@ -490,7 +509,11 @@ pub(super) fn analyze_with_values<'a>(
             layouts: Some(solver.layouts),
             globals: Some(&context.globals),
         };
-        let mut report = flow::analyze_body(ctx, facts, body, &mut solver)?;
+        let mut report = if context.kind == Kind::Entry {
+            solver.initialize_entry(ctx, facts, function, &inputs.data, &context.globals)?
+        } else {
+            flow::analyze_body(ctx, facts, body, &mut solver)?
+        };
         let mut returns = report.normal_returns;
         let previous = solver.jobs.data[index].returns;
         if solver.jobs.data[index].cyclic && previous != Atom::Never.fact() && previous != returns {
@@ -1036,17 +1059,7 @@ impl Calls for Solver<'_> {
                 }
                 let index =
                     self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
-                ctx.charge(self.dependencies.data.len() as u64)?;
-                if !self.dependencies.data.contains(&index) {
-                    self.dependencies.push(ctx, index)?;
-                }
-                ctx.charge(self.jobs.data[index].parents.data.len() as u64)?;
-                if !self.jobs.data[index].parents.data.contains(&self.current) {
-                    if let Some(path) = self.ancestor(ctx, Ancestor::Job(index))? {
-                        self.cycle(ctx, &path.data)?;
-                    }
-                    self.jobs.data[index].parents.push(ctx, self.current)?;
-                }
+                self.depend(ctx, index)?;
                 outcome.value = self.jobs.data[index].returns;
                 if context.kind == Kind::Plain && globals.values.data.is_empty() {
                     outcome.throws = self.jobs.data[index].throws;

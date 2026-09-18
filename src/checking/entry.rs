@@ -57,14 +57,13 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
         .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {}", call.name)))?;
     let mut facts = Facts::new(ctx)?;
     let environment = Environment::new(ctx, &mut facts, call.script, call.options)?;
-    for reason in &environment.incomplete.data {
+    if let Some(reason) = environment.incomplete.data.first() {
         ctx.charge(1)?;
         let message = match reason {
             Incomplete::Capability(name) => Pending::Capability(name.clone()),
             Incomplete::File => {
                 Pending::Message("Required-file environment analysis is not implemented")
             }
-            Incomplete::Initializer(_) => continue,
         };
         return unfinished(ctx, facts, function, message);
     }
@@ -102,16 +101,13 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
         }
         args.keyword(ctx, name, value.value)?;
     }
-    if let Some(Incomplete::Initializer(initializer)) = environment.incomplete.data.first() {
-        return unfinished(
-            ctx,
-            facts,
-            *initializer,
-            "Namespace initialization analysis is not implemented",
-        );
-    }
     let bound = args.bind_host(ctx, &mut facts, &program.functions[function].params)?;
-    if !bound.failures.data.is_empty() {
+    ctx.charge(program.namespaces.len() as u64)?;
+    let initializers = program
+        .namespaces
+        .iter()
+        .any(|namespace| namespace.body.is_some());
+    if !initializers && !bound.failures.data.is_empty() {
         let mut analysis = empty(Atom::Never.fact(), 1 << ErrorClass::Argument as u8);
         for &failure in &bound.failures.data {
             ctx.charge(1)?;
@@ -136,8 +132,15 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
             pending: None,
         });
     }
-    let analysis =
-        calls::analyze_with_values(ctx, &mut facts, world, function, &bound.inputs.data, values)?;
+    let analysis = calls::analyze_with_values(
+        ctx,
+        &mut facts,
+        world,
+        function,
+        &bound.inputs.data,
+        values,
+        &bound.failures.data,
+    )?;
     Ok(Check {
         facts,
         analysis,

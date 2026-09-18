@@ -47,6 +47,7 @@ pub(super) struct Address {
     pub value: Fact,
     pub selectors: Buffer<Fact>,
     pub supported: bool,
+    pub member: Option<usize>,
     path: Buffer<Hop>,
 }
 
@@ -71,6 +72,7 @@ impl Address {
         self.attached.hash(hash);
         self.value.hash(hash);
         self.supported.hash(hash);
+        self.member.hash(hash);
         self.path.data.hash(hash);
         self.selectors.data.hash(hash);
         Ok(())
@@ -83,12 +85,14 @@ impl Address {
             && self.attached == other.attached
             && self.value == other.value
             && self.supported == other.supported
+            && self.member == other.member
             && self.path.data == other.path.data
             && self.selectors.data == other.selectors.data)
     }
 
     pub fn compatible(&self, other: &Self) -> bool {
         self.root == other.root
+            && self.member == other.member
             && self.path.data.len() == other.path.data.len()
             && self.selectors.data.len() == other.selectors.data.len()
     }
@@ -113,6 +117,7 @@ impl Address {
             },
             selectors: Buffer::empty(),
             supported: true,
+            member: None,
             path: Buffer::empty(),
         }
     }
@@ -122,6 +127,7 @@ impl Address {
         address.attached = self.attached;
         address.protected = self.protected;
         address.supported = self.supported;
+        address.member = self.member;
         address.path.extend(ctx, &self.path.data)?;
         address.selectors.extend(ctx, &self.selectors.data)?;
         Ok(address)
@@ -157,7 +163,8 @@ impl Address {
                 }
             }
         }
-        if self.path.data.len() != other.path.data.len()
+        if self.member != other.member
+            || self.path.data.len() != other.path.data.len()
             || self.selectors.data.len() != other.selectors.data.len()
         {
             changed |= self.supported;

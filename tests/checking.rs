@@ -67,6 +67,39 @@ fn checked_namespace_calls_report_callee_types_before_host_effects() {
 }
 
 #[test]
+fn checked_namespace_state_is_initialized_only_during_accepted_execution() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let mut engine = Engine::new();
+    engine.register("effect", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::nil())
+    });
+    let script = engine.compile("module M;C=1;effect();def self.answer(x:int)->int;C+x;end;end;def run(x);M.answer(x);end").unwrap();
+    let report = script
+        .check_call("run", &[Value::int(6)], &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    let outcome = executed(
+        script
+            .checked_call("run", &[Value::int(6)], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(outcome.value.as_int(), Some(7));
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("run", &[Value::boolean(false)], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("invalid namespace call executed its initializer")
+    };
+    assert!(report.incomplete.is_empty());
+    assert!(!report.diagnostics.is_empty());
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn public_calls_bind_keywords_defaults_rest_and_concrete_paths() {
     let script = Engine::new()
         .compile("def unused()->int;\"bad\";end;def run(a:int,b:2,**rest);[a,b,rest[:x]];end")
@@ -150,7 +183,7 @@ fn rejection_precedes_callbacks_defaults_and_initializer_effects() {
     });
     for source in [
         "def run(x=effect())->int;effect();\"bad\";end",
-        "class C;effect();end;def run;effect();end",
+        "class C;effect();end;def run->int;effect();\"bad\";end",
     ] {
         let script = engine.compile(source).unwrap();
         let CheckedOutcome::Rejected(report) = script

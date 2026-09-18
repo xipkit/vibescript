@@ -266,15 +266,17 @@ fn enum_facts_preserve_nominal_contracts_and_distinct_singletons() {
 }
 
 #[test]
-fn class_initializers_stay_explicit() {
+fn class_initializers_throw_before_the_entry_body() {
     let expression = "class Widget; raise(\"must not run\"); end; def run; Widget; end";
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let report = analyze(&mut ctx, &mut facts, expression).unwrap();
     assert!(
-        !report.incomplete.data.is_empty(),
+        report.incomplete.data.is_empty(),
         "{expression}: {report:?}"
     );
+    assert_eq!(report.returns, Atom::Never.fact());
+    assert_ne!(report.throws, 0);
     drop((report, facts));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }

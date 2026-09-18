@@ -312,11 +312,10 @@ fn live_resolution_preserves_the_owner_of_source_class_contracts() {
 }
 
 #[test]
-fn differing_live_identities_and_unexecuted_initializers_stay_explicit() {
+fn differing_live_identities_stay_explicit() {
     for source in [
         "enum Status; Draft; end; enum Review; Draft; end; def echo(x:Math); x; end; def run(flag:bool); if flag; Math=Status; else; Math=Review; end; echo(:draft); end",
         "enum Status; Draft; end; enum Review; Draft; end; def echo(x:Math.State); x; end; def run(flag:bool); if flag; Math[:State]=Status; else; Math[:State]=Review; end; echo(:draft); end",
-        "class Widget; raise('must not run'); end; def echo(x:Widget); x; end; def run; echo(:draft); end",
     ] {
         let program = bytecode::compile(source, Vec::new(), &()).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
@@ -326,6 +325,22 @@ fn differing_live_identities_and_unexecuted_initializers_stay_explicit() {
         drop((report, facts));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
+}
+
+#[test]
+fn failed_initializers_prevent_later_nominal_contract_checks() {
+    let source =
+        "class Widget; raise('stop'); end; def echo(x:Widget); x; end; def run; echo(:draft); end";
+    let program = bytecode::compile(source, Vec::new(), &()).unwrap();
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, &program).unwrap();
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
+    assert!(report.issues.data.is_empty(), "{report:?}");
+    assert_eq!(report.returns, Atom::Never.fact());
+    assert_ne!(report.throws, 0);
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]

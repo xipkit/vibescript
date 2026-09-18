@@ -796,8 +796,8 @@ fn unmodeled_preludes_and_nominal_arguments_remain_explicit() {
         &CallOptions::default(),
     )
     .unwrap();
-    assert!(!checked.analysis.incomplete.data.is_empty());
-    assert_eq!(checked.analysis.contexts, 0);
+    assert!(checked.analysis.incomplete.data.is_empty(), "{checked:?}");
+    assert!(checked.analysis.contexts > 0);
     drop(checked);
     assert_eq!(
         check(&mut ctx, &script, &[deep()], &[], &CallOptions::default())

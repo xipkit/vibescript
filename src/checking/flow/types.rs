@@ -95,7 +95,7 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             scopes.push(self.ctx, scope)?;
         }
-        let source = bindings.current_source(
+        let source = bindings.source(
             self.ctx,
             self.facts,
             self.program,

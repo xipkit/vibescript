@@ -286,6 +286,21 @@ impl Layouts {
         Ok(self.functions.data[function].forwarding)
     }
 
+    pub fn return_home(
+        &self,
+        ctx: &mut CallContext,
+        program: &Program,
+        mut function: usize,
+    ) -> Result<bool> {
+        loop {
+            ctx.charge(1)?;
+            let Some(parent) = self.functions.data[function].parent else {
+                return Ok(function != 0 && !program.functions[function].initializer);
+            };
+            function = parent;
+        }
+    }
+
     pub fn locals(
         &self,
         ctx: &mut CallContext,

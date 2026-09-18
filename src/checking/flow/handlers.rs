@@ -43,7 +43,7 @@ pub(super) enum Transfer {
         value: Fact,
     },
     Retry(usize),
-    InvalidRetry,
+    InvalidJump,
     Error(u8),
 }
 
@@ -65,7 +65,7 @@ impl Transfer {
                 },
             ) => a == x && b == y,
             (Self::Retry(a), Self::Retry(b)) => a == b,
-            (Self::InvalidRetry, Self::InvalidRetry) => true,
+            (Self::InvalidJump, Self::InvalidJump) => true,
             (
                 Self::Jump {
                     target: a,
@@ -101,7 +101,7 @@ impl Transfer {
             }
             (Self::Error(a), Self::Error(b)) => *a |= b,
             (Self::Retry(_), Self::Retry(_)) => (),
-            (Self::InvalidRetry, Self::InvalidRetry) => (),
+            (Self::InvalidJump, Self::InvalidJump) => (),
             _ => unreachable!(),
         }
         Ok(*self != before)
@@ -307,7 +307,7 @@ impl Walker<'_> {
         }
         while let Some(attempt) = state.attempts.data.last().copied() {
             let exits = match transfer {
-                Transfer::Return { .. } | Transfer::Block { .. } | Transfer::InvalidRetry => true,
+                Transfer::Return { .. } | Transfer::Block { .. } | Transfer::InvalidJump => true,
                 Transfer::Jump { index, .. } => attempt.loops > index,
                 Transfer::Retry(index) => state.attempts.data.len() - 1 > index,
                 _ => unreachable!(),
@@ -359,6 +359,7 @@ impl Walker<'_> {
                         .union(self.ctx, &[report.normal_returns, value])?;
                 }
                 if value != Atom::Never.fact() {
+                    self.complete_namespace(&mut state)?;
                     self.block_exit(&state, pc, blocks::Completion::Value, value)?;
                 }
                 Ok([None, None])
@@ -401,7 +402,7 @@ impl Walker<'_> {
                     None,
                 ])
             }
-            Transfer::InvalidRetry => {
+            Transfer::InvalidJump => {
                 if let Some(report) = self.report.as_mut() {
                     report.throws |= bit(ErrorClass::LocalJump);
                 }

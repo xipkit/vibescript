@@ -38,8 +38,7 @@ impl Solver<'_> {
             };
             bindings.insert(ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
-        let source =
-            bindings.current_source(ctx, facts, self.world.program, self.world.source_owner)?;
+        let source = bindings.source(ctx, facts, self.world.program, self.world.source_owner)?;
         for (index, (name, _)) in self.world.program.globals.iter().enumerate() {
             ctx.charge(1)?;
             let binding = bindings.current(ctx, facts, globals.values.data[index])?;

@@ -6,7 +6,7 @@ use super::{
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 use std::hash::{Hash, Hasher};
 
-// Call contexts put supplied roots after compiled globals, independent of local layout.
+// Compiled globals, supplied roots and namespace heaps share one address layout.
 #[derive(Debug)]
 pub(super) struct Globals {
     pub values: Buffer<Fact>,
@@ -53,6 +53,26 @@ impl Globals {
             self.values.push(ctx, root.value)?;
             self.missing.push(ctx, root.missing)?;
             self.written.push(ctx, false)?;
+        }
+        Ok(())
+    }
+
+    pub fn namespaces(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        program: &Program,
+        owner: usize,
+    ) -> Result<()> {
+        for (module, definition) in program.namespaces.iter().enumerate() {
+            ctx.charge(1)?;
+            let fields = super::namespaces::initial(ctx, facts, program, owner, module)?;
+            let initialized = facts.boolean(ctx, definition.body.is_none())?;
+            for value in [fields, initialized] {
+                self.values.push(ctx, value)?;
+                self.missing.push(ctx, false)?;
+                self.written.push(ctx, false)?;
+            }
         }
         Ok(())
     }
