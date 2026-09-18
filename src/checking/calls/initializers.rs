@@ -10,11 +10,25 @@ impl Solver<'_> {
         current_error: u16,
         globals: &Globals,
     ) -> Result<Outcome> {
+        ctx.checkpoint()?;
+        if body.function.source != self.source {
+            return Ok(Outcome {
+                incomplete: true,
+                ..Outcome::empty()
+            });
+        }
         let mut context = Context::receiving(ctx, body)?;
         context.kind = Kind::Initializing;
         context.ambient = context.block_ambient.take();
         context.globals = globals.snapshot(ctx)?;
-        let index = self.request(ctx, facts, body.function, &[], current_error, &context)?;
+        let index = self.request(
+            ctx,
+            facts,
+            body.function.index,
+            &[],
+            current_error,
+            &context,
+        )?;
         self.depend(ctx, index)?;
         let mut outcome = Outcome::empty();
         outcome.value = self.jobs.data[index].returns;
@@ -115,7 +129,7 @@ impl Solver<'_> {
                     Issue {
                         pc: usize::MAX,
                         kind: IssueKind::Call {
-                            target: Target::Function(function),
+                            target: Target::Function(self.source.callable(function)),
                             failure,
                         },
                     },

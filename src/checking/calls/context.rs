@@ -9,7 +9,7 @@ pub(super) enum Kind {
     General,
     Plain,
     Initializing,
-    Receiving { function: usize, given: bool },
+    Receiving { function: CallableId, given: bool },
     Invoked { given: bool },
 }
 
@@ -19,8 +19,8 @@ pub(super) struct Context {
     pub kind: Kind,
     pub receiver: Option<Fact>,
     pub block_receiver: Option<Fact>,
-    pub ambient: Option<usize>,
-    pub block_ambient: Option<usize>,
+    pub ambient: Option<CallableId>,
+    pub block_ambient: Option<CallableId>,
     pub constructor: bool,
     pub globals: Globals,
     pub locals: usize,
@@ -294,6 +294,134 @@ mod tests {
     };
     use crate::{CallOptions, ErrorKind, Limits};
 
+    fn identities(ctx: &mut CallContext, facts: &mut Facts) -> [CallableId; 2] {
+        std::array::from_fn(|_| {
+            let code = crate::code::Code::compile("def run;7;end", &Default::default()).unwrap();
+            let owner = facts.source_owner(ctx, &code, None).unwrap();
+            facts
+                .source_id(ctx, owner)
+                .unwrap()
+                .callable(code.program.names["run"])
+        })
+    }
+
+    fn closure(ctx: &mut CallContext, function: CallableId) -> Closure {
+        let mut captures = Buffer::empty();
+        captures
+            .push(
+                ctx,
+                Link {
+                    slot: 0,
+                    parent: Parent::Local(0),
+                    value: Atom::Int.fact(),
+                    missing: false,
+                    owner: blocks::Owner::Function(function),
+                },
+            )
+            .unwrap();
+        Closure {
+            scope: blocks::Scope::Invocation,
+            function,
+            receiver: None,
+            ambient: Some(function),
+            given: false,
+            locals: 1,
+            inherited: Buffer::empty(),
+            captures,
+            pending: Pending::new(),
+            destinations: Buffer::empty(),
+        }
+    }
+
+    #[test]
+    fn incoming_and_forwarded_blocks_preserve_source_homes_and_ambient_bindings() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut facts = Facts::new(&mut ctx).unwrap();
+        let [a, b] = identities(&mut ctx, &mut facts);
+        assert_eq!(a.index, b.index);
+        let first = closure(&mut ctx, a);
+        let second = closure(&mut ctx, b);
+        let mut context = Context::receiving(&mut ctx, &first).unwrap();
+        let other = Context::receiving(&mut ctx, &second).unwrap();
+        assert!(!context.equal(&mut ctx, &other).unwrap());
+        assert!(!context.compatible(&mut ctx, &other).unwrap());
+        let copied = context.incoming(&mut ctx).unwrap().unwrap();
+        assert_eq!(copied.function, a);
+        assert_eq!(copied.ambient, Some(a));
+        assert_eq!(copied.captures.data[0].owner, blocks::Owner::Function(a));
+
+        context.kind = Kind::Invoked { given: false };
+        context
+            .inherited
+            .push(
+                &mut ctx,
+                Layer {
+                    scope: blocks::Scope::Invocation,
+                    function: b,
+                    receiver: None,
+                    ambient: Some(b),
+                    given: false,
+                    locals: 1,
+                },
+            )
+            .unwrap();
+        context
+            .captures
+            .push(
+                &mut ctx,
+                Capture {
+                    slot: 1,
+                    value: Atom::String.fact(),
+                    missing: false,
+                    owner: blocks::Owner::Function(b),
+                },
+            )
+            .unwrap();
+        let forwarded = context.incoming(&mut ctx).unwrap().unwrap();
+        assert_eq!(forwarded.function, b);
+        assert_eq!(forwarded.ambient, Some(b));
+        assert_eq!(forwarded.captures.data.len(), 1);
+        assert_eq!(forwarded.captures.data[0].slot, 0);
+        assert_eq!(forwarded.captures.data[0].owner, blocks::Owner::Function(b));
+        let mut changed = context.snapshot(&mut ctx).unwrap();
+        changed.inherited.data[0].function = a;
+        assert!(!context.equal(&mut ctx, &changed).unwrap());
+        assert!(!context.compatible(&mut ctx, &changed).unwrap());
+        drop((
+            context, other, copied, forwarded, changed, first, second, facts,
+        ));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn widening_capture_owners_does_not_merge_equal_indexes_from_different_sources() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut facts = Facts::new(&mut ctx).unwrap();
+        let [a, b] = identities(&mut ctx, &mut facts);
+        let mut first = Context::plain();
+        first
+            .captures
+            .push(
+                &mut ctx,
+                Capture {
+                    slot: 0,
+                    value: Atom::Int.fact(),
+                    missing: false,
+                    owner: blocks::Owner::Function(a),
+                },
+            )
+            .unwrap();
+        let mut second = first.snapshot(&mut ctx).unwrap();
+        second.captures.data[0].owner = blocks::Owner::Function(b);
+        assert!(!first.equal(&mut ctx, &second).unwrap());
+        let depth = facts.max_depth();
+        assert!(first.widen(&mut ctx, &mut facts, &second, depth).unwrap());
+        assert_eq!(first.captures.data[0].owner, blocks::Owner::Unknown);
+        assert_eq!(first.captures.data[0].value, Atom::Int.fact());
+        drop((first, second, facts));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
     #[test]
     fn capture_context_copies_charge_linear_work_and_observe_exact_step_limits() {
         for count in [0, 1, 8, 17, 257] {
@@ -319,7 +447,7 @@ mod tests {
                 ambient: None,
                 pending: Pending::new(),
                 destinations: Buffer::empty(),
-                function: 1,
+                function: SourceId::ROOT.callable(1),
                 given: false,
                 locals: count,
                 inherited: Buffer::empty(),
@@ -397,7 +525,7 @@ mod tests {
                             ambient: None,
                             pending: Pending::new(),
                             destinations: Buffer::empty(),
-                            function: 1,
+                            function: SourceId::ROOT.callable(1),
                             given: false,
                             locals: 0,
                             inherited: Buffer::empty(),

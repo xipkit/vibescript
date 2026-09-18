@@ -74,7 +74,7 @@ impl Walker<'_> {
         pc: usize,
         function: usize,
     ) -> Result<bool> {
-        let target = Target::Function(function);
+        let target = Target::Function(self.source.callable(function));
         if !self.program.functions[function].params.is_empty() {
             self.issue(pc, IssueKind::DetachedValue(target))?;
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -131,7 +131,10 @@ impl Walker<'_> {
         for (index, host) in self.program.hosts.iter().enumerate() {
             self.ctx.work_bytes(host.len().max(name.len()))?;
             if host == name {
-                self.issue(pc, IssueKind::DetachedValue(Target::Host(index)))?;
+                self.issue(
+                    pc,
+                    IssueKind::DetachedValue(Target::Host(self.source.callable(index))),
+                )?;
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
                 return Ok(false);
             }

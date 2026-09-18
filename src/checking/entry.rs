@@ -122,7 +122,7 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
                     issue: Issue {
                         pc: 0,
                         kind: IssueKind::Call {
-                            target: Target::Function(function),
+                            target: Target::Function(SourceId::ROOT.callable(function)),
                             failure,
                         },
                     },

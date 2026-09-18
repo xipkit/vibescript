@@ -140,10 +140,17 @@ impl Walker<'_> {
                 self.incomplete(pc)?;
                 return Ok(None);
             };
-            if owner == self.function_index {
+            if owner.source != self.source {
+                self.incomplete(pc)?;
+                return Ok(None);
+            }
+            if owner.index == self.function_index {
                 continue;
             }
-            let Some(depth) = self.layouts.depth(self.ctx, self.function_index, owner)? else {
+            let Some(depth) = self
+                .layouts
+                .depth(self.ctx, self.function_index, owner.index)?
+            else {
                 self.incomplete(pc)?;
                 return Ok(None);
             };

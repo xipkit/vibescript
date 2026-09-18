@@ -492,9 +492,10 @@ impl Walker<'_> {
                 .facts
                 .extract(self.ctx, element, crate::bytecode::Selection::At(1))?;
             item.pair = Some((key, value));
-            let collapse = driver
-                .block()
-                .is_some_and(|block| self.program.functions[block.function].block_arity == 1);
+            let collapse = match driver.block() {
+                Some(block) => self.block_arity(block.function)? == 1,
+                None => false,
+            };
             match method {
                 EachKey | TransformKeys => item.arguments[0] = key,
                 EachValue | TransformValues => item.arguments[0] = value,

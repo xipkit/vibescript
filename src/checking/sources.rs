@@ -9,9 +9,23 @@ use std::sync::Arc;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) struct SourceId(usize);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct CallableId {
+    pub source: SourceId,
+    pub index: usize,
+}
+
 impl SourceId {
     /// Identifies a borrowed program supplied directly to the internal analyzer.
     pub const ROOT: Self = Self(usize::MAX);
+
+    /// Associates a function or host table index with its defining source.
+    pub fn callable(self, index: usize) -> CallableId {
+        CallableId {
+            source: self,
+            index,
+        }
+    }
 }
 
 #[derive(Debug)]

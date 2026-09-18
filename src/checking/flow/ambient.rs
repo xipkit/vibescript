@@ -204,9 +204,9 @@ impl Walker<'_> {
         )?;
         let mut body = Closure {
             scope: blocks::Scope::Invocation,
-            function,
+            function: self.source.callable(function),
             receiver: None,
-            ambient: Some(self.function_index),
+            ambient: Some(self.source.callable(self.function_index)),
             given: false,
             locals,
             inherited: Buffer::empty(),

@@ -194,7 +194,7 @@ impl Walker<'_> {
                 }
                 if let Some(function) = function {
                     let target = Target::Method {
-                        function,
+                        function: self.source.callable(function),
                         receiver: original,
                         constructor: false,
                     };

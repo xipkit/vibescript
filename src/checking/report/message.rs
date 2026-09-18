@@ -13,6 +13,15 @@ pub(super) fn issue(
     facts: &Facts,
     issue: &LocatedIssue,
 ) -> Result<(String, Option<Charge>)> {
+    let target_code = match issue.issue.kind {
+        IssueKind::Call { target, .. } => target
+            .source()
+            .map(|source| facts.source_code(ctx, source))
+            .transpose()?
+            .flatten(),
+        _ => None,
+    };
+    let target_program = target_code.as_ref().map_or(program, |code| &code.program);
     let mut out = Writer::new(ctx);
     match issue.issue.kind {
         IssueKind::DetachedValue(_) => out.text("Attached methods cannot be used as values")?,
@@ -91,7 +100,9 @@ pub(super) fn issue(
             out.text("Cannot raise ")?;
             out.fact(facts, value)?;
         }
-        IssueKind::Call { target, failure } => call(&mut out, program, facts, target, failure)?,
+        IssueKind::Call { target, failure } => {
+            call(&mut out, target_program, facts, target, failure)?
+        }
         IssueKind::Splat { actual, keyword } => {
             out.text(if keyword {
                 "Keyword splat must be a hash; got "
@@ -170,8 +181,8 @@ fn target(out: &mut Writer<'_>, program: &Program, target: Target) -> Result<()>
         | Target::Block(index)
         | Target::Method {
             function: index, ..
-        } => out.quoted(program.functions[index].trace_name.as_bytes()),
-        Target::Host(index) => match program.hosts.get(index) {
+        } => out.quoted(program.functions[index.index].trace_name.as_bytes()),
+        Target::Host(index) => match program.hosts.get(index.index) {
             Some(name) => out.quoted(name.as_bytes()),
             None => out.text("host method"),
         },
@@ -186,7 +197,7 @@ fn parameter(out: &mut Writer<'_>, program: &Program, target: Target, index: usi
     if let Target::Function(function) | Target::Block(function) | Target::Method { function, .. } =
         target
     {
-        if let Some(parameter) = program.functions[function].params.get(index) {
+        if let Some(parameter) = program.functions[function.index].params.get(index) {
             return out.quoted(parameter.name.as_bytes());
         }
     }

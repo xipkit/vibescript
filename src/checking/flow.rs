@@ -10,6 +10,7 @@ use super::{
     relation::Relation,
     scalar::Test,
     slots::Slots,
+    sources::{CallableId, SourceId},
 };
 use crate::{
     CallContext, ErrorClass, Result,
@@ -269,7 +270,7 @@ struct Attempt {
 
 #[derive(Debug)]
 struct State {
-    function: usize,
+    function: CallableId,
     // Global address roots occupy the suffix after lexical locals and captures.
     global_base: usize,
     global_count: usize,
@@ -308,7 +309,7 @@ impl State {
             _ => 0,
         })
     }
-    fn new(locals: usize, function: usize, globals: usize) -> Self {
+    fn new(locals: usize, function: CallableId, globals: usize) -> Self {
         Self {
             function,
             global_base: locals,
@@ -735,10 +736,11 @@ pub(super) fn analyze_body(
         &owned_layouts
     };
     let lexical = layouts.locals(ctx, program, function_index)?;
+    let source = facts.source_id(ctx, layouts.source_owner)?;
     let locals = ambient::local_count(ctx, layouts, program, function_index, ambient)?;
     let mut initial = State::new(
         locals,
-        function_index,
+        source.callable(function_index),
         program.globals.len()
             + roots.data.len()
             + layouts.files.names.data.len()
@@ -881,6 +883,7 @@ pub(super) fn analyze_body(
     )?;
     queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
+        source,
         scope,
         ambient,
         general,
@@ -966,6 +969,7 @@ pub(super) fn analyze_body(
 }
 
 struct Walker<'a> {
+    source: SourceId,
     scope: blocks::Scope,
     ambient: Option<usize>,
     general: bool,
@@ -1044,6 +1048,9 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if target.source().is_some_and(|source| source != self.source) {
+            return self.incomplete(pc).map(Some);
+        }
         if let Target::Builtin(
             builtin @ (crate::builtin::Builtin::Output(_) | crate::builtin::Builtin::Format(_)),
         ) = target
@@ -1068,7 +1075,7 @@ impl Walker<'_> {
             constructor: true,
         } = target
         {
-            let module = self.program.functions[function].namespace.unwrap();
+            let module = self.program.functions[function.index].namespace.unwrap();
             let Some(instance) = self.construct(state, pc, receiver)? else {
                 return Ok(Some([None, None]));
             };
@@ -1960,7 +1967,9 @@ impl Walker<'_> {
                         Binding {
                             value: Atom::Never.fact(),
                             missing: true,
-                            owner: blocks::Owner::Function(self.function_index),
+                            owner: blocks::Owner::Function(
+                                self.source.callable(self.function_index),
+                            ),
                         },
                     )?;
                     state.store(self.ctx, self.facts, slot, Atom::Nil.fact())?;
@@ -2032,7 +2041,9 @@ impl Walker<'_> {
                                 self.issue(
                                     pc,
                                     IssueKind::Call {
-                                        target: Target::Function(self.function_index),
+                                        target: Target::Function(
+                                            self.source.callable(self.function_index),
+                                        ),
                                         failure: Failure::Type {
                                             parameter: index,
                                             actual,
@@ -2706,7 +2717,10 @@ impl Walker<'_> {
                     } else if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     } else {
-                        self.issue(pc, IssueKind::DetachedValue(Target::Host(host)))?;
+                        self.issue(
+                            pc,
+                            IssueKind::DetachedValue(Target::Host(self.source.callable(host))),
+                        )?;
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
                         return Ok([None, None]);
                     }

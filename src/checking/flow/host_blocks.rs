@@ -7,7 +7,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        index: usize,
+        index: CallableId,
         mut args: Arguments,
     ) -> Result<()> {
         let target = Target::Host(index);
@@ -107,14 +107,14 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        index: usize,
+        index: CallableId,
         block: &Closure,
     ) -> Result<Buffer<State>> {
         self.host_finish(state, pc, index, None)?;
         let mut callback = block.snapshot(self.ctx)?;
         self.prepare_callback(state, &mut callback)?;
         let mut args = Arguments::new();
-        for _ in 0..self.program.functions[block.function].block_arity {
+        for _ in 0..self.block_arity(block.function)? {
             args.positional.push(self.ctx, Atom::Unknown.fact())?;
         }
         args.block = Some(callback.snapshot(self.ctx)?);
@@ -155,7 +155,7 @@ impl Walker<'_> {
         &mut self,
         state: &State,
         pc: usize,
-        index: usize,
+        index: CallableId,
         value: Option<Fact>,
     ) -> Result<()> {
         let globals = state.global_call(self.ctx)?;

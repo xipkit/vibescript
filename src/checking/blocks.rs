@@ -4,6 +4,7 @@ use super::{
     globals::Globals,
     pending::Pending,
     slots::Slots,
+    sources::CallableId,
 };
 use crate::{CallContext, ErrorClass, Result, budget::Buffer};
 
@@ -18,7 +19,7 @@ pub(super) enum Scope {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Owner {
-    Function(usize),
+    Function(CallableId),
     Unknown,
 }
 
@@ -61,9 +62,9 @@ pub(super) struct Link {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Layer {
     pub scope: Scope,
-    pub function: usize,
+    pub function: CallableId,
     pub receiver: Option<Fact>,
-    pub ambient: Option<usize>,
+    pub ambient: Option<CallableId>,
     pub given: bool,
     pub locals: usize,
 }
@@ -71,10 +72,10 @@ pub(super) struct Layer {
 #[derive(Debug)]
 pub(super) struct Closure {
     pub scope: Scope,
-    pub function: usize,
+    pub function: CallableId,
     pub receiver: Option<Fact>,
     // Hidden local slots carry the declaring frame's raw bindings, separately from lexical aliases.
-    pub ambient: Option<usize>,
+    pub ambient: Option<CallableId>,
     pub given: bool,
     pub locals: usize,
     // Each layer belongs to an earlier lexical function home, ordered nearest first.

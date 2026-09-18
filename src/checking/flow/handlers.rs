@@ -250,7 +250,7 @@ impl Walker<'_> {
                     Binding {
                         value: Atom::Never.fact(),
                         missing: true,
-                        owner: blocks::Owner::Function(self.function_index),
+                        owner: blocks::Owner::Function(self.source.callable(self.function_index)),
                     },
                 )?;
             }

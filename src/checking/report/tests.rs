@@ -326,3 +326,190 @@ fn source_report_budgets_do_not_depend_on_compiled_addresses() {
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 }
+
+fn call_report(
+    ctx: &mut CallContext,
+    caller: &Arc<crate::code::Code>,
+    callee: &Arc<crate::code::Code>,
+    target: impl FnOnce(crate::checking::sources::SourceId) -> crate::checking::calls::Target,
+    failure: crate::checking::arguments::Failure,
+) -> crate::Result<CheckReport> {
+    use crate::checking::{
+        calls::{Analysis, LocatedIssue},
+        flow::{Issue, IssueKind},
+    };
+    let mut facts = Facts::new(ctx)?;
+    let owner = facts.source_owner(ctx, caller, None)?;
+    let source = facts.source_id(ctx, owner)?;
+    let owner = facts.source_owner(ctx, callee, None)?;
+    let target = target(facts.source_id(ctx, owner)?);
+    let mut analysis = Analysis {
+        returns: Atom::Never.fact(),
+        throws: 0,
+        issues: Buffer::empty(),
+        incomplete: Buffer::empty(),
+        contexts: 0,
+    };
+    analysis.issues.push(
+        ctx,
+        LocatedIssue {
+            source,
+            function: 1,
+            issue: Issue {
+                pc: 0,
+                kind: IssueKind::Call { target, failure },
+            },
+        },
+    )?;
+    let checked = Check {
+        facts,
+        analysis,
+        entry: false,
+        pending: None,
+    };
+    let mut report = build(ctx, &caller.program, &checked)?;
+    drop(checked);
+    ctx.checkpoint()?;
+    report.stats = ctx.stats();
+    Ok(report)
+}
+
+#[test]
+fn cross_source_call_messages_use_callee_names_and_caller_locations() {
+    use crate::checking::{arguments::Failure, calls::Target};
+    let caller = named(
+        "def caller(wrong); invoke(wrong); end",
+        Some(b"caller.vibe"),
+    );
+    let callee = named("def callee(payload); payload; end", Some(b"library.vibe"));
+    for kind in 0..3 {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let report = call_report(
+            &mut ctx,
+            &caller,
+            &callee,
+            |source| {
+                let function = source.callable(1);
+                match kind {
+                    0 => Target::Function(function),
+                    1 => Target::Block(function),
+                    _ => Target::Method {
+                        function,
+                        receiver: Atom::Int.fact(),
+                        constructor: false,
+                    },
+                }
+            },
+            Failure::Missing(0),
+        )
+        .unwrap();
+        assert_eq!(report.diagnostics.len(), 1);
+        let diagnostic = &report.diagnostics[0];
+        assert!(diagnostic.message.contains("callee"), "{diagnostic:?}");
+        assert!(diagnostic.message.contains("payload"), "{diagnostic:?}");
+        assert!(!diagnostic.message.contains("caller") && !diagnostic.message.contains("wrong"));
+        assert_eq!(diagnostic.function, "caller");
+        assert_eq!(
+            diagnostic.filename.as_deref(),
+            Some(b"caller.vibe".as_slice())
+        );
+        assert!(diagnostic.code_frame.contains("invoke(wrong)"));
+        let offset = caller.program.functions[1].locations[0];
+        let position = caller.program.source.position(offset);
+        assert_eq!(diagnostic.offset, offset as usize);
+        assert_eq!(diagnostic.position.line, position.line);
+        assert_eq!(diagnostic.position.column, position.column);
+        drop(report);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+}
+
+#[test]
+fn cross_source_host_messages_release_callback_owners_without_invoking_them() {
+    use crate::checking::{arguments::Failure, calls::Target};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let weak = Arc::downgrade(&calls);
+    let callback = calls.clone();
+    let mut engine = Engine::new();
+    engine.register("foreign_host", move |_, _| {
+        callback.fetch_add(1, Ordering::Relaxed);
+        Ok(crate::Value::nil())
+    });
+    let callee = engine.compile("def callee; foreign_host(); end").unwrap();
+    let caller = named("def caller; local_host(); end", Some(b"caller.vibe"));
+    let mut ctx = CallContext::new(CallOptions::default());
+    let report = call_report(
+        &mut ctx,
+        &caller,
+        &callee.inner.code,
+        |source| Target::Host(source.callable(0)),
+        Failure::HostArity,
+    )
+    .unwrap();
+    assert_eq!(report.diagnostics.len(), 1);
+    assert!(report.diagnostics[0].message.contains("foreign_host"));
+    assert_eq!(
+        report.diagnostics[0].filename.as_deref(),
+        Some(b"caller.vibe".as_slice())
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    drop((callee, engine, calls));
+    assert!(weak.upgrade().is_none());
+    drop(report);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
+fn cross_source_call_message_failures_release_all_metadata_handles() {
+    use crate::checking::{arguments::Failure, calls::Target};
+    let caller = named(
+        "def caller(wrong); invoke(wrong); end",
+        Some(b"caller.vibe"),
+    );
+    let callee = named("def callee(payload); payload; end", Some(b"library.vibe"));
+    let work = |ctx: &mut CallContext| {
+        call_report(
+            ctx,
+            &caller,
+            &callee,
+            |source| Target::Function(source.callable(1)),
+            Failure::Missing(0),
+        )
+    };
+    let mut ctx = CallContext::new(CallOptions::default());
+    let report = work(&mut ctx).unwrap();
+    let stats = report.stats;
+    drop(report);
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    for kind in [ErrorKind::Steps, ErrorKind::Memory] {
+        for sample in [0, 1, 4, 8, 12, 15, 16, 17] {
+            let steps = if sample == 17 {
+                stats.steps - 1
+            } else {
+                stats.steps * sample / 16
+            };
+            let memory = if sample == 17 {
+                stats.peak_memory_bytes - 1
+            } else {
+                stats.peak_memory_bytes * sample as usize / 16
+            };
+            let mut ctx = CallContext::new(CallOptions {
+                limits: Limits {
+                    steps: (kind == ErrorKind::Steps).then_some(steps),
+                    memory_bytes: (kind == ErrorKind::Memory).then_some(memory),
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            });
+            let result = work(&mut ctx);
+            if sample == 16 {
+                drop(result.unwrap());
+            } else {
+                assert_eq!(result.unwrap_err().kind, kind);
+                assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);
+            }
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+}

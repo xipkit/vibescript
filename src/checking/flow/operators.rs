@@ -153,7 +153,7 @@ impl Walker<'_> {
             _ => unreachable!(),
         };
         let target = Target::Method {
-            function,
+            function: self.source.callable(function),
             receiver,
             constructor: false,
         };

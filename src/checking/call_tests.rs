@@ -394,7 +394,10 @@ fn root_overrides_and_local_shadowing_select_the_actual_callee() {
                 program: &program,
                 contracts: &types.data,
                 hosts: &[host],
-                globals: &[(Value::bytes(b"f"), Target::Host(0))],
+                globals: &[(
+                    Value::bytes(b"f"),
+                    Target::Host(super::sources::SourceId::ROOT.callable(0)),
+                )],
             },
             function,
             &inputs.data,
@@ -827,7 +830,10 @@ fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
     let program = &script.inner.code.program;
     for (value, target) in [
         (Value::int(7), Target::NonCallable),
-        (host_method().value(), Target::Host(0)),
+        (
+            host_method().value(),
+            Target::Host(super::sources::SourceId::ROOT.callable(0)),
+        ),
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

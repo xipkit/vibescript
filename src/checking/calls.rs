@@ -6,7 +6,7 @@ use super::{
     globals::Globals,
     lexical::Layouts,
     relation::Relation,
-    sources::SourceId,
+    sources::{CallableId, SourceId},
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -28,23 +28,36 @@ pub(super) enum Target {
     Deferred(usize),
     Builtin(crate::builtin::Builtin),
     Offset(Fact),
-    Function(usize),
+    Function(CallableId),
     Helper {
         receiver: Fact,
         name: &'static str,
         implicit: bool,
     },
     Method {
-        function: usize,
+        function: CallableId,
         receiver: Fact,
         constructor: bool,
     },
-    Block(usize),
-    Host(usize),
+    Block(CallableId),
+    Host(CallableId),
     NonCallable,
     Undefined,
     Dynamic,
     Unsupported,
+}
+
+impl Target {
+    /// Identifies the source whose callable metadata this target references.
+    pub fn source(self) -> Option<SourceId> {
+        match self {
+            Self::Function(id)
+            | Self::Block(id)
+            | Self::Host(id)
+            | Self::Method { function: id, .. } => Some(id.source),
+            _ => None,
+        }
+    }
 }
 
 pub(super) struct Outcome {
@@ -116,7 +129,7 @@ pub(super) trait Calls {
         Ok(super::inputs::Loaded::unavailable())
     }
     /// Reports whether the selected host implementation may invoke its block.
-    fn host_uses_block(&mut self, ctx: &mut CallContext, _: usize) -> Result<bool> {
+    fn host_uses_block(&mut self, ctx: &mut CallContext, _: CallableId) -> Result<bool> {
         ctx.checkpoint()?;
         Ok(true)
     }
@@ -125,7 +138,7 @@ pub(super) trait Calls {
         &mut self,
         ctx: &mut CallContext,
         _: &mut Facts,
-        _: usize,
+        _: CallableId,
         _: HostBoundary<'_>,
         _: &Globals,
     ) -> Result<Outcome> {
@@ -390,6 +403,7 @@ struct Job {
 
 struct Solver<'a> {
     whole: bool,
+    source: SourceId,
     world: World<'a>,
     values: super::inputs::Values<'a>,
     layouts: &'a Layouts,
@@ -581,6 +595,7 @@ fn analyze_entry<'a>(
     let layouts = Layouts::new(ctx, world.program, world.source_owner)?;
     let mut solver = Solver {
         whole: false,
+        source,
         world,
         values,
         layouts: &layouts,
@@ -655,6 +670,15 @@ impl Solver<'_> {
                 .unwrap_or(&job.context)
                 .snapshot(ctx)?;
             let incoming = context.incoming(ctx)?;
+            if context
+                .ambient
+                .is_some_and(|ambient| ambient.source != source)
+            {
+                return Err(crate::Error::new(
+                    crate::ErrorKind::Runtime,
+                    "checker ambient binding belongs to a different source",
+                ));
+            }
             let block = if matches!(context.kind, Kind::Invoked { .. } | Kind::Initializing) {
                 Some(blocks::Inputs {
                     arguments: &context.arguments.data,
@@ -669,7 +693,7 @@ impl Solver<'_> {
             let function = self.jobs.data[index].function;
             let body = flow::Body {
                 scope: context.scope,
-                ambient: context.ambient,
+                ambient: context.ambient.map(|ambient| ambient.index),
                 general: context.kind == Kind::General,
                 receiver: context.receiver,
                 constructor: context.constructor,
@@ -1064,29 +1088,35 @@ impl Calls for Solver<'_> {
         self.values.read(ctx, facts, &self.world, *input)
     }
 
-    fn host_uses_block(&mut self, ctx: &mut CallContext, index: usize) -> Result<bool> {
+    fn host_uses_block(&mut self, ctx: &mut CallContext, index: CallableId) -> Result<bool> {
         ctx.charge(1)?;
-        Ok(self
-            .values
-            .host(&self.world, index)
-            .is_some_and(|host| host.blocks == HostBlocks::Possible))
+        Ok(index.source == self.source
+            && self
+                .values
+                .host(&self.world, index.index)
+                .is_some_and(|host| host.blocks == HostBlocks::Possible))
     }
 
     fn host_boundary(
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        index: usize,
+        index: CallableId,
         boundary: HostBoundary<'_>,
         globals: &Globals,
     ) -> Result<Outcome> {
+        ctx.checkpoint()?;
         let mut outcome = Outcome::empty();
+        if index.source != self.source {
+            outcome.incomplete = true;
+            return Ok(outcome);
+        }
         match boundary {
             HostBoundary::Arguments(args) => {
-                self.host_arguments(ctx, facts, index, args, globals, &mut outcome)?
+                self.host_arguments(ctx, facts, index.index, args, globals, &mut outcome)?
             }
             HostBoundary::Result(value) => {
-                self.host_result(ctx, facts, index, value, globals, &mut outcome)?
+                self.host_result(ctx, facts, index.index, value, globals, &mut outcome)?
             }
         }
         Ok(outcome)
@@ -1100,12 +1130,16 @@ impl Calls for Solver<'_> {
                 Target::Value(value) => Some(value),
                 Target::Deferred(_) => Some(Atom::Never.fact()),
                 Target::Builtin(builtin) => Some(facts.builtin(ctx, builtin)?),
-                Target::Host(index) => {
-                    Some(facts.callable(ctx, self.world.source_owner, Callable::Host(index))?)
-                }
-                Target::Function(index) => {
-                    Some(facts.callable(ctx, self.world.source_owner, Callable::Function(index))?)
-                }
+                Target::Host(index) if index.source == self.source => Some(facts.callable(
+                    ctx,
+                    self.world.source_owner,
+                    Callable::Host(index.index),
+                )?),
+                Target::Function(index) if index.source == self.source => Some(facts.callable(
+                    ctx,
+                    self.world.source_owner,
+                    Callable::Function(index.index),
+                )?),
                 _ => None,
             };
             if let Some(value) = value {
@@ -1133,10 +1167,10 @@ impl Calls for Solver<'_> {
         } else {
             match target {
                 Callable::Host(index) if self.values.host(&self.world, index).is_some() => {
-                    Target::Host(index)
+                    Target::Host(self.source.callable(index))
                 }
                 Callable::Function(index) if index < self.world.program.functions.len() => {
-                    Target::Function(index)
+                    Target::Function(self.source.callable(index))
                 }
                 _ => Target::Unsupported,
             }
@@ -1183,12 +1217,12 @@ impl Calls for Solver<'_> {
             return Ok(Target::NonCallable);
         }
         if let Some(&index) = program.names.get(name) {
-            return Ok(Target::Function(index));
+            return Ok(Target::Function(self.source.callable(index)));
         }
         for (index, host) in program.hosts.iter().enumerate() {
             ctx.work_bytes(host.len().max(name.len()))?;
             if host == name {
-                return Ok(Target::Host(index));
+                return Ok(Target::Host(self.source.callable(index)));
             }
         }
         for (global, value) in &program.globals {
@@ -1222,6 +1256,10 @@ impl Calls for Solver<'_> {
             exits: Buffer::empty(),
         };
         if !args.admit(ctx, facts, &mut outcome.failures)? {
+            return Ok(outcome);
+        }
+        if target.source().is_some_and(|source| source != self.source) {
+            outcome.incomplete = true;
             return Ok(outcome);
         }
         if let Target::Helper { receiver, name, .. } = target {
@@ -1259,6 +1297,7 @@ impl Calls for Solver<'_> {
             Target::Function(function)
             | Target::Block(function)
             | Target::Method { function, .. } => {
+                let function = function.index;
                 let mut context = args
                     .block
                     .as_ref()
@@ -1318,7 +1357,7 @@ impl Calls for Solver<'_> {
                 }
             }
             Target::Host(index) => {
-                self.host_call(ctx, facts, index, &args, globals, &mut outcome)?;
+                self.host_call(ctx, facts, index.index, &args, globals, &mut outcome)?;
             }
             Target::Dynamic => {
                 outcome.value = Atom::Unknown.fact();

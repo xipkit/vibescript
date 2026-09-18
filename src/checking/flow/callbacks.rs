@@ -3,6 +3,35 @@ use crate::checking::pending;
 use blocks::{Closure, Completion, Layer, Link, Parent};
 
 impl Walker<'_> {
+    pub(super) fn block_arity(&mut self, function: CallableId) -> Result<usize> {
+        self.ctx.charge(1)?;
+        let code = if function.source == self.source {
+            None
+        } else {
+            Some(
+                self.facts
+                    .source_code(self.ctx, function.source)?
+                    .ok_or_else(|| {
+                        crate::Error::new(
+                            crate::ErrorKind::Runtime,
+                            "unknown checker callback source",
+                        )
+                    })?,
+            )
+        };
+        let program = code.as_ref().map_or(self.program, |code| &code.program);
+        program
+            .functions
+            .get(function.index)
+            .map(|body| body.block_arity)
+            .ok_or_else(|| {
+                crate::Error::new(
+                    crate::ErrorKind::Runtime,
+                    "unknown checker callback function",
+                )
+            })
+    }
+
     pub(super) fn given(&self) -> bool {
         self.incoming.is_some()
             || self.block_inputs.is_some_and(|b| b.given)
@@ -115,10 +144,10 @@ impl Walker<'_> {
         state.arguments.data.last_mut().unwrap().arguments.block = Some(Closure {
             scope: self.scope,
             receiver: self.receiver,
-            ambient: self.ambient,
+            ambient: self.ambient.map(|index| self.source.callable(index)),
             pending: pending::Pending::new(),
             destinations: Buffer::empty(),
-            function,
+            function: self.source.callable(function),
             given: self.given(),
             locals,
             inherited,

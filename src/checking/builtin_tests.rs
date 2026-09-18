@@ -327,7 +327,7 @@ fn root_overrides_do_not_reuse_builtin_implementations_or_namespace_facts() {
         (
             "to_int",
             "def run; to_int(7); end",
-            Target::Host(0),
+            Target::Host(super::sources::SourceId::ROOT.callable(0)),
             false,
             false,
         ),

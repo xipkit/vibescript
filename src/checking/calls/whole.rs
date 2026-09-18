@@ -15,6 +15,7 @@ pub(in crate::checking) fn analyze<'a>(
     functions.data.resize(program.functions.len(), false);
     let mut solver = Solver {
         whole: true,
+        source,
         world,
         values,
         layouts: &layouts,
@@ -281,7 +282,7 @@ impl Solver<'_> {
                 if !matches!(*op, Op::InitNamespace(index) if index == module) {
                     continue;
                 }
-                context.ambient = Some(parent);
+                context.ambient = Some(self.source.callable(parent));
                 let base = self.layouts.locals(ctx, program, function)?;
                 let Some(locals) = base.checked_add(body.local_names.len()) else {
                     return ctx.fail(
@@ -297,7 +298,7 @@ impl Solver<'_> {
                             slot: base + slot,
                             value: Atom::Unknown.fact(),
                             missing: false,
-                            owner: blocks::Owner::Function(parent),
+                            owner: blocks::Owner::Function(self.source.callable(parent)),
                         },
                     )?;
                 }

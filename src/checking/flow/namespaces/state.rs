@@ -64,7 +64,10 @@ impl Walker<'_> {
         }
         let method = match target {
             Target::Method { constructor, .. } => !constructor,
-            Target::Function(function) => self.program.functions[function].namespace.is_some(),
+            Target::Function(function) => {
+                function.source == self.source
+                    && self.program.functions[function.index].namespace.is_some()
+            }
             _ => false,
         };
         state
@@ -167,12 +170,12 @@ impl Walker<'_> {
             }
             let target = if instance {
                 Target::Method {
-                    function: method.function,
+                    function: self.source.callable(method.function),
                     receiver,
                     constructor: false,
                 }
             } else {
-                Target::Function(method.function)
+                Target::Function(self.source.callable(method.function))
             };
             let edges = self.invoke(state, pc, target, args)?;
             if edges.is_none() {

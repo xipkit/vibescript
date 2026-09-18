@@ -229,7 +229,7 @@ impl Walker<'_> {
         if !instance && name == "new" {
             if let Some((function, _)) = definition.constructor {
                 return Ok(Selection::Call(Target::Method {
-                    function,
+                    function: self.source.callable(function),
                     receiver,
                     constructor: true,
                 }));
@@ -255,12 +255,12 @@ impl Walker<'_> {
                 return Ok(if allowed {
                     Selection::Call(if instance {
                         Target::Method {
-                            function: method.function,
+                            function: self.source.callable(method.function),
                             receiver,
                             constructor: false,
                         }
                     } else {
-                        Target::Function(method.function)
+                        Target::Function(self.source.callable(method.function))
                     })
                 } else {
                     Selection::Rejected

@@ -207,12 +207,12 @@ impl<'a> Walker<'a> {
             return Ok(Some(Target::NonCallable));
         }
         if let Some(&function) = self.program.names.get(name) {
-            return Ok(Some(Target::Function(function)));
+            return Ok(Some(Target::Function(self.source.callable(function))));
         }
         for (index, host) in self.program.hosts.iter().enumerate() {
             self.ctx.work_bytes(host.len().max(name.len()))?;
             if host == name {
-                return Ok(Some(Target::Host(index)));
+                return Ok(Some(Target::Host(self.source.callable(index))));
             }
         }
         Ok(None)
