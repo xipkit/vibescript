@@ -136,6 +136,7 @@ fn witness(
         &mut ctx,
         &mut facts,
         Body {
+            general: false,
             receiver: None,
             constructor: false,
             program: &program,
@@ -499,6 +500,7 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
         ctx,
         &mut facts,
         Body {
+            general: false,
             receiver: None,
             constructor: false,
             program: &program,
@@ -644,6 +646,7 @@ fn native_calls_and_nested_yields_remain_incomplete_until_solver_integration() {
         &mut ctx,
         &mut facts,
         Body {
+            general: false,
             receiver: None,
             constructor: false,
             program: &program,
@@ -701,6 +704,7 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
         &mut ctx,
         &mut facts,
         Body {
+            general: false,
             receiver: None,
             constructor: false,
             program: &program,

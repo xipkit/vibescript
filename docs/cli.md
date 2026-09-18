@@ -24,7 +24,7 @@ add.vibe: check of run found 1 error; nothing was executed
 
 Incomplete analysis is never treated as clean and never causes the checker to execute source code to discover types. Both kinds exit with status 1.
 
-The scope is exactly one call: the named function, the supplied values and whatever that call reaches. Unused functions, top-level statements and the file as a whole are not checked, and a clean result does not prove that the script is type safe; dynamic values keep their runtime contracts, so a `--checked` execution can still fail with an ordinary error. See the [checker notes](checker.md) for the analysis itself.
+The scope is exactly one call: the named function, the supplied values and whatever that call reaches. Selecting `__main__` checks the top-level entrypoint in source order. Other named calls omit ordinary top-level statements, and unused functions and methods are outside either scope. This is not whole-file checking, and a clean result does not prove that the script is type safe; dynamic values keep their runtime contracts, so a `--checked` execution can still fail with an ordinary error. See the [checker notes](checker.md) for the analysis itself.
 
 For example, the supplied array length makes the indexed loop in `total.vibe` checkable:
 

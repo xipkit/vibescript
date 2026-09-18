@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Node};
+use super::facts::{Atom, Fact, Facts, HashKind, Node};
 use crate::{CallContext, Result, budget::Buffer, bytecode::Parameter, syntax::ParamKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -355,7 +355,6 @@ pub(super) fn keyword_shape(
     facts.shape(ctx, &fields.data, false)
 }
 
-#[cfg(test)]
 pub(super) fn general_inputs(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -365,17 +364,7 @@ pub(super) fn general_inputs(
     let mut values = Buffer::empty();
     for param in params {
         ctx.charge(1)?;
-        let fact = if let Some(ty) = param.ty {
-            facts.value_domain(ctx, contracts[ty])?
-        } else {
-            match param.kind {
-                ParamKind::Rest => facts.array(ctx, Atom::Unknown.fact())?,
-                ParamKind::KeywordRest => {
-                    facts.hash(ctx, Atom::String.fact(), Atom::Unknown.fact())?
-                }
-                _ => Atom::Unknown.fact(),
-            }
-        };
+        let fact = general_input(ctx, facts, param.kind, param.ty.map(|ty| contracts[ty]))?;
         values.push(
             ctx,
             if param.default {
@@ -386,4 +375,25 @@ pub(super) fn general_inputs(
         )?;
     }
     Ok(values)
+}
+
+pub(super) fn general_input(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    kind: ParamKind,
+    contract: Option<Fact>,
+) -> Result<Fact> {
+    // Rest arguments are assembled before their annotation is applied.
+    match kind {
+        ParamKind::Rest => facts.array(ctx, Atom::Unknown.fact()),
+        ParamKind::KeywordRest => facts.hash_kind(
+            ctx,
+            Atom::String.fact(),
+            Atom::Unknown.fact(),
+            HashKind::Plain,
+        ),
+        _ => contract.map_or(Ok(Atom::Unknown.fact()), |expected| {
+            facts.value_domain(ctx, expected)
+        }),
+    }
 }

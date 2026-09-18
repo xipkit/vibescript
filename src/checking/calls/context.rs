@@ -5,7 +5,8 @@ use crate::checking::pending::Pending;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Kind {
-    Entry,
+    Entry { general: bool },
+    General,
     Plain,
     Receiving { function: usize, given: bool },
     Invoked { given: bool },
@@ -179,7 +180,7 @@ impl Context {
     pub fn incoming(&self, ctx: &mut CallContext) -> Result<Option<Closure>> {
         ctx.charge(1)?;
         let (function, receiver, given, locals, inherited, base) = match self.kind {
-            Kind::Plain | Kind::Entry => return Ok(None),
+            Kind::Plain | Kind::General | Kind::Entry { .. } => return Ok(None),
             Kind::Receiving { function, given } => (
                 function,
                 self.block_receiver,

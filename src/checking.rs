@@ -47,6 +47,8 @@ mod public;
 mod relation;
 mod report;
 mod scalar;
+#[cfg(test)]
+mod scope_tests;
 mod slots;
 mod sources;
 mod type_bindings;

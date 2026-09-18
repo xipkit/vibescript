@@ -18,7 +18,7 @@ pub(super) struct Call<'a> {
     pub options: &'a CallOptions,
 }
 
-/// Owns the facts referenced by an internal exact-call analysis.
+/// Owns the facts referenced by one internal checking scope.
 pub(super) struct Check {
     pub facts: Facts,
     pub analysis: Analysis,
@@ -107,10 +107,11 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
     }
     let bound = args.bind_host(ctx, &mut facts, &program.functions[function].params)?;
     ctx.charge(program.namespaces.len() as u64)?;
-    let initializers = program
-        .namespaces
-        .iter()
-        .any(|namespace| namespace.body.is_some());
+    let initializers = (function != 0 || program.file)
+        && program
+            .namespaces
+            .iter()
+            .any(|namespace| namespace.body.is_some());
     if !initializers && !bound.failures.data.is_empty() {
         let mut analysis = empty(Atom::Never.fact(), 1 << ErrorClass::Argument as u8);
         for &failure in &bound.failures.data {
@@ -198,6 +199,46 @@ fn detached(ctx: &mut CallContext, facts: Facts, function: usize, value: Fact) -
         facts,
         analysis,
         entry: true,
+        pending: None,
+    })
+}
+
+/// Checks a declared function for its accepted parameter domains and optional defaults.
+pub(super) fn check_function(
+    ctx: &mut CallContext,
+    script: &Script,
+    name: &str,
+    options: &CallOptions,
+) -> Result<Check> {
+    ctx.checkpoint()?;
+    ctx.work_bytes(name.len())?;
+    let program = &script.inner.code.program;
+    let function = *program
+        .names
+        .get(name)
+        .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
+    let mut facts = Facts::new(ctx)?;
+    let environment = Environment::new(ctx, &mut facts, script, options)?;
+    if let Some(reason) = environment.incomplete.data.first() {
+        ctx.charge(1)?;
+        let message = match reason {
+            Incomplete::Capability(name) => Pending::Capability(name.clone()),
+            Incomplete::File => {
+                Pending::Message("Required-file environment analysis is not implemented")
+            }
+        };
+        return unfinished(ctx, facts, function, message);
+    }
+    let mut values = Values::new();
+    values.writers = Some([
+        script.inner.output_writer.is_some(),
+        script.inner.error_writer.is_some(),
+    ]);
+    let analysis = calls::analyze_general(ctx, &mut facts, environment.world(), function, values)?;
+    Ok(Check {
+        facts,
+        analysis,
+        entry: false,
         pending: None,
     })
 }

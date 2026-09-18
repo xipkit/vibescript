@@ -399,6 +399,67 @@ pub(super) fn analyze_with_values<'a>(
     values: super::inputs::Values<'a>,
     failures: &[Failure],
 ) -> Result<Analysis> {
+    analyze_entry(
+        ctx,
+        facts,
+        world,
+        Entry {
+            function,
+            inputs,
+            failures,
+            general: false,
+        },
+        values,
+    )
+}
+
+pub(super) fn analyze_general<'a>(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    world: World<'a>,
+    function: usize,
+    values: super::inputs::Values<'a>,
+) -> Result<Analysis> {
+    let inputs = super::arguments::general_inputs(
+        ctx,
+        facts,
+        &world.program.functions[function].params,
+        world.contracts,
+    )?;
+    analyze_entry(
+        ctx,
+        facts,
+        world,
+        Entry {
+            function,
+            inputs: &inputs.data,
+            failures: &[],
+            general: true,
+        },
+        values,
+    )
+}
+
+struct Entry<'a> {
+    function: usize,
+    inputs: &'a [Input],
+    failures: &'a [Failure],
+    general: bool,
+}
+
+fn analyze_entry<'a>(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    world: World<'a>,
+    entry: Entry<'_>,
+    values: super::inputs::Values<'a>,
+) -> Result<Analysis> {
+    let Entry {
+        function,
+        inputs,
+        failures,
+        general,
+    } = entry;
     ctx.checkpoint()?;
     let mut admitted = Buffer::empty();
     let mut admission_issues = Buffer::empty();
@@ -471,14 +532,17 @@ pub(super) fn analyze_with_values<'a>(
     solver.entry_failures.extend(ctx, failures)?;
     let mut context = Context::plain();
     ctx.charge(solver.world.program.namespaces.len() as u64)?;
-    if solver
-        .world
-        .program
-        .namespaces
-        .iter()
-        .any(|namespace| namespace.body.is_some())
+    if (function != 0 || solver.world.program.file)
+        && solver
+            .world
+            .program
+            .namespaces
+            .iter()
+            .any(|namespace| namespace.body.is_some())
     {
-        context.kind = Kind::Entry;
+        context.kind = Kind::Entry { general };
+    } else if general {
+        context.kind = Kind::General;
     }
     context.globals = Globals::initial(ctx, facts, solver.world.program)?;
     let roots = solver.roots(ctx, facts)?;
@@ -514,6 +578,7 @@ pub(super) fn analyze_with_values<'a>(
         };
         let function = solver.jobs.data[index].function;
         let body = flow::Body {
+            general: context.kind == Kind::General,
             receiver: context.receiver,
             constructor: context.constructor,
             program: solver.world.program,
@@ -526,8 +591,15 @@ pub(super) fn analyze_with_values<'a>(
             layouts: Some(solver.layouts),
             globals: Some(&context.globals),
         };
-        let mut report = if context.kind == Kind::Entry {
-            solver.initialize_entry(ctx, facts, function, &inputs.data, &context.globals)?
+        let mut report = if let Kind::Entry { general } = context.kind {
+            solver.initialize_entry(
+                ctx,
+                facts,
+                function,
+                &inputs.data,
+                &context.globals,
+                general,
+            )?
         } else {
             flow::analyze_body(ctx, facts, body, &mut solver)?
         };

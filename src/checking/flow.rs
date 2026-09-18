@@ -627,6 +627,7 @@ pub(super) fn analyze(
         ctx,
         facts,
         Body {
+            general: false,
             receiver: None,
             constructor: false,
             program,
@@ -644,6 +645,7 @@ pub(super) fn analyze(
 }
 
 pub(super) struct Body<'a> {
+    pub general: bool,
     pub receiver: Option<Fact>,
     pub constructor: bool,
     pub program: &'a Program,
@@ -664,6 +666,7 @@ pub(super) fn analyze_body(
     calls: &mut dyn Calls,
 ) -> Result<Report> {
     let Body {
+        general,
         receiver,
         constructor,
         program,
@@ -688,8 +691,7 @@ pub(super) fn analyze_body(
     };
     ctx.checkpoint()?;
     ctx.charge(function.params.len() as u64)?;
-    if function_index == 0
-        || program.file
+    if program.file
         || (function.instance
             && !receiver.is_some_and(|value| {
                 matches!(facts.node(value), super::facts::Node::Instance { .. })
@@ -827,6 +829,7 @@ pub(super) fn analyze_body(
     )?;
     queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
+        general,
         receiver,
         constructor,
         ctx,
@@ -909,6 +912,7 @@ pub(super) fn analyze_body(
 }
 
 struct Walker<'a> {
+    general: bool,
     receiver: Option<Fact>,
     constructor: bool,
     ctx: &'a mut CallContext,
@@ -1873,6 +1877,16 @@ impl Walker<'_> {
                         value = if let Some(expected) =
                             self.normalization_contract(&mut supplied, pc, ty)?
                         {
+                            let actual = if self.general {
+                                super::arguments::general_input(
+                                    self.ctx,
+                                    self.facts,
+                                    parameter.kind,
+                                    Some(expected),
+                                )?
+                            } else {
+                                actual
+                            };
                             let relation = self.facts.relation(self.ctx, actual, expected)?;
                             if relation != Relation::Accepted {
                                 self.emit_error(&supplied, pc, handlers::bit(ErrorClass::Runtime))?;

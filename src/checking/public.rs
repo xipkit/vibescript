@@ -56,6 +56,37 @@ pub enum CheckedOutcome {
 }
 
 impl Script {
+    /// Checks the reachable calls of a named function without concrete arguments.
+    ///
+    /// Annotated parameters enter with their declared value domains; unannotated
+    /// parameters remain gradual. Optional defaults are included in the analysis.
+    /// Namespace initialization follows ordinary named-call ordering. This does
+    /// not check unrelated functions or provide whole-file validation, and it
+    /// never executes initializers, callbacks or writers to discover their values.
+    /// Like [`Self::call`], this entry does not supply a script block.
+    pub fn check_function(&self, name: &str, options: &CallOptions) -> Result<CheckReport> {
+        let mut ctx = self.checking_context(options);
+        let checked = entry::check_function(&mut ctx, self, name, options)?;
+        let mut report = report::build(&mut ctx, &self.inner.code.program, &checked)?;
+        drop(checked);
+        ctx.checkpoint()?;
+        report.stats = ctx.stats();
+        Ok(report)
+    }
+
+    fn checking_context(&self, options: &CallOptions) -> CallContext {
+        let mut ctx = CallContext::new(CallOptions {
+            globals: Default::default(),
+            capabilities: Vec::new(),
+            limits: options.limits.clone(),
+            cancellation: options.cancellation.clone(),
+            deadline: options.deadline,
+            allow_require: options.allow_require,
+        });
+        ctx.strict_effects = self.inner.strict_effects;
+        ctx
+    }
+
     /// Checks the reachable path of one concrete invocation without executing it.
     ///
     /// This does not check unused functions or provide whole-file validation.
@@ -81,15 +112,7 @@ impl Script {
         keywords: &[(String, Value)],
         options: &CallOptions,
     ) -> Result<CheckReport> {
-        let mut ctx = CallContext::new(CallOptions {
-            globals: Default::default(),
-            capabilities: Vec::new(),
-            limits: options.limits.clone(),
-            cancellation: options.cancellation.clone(),
-            deadline: options.deadline,
-            allow_require: options.allow_require,
-        });
-        ctx.strict_effects = self.inner.strict_effects;
+        let mut ctx = self.checking_context(options);
         let checked = entry::check(
             &mut ctx,
             entry::Call {

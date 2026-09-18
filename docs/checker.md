@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. Whole-file and general function checking remain unfinished. The CLI exposes exact-call analysis through `--check` and guarded execution through `--checked`. Ordinary calls retain their runtime contracts.
+Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. `check_function` analyzes a named function using its declared parameter types and optional defaults without concrete arguments. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. Whole-file checking remains unfinished. The CLI exposes exact-call analysis through `--check` and guarded execution through `--checked`. Ordinary calls retain their runtime contracts.
 
 ## Type facts
 
@@ -262,7 +262,17 @@ Backedges widen growing integers using a finite set of source constants; repeate
 
 Ten integer test families compare these paths with runtime witnesses, including host-returned indices without executing callbacks during analysis, negative and reversed guards, retries, mixed integer/float case matching, nested updates and overflow. Quota, cancellation and deadline tests verify that interrupted bounds analysis releases its temporary storage. A CLI regression checks and executes `examples/total.vibe`, including the previously rejected `[10,20,30]` call, empty inputs, valid scalar concatenation and rejected operands.
 
-Generalized array sizes, relationships between two changing variables, stored predicates and remaining scalar operations can still lose precision. Bounds do not establish correlations between independent values or complete general function checking. A clean report still relies on runtime contracts for gradual values.
+Generalized array sizes, relationships between two changing variables, stored predicates and remaining scalar operations can still lose precision. Bounds do not establish correlations between independent values or make every general function check complete. A clean report still relies on runtime contracts for gradual values.
+
+## General function and top-level scopes
+
+`check_function(name, &options)` checks a named function and its reachable calls without supplied arguments. Annotated parameters enter with their declared value domains, unannotated parameters remain gradual, and optional parameters include both supplied and default branches. For example, `def run(x:int=false);x;end` has a bad default even though `check_call("run", &[Value::int(7)], &options)` can be clean. Rest arguments are arrays and keyword-rest arguments are plain hashes before their annotations are applied. Their collection provenance survives normalization, including enum elements and symbol key annotations.
+
+Named types resolve against the live bindings after namespace initialization and earlier parameter defaults. The general entry has a separate call context, so recursive calls still validate their actual arguments rather than assuming the root's declared types. The scope uses the same no-block calling convention as `Script::call`; unrelated functions and ordinary top-level statements are outside a named function check. Host globals, strict entry validation, capability factory incompleteness, metered reports, cancellation and deadlines follow the exact-call rules. Analysis never invokes callbacks, writers, defaults or initializers to discover values.
+
+Selecting `__main__` checks the top-level entrypoint and whatever it reaches. Module and class bodies initialize where their declarations occur in the source; named calls retain their initialization prelude. Top-level argument errors occur before source initializers. Checked execution rejects contradictions and unfinished analysis before effects. Ambient parent-local captures in initializers, generalized instance dispatch and some generalized collection operations remain explicitly incomplete.
+
+Neither scope checks every unused function or class method. Whole-file aggregation and general-function CLI selection remain pending; the existing CLI modes still use exact-call checking.
 
 ## Remaining integration
 
@@ -273,7 +283,7 @@ Completion still requires:
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
-- Whole-file checking, general reachable-function checking and their CLI integration. Exact-call checking, CLI modes, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
+- Whole-file checking and general-function CLI selection. General reachable-function and exact-call checking, exact-call CLI modes, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 
 The full-language goal remains active. The exact-call gate does not complete ADR-004 or the remaining runtime and platform work.

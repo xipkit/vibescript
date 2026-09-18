@@ -761,3 +761,251 @@ fn call_failures_and_unresolved_contracts_have_actionable_messages() {
         assert!(!report.incomplete.is_empty());
     }
 }
+
+#[test]
+fn general_scope_checks_defaults_and_all_declared_parameter_values() {
+    for (source, argument) in [
+        ("def run(x:int=false)->int;x;end", Value::int(7)),
+        (
+            "def run(x:bool)->int;if x;7;else;false;end;end",
+            Value::boolean(true),
+        ),
+        (
+            "def run(x:int)->int;if x>0;run(false);else;7;end;end",
+            Value::int(0),
+        ),
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let options = CallOptions::default();
+        assert!(
+            script
+                .check_call("run", std::slice::from_ref(&argument), &options)
+                .unwrap()
+                .is_clean()
+        );
+        assert_eq!(
+            script
+                .call("run", &[argument], options.clone())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(7)
+        );
+        let report = script.check_function("run", &options).unwrap();
+        assert!(!report.diagnostics.is_empty(), "{source}: {report:?}");
+        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .all(|d| d.function == "run" && !d.code_frame.is_empty())
+        );
+    }
+    let script = Engine::new()
+        .compile("false+true;def unused->int;false;end;def run(x:int)->int;x+1;end")
+        .unwrap();
+    assert!(
+        script
+            .check_function("run", &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+    let script = Engine::new().compile("def run;yield;end").unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("No block"))
+    );
+}
+
+#[test]
+fn general_scope_resolves_initialized_types_and_variadic_collection_domains() {
+    let script = Engine::new().compile("enum State;Ready;Done;end;module M;Math.store(:Status,State);end;def run(*items:array<Math.Status>,**extra:hash<symbol,Math.Status>)->array<array<State>>;[items,extra.values];end").unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    let result = script
+        .call_with_keywords(
+            "run",
+            &[Value::symbol(b"ready".to_vec())],
+            &[("next".into(), Value::symbol(b"done".to_vec()))],
+            CallOptions::default(),
+        )
+        .unwrap();
+    assert_eq!(result.value.to_string(), "[[State::Ready], [State::Done]]");
+    for source in [
+        "def run(**extra)->array<string>;extra.keys;end",
+        "def run(**extra:hash<symbol,int>?)->array<string>;extra.keys;end",
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+        let result = script
+            .call_with_keywords(
+                "run",
+                &[],
+                &[("next".into(), Value::int(7))],
+                CallOptions::default(),
+            )
+            .unwrap();
+        assert_eq!(result.value.to_string(), "[next]");
+    }
+}
+
+#[test]
+fn general_scope_preserves_lazy_globals_strict_validation_and_factory_isolation() {
+    let script = Engine::new()
+        .compile("def run(x:int)->int;x+1;end")
+        .unwrap();
+    let options = CallOptions {
+        globals: [("unused".into(), Value::bytes(vec![b'x'; 128 * 1024]))].into(),
+        limits: Limits {
+            memory_bytes: Some(48 * 1024),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    assert!(script.check_function("run", &options).unwrap().is_clean());
+    let options = CallOptions {
+        capabilities: vec![Capability::new("sms", |_| {
+            panic!("checker invoked factory")
+        })],
+        ..CallOptions::default()
+    };
+    let report = script.check_function("run", &options).unwrap();
+    assert!(report.diagnostics.is_empty());
+    assert_eq!(report.incomplete.len(), 1);
+    assert!(report.incomplete[0].message.contains("sms"));
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    let script = engine.compile("def run(x);x;end").unwrap();
+    let options = CallOptions {
+        globals: [(
+            "unused".into(),
+            HostMethod::new("send", |_, _, _| panic!("called")).value(),
+        )]
+        .into(),
+        ..CallOptions::default()
+    };
+    assert_eq!(
+        script.check_function("missing", &options).unwrap_err().kind,
+        ErrorKind::Name
+    );
+    assert_eq!(
+        script.check_function("run", &options).unwrap_err().kind,
+        ErrorKind::Runtime
+    );
+}
+
+#[test]
+fn general_reports_obey_quotas_cancellation_and_deadlines_without_effects() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let mut engine = Engine::new();
+    engine.register("effect", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::int(7))
+    });
+    let script = engine.compile("module M;effect();end;def run(flag:bool,x:int=effect())->int;if flag;false;else;effect();end;end").unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(!report.diagnostics.is_empty());
+    assert!(report.incomplete.is_empty());
+    for kind in [ErrorKind::Steps, ErrorKind::Memory] {
+        for sample in [0, 1, 8, 15, 16] {
+            let options = CallOptions {
+                limits: Limits {
+                    steps: (kind == ErrorKind::Steps).then_some(report.stats.steps * sample / 16),
+                    memory_bytes: (kind == ErrorKind::Memory)
+                        .then_some(report.stats.peak_memory_bytes * sample as usize / 16),
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            };
+            let result = script.check_function("run", &options);
+            if sample == 16 {
+                assert_eq!(result.unwrap().diagnostics.len(), report.diagnostics.len());
+            } else {
+                assert_eq!(result.unwrap_err().kind, kind);
+            }
+        }
+    }
+    for kind in [ErrorKind::Cancelled, ErrorKind::Deadline] {
+        let mut options = CallOptions::default();
+        if kind == ErrorKind::Cancelled {
+            options.cancellation.cancel();
+        } else {
+            options.deadline = Some(std::time::Instant::now());
+        }
+        assert_eq!(
+            script.check_function("run", &options).unwrap_err().kind,
+            kind
+        );
+    }
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn checked_top_level_preserves_source_order_and_rejects_unsupported_captures() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let mut engine = Engine::new();
+    engine.register("effect", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::nil())
+    });
+    let script = engine
+        .compile("M.value+1;module M;effect();C=7;def self.value;C;end;end;def run;M.value+1;end")
+        .unwrap();
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("__main__", &[], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("bad top-level call executed");
+    };
+    assert!(!report.diagnostics.is_empty());
+    assert!(report.incomplete.is_empty());
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    let outcome = executed(
+        script
+            .checked_call("run", &[], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(outcome.value.as_int(), Some(8));
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+    let script = engine
+        .compile("module M;effect();C=7;def self.value;C;end;end;M.value+1")
+        .unwrap();
+    let outcome = executed(
+        script
+            .checked_call("__main__", &[], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(outcome.value.as_int(), Some(8));
+    assert_eq!(effects.load(Ordering::Relaxed), 2);
+    let script = engine
+        .compile("n=7;module M;effect();C=n;end;M::C")
+        .unwrap();
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("__main__", &[], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("unsupported ambient capture executed");
+    };
+    assert!(report.diagnostics.is_empty());
+    assert!(!report.incomplete.is_empty());
+    assert_eq!(effects.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        script.run(CallOptions::default()).unwrap().value.as_int(),
+        Some(7)
+    );
+    assert_eq!(effects.load(Ordering::Relaxed), 3);
+}
