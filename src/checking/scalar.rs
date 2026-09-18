@@ -175,6 +175,46 @@ impl Facts {
                 ctx.charge(1)?;
                 let left = self.arm(left, a);
                 let right = self.arm(right, b);
+                let array = |value| matches!(self.node(value), Node::Array(_) | Node::Tuple(_));
+                let arrays = [array(left), array(right)];
+                if op == "+" && (arrays[0] || arrays[1]) {
+                    if !arrays[0] || !arrays[1] {
+                        let other = if arrays[0] { right } else { left };
+                        let next = match self.node(other) {
+                            Node::Atom(Atom::Never) => Atom::Never.fact(),
+                            Node::Atom(Atom::Any | Atom::Unknown) => Atom::Unknown.fact(),
+                            Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => {
+                                result.unsupported = true;
+                                continue;
+                            }
+                            Node::Instance { .. } | Node::TypeValue(_) if !arrays[0] => {
+                                result.unsupported = true;
+                                continue;
+                            }
+                            _ => {
+                                result.rejected = true;
+                                Atom::Never.fact()
+                            }
+                        };
+                        result.value = self.union(ctx, &[result.value, next])?;
+                        continue;
+                    }
+                    let next = if let (Node::Tuple(a), Node::Tuple(b)) =
+                        (self.node(left), self.node(right))
+                    {
+                        let mut elements = Buffer::empty();
+                        elements.extend(ctx, &a.data)?;
+                        elements.extend(ctx, &b.data)?;
+                        self.tuple(ctx, &elements.data)?
+                    } else {
+                        let left = self.elements(ctx, left)?;
+                        let right = self.elements(ctx, right)?;
+                        let element = self.union(ctx, &[left, right])?;
+                        self.array(ctx, element)?
+                    };
+                    result.value = self.union(ctx, &[result.value, next])?;
+                    continue;
+                }
                 if op == "%" && self.atom(left) == Some(Atom::String) && right != Atom::Never.fact()
                 {
                     result.value = self.union(ctx, &[result.value, Atom::String.fact()])?;

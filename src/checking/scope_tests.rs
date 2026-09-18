@@ -149,18 +149,15 @@ fn general_checks_follow_callees_but_keep_unrelated_code_outside_the_scope() {
 }
 
 #[test]
-fn general_checks_keep_unmodeled_collection_and_instance_dispatch_explicit() {
-    for source in [
-        "def run(a:array<int>,b:array<int>);a+b;end",
-        "class C;def read;7;end;end;def run(value:C);value.read;end",
-    ] {
-        let script = Engine::new().compile(source).unwrap();
-        let report = script
-            .check_function("run", &CallOptions::default())
-            .unwrap();
-        assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
-        assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
-    }
+fn general_checks_model_array_addition_and_keep_unmodeled_instance_dispatch_explicit() {
+    general("def run(a:array<int>,b:array<int>);a+b;end", true);
+    let source = "class C;def read;7;end;end;def run(value:C);value.read;end";
+    let script = Engine::new().compile(source).unwrap();
+    let report = script
+        .check_function("run", &CallOptions::default())
+        .unwrap();
+    assert!(report.diagnostics.is_empty(), "{source}: {report:?}");
+    assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
 }
 
 #[test]
@@ -203,7 +200,7 @@ fn general_analysis_never_executes_defaults_initializers_callbacks_or_writers() 
     assert_eq!(effects.load(Ordering::Relaxed), 3);
 }
 
-fn top(source: &str, expected: &str, issues: bool) {
+pub(super) fn top(source: &str, expected: &str, issues: bool) {
     let script = Engine::new().compile(source).unwrap();
     let options = CallOptions::default();
     let mut ctx = CallContext::new(options.clone());
@@ -220,7 +217,17 @@ fn top(source: &str, expected: &str, issues: bool) {
     .unwrap();
     assert!(
         checked.analysis.incomplete.data.is_empty(),
-        "{source}: {checked:?}"
+        "{source}: {checked:?}; {:?}",
+        checked
+            .analysis
+            .incomplete
+            .data
+            .iter()
+            .map(|(function, pc)| {
+                let function = &script.inner.code.program.functions[*function];
+                (&function.name, pc, function.code.get(*pc))
+            })
+            .collect::<Vec<_>>()
     );
     assert_eq!(
         !checked.analysis.issues.data.is_empty(),

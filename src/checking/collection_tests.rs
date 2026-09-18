@@ -6,6 +6,73 @@ use super::{
 };
 use crate::{CallContext, CallOptions, ErrorKind, Limits, Result, budget::Buffer, bytecode};
 
+#[test]
+fn array_concatenation_retains_order_and_independent_value_snapshots() {
+    for (source, expected) in [
+        ("[]+[]", "[]"),
+        ("[1]+[2,3]", "[1, 2, 3]"),
+        (
+            "a=[[1]];b=[[2]];c=a+b;c[0].push(3);[a,b,c]",
+            "[[[1]], [[2]], [[1, 3], [2]]]",
+        ),
+        ("a=[1];b=a+a.push(2);[a,b]", "[[1, 2], [1, 1, 2]]"),
+        ("a=[1];a+=a.push(2);a", "[1, 1, 2]"),
+    ] {
+        super::scope_tests::top(source, expected, false);
+    }
+    for expression in ["[1]+false", "false+[1]", "[1]+'x'", "'x'+[1]"] {
+        super::scope_tests::top(&format!("begin;{expression};rescue;7;end"), "7", true);
+    }
+}
+
+#[test]
+fn array_concatenation_preserves_general_boundaries_and_recursive_growth() {
+    use crate::{Engine, Value};
+    for (source, rejected) in [
+        (
+            "def run(a:array<int>,b:array<int>)->array<int>;a+b;end",
+            false,
+        ),
+        (
+            "def run(a:array<int>,b:array<bool>)->array<int>;a+b;end",
+            true,
+        ),
+        (
+            "def run(a:array<int>,b:array<int>|bool)->array<int>;a+b;end",
+            true,
+        ),
+        ("def run(a:array<int>,b:any)->array<int>;a+b;end", false),
+    ] {
+        let report = Engine::new()
+            .compile(source)
+            .unwrap()
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.incomplete.is_empty(), "{source}: {report:?}");
+        assert_eq!(
+            !report.diagnostics.is_empty(),
+            rejected,
+            "{source}: {report:?}"
+        );
+    }
+    let script = Engine::new()
+        .compile("def run(n:int,a=[])->array<int>;if n>0;run(n-1,a+[n]);else;a;end;end")
+        .unwrap();
+    let args = [Value::int(3)];
+    let report = script
+        .check_call("run", &args, &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(
+        script
+            .call("run", &args, CallOptions::default())
+            .unwrap()
+            .value
+            .to_string(),
+        "[3, 2, 1]"
+    );
+}
+
 pub(super) fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) -> Result<Analysis> {
     let program = bytecode::compile(source, Vec::new(), &())
         .unwrap_or_else(|error| panic!("{source}: {error}"));
