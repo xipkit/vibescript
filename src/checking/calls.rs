@@ -762,7 +762,7 @@ impl Calls for Solver<'_> {
                     }
                 }
                 if outcome.failures.data.is_empty() {
-                    outcome.value = host.result;
+                    outcome.value = facts.value_domain(ctx, host.result)?;
                     outcome.throws = u8::MAX;
                 }
             }

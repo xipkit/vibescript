@@ -114,7 +114,7 @@ fn annotation_translation_preserves_nested_types_and_nominal_resolution() {
     let array = facts.array(&mut ctx, class).unwrap();
     assert_eq!(
         resolved,
-        facts.union(&mut ctx, &[array, Atom::Nil.fact()]).unwrap()
+        facts.choice(&mut ctx, &[array, Atom::Nil.fact()]).unwrap()
     );
     assert_eq!(names, ["Widget"]);
     let unresolved = annotation(&mut facts, &mut ctx, "Missing");

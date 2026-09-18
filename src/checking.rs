@@ -14,6 +14,9 @@ mod graph;
 mod iteration;
 mod lexical;
 mod mutations;
+mod normalization;
+#[cfg(test)]
+mod normalization_tests;
 mod ordering;
 mod pending;
 mod relation;

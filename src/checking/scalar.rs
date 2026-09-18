@@ -338,7 +338,8 @@ impl Facts {
                     Node::Atom(Atom::Never | Atom::Nil) => 0,
                     Node::Atom(Atom::Unknown | Atom::Any)
                     | Node::Named(_)
-                    | Node::Nominal { .. } => return Ok(None),
+                    | Node::Nominal { .. }
+                    | Node::Choice(_) => return Ok(None),
                     Node::Atom(Atom::Int | Atom::Float) => 1 << Atom::Int as u32,
                     Node::Atom(atom) => 1 << *atom as u32,
                     Node::Boolean(_) => 1 << Atom::Bool as u32,

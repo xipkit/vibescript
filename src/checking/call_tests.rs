@@ -470,7 +470,11 @@ fn normalized_facts_keep_literals_and_known_arms_without_losing_enum_conversion(
     assert!(!facts.unresolved(enumeration));
     let literal = facts.tuple(&mut ctx, &[symbol]).unwrap();
     let target = facts.array(&mut ctx, enumeration).unwrap();
-    assert_eq!(facts.normalized(&mut ctx, literal, target).unwrap(), target);
+    let converted = facts.tuple(&mut ctx, &[enumeration]).unwrap();
+    assert_eq!(
+        facts.normalized(&mut ctx, literal, target).unwrap(),
+        converted
+    );
 }
 
 #[test]

@@ -68,7 +68,7 @@ pub(super) enum Node {
     },
     EnumMember {
         enumeration: Fact,
-        index: usize,
+        index: Option<usize>,
     },
     Array(Fact),
     Tuple(Buffer<Fact>),
@@ -76,6 +76,7 @@ pub(super) enum Node {
     Hash(Fact, Fact, bool),
     Shape(Buffer<Field>, bool, Fact, bool),
     Union(Buffer<Fact>),
+    Choice(Buffer<Fact>),
     Named(Value),
     Nominal {
         identity: NominalId,
@@ -196,7 +197,7 @@ impl Facts {
             _ => 1,
         })?;
         let choices = match &node {
-            Node::Union(_) => true,
+            Node::Union(_) | Node::Choice(_) => true,
             Node::Tuple(values) => values.data.iter().any(|&value| self.has_choices(value)),
             Node::Shape(fields, ..) => fields
                 .data
@@ -209,7 +210,7 @@ impl Facts {
             Node::Atom(Atom::String | Atom::Symbol | Atom::Any)
             | Node::String(_)
             | Node::Symbol(_) => Some(true),
-            Node::Union(arms) => {
+            Node::Union(arms) | Node::Choice(arms) => {
                 let mut matches = false;
                 let mut known = true;
                 for &arm in &arms.data {
@@ -225,6 +226,7 @@ impl Facts {
             _ => Some(false),
         };
         let normalizes = match &node {
+            Node::Choice(_) => true,
             Node::Protected(value, _) | Node::Offset(value) => self.normalizes(*value),
             Node::Named(_) | Node::Nominal { .. } => true,
             Node::Array(element) => self.normalizes(*element),
@@ -245,7 +247,7 @@ impl Facts {
             Node::TypeValue(ty) => self.unresolved(*ty),
             Node::Array(element) => self.unresolved(*element),
             Node::Hash(key, value, _) => self.unresolved(*key) || self.unresolved(*value),
-            Node::Tuple(values) | Node::Union(values) => {
+            Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().any(|&value| self.unresolved(value))
             }
@@ -266,7 +268,7 @@ impl Facts {
             | Node::Range(..)
             | Node::Regex(_)
             | Node::Enumeration { .. }
-            | Node::EnumMember { .. } => true,
+            | Node::EnumMember { index: Some(_), .. } => true,
             Node::Tuple(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().all(|&value| self.singleton(value))
@@ -284,7 +286,7 @@ impl Facts {
             Node::Protected(value, _) | Node::Offset(value) => self.depth(*value),
             Node::Array(element) => self.depth(*element).saturating_add(1),
             Node::Hash(key, value, _) => self.depth(*key).max(self.depth(*value)).saturating_add(1),
-            Node::Tuple(values) | Node::Union(values) => {
+            Node::Tuple(values) | Node::Union(values) | Node::Choice(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values
                     .data
@@ -563,7 +565,64 @@ impl Facts {
         index: usize,
     ) -> Result<Fact> {
         debug_assert!(matches!(self.node(enumeration), Node::Enumeration { .. }));
-        self.intern(ctx, Node::EnumMember { enumeration, index })
+        self.intern(
+            ctx,
+            Node::EnumMember {
+                enumeration,
+                index: Some(index),
+            },
+        )
+    }
+
+    /// Represents the successful value domain of a resolved enum contract.
+    pub(super) fn enum_members(
+        &mut self,
+        ctx: &mut CallContext,
+        enumeration: Fact,
+    ) -> Result<Fact> {
+        let Node::Enumeration { value, .. } = self.node(enumeration) else {
+            unreachable!()
+        };
+        let crate::value::Kind::Enum(value) = &value.0 else {
+            unreachable!()
+        };
+        if value.definition.members.len() == 1 {
+            return self.enum_member(ctx, enumeration, 0);
+        }
+        self.intern(
+            ctx,
+            Node::EnumMember {
+                enumeration,
+                index: None,
+            },
+        )
+    }
+
+    pub(super) fn enum_contract(&self, value: Fact) -> Option<Fact> {
+        if let Node::Nominal {
+            identity: NominalId::Enumeration(index),
+            ..
+        } = self.node(value)
+        {
+            Some(self.enumerations.data[*index])
+        } else {
+            None
+        }
+    }
+
+    /// Keeps conversion order and nested any fallbacks in annotation unions.
+    pub(super) fn choice(&mut self, ctx: &mut CallContext, options: &[Fact]) -> Result<Fact> {
+        ctx.charge(options.len() as u64)?;
+        if !options.iter().any(|&value| {
+            self.normalizes(value)
+                || value == Atom::Any.fact()
+                || matches!(self.node(value), Node::Choice(_))
+        }) {
+            return self.union(ctx, options);
+        }
+        let mut values = Buffer::with_capacity(ctx, options.len())?;
+        values.extend(ctx, options)?;
+        self.intern(ctx, Node::Choice(values))
     }
 
     pub(super) fn enum_nominal(&self, value: Fact) -> Option<Fact> {
@@ -718,7 +777,11 @@ impl Facts {
                 }
                 Task::Nullable => {
                     let value = values.data.pop().unwrap();
-                    self.union(ctx, &[value, Atom::Nil.fact()])?
+                    if value == Atom::Any.fact() {
+                        value
+                    } else {
+                        self.choice(ctx, &[value, Atom::Nil.fact()])?
+                    }
                 }
                 Task::Array => self.array(ctx, values.data.pop().unwrap())?,
                 Task::Hash => {
@@ -745,7 +808,7 @@ impl Facts {
                 }
                 Task::Union(count) => {
                     let start = values.data.len() - count;
-                    let fact = self.union(ctx, &values.data[start..])?;
+                    let fact = self.choice(ctx, &values.data[start..])?;
                     values.data.truncate(start);
                     fact
                 }
@@ -765,7 +828,7 @@ impl Facts {
         let mut variants = loop {
             ctx.charge(1)?;
             match self.node(current) {
-                Node::Union(arms) => {
+                Node::Union(arms) | Node::Choice(arms) => {
                     let mut result = Buffer::with_capacity(ctx, arms.data.len())?;
                     result.extend(ctx, &arms.data)?;
                     break result;
@@ -906,7 +969,7 @@ impl Node {
             }
             Self::Array(element) => element.hash(&mut hash),
             Self::Hash(key, value, plain) => (key, value, plain).hash(&mut hash),
-            Self::Tuple(values) | Self::Union(values) => {
+            Self::Tuple(values) | Self::Union(values) | Self::Choice(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.hash(&mut hash);
             }
@@ -962,7 +1025,9 @@ impl Node {
             | (Self::Named(a), Self::Named(b)) => same_bytes(ctx, a, b)?,
             (Self::Array(a), Self::Array(b)) => a == b,
             (Self::Hash(ak, av, ap), Self::Hash(bk, bv, bp)) => ak == bk && av == bv && ap == bp,
-            (Self::Tuple(a), Self::Tuple(b)) | (Self::Union(a), Self::Union(b)) => {
+            (Self::Tuple(a), Self::Tuple(b))
+            | (Self::Union(a), Self::Union(b))
+            | (Self::Choice(a), Self::Choice(b)) => {
                 ctx.charge(a.data.len().min(b.data.len()) as u64)?;
                 a.data == b.data
             }

@@ -108,21 +108,6 @@ enum Task {
 }
 
 impl Facts {
-    pub fn normalized(
-        &mut self,
-        ctx: &mut CallContext,
-        actual: Fact,
-        expected: Fact,
-    ) -> Result<Fact> {
-        if self.relation(ctx, actual, expected)? == Relation::Accepted
-            && (!self.normalizes(expected) || self.enum_nominal(actual).is_some())
-        {
-            Ok(actual)
-        } else {
-            Ok(expected)
-        }
-    }
-
     pub fn relation(
         &mut self,
         ctx: &mut CallContext,
@@ -229,6 +214,16 @@ impl Facts {
                     }
                     tasks.push(ctx, Task::Save(pair))?;
                     if pair.keys {
+                        if self.string_key(pair.target).is_none() {
+                            tasks.push(
+                                ctx,
+                                Task::Visit(Pair {
+                                    keys: false,
+                                    ..pair
+                                }),
+                            )?;
+                            continue;
+                        }
                         if let (Some(source), Some(target)) =
                             (self.string_key(pair.source), self.string_key(pair.target))
                         {
@@ -256,6 +251,24 @@ impl Facts {
                         | (Node::Named(_), _)
                         | (_, Node::Named(_)) => Relation::Gradual,
                         _ if pair.source == pair.target => Relation::Accepted,
+                        (
+                            Node::EnumMember {
+                                enumeration: a,
+                                index: ai,
+                            },
+                            Node::EnumMember {
+                                enumeration: b,
+                                index: bi,
+                            },
+                        ) => {
+                            if a != b || ai.is_some() && bi.is_some() {
+                                Relation::Rejected
+                            } else if bi.is_none() {
+                                Relation::Accepted
+                            } else {
+                                Relation::Gradual
+                            }
+                        }
                         (Node::EnumMember { .. }, Node::Nominal { .. }) => {
                             if self.enum_nominal(pair.source) == Some(pair.target) {
                                 Relation::Accepted
@@ -263,9 +276,13 @@ impl Facts {
                                 Relation::Rejected
                             }
                         }
-                        (Node::Nominal { .. }, Node::EnumMember { .. }) => {
+                        (Node::Nominal { .. }, Node::EnumMember { index, .. }) => {
                             if self.enum_nominal(pair.target) == Some(pair.source) {
-                                Relation::Gradual
+                                if index.is_none() {
+                                    Relation::Accepted
+                                } else {
+                                    Relation::Gradual
+                                }
                             } else {
                                 Relation::Rejected
                             }
@@ -301,7 +318,7 @@ impl Facts {
                             )?;
                             continue;
                         }
-                        (Node::Union(arms), _) => {
+                        (Node::Union(arms) | Node::Choice(arms), _) => {
                             tasks.push(
                                 ctx,
                                 if pair.overlap {
@@ -315,7 +332,7 @@ impl Facts {
                             }
                             continue;
                         }
-                        (_, Node::Union(arms)) => {
+                        (_, Node::Union(arms) | Node::Choice(arms)) => {
                             let mut structural = false;
                             if !pair.overlap && self.has_choices(pair.source) {
                                 for &arm in &arms.data {

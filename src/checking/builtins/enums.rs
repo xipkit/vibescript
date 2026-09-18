@@ -22,9 +22,9 @@ pub(super) fn member(
     name: &str,
     args: &Arguments,
 ) -> Result<Outcome> {
-    let (parent, index) = match facts.node(receiver) {
-        Node::Enumeration { .. } => (receiver, None),
-        Node::EnumMember { enumeration, index } => (*enumeration, Some(*index)),
+    let (parent, index, type_value) = match facts.node(receiver) {
+        Node::Enumeration { .. } => (receiver, None, true),
+        Node::EnumMember { enumeration, index } => (*enumeration, *index, false),
         _ => unreachable!(),
     };
     let Node::Enumeration { value, .. } = facts.node(parent) else {
@@ -35,7 +35,7 @@ pub(super) fn member(
     };
     let value = value.clone();
     if site.scope {
-        if index.is_some() {
+        if !type_value {
             return reject(ctx, Failure::BuiltinDomain(receiver));
         }
         let Some(index) = value.lookup(ctx, name.as_bytes())? else {
@@ -56,6 +56,9 @@ pub(super) fn member(
         if args.block.is_some() {
             return reject(ctx, Failure::BuiltinBlock);
         }
+        if !type_value && index.is_none() {
+            return Ok(outcome(Atom::String.fact()));
+        }
         let mut bytes = Buffer::empty();
         if index.is_none() {
             bytes.extend(ctx, b"<Enum ")?;
@@ -69,15 +72,17 @@ pub(super) fn member(
         }
         return Ok(outcome(facts.string(ctx, &bytes.data)?));
     }
-    let property = match (name, index) {
-        ("name", None) => facts.string(ctx, value.definition.name.as_bytes())?,
-        ("name", Some(index)) => {
+    let property = match (name, type_value, index) {
+        ("name", true, _) => facts.string(ctx, value.definition.name.as_bytes())?,
+        ("name", false, Some(index)) => {
             facts.string(ctx, value.definition.members[index].name.as_bytes())?
         }
-        ("symbol", Some(index)) => {
+        ("symbol", false, Some(index)) => {
             facts.symbol(ctx, value.definition.members[index].symbol.as_bytes())?
         }
-        ("enum", Some(_)) => parent,
+        ("name", false, None) => Atom::String.fact(),
+        ("symbol", false, None) => Atom::Symbol.fact(),
+        ("enum", false, _) => parent,
         _ => return reject(ctx, Failure::Undefined),
     };
     if !site.auto {

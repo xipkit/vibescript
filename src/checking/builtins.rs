@@ -204,7 +204,8 @@ pub(super) fn invoke(
                     match facts.node(facts.arm(ty, i)) {
                         Node::TypeValue(contract) => {
                             result.incomplete |= facts.unresolved(*contract);
-                            returns.push(ctx, *contract)?;
+                            let value = facts.value_domain(ctx, *contract)?;
+                            returns.push(ctx, value)?;
                         }
                         Node::Atom(Atom::Unknown | Atom::Any) => {
                             returns.push(ctx, Atom::Unknown.fact())?
@@ -355,7 +356,7 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             Node::Nominal {
                 symbols: Some(_), ..
             } => (),
-            Node::Named(_) | Node::Nominal { .. } => result.incomplete = true,
+            Node::Named(_) | Node::Nominal { .. } | Node::Choice(_) => result.incomplete = true,
             Node::Float(bits) if !f64::from_bits(*bits).is_finite() => result.invalid = true,
             Node::Atom(Atom::Unknown | Atom::Any | Atom::Float) => result.fallible = true,
             _ => (),
@@ -438,6 +439,9 @@ pub(super) fn member(
                         | "message"
                         | "backtrace"
                         | "code_frame"
+                        | "name"
+                        | "symbol"
+                        | "enum"
                 )
                 && facts.known_primitive(ctx, arm)?;
             let mut next = outcome(operation.value);

@@ -320,7 +320,7 @@ pub(super) fn general_inputs(
     for param in params {
         ctx.charge(1)?;
         let fact = if let Some(ty) = param.ty {
-            contracts[ty]
+            facts.value_domain(ctx, contracts[ty])?
         } else {
             match param.kind {
                 ParamKind::Rest => facts.array(ctx, Atom::Unknown.fact())?,

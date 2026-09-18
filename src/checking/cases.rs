@@ -213,6 +213,23 @@ impl Facts {
                 let no = self.boolean(ctx, false)?;
                 let yes = self.boolean(ctx, true)?;
                 inputs.extend(ctx, &[no, yes])?;
+            } else if let Node::EnumMember {
+                enumeration,
+                index: None,
+            } = self.node(arm)
+            {
+                let enumeration = *enumeration;
+                let Node::Enumeration { value, .. } = self.node(enumeration) else {
+                    unreachable!()
+                };
+                let Kind::Enum(value) = &value.0 else {
+                    unreachable!()
+                };
+                let count = value.definition.members.len();
+                for index in 0..count {
+                    let member = self.enum_member(ctx, enumeration, index)?;
+                    inputs.push(ctx, member)?;
+                }
             } else {
                 inputs.push(ctx, arm)?;
             }

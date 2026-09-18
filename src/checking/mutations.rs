@@ -464,6 +464,25 @@ impl Facts {
     }
 
     pub(super) fn definitely_equal(&self, a: Fact, b: Fact) -> Option<bool> {
+        if let (
+            Node::EnumMember {
+                enumeration: a,
+                index: ai,
+            },
+            Node::EnumMember {
+                enumeration: b,
+                index: bi,
+            },
+        ) = (self.node(a), self.node(b))
+        {
+            return if a != b {
+                Some(false)
+            } else if let (Some(a), Some(b)) = (ai, bi) {
+                Some(a == b)
+            } else {
+                None
+            };
+        }
         // Canonical IDs prove equal values only for singleton facts, never shared runtime storage.
         if self.singleton(a) && self.singleton(b) {
             return Some(a == b);
