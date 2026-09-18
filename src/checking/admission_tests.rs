@@ -43,6 +43,7 @@ fn witness(input: &Value, expression: &str, expected: &str, rejected: bool) {
         &mut ctx,
         &mut facts,
         World {
+            inputs: &[],
             source_owner: 42,
             program,
             contracts: &contracts.data,

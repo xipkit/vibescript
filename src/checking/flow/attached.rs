@@ -8,7 +8,22 @@ impl Walker<'_> {
         pc: usize,
         slot: usize,
     ) -> Result<bool> {
-        let binding = state.locals.get(self.ctx, slot)?;
+        let mut binding = state.locals.get(self.ctx, slot)?;
+        if binding.missing {
+            let root = slot - state.global_base - self.program.globals.len();
+            let loaded = self.calls.load_root(self.ctx, self.facts, root)?;
+            self.emit_error(state, pc, loaded.throws)?;
+            if loaded.incomplete {
+                self.incomplete(pc)?;
+                return Ok(false);
+            }
+            let value = self.facts.union(self.ctx, &[binding.value, loaded.value])?;
+            if value == Atom::Never.fact() {
+                return Ok(false);
+            }
+            state.store(self.ctx, self.facts, slot, value)?;
+            binding = state.locals.get(self.ctx, slot)?;
+        }
         if !self.facts.escapes(binding.value) {
             return Ok(true);
         }

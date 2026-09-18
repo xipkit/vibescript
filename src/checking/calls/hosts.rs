@@ -1,6 +1,12 @@
 use super::*;
 use crate::checking::type_bindings::{Bindings, Resolution, Scope};
 
+enum Contract {
+    Known(Fact),
+    Rejected,
+    Pending(usize),
+}
+
 struct Environment {
     bindings: Bindings,
     scopes: [Scope; 2],
@@ -12,6 +18,7 @@ impl Solver<'_> {
         ctx: &mut CallContext,
         facts: &mut Facts,
         globals: &Globals,
+        resolved: &[(usize, Fact)],
     ) -> Result<Environment> {
         let mut bindings = Bindings::new();
         let hosts = bindings.scope(ctx)?;
@@ -19,8 +26,16 @@ impl Solver<'_> {
         let roots = self.roots(ctx, facts)?;
         for (index, root) in roots.data.iter().enumerate() {
             ctx.charge(1)?;
-            let value = globals.values.data[self.world.program.globals.len() + index];
-            let binding = bindings.current(ctx, facts, value)?;
+            let slot = self.world.program.globals.len() + index;
+            ctx.charge(resolved.len() as u64)?;
+            let binding = if let Some((_, value)) = resolved.iter().find(|(root, _)| *root == index)
+            {
+                bindings.current(ctx, facts, *value)?
+            } else if globals.missing.data[slot] {
+                crate::checking::type_bindings::Binding::Pending(index)
+            } else {
+                bindings.current(ctx, facts, globals.values.data[slot])?
+            };
             bindings.insert(ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
         let source =
@@ -68,7 +83,7 @@ impl Solver<'_> {
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.world.hosts.get(index) else {
+        let Some(host) = self.values.host(&self.world, index) else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -103,25 +118,16 @@ impl Solver<'_> {
             outcome.incomplete = true;
             return Ok(());
         }
-        let environment = if host.unresolved {
-            Some(self.host_environment(ctx, facts, globals)?)
-        } else {
-            None
-        };
-        let host = &self.world.hosts[index];
-        for (parameter, (&actual, &expected)) in args
-            .positional
-            .data
-            .iter()
-            .zip(&host.params.data)
-            .enumerate()
-        {
+        let params = host.params.data.len();
+        for (parameter, &actual) in args.positional.data.iter().take(params).enumerate() {
+            let expected = self.values.host(&self.world, index).unwrap().params.data[parameter];
             ctx.charge(1)?;
             let Some(expected) = expected else { continue };
-            let Some(expected) = host.contract(
+            let Some(expected) = self.host_contract(
                 ctx,
                 facts,
-                environment.as_ref(),
+                index,
+                globals,
                 Some(parameter),
                 expected,
                 outcome,
@@ -157,7 +163,7 @@ impl Solver<'_> {
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.world.hosts.get(index) else {
+        let Some(host) = self.values.host(&self.world, index) else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -165,19 +171,14 @@ impl Solver<'_> {
             outcome.incomplete = true;
             return Ok(());
         }
-        let environment = if facts.unresolved(host.result) {
-            Some(self.host_environment(ctx, facts, globals)?)
-        } else {
-            None
-        };
-        let host = &self.world.hosts[index];
+        let expected = host.result;
         // A sticky break supplies its own result; the callback cannot replace it
         // or raise a different error after the transfer.
         if actual.is_none() {
             outcome.throws = u8::MAX;
         }
         if let Some(result) =
-            host.contract(ctx, facts, environment.as_ref(), None, host.result, outcome)?
+            self.host_contract(ctx, facts, index, globals, None, expected, outcome)?
         {
             outcome.value = if let Some(actual) = actual {
                 let relation = facts.relation(ctx, actual, result)?;
@@ -208,6 +209,52 @@ impl Solver<'_> {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
+    fn host_contract(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+        globals: &Globals,
+        parameter: Option<usize>,
+        expected: Fact,
+        outcome: &mut Outcome,
+    ) -> Result<Option<Fact>> {
+        let mut resolved = Buffer::empty();
+        loop {
+            let environment = if facts.unresolved(expected) {
+                Some(self.host_environment(ctx, facts, globals, &resolved.data)?)
+            } else {
+                None
+            };
+            let host = self.values.host(&self.world, index).unwrap();
+            match host.contract(
+                ctx,
+                facts,
+                environment.as_ref(),
+                parameter,
+                expected,
+                outcome,
+            )? {
+                Contract::Known(fact) => return Ok(Some(fact)),
+                Contract::Rejected => return Ok(None),
+                Contract::Pending(root) => {
+                    let loaded = self.load_root(ctx, facts, root)?;
+                    outcome.throws |= loaded.throws;
+                    if loaded.incomplete {
+                        outcome.incomplete = true;
+                        return Ok(None);
+                    }
+                    let before = globals.values.data[self.world.program.globals.len() + root];
+                    let value = facts.union(ctx, &[before, loaded.value])?;
+                    if value == Atom::Never.fact() {
+                        return Ok(None);
+                    }
+                    resolved.push(ctx, (root, value))?;
+                }
+            }
+        }
+    }
 }
 
 impl Host<'_> {
@@ -219,10 +266,10 @@ impl Host<'_> {
         parameter: Option<usize>,
         expected: Fact,
         outcome: &mut Outcome,
-    ) -> Result<Option<Fact>> {
+    ) -> Result<Contract> {
         ctx.charge(1)?;
         if !facts.unresolved(expected) {
-            return Ok(Some(expected));
+            return Ok(Contract::Known(expected));
         }
         let signature = self.source.unwrap();
         let ty = parameter.map_or(signature.result.as_ref(), |index| {
@@ -246,10 +293,11 @@ impl Host<'_> {
             }
         })?;
         match failure {
-            None => Ok(Some(resolved)),
+            None => Ok(Contract::Known(resolved)),
+            Some(Resolution::Pending(index)) => Ok(Contract::Pending(index)),
             Some(Resolution::Dynamic) => {
                 outcome.incomplete = true;
-                Ok(None)
+                Ok(Contract::Rejected)
             }
             Some(resolution) => {
                 outcome.failures.push(
@@ -260,7 +308,7 @@ impl Host<'_> {
                         ambiguous: resolution == Resolution::Ambiguous,
                     },
                 )?;
-                Ok(None)
+                Ok(Contract::Rejected)
             }
         }
     }

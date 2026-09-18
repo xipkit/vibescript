@@ -519,6 +519,7 @@ fn source_annotations_enable_nominal_script_argument_and_return_contracts() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program,
                 contracts: &contracts.data,
@@ -598,6 +599,7 @@ fn resolved_host_contracts_validate_nominal_arguments_without_running_the_host()
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program,
                 contracts: &[],
@@ -677,6 +679,7 @@ fn missing_ambiguous_and_dynamic_host_type_bindings_remain_explicit() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program: &program,
                 contracts: &[],
@@ -985,6 +988,7 @@ fn named_binding_results_match_executed_host_signature_resolution() {
                 &mut ctx,
                 &mut facts,
                 World {
+                    inputs: &[],
                     source_owner: 0,
                     program,
                     contracts: &[],
@@ -1030,7 +1034,9 @@ fn named_binding_results_match_executed_host_signature_resolution() {
                     assert!(error.message.contains(expected), "{label}: {error}");
                     assert!(!report.incomplete.data.is_empty(), "{label}");
                 }
-                Resolution::Dynamic => panic!("all fixture bindings are concrete: {label}"),
+                Resolution::Dynamic | Resolution::Pending(_) => {
+                    panic!("all fixture bindings are concrete: {label}")
+                }
             }
             assert_eq!(count.load(Ordering::SeqCst), 1, "{label}");
             drop((report, bindings, facts));

@@ -1,15 +1,34 @@
 use super::*;
 use crate::checking::type_bindings::{Binding as TypeBinding, Bindings, Resolution, Scope};
 
+enum Contract {
+    Value(Option<Fact>),
+    Pending(usize),
+}
+
 impl Walker<'_> {
     pub(super) fn normalization_contract(
         &mut self,
-        state: &State,
+        state: &mut State,
         pc: usize,
         ty: usize,
     ) -> Result<Option<Fact>> {
+        loop {
+            match self.contract(state, pc, ty)? {
+                Contract::Value(value) => return Ok(value),
+                Contract::Pending(index) => {
+                    let slot = state.global_base + self.program.globals.len() + index;
+                    if !self.import_root(state, pc, slot)? {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+    }
+
+    fn contract(&mut self, state: &State, pc: usize, ty: usize) -> Result<Contract> {
         if !self.layouts.named_annotation(self.ctx, ty)? {
-            return Ok(Some(self.contracts[ty]));
+            return Ok(Contract::Value(Some(self.contracts[ty])));
         }
         let mut bindings = Bindings::new();
         let hosts = bindings.scope(self.ctx)?;
@@ -17,8 +36,12 @@ impl Walker<'_> {
         for (index, root) in self.roots.iter().enumerate() {
             self.ctx.charge(1)?;
             let slot = state.global_base + self.program.globals.len() + index;
-            let value = state.locals.get(self.ctx, slot)?.value;
-            let binding = bindings.current(self.ctx, self.facts, value)?;
+            let value = state.locals.get(self.ctx, slot)?;
+            let binding = if value.missing {
+                TypeBinding::Pending(index)
+            } else {
+                bindings.current(self.ctx, self.facts, value.value)?
+            };
             bindings.insert(self.ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
         let sources = self.layouts.type_sources(self.ctx, self.function_index)?;
@@ -36,14 +59,14 @@ impl Walker<'_> {
             }
             let blocks::Owner::Function(owner) = value.owner else {
                 self.incomplete(pc)?;
-                return Ok(None);
+                return Ok(Contract::Value(None));
             };
             if owner == self.function_index {
                 continue;
             }
             let Some(depth) = self.layouts.depth(self.ctx, self.function_index, owner)? else {
                 self.incomplete(pc)?;
-                return Ok(None);
+                return Ok(Contract::Value(None));
             };
             self.ctx.charge(levels.data.len() as u64)?;
             let scope =
@@ -88,11 +111,19 @@ impl Walker<'_> {
         scopes.extend(self.ctx, &[hosts, source])?;
         let mut failure = None;
         let mut dynamic = false;
+        let mut pending = None;
         let fact = self
             .facts
             .annotation(self.ctx, &self.program.types[ty], |ctx, name| {
+                if failure.is_some() || pending.is_some() || dynamic {
+                    return Ok(None);
+                }
                 let resolution = bindings.resolve(ctx, &scopes.data, name, false)?;
                 match resolution {
+                    Resolution::Pending(index) => {
+                        pending.get_or_insert(index);
+                        Ok(None)
+                    }
                     Resolution::Known(fact) => Ok(Some(fact)),
                     Resolution::Missing | Resolution::Ambiguous => {
                         failure.get_or_insert(resolution);
@@ -104,9 +135,12 @@ impl Walker<'_> {
                     }
                 }
             })?;
+        if let Some(index) = pending {
+            return Ok(Contract::Pending(index));
+        }
         if dynamic {
             self.incomplete(pc)?;
-            return Ok(None);
+            return Ok(Contract::Value(None));
         }
         if let Some(failure) = failure {
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -117,8 +151,8 @@ impl Walker<'_> {
                     ambiguous: failure == Resolution::Ambiguous,
                 },
             )?;
-            return Ok(None);
+            return Ok(Contract::Value(None));
         }
-        Ok(Some(fact))
+        Ok(Contract::Value(Some(fact)))
     }
 }

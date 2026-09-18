@@ -1,18 +1,15 @@
 use super::{
-    admission,
     arguments::Input,
     calls::{self, Analysis, Host, Target, World},
-    facts::{Atom, Callable, Fact, Facts},
+    facts::{Atom, Fact, Facts},
 };
-use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer, value::Kind};
+use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer};
 
 #[derive(Debug)]
 pub(super) enum Incomplete {
     Initializer(usize),
-    StrictGlobals,
     File,
     Capability(Value),
-    Root(Value),
 }
 
 /// A metadata snapshot for analysis; this does not bind grants or execute initializers.
@@ -21,7 +18,7 @@ pub(super) struct Environment<'a> {
     owner: usize,
     contracts: Buffer<Fact>,
     hosts: Buffer<Host<'a>>,
-    methods: Buffer<(&'a crate::capability::BoundMethod, usize)>,
+    values: Buffer<&'a Value>,
     globals: Buffer<(Value, Target)>,
     pub incomplete: Buffer<Incomplete>,
 }
@@ -35,13 +32,16 @@ impl<'a> Environment<'a> {
         options: &'a CallOptions,
     ) -> Result<Self> {
         ctx.checkpoint()?;
+        if script.inner.strict_effects {
+            crate::globals::validate(ctx, &options.globals)?;
+        }
         let code = &script.inner.code;
         let mut result = Self {
             script,
             owner: facts.source_owner(ctx, code, None)?,
             contracts: Buffer::empty(),
             hosts: Buffer::empty(),
-            methods: Buffer::empty(),
+            values: Buffer::empty(),
             globals: Buffer::empty(),
             incomplete: Buffer::empty(),
         };
@@ -62,125 +62,30 @@ impl<'a> Environment<'a> {
                 result.incomplete.push(ctx, Incomplete::Initializer(body))?;
             }
         }
-        if script.inner.strict_effects && !options.globals.is_empty() {
-            result.incomplete.push(ctx, Incomplete::StrictGlobals)?;
-        }
         for capability in &options.capabilities {
             let name = ctx.bytes(capability.name.as_bytes())?;
             result
                 .incomplete
                 .push(ctx, Incomplete::Capability(name.clone()))?;
-            result.bind(ctx, name, Atom::Unknown.fact())?;
+            result.bind(ctx, name, Target::Value(Atom::Unknown.fact()))?;
         }
         for (name, value) in &options.globals {
-            let value = result.admit(ctx, facts, value)?;
             let name = ctx.bytes(name.as_bytes())?;
-            if value.incomplete {
-                result
-                    .incomplete
-                    .push(ctx, Incomplete::Root(name.clone()))?;
-            }
-            result.bind(ctx, name, value.value)?;
+            let index = result.values.data.len();
+            result.values.push(ctx, value)?;
+            result.bind(ctx, name, Target::Deferred(index))?;
         }
         Ok(result)
     }
 
-    fn bind(&mut self, ctx: &mut CallContext, name: Value, value: Fact) -> Result<()> {
+    fn bind(&mut self, ctx: &mut CallContext, name: Value, value: Target) -> Result<()> {
         for (key, target) in &mut self.globals.data {
             if super::facts::same_bytes(ctx, key, &name)? {
-                *target = Target::Value(value);
+                *target = value;
                 return Ok(());
             }
         }
-        self.globals.push(ctx, (name, Target::Value(value)))
-    }
-
-    fn admit(
-        &mut self,
-        ctx: &mut CallContext,
-        facts: &mut Facts,
-        value: &'a Value,
-    ) -> Result<admission::Admitted> {
-        let mut nominal = false;
-        let mut value = admission::value(ctx, facts, value, |ctx, facts, value| {
-            Ok(Some(match &value.0 {
-                Kind::Host(method) => {
-                    let mut index = None;
-                    for (previous, slot) in &self.methods.data {
-                        ctx.charge(1)?;
-                        if previous.same(method) {
-                            index = Some(*slot);
-                            break;
-                        }
-                    }
-                    let index = if let Some(index) = index {
-                        index
-                    } else {
-                        let index = self.hosts.data.len();
-                        let host = Host::bound(ctx, facts, method)?;
-                        self.hosts.push(ctx, host)?;
-                        self.methods.push(ctx, (method, index))?;
-                        index
-                    };
-                    facts.callable(ctx, self.owner, Callable::Host(index))?
-                }
-                Kind::Function(function) => {
-                    let owner =
-                        facts.source_owner(ctx, &function.code, Some(&function.environment))?;
-                    facts.callable(ctx, owner, Callable::Function(function.index))?
-                }
-                Kind::Namespace(namespace) => {
-                    nominal = true;
-                    let Some(value) = Self::nominal(ctx, facts, namespace)? else {
-                        return Ok(None);
-                    };
-                    facts.type_value(ctx, value)?
-                }
-                Kind::Instance(instance) => {
-                    nominal = true;
-                    let Some(value) = Self::nominal(ctx, facts, instance.class())? else {
-                        return Ok(None);
-                    };
-                    value
-                }
-                _ => return Ok(None),
-            }))
-        })?;
-        value.incomplete |= nominal;
-        Ok(value)
-    }
-
-    fn nominal(
-        ctx: &mut CallContext,
-        facts: &mut Facts,
-        namespace: &crate::namespace::Namespace,
-    ) -> Result<Option<Fact>> {
-        let code = namespace.owner.clone().or_else(|| {
-            namespace
-                .definition
-                .owner
-                .get()
-                .and_then(std::sync::Weak::upgrade)
-        });
-        let Some(code) = code else { return Ok(None) };
-        for (index, declaration) in code.program.declarations.iter().enumerate() {
-            ctx.charge(1)?;
-            if let Kind::Namespace(declaration) = &declaration.0 {
-                if std::sync::Arc::ptr_eq(&declaration.definition, &namespace.definition) {
-                    let owner = facts.source_owner(ctx, &code, namespace.environment.as_deref())?;
-                    return facts
-                        .nominal(
-                            ctx,
-                            owner,
-                            index,
-                            namespace.definition.name.as_bytes(),
-                            None,
-                        )
-                        .map(Some);
-                }
-            }
-        }
-        Ok(None)
+        self.globals.push(ctx, (name, value))
     }
 
     /// Exposes an immutable view for the interprocedural solver.
@@ -191,6 +96,7 @@ impl<'a> Environment<'a> {
             contracts: &self.contracts.data,
             hosts: &self.hosts.data,
             globals: &self.globals.data,
+            inputs: &self.values.data,
         }
     }
 

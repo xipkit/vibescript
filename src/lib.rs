@@ -29,6 +29,7 @@ mod enums;
 mod error;
 mod exports;
 mod format;
+mod globals;
 mod hash;
 mod hash_blocks;
 mod host_call;

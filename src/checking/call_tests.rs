@@ -32,6 +32,7 @@ fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) -> Result<Ana
         ctx,
         facts,
         World {
+            inputs: &[],
             source_owner: 0,
             program: &program,
             contracts: &types.data,
@@ -342,6 +343,7 @@ fn registered_host_contracts_are_read_without_running_callbacks_or_validators() 
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program,
                 contracts: &types.data,
@@ -387,6 +389,7 @@ fn root_overrides_and_local_shadowing_select_the_actual_callee() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program: &program,
                 contracts: &types.data,
@@ -427,6 +430,7 @@ fn unresolved_calls_and_mutable_host_bindings_stay_explicitly_incomplete() {
         &mut ctx,
         &mut facts,
         World {
+            inputs: &[],
             source_owner: 0,
             program: &program,
             contracts: &[],
@@ -585,6 +589,7 @@ fn accounting(ctx: &mut CallContext, program: &bytecode::Program) -> Result<()> 
         ctx,
         &mut facts,
         World {
+            inputs: &[],
             source_owner: 0,
             program,
             contracts: &types.data,
@@ -718,6 +723,7 @@ fn call_analysis_observes_cancellation_and_deadlines_on_empty_and_cached_paths()
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program: &program,
                 contracts: &[],
@@ -830,6 +836,7 @@ fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program,
                 contracts: &types.data,
@@ -908,6 +915,7 @@ fn missing_host_signature_types_produce_catchable_diagnostics() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program,
                 contracts: &[],

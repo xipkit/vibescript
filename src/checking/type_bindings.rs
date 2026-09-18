@@ -8,19 +8,25 @@ pub(super) struct Scope(usize);
 pub(super) enum Binding {
     Type { fact: Fact, enumeration: bool },
     Exports(Scope),
+    Pending(usize),
     Other,
     Unknown,
 }
 
 impl Binding {
     fn merge(self, other: Self) -> Self {
-        if self == other { self } else { Self::Unknown }
+        match (self, other) {
+            (Self::Pending(index), _) | (_, Self::Pending(index)) => Self::Pending(index),
+            _ if self == other => self,
+            _ => Self::Unknown,
+        }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Resolution {
     Known(Fact),
+    Pending(usize),
     Missing,
     Ambiguous,
     Dynamic,
@@ -38,6 +44,7 @@ impl Resolution {
 
     fn merge(self, other: Self) -> Self {
         match (self, other) {
+            (Self::Pending(index), _) | (_, Self::Pending(index)) => Self::Pending(index),
             (Self::Ambiguous, _) | (_, Self::Ambiguous) => Self::Ambiguous,
             (Self::Dynamic, _) | (_, Self::Dynamic) => Self::Dynamic,
             (Self::Missing, result) | (result, Self::Missing) => result,
@@ -47,7 +54,11 @@ impl Resolution {
     }
 
     fn alternative(self, other: Self) -> Self {
-        if self == other { self } else { Self::Dynamic }
+        match (self, other) {
+            (Self::Pending(index), _) | (_, Self::Pending(index)) => Self::Pending(index),
+            _ if self == other => self,
+            _ => Self::Dynamic,
+        }
     }
 }
 
@@ -439,6 +450,7 @@ impl Bindings {
                     }
                     matched = true;
                     let value = match (entry.value, member) {
+                        (Binding::Pending(index), _) => Resolution::Pending(index),
                         (Binding::Unknown, _) => Resolution::Dynamic,
                         (Binding::Type { fact, .. }, None) => Resolution::Known(fact),
                         (Binding::Exports(exports), Some(member)) => {
@@ -447,9 +459,6 @@ impl Bindings {
                         _ => Resolution::Missing,
                     };
                     found.add(value, entry.optional);
-                    if found.required == Resolution::Ambiguous {
-                        break;
-                    }
                 }
                 if entries.open && (fold || !matched) {
                     found.add(Resolution::Dynamic, false);
@@ -486,6 +495,7 @@ impl Bindings {
                 }
                 matched = true;
                 let candidate = match entry.value {
+                    Binding::Pending(index) => Resolution::Pending(index),
                     Binding::Unknown => Resolution::Dynamic,
                     Binding::Type { fact, enumeration } if !enum_only || enumeration => {
                         Resolution::Known(fact)
@@ -493,9 +503,6 @@ impl Bindings {
                     _ => Resolution::Missing,
                 };
                 found.add(candidate, entry.optional);
-                if found.required == Resolution::Ambiguous {
-                    break;
-                }
             }
             if entries.open && (fold || !matched) {
                 found.add(Resolution::Dynamic, false);

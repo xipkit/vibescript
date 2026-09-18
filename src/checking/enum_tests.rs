@@ -407,6 +407,7 @@ fn analyze_program(
         ctx,
         facts,
         World {
+            inputs: &[],
             source_owner: 0,
             program,
             contracts: &contracts.data,
@@ -470,6 +471,7 @@ fn resolved_enum_contracts_keep_members_across_script_boundaries() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 37,
                 program: &program,
                 contracts: &contracts.data,

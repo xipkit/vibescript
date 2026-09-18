@@ -688,7 +688,7 @@ pub(super) fn analyze_body(
             locals + index,
             Binding {
                 value,
-                missing: false,
+                missing: globals.missing.data[index],
                 owner: blocks::Owner::Unknown,
             },
         )?;
@@ -1614,7 +1614,7 @@ impl Walker<'_> {
                 }
                 Op::Declare(slot) => {
                     let binding = state.locals.get(self.ctx, slot)?;
-                    if binding.missing {
+                    if binding.missing && slot < state.global_base + self.program.globals.len() {
                         let value = self
                             .facts
                             .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
@@ -1681,7 +1681,7 @@ impl Walker<'_> {
                     };
                     if let (Some(actual), Some(ty)) = (value, parameter.ty) {
                         value = if let Some(expected) =
-                            self.normalization_contract(&supplied, pc, ty)?
+                            self.normalization_contract(&mut supplied, pc, ty)?
                         {
                             let relation = self.facts.relation(self.ctx, actual, expected)?;
                             if relation != Relation::Accepted {
@@ -1723,7 +1723,7 @@ impl Walker<'_> {
                 Op::BindEnd => (),
                 Op::Normalize(ty, _) => {
                     let actual = state.stack.data.last().unwrap().value;
-                    let Some(expected) = self.normalization_contract(&state, pc, ty)? else {
+                    let Some(expected) = self.normalization_contract(&mut state, pc, ty)? else {
                         return Ok([None, None]);
                     };
                     let relation = self.facts.relation(self.ctx, actual, expected)?;

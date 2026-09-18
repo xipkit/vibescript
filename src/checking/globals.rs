@@ -10,6 +10,7 @@ use std::hash::{Hash, Hasher};
 #[derive(Debug)]
 pub(super) struct Globals {
     pub values: Buffer<Fact>,
+    pub missing: Buffer<bool>,
     pub written: Buffer<bool>,
     pub pending: Pending,
 }
@@ -18,6 +19,7 @@ impl Globals {
     pub fn empty() -> Self {
         Self {
             values: Buffer::empty(),
+            missing: Buffer::empty(),
             written: Buffer::empty(),
             pending: Pending::new(),
         }
@@ -29,6 +31,7 @@ impl Globals {
             ctx.charge(1)?;
             let value = builtins::global(ctx, facts, value)?;
             globals.values.push(ctx, value)?;
+            globals.missing.push(ctx, false)?;
             globals.written.push(ctx, false)?;
         }
         Ok(globals)
@@ -38,6 +41,7 @@ impl Globals {
         ctx.charge(1)?;
         let mut globals = Self::empty();
         globals.values.extend(ctx, &self.values.data)?;
+        globals.missing.extend(ctx, &self.missing.data)?;
         globals.written.extend(ctx, &self.written.data)?;
         globals.pending = self.pending.snapshot(ctx)?;
         Ok(globals)
@@ -47,21 +51,34 @@ impl Globals {
         for root in roots {
             ctx.charge(1)?;
             self.values.push(ctx, root.value)?;
+            self.missing.push(ctx, root.missing)?;
             self.written.push(ctx, false)?;
         }
         Ok(())
     }
 
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
-        ctx.charge(self.values.data.len() as u64 + self.written.data.len() as u64 + 1)?;
+        ctx.charge(
+            self.values.data.len() as u64
+                + self.written.data.len() as u64
+                + self.missing.data.len() as u64
+                + 1,
+        )?;
         self.values.data.hash(hash);
+        self.missing.data.hash(hash);
         self.written.data.hash(hash);
         self.pending.hash(ctx, hash)
     }
 
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
-        ctx.charge(self.values.data.len() as u64 + self.written.data.len() as u64 + 1)?;
+        ctx.charge(
+            self.values.data.len() as u64
+                + self.written.data.len() as u64
+                + self.missing.data.len() as u64
+                + 1,
+        )?;
         Ok(self.values.data == other.values.data
+            && self.missing.data == other.missing.data
             && self.written.data == other.written.data
             && self.pending.equal(ctx, &other.pending)?)
     }
@@ -88,6 +105,11 @@ impl Globals {
             *a = value;
         }
         for (a, b) in self.written.data.iter_mut().zip(&other.written.data) {
+            ctx.charge(1)?;
+            changed |= !*a && *b;
+            *a |= *b;
+        }
+        for (a, b) in self.missing.data.iter_mut().zip(&other.missing.data) {
             ctx.charge(1)?;
             changed |= !*a && *b;
             *a |= *b;

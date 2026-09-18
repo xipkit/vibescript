@@ -18,6 +18,9 @@ mod facts;
 mod flow;
 mod globals;
 mod graph;
+#[cfg(test)]
+mod input_tests;
+mod inputs;
 mod iteration;
 mod lexical;
 #[cfg(test)]

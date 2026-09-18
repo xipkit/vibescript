@@ -3,6 +3,7 @@ use super::{
     environment::{Environment, Incomplete},
     facts::{Callable, Facts, Node},
     flow::IssueKind,
+    inputs::Values,
     normalization_tests::observed,
     relation::Relation,
     type_bindings::{Bindings, Resolution},
@@ -257,7 +258,30 @@ fn repeated_method_descriptors_share_metadata_but_keep_distinct_grants() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let environment = Environment::new(&mut ctx, &mut facts, &script, &options).unwrap();
-    assert_eq!(environment.world().hosts.len(), 2);
+    let world = environment.world();
+    let mut values = Values::new();
+    let fresh = values.read(&mut ctx, &mut facts, &world, 0).unwrap().value;
+    let stale = values.read(&mut ctx, &mut facts, &world, 1).unwrap().value;
+    let a = facts
+        .selected_field(&mut ctx, fresh, b"a")
+        .unwrap()
+        .unwrap()
+        .0;
+    let b = facts
+        .selected_field(&mut ctx, fresh, b"b")
+        .unwrap()
+        .unwrap()
+        .0;
+    let old = facts
+        .selected_field(&mut ctx, stale, b"a")
+        .unwrap()
+        .unwrap()
+        .0;
+    assert_eq!(a, b);
+    assert_ne!(a, old);
+    assert!(values.host(&world, 0).is_some());
+    assert!(values.host(&world, 1).is_some());
+    assert!(values.host(&world, 2).is_none());
     witness(&script, &options, "[7, 9]", true);
 }
 
@@ -359,7 +383,8 @@ fn opaque_factories_remain_pending_even_when_an_explicit_global_overrides_them()
     let world = environment.world();
     assert_eq!(world.globals.len(), 1);
     assert!(
-        matches!(world.globals[0].1, super::calls::Target::Value(fact) if matches!(facts.node(fact), Node::Integer(7)))
+        matches!(world.globals[0].1, super::calls::Target::Deferred(0))
+            && world.inputs[0].as_int() == Some(7)
     );
     let report = environment
         .analyze(
@@ -384,7 +409,7 @@ fn opaque_factories_remain_pending_even_when_an_explicit_global_overrides_them()
 }
 
 #[test]
-fn initialization_strict_globals_and_nominal_state_are_explicitly_incomplete() {
+fn initializers_and_used_nominal_state_remain_incomplete_after_strict_validation() {
     let mut engine = Engine::new();
     engine.register("mark", |_, _| panic!("initializer executed"));
     let script = engine
@@ -396,15 +421,22 @@ fn initialization_strict_globals_and_nominal_state_are_explicitly_incomplete() {
     let environment = Environment::new(&mut ctx, &mut facts, &script, &options).unwrap();
     assert!(environment.incomplete.data.iter().any(|reason| matches!(reason, Incomplete::Initializer(index) if *index < script.inner.code.program.functions.len())));
     let namespace = script.inner.code.program.declarations[0].clone();
-    let consumer = Engine::new().compile("def run; 7; end").unwrap();
+    let consumer = Engine::new().compile("def run; Widget; end").unwrap();
     let globals = CallOptions {
         globals: [("Widget".into(), namespace)].into(),
         ..CallOptions::default()
     };
     let environment = Environment::new(&mut ctx, &mut facts, &consumer, &globals).unwrap();
-    assert!(environment.incomplete.data.iter().any(
-        |reason| matches!(reason, Incomplete::Root(name) if name.as_bytes()==Some(b"Widget"))
-    ));
+    assert!(environment.incomplete.data.is_empty());
+    let report = environment
+        .analyze(
+            &mut ctx,
+            &mut facts,
+            consumer.inner.code.program.names["run"],
+            &[],
+        )
+        .unwrap();
+    assert!(!report.incomplete.data.is_empty());
     engine.set_strict_effects(true);
     let strict = engine.compile("def run; 7; end").unwrap();
     let globals = CallOptions {
@@ -412,13 +444,7 @@ fn initialization_strict_globals_and_nominal_state_are_explicitly_incomplete() {
         ..CallOptions::default()
     };
     let environment = Environment::new(&mut ctx, &mut facts, &strict, &globals).unwrap();
-    assert!(
-        environment
-            .incomplete
-            .data
-            .iter()
-            .any(|reason| matches!(reason, Incomplete::StrictGlobals))
-    );
+    assert!(environment.incomplete.data.is_empty());
     let report = environment
         .analyze(
             &mut ctx,
@@ -427,7 +453,8 @@ fn initialization_strict_globals_and_nominal_state_are_explicitly_incomplete() {
             &[],
         )
         .unwrap();
-    assert_eq!(report.contexts, 0);
+    assert_eq!(report.contexts, 1);
+    assert!(report.incomplete.data.is_empty());
 }
 
 #[test]
@@ -462,13 +489,14 @@ fn admitted_classes_and_instances_share_source_declaration_identities() {
     let scope = bindings
         .source(&mut ctx, &mut facts, world.program, world.source_owner)
         .unwrap();
+    let mut values = Values::new();
     for (root, name, is_type) in expected {
         let Resolution::Known(expected) =
             bindings.resolve(&mut ctx, &[scope], &name, false).unwrap()
         else {
             panic!("missing source declaration: {name}");
         };
-        let (_, super::calls::Target::Value(actual)) = world
+        let (_, super::calls::Target::Deferred(index)) = world
             .globals
             .iter()
             .find(|(key, _)| key.as_bytes() == Some(root.as_bytes()))
@@ -476,16 +504,20 @@ fn admitted_classes_and_instances_share_source_declaration_identities() {
         else {
             panic!("missing root: {root}");
         };
+        let admitted = values.read(&mut ctx, &mut facts, &world, *index).unwrap();
+        assert!(admitted.incomplete);
+        let actual = admitted.value;
         let actual = if is_type {
-            let Node::TypeValue(value) = facts.node(*actual) else {
+            let Node::TypeValue(value) = facts.node(actual) else {
                 panic!("expected type value: {root}");
             };
             *value
         } else {
-            *actual
+            actual
         };
         assert_eq!(actual, expected, "{root}");
     }
+    drop(values);
     drop((bindings, environment, facts));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
@@ -580,9 +612,8 @@ fn captured_functions_keep_distinct_owners_and_cannot_resolve_as_local_functions
     let mut facts = Facts::new(&mut ctx).unwrap();
     let environment = Environment::new(&mut ctx, &mut facts, &script, &options).unwrap();
     let world = environment.world();
-    let super::calls::Target::Value(object) = world.globals[0].1 else {
-        panic!()
-    };
+    let mut values = Values::new();
+    let object = values.read(&mut ctx, &mut facts, &world, 0).unwrap().value;
     let a = facts
         .selected_field(&mut ctx, object, b"helper")
         .unwrap()

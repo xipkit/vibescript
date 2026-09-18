@@ -51,6 +51,7 @@ fn analyze_roots(
         ctx,
         facts,
         World {
+            inputs: &[],
             program,
             source_owner: 42,
             contracts: &contracts.data,

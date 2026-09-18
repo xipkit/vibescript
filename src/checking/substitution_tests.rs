@@ -376,6 +376,7 @@ fn supplied_options(source: &str, input: Value, exact: bool, options: CallOption
         &mut ctx,
         &mut facts,
         World {
+            inputs: &[],
             source_owner: 0,
             program: &program,
             contracts: &[],
@@ -549,6 +550,7 @@ fn default_work_exhaustion_cannot_be_rescued_as_an_output_limit() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 0,
                 program: &program,
                 contracts: &[],

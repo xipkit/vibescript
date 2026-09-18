@@ -42,6 +42,7 @@ pub(super) fn analyze(
         ctx,
         facts,
         World {
+            inputs: &[],
             source_owner: 42,
             program,
             contracts: &contracts.data,
@@ -624,6 +625,7 @@ fn host_return_contracts_produce_enum_values_without_executing_callbacks() {
             &mut ctx,
             &mut facts,
             World {
+                inputs: &[],
                 source_owner: 42,
                 program,
                 contracts: &[],

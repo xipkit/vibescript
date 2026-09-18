@@ -147,8 +147,9 @@ impl State {
         globals.pending = self.global_pending.snapshot(ctx)?;
         for index in 0..self.global_count {
             ctx.charge(1)?;
-            let value = self.locals.get(ctx, self.global_base + index)?.value;
-            globals.values.push(ctx, value)?;
+            let value = self.locals.get(ctx, self.global_base + index)?;
+            globals.values.push(ctx, value.value)?;
+            globals.missing.push(ctx, value.missing)?;
             let written = self.global_written.get(ctx, index)?;
             globals.written.push(ctx, written)?;
         }
@@ -181,6 +182,16 @@ impl State {
             ctx.charge(1)?;
             if globals.written.data[index] {
                 self.store(ctx, facts, self.global_base + index, value)?;
+                let slot = self.global_base + index;
+                let binding = self.locals.get(ctx, slot)?;
+                self.locals.set(
+                    ctx,
+                    slot,
+                    Binding {
+                        missing: globals.missing.data[index],
+                        ..binding
+                    },
+                )?;
             }
         }
         let mut returned = globals.pending.addresses.data.iter();

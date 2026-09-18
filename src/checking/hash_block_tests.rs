@@ -302,6 +302,7 @@ fn deep_frames_handle_the_full_value_depth_without_native_recursion() {
         &mut ctx,
         &mut facts,
         calls::World {
+            inputs: &[],
             source_owner: 0,
             program: &program,
             contracts: &[],

@@ -18,6 +18,8 @@ use context::{Context, Kind};
 pub(super) enum Target {
     /// An admitted root value or a value selected before call arguments run.
     Value(Fact),
+    /// A supplied global whose value has not been read.
+    Deferred(usize),
     Builtin(crate::builtin::Builtin),
     Offset(Fact),
     Function(usize),
@@ -56,6 +58,16 @@ impl Outcome {
 }
 
 pub(super) trait Calls {
+    /// Describes a supplied root only when execution would materialize it.
+    fn load_root(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: usize,
+    ) -> Result<super::inputs::Loaded> {
+        ctx.checkpoint()?;
+        Ok(super::inputs::Loaded::unavailable())
+    }
     /// Reports whether the selected host implementation may invoke its block.
     fn host_uses_block(&mut self, ctx: &mut CallContext, _: usize) -> Result<bool> {
         ctx.checkpoint()?;
@@ -114,6 +126,7 @@ pub(super) struct Unavailable;
 pub(super) struct Root {
     pub name: Value,
     pub value: Fact,
+    pub missing: bool,
 }
 
 impl Calls for Unavailable {
@@ -273,6 +286,7 @@ pub(super) struct World<'a> {
     pub hosts: &'a [Host<'a>],
     // Callers supply unique names and admitted facts or bound descriptors, never factories.
     pub globals: &'a [(Value, Target)],
+    pub inputs: &'a [&'a Value],
 }
 
 #[derive(Debug)]
@@ -315,6 +329,7 @@ struct Job {
 
 struct Solver<'a> {
     world: World<'a>,
+    values: super::inputs::Values<'a>,
     layouts: &'a Layouts,
     jobs: Buffer<Job>,
     buckets: Buffer<usize>,
@@ -394,6 +409,7 @@ pub(super) fn analyze(
     let layouts = Layouts::new(ctx, world.program, world.source_owner)?;
     let mut solver = Solver {
         world,
+        values: super::inputs::Values::new(),
         layouts: &layouts,
         jobs: Buffer::empty(),
         buckets: Buffer::empty(),
@@ -763,12 +779,23 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn load_root(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        index: usize,
+    ) -> Result<super::inputs::Loaded> {
+        let Some((_, Target::Deferred(input))) = self.world.globals.get(index) else {
+            return Ok(super::inputs::Loaded::unavailable());
+        };
+        self.values.read(ctx, facts, &self.world, *input)
+    }
+
     fn host_uses_block(&mut self, ctx: &mut CallContext, index: usize) -> Result<bool> {
         ctx.charge(1)?;
         Ok(self
-            .world
-            .hosts
-            .get(index)
+            .values
+            .host(&self.world, index)
             .is_some_and(|host| host.blocks == HostBlocks::Possible))
     }
 
@@ -798,6 +825,7 @@ impl Calls for Solver<'_> {
             ctx.charge(1)?;
             let value = match *target {
                 Target::Value(value) => Some(value),
+                Target::Deferred(_) => Some(Atom::Never.fact()),
                 Target::Builtin(builtin) => Some(facts.builtin(ctx, builtin)?),
                 Target::Host(index) => {
                     Some(facts.callable(ctx, self.world.source_owner, Callable::Host(index))?)
@@ -813,6 +841,7 @@ impl Calls for Solver<'_> {
                     Root {
                         name: name.clone(),
                         value,
+                        missing: matches!(target, Target::Deferred(_)),
                     },
                 )?;
             }
@@ -830,7 +859,9 @@ impl Calls for Solver<'_> {
             Target::Unsupported
         } else {
             match target {
-                Callable::Host(index) if index < self.world.hosts.len() => Target::Host(index),
+                Callable::Host(index) if self.values.host(&self.world, index).is_some() => {
+                    Target::Host(index)
+                }
                 Callable::Function(index) if index < self.world.program.functions.len() => {
                     Target::Function(index)
                 }
@@ -1007,7 +1038,9 @@ impl Calls for Solver<'_> {
                 outcome.value = Atom::Unknown.fact();
                 outcome.throws = u8::MAX;
             }
-            Target::Unsupported | Target::Value(_) => outcome.incomplete = true,
+            Target::Unsupported | Target::Value(_) | Target::Deferred(_) => {
+                outcome.incomplete = true
+            }
             Target::NonCallable => outcome.failures.push(ctx, Failure::NonCallable)?,
             Target::Undefined => outcome.failures.push(ctx, Failure::Undefined)?,
         }
