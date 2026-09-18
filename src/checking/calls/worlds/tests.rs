@@ -42,6 +42,137 @@ fn fixtures() -> Vec<(Script, CallOptions)> {
     fixtures
 }
 
+fn file(engine: &Engine, source: &str) -> Script {
+    Script {
+        inner: Arc::new(crate::ScriptInner {
+            code: crate::code::Code::compile_file(source, &engine.hosts).unwrap(),
+            loader: engine.loader.clone(),
+            strict_effects: engine.strict_effects,
+            random_source: engine.random_source.clone(),
+            output_writer: engine.output_writer.clone(),
+            error_writer: engine.error_writer.clone(),
+        }),
+    }
+}
+
+#[test]
+fn interleaved_files_keep_private_writes_namespaces_and_builtin_indexes() {
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let mut state = Scheduler::new(crate::checking::inputs::Values::new(), false);
+    let mut entries = Vec::new();
+    for (prefix, constant, root) in [
+        ("JSON;Math;", 7, 5),
+        ("Math;JSON;module Other;X=1;end;", 9, 11),
+    ] {
+        let source = format!(
+            "{prefix}module M;X={constant};def self.read;X;end;end;x=[1];def change;x.push(2);3;end;x[-1]+=change();M.read*100+x[0]*10+x[1]+root"
+        );
+        let script = file(&Engine::new(), &source);
+        let options = CallOptions {
+            globals: [("root".into(), Value::int(root))].into(),
+            ..CallOptions::default()
+        };
+        let expected = script.run(options.clone()).unwrap().value.as_int().unwrap();
+        assert_eq!(expected, constant * 100 + 42 + root);
+        let source = register(&mut ctx, &mut facts, &mut state, &script, &options).unwrap();
+        let (index, handle) = state.worlds.get(&mut ctx, source).unwrap();
+        let mut solver = state.adapter(index, &handle);
+        let mut context = Context::plain();
+        context.kind = Kind::Entry { general: false };
+        let entry = solver
+            .request(&mut ctx, &mut facts, 0, &[], flow::NO_ERROR, &context)
+            .unwrap();
+        entries.push((entry, expected));
+    }
+    state.solve(&mut ctx, &mut facts).unwrap();
+    for (entry, expected) in entries {
+        let job = &state.jobs.data[entry];
+        assert_eq!(job.returns, facts.integer(&mut ctx, expected).unwrap());
+    }
+    for job in &state.jobs.data {
+        let report = job.report.as_ref().unwrap();
+        assert!(
+            report.incomplete.data.is_empty(),
+            "{:?}",
+            report.incomplete.data
+        );
+        assert!(report.issues.data.is_empty(), "{:?}", report.issues.data);
+    }
+    drop((state, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
+fn host_named_contracts_use_the_calling_sources_mapped_declarations() {
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = calls.clone();
+    let mut engine = Engine::new();
+    engine.register_method(
+        "accept",
+        HostMethod::new("accept", move |_, _, _| {
+            counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Ok(Value::int(7))
+        })
+        .with_signature(Signature {
+            params: vec![SignatureParam {
+                name: "value".into(),
+                ty: "Choice".into(),
+                optional: false,
+            }],
+            result: "int".into(),
+            accepts_block: false,
+        })
+        .unwrap(),
+    );
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let mut state = Scheduler::new(crate::checking::inputs::Values::new(), false);
+    let mut entries = Vec::new();
+    for prefix in ["JSON;enum Other;One;end;", "Math;JSON;"] {
+        let script = file(
+            &engine,
+            &format!("{prefix}enum Choice;One;end;accept(Choice::One)"),
+        );
+        assert_eq!(
+            script.run(CallOptions::default()).unwrap().value.as_int(),
+            Some(7)
+        );
+        let source = register(
+            &mut ctx,
+            &mut facts,
+            &mut state,
+            &script,
+            &CallOptions::default(),
+        )
+        .unwrap();
+        let (index, handle) = state.worlds.get(&mut ctx, source).unwrap();
+        let mut solver = state.adapter(index, &handle);
+        entries.push(
+            solver
+                .request(
+                    &mut ctx,
+                    &mut facts,
+                    0,
+                    &[],
+                    flow::NO_ERROR,
+                    &Context::plain(),
+                )
+                .unwrap(),
+        );
+    }
+    state.solve(&mut ctx, &mut facts).unwrap();
+    for entry in entries {
+        let job = &state.jobs.data[entry];
+        assert_eq!(job.returns, Atom::Int.fact());
+        assert!(job.report.as_ref().unwrap().issues.data.is_empty());
+        assert!(job.report.as_ref().unwrap().incomplete.data.is_empty());
+    }
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 2);
+    drop((state, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
 fn register(
     ctx: &mut CallContext,
     facts: &mut Facts,
@@ -91,13 +222,6 @@ fn request_inputs(
     let mut solver = state.adapter(world_index, &handle);
     let mut context = Context::plain();
     context.kind = kind;
-    context.globals = Globals::initial(ctx, facts, view.world.program)?;
-    let roots = solver.roots(ctx, facts)?;
-    context.globals.roots(ctx, &roots.data)?;
-    context.globals.files(ctx, &view.layouts.files)?;
-    context
-        .globals
-        .namespaces(ctx, facts, view.world.program, view.world.source_owner)?;
     solver.request(
         ctx,
         facts,

@@ -3,11 +3,6 @@ use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 
 pub(super) const WIDTH: usize = 4;
 
-/// Namespace fields, completion flags, instance heaps and symbolic aliases follow ordinary globals.
-pub(super) fn slot(globals: usize, program: &Program, module: usize) -> usize {
-    globals - program.namespaces.len() * WIDTH + module * WIDTH
-}
-
 pub(super) fn value(
     ctx: &mut CallContext,
     facts: &mut Facts,

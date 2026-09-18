@@ -11,19 +11,13 @@ pub(in crate::checking) fn analyze(
     let view = handle.view();
     let program = view.world.program;
     let source = view.source;
-    let layouts = view.layouts;
     let mut state = Scheduler::new(values, true);
     let world_index = state.worlds.insert(ctx, handle.clone())?;
     let mut solver = state.adapter(world_index, &handle);
     let mut context = Context::plain();
     context.kind = Kind::General;
-    context.globals = Globals::initial(ctx, facts, program)?;
-    let roots = solver.roots(ctx, facts)?;
-    context.globals.roots(ctx, &roots.data)?;
-    context.globals.files(ctx, &layouts.files)?;
-    context
-        .globals
-        .namespaces(ctx, facts, program, solver.world.source_owner)?;
+    let layout = solver.prepare(ctx, facts)?;
+    context.globals = Globals::initial(ctx, &layout)?;
     let mut entries = Buffer::empty();
     let entry = solver.request(ctx, facts, 0, &[], flow::NO_ERROR, &context)?;
     entries.push(ctx, entry)?;
@@ -175,7 +169,7 @@ impl Solver<'_, '_> {
         if !typed {
             return Ok(None);
         }
-        let root = super::super::namespaces::slot(globals.values.data.len(), program, module) + 2;
+        let root = globals.layout.source(ctx, self.source)?.namespace(module) + 2;
         let Some(heap) = super::super::heaps::entries(ctx, facts, globals.values.data[root])?
         else {
             return Ok(Some(Atom::Unknown.fact()));

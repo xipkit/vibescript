@@ -12,8 +12,8 @@ pub(super) fn find(ctx: &mut CallContext, roots: &[Root], name: &str) -> Result<
 }
 
 impl Walker<'_> {
-    pub(super) fn root_index(&mut self, name: &str) -> Result<Option<usize>> {
-        Ok(find(self.ctx, self.roots, name)?.map(|index| self.program.globals.len() + index))
+    pub(super) fn root_index(&mut self, state: &State, name: &str) -> Result<Option<usize>> {
+        Ok(find(self.ctx, self.roots, name)?.map(|index| state.source_slots.roots.data[index]))
     }
 
     pub(super) fn global_index(&mut self, state: &State, index: usize) -> Result<Option<usize>> {
@@ -22,10 +22,10 @@ impl Walker<'_> {
             debug_assert!(!binding.missing);
             return Ok(Some(slot - state.global_base));
         }
-        if let Some(index) = self.root_index(name)? {
+        if let Some(index) = self.root_index(state, name)? {
             return Ok(Some(index));
         }
-        Ok((!self.calls.global(self.ctx, name)?).then_some(index))
+        Ok((!self.calls.global(self.ctx, name)?).then_some(state.source_slots.globals.data[index]))
     }
 
     pub(super) fn root_op(&mut self, state: &State, op: Op) -> Result<Option<Op>> {
@@ -54,7 +54,7 @@ impl Walker<'_> {
         if !binding.missing {
             return Ok(Some(op));
         }
-        let Some(index) = self.root_index(&self.function.local_names[slot])? else {
+        let Some(index) = self.root_index(state, &self.function.local_names[slot])? else {
             return Ok(Some(op));
         };
         if binding.value != Atom::Never.fact() {

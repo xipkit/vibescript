@@ -10,7 +10,10 @@ impl Walker<'_> {
     ) -> Result<bool> {
         let mut binding = state.locals.get(self.ctx, slot)?;
         if binding.missing {
-            let root = slot - state.global_base - self.program.globals.len();
+            let root = state
+                .source_slots
+                .root(self.ctx, slot - state.global_base)?
+                .unwrap();
             let loaded = self.calls.load_root(self.ctx, self.facts, root)?;
             self.emit_error(state, pc, loaded.throws)?;
             if loaded.incomplete {
@@ -67,10 +70,10 @@ impl Walker<'_> {
             | Op::ReceiverBound(slot, _)
             | Op::AddressLocal(slot)
             | Op::AddressBound(slot, _) => {
-                let start = state.global_base + self.program.globals.len();
-                return Ok((start..start + self.roots.len())
-                    .contains(&slot)
-                    .then_some(slot));
+                return match slot.checked_sub(state.global_base) {
+                    Some(index) => Ok(state.source_slots.root(self.ctx, index)?.map(|_| slot)),
+                    None => Ok(None),
+                };
             }
             Op::Global(index)
             | Op::GlobalReceiver(index, _)
@@ -122,7 +125,7 @@ impl Walker<'_> {
             }
         }
         Ok(self
-            .root_index(name)?
+            .root_index(state, name)?
             .map(|index| state.global_base + index))
     }
 

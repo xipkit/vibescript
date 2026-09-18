@@ -36,7 +36,7 @@ impl Walker<'_> {
             match self.contract(state, pc, ty, lexical)? {
                 Contract::Value(value) => return Ok(value),
                 Contract::Pending(index) => {
-                    let slot = state.global_base + self.program.globals.len() + index;
+                    let slot = state.global_base + state.source_slots.roots.data[index];
                     if !self.import_root(state, pc, slot)? {
                         return Ok(None);
                     }
@@ -110,7 +110,7 @@ impl Walker<'_> {
         self.calls.type_bindings(self.ctx, &mut bindings, hosts)?;
         for (index, root) in self.roots.iter().enumerate() {
             self.ctx.charge(1)?;
-            let slot = state.global_base + self.program.globals.len() + index;
+            let slot = state.global_base + state.source_slots.roots.data[index];
             let value = state.locals.get(self.ctx, slot)?;
             let binding = if value.missing {
                 TypeBinding::Pending(index)
@@ -224,7 +224,7 @@ impl Walker<'_> {
         }
         if self.program.file {
             let scope = bindings.scope(self.ctx)?;
-            let base = state.global_base + self.program.globals.len() + self.roots.len();
+            let base = state.global_base + state.source_slots.files.start;
             for (index, name) in self.layouts.files.names.data.iter().enumerate() {
                 self.ctx.charge(1)?;
                 let value = state.locals.get(self.ctx, base + index)?;
@@ -254,7 +254,13 @@ impl Walker<'_> {
         }
         for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.charge(1)?;
-            let value = state.locals.get(self.ctx, state.global_base + index)?.value;
+            let value = state
+                .locals
+                .get(
+                    self.ctx,
+                    state.global_base + state.source_slots.globals.data[index],
+                )?
+                .value;
             let value = self.file_type_value(state, global.name(), value)?;
             let binding = bindings.current(self.ctx, self.facts, value)?;
             bindings.insert(self.ctx, source, global.name().as_bytes(), binding)?;
@@ -276,7 +282,7 @@ impl Walker<'_> {
             };
             let resolution = bindings.resolve(self.ctx, &scopes.data, name, true)?;
             if let Resolution::Pending(index) = resolution {
-                let slot = state.global_base + self.program.globals.len() + index;
+                let slot = state.global_base + state.source_slots.roots.data[index];
                 if !self.import_root(state, pc, slot)? {
                     return Ok(None);
                 }

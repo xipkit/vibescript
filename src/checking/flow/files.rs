@@ -7,7 +7,7 @@ impl<'a> Walker<'a> {
             .layouts
             .files
             .index(self.ctx, name)?
-            .map(|index| state.global_base + self.program.globals.len() + self.roots.len() + index))
+            .map(|index| state.global_base + state.source_slots.files.start + index))
     }
 
     pub(super) fn file_binding(
@@ -89,7 +89,7 @@ impl<'a> Walker<'a> {
         match file {
             Some(index) => self.split_file_presence(
                 state,
-                state.global_base + self.program.globals.len() + self.roots.len() + index,
+                state.global_base + state.source_slots.files.start + index,
             ),
             None => Ok(None),
         }
@@ -270,7 +270,7 @@ impl<'a> Walker<'a> {
             debug_assert!(!binding.missing);
             Some(slot)
         } else if address || self.file_declared_target(name)?.is_none() {
-            if let Some(index) = self.root_index(name)? {
+            if let Some(index) = self.root_index(&state, name)? {
                 let slot = state.global_base + index;
                 if !self.import_root(&mut state, pc, slot)? {
                     return Ok([None, None]);

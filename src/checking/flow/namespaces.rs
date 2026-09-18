@@ -82,10 +82,7 @@ impl Walker<'_> {
     }
 
     pub(super) fn declaration_slot(&self, state: &State, index: usize) -> usize {
-        state.global_base + state.global_count
-            - self.program.namespaces.len() * namespaces::WIDTH
-            - self.program.declarations.len()
-            + index
+        state.global_base + state.source_slots.declarations.start + index
     }
 
     pub(super) fn declaration_value(&mut self, state: &State, index: usize) -> Result<Fact> {
@@ -136,7 +133,7 @@ impl Walker<'_> {
     }
 
     fn namespace_slot(&self, state: &State, module: usize) -> usize {
-        state.global_base + namespaces::slot(state.global_count, self.program, module)
+        state.global_base + state.source_slots.namespace(module)
     }
 
     fn namespace_field(&mut self, state: &State, module: usize, name: &str) -> Result<Selected> {

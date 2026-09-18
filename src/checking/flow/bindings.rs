@@ -111,7 +111,7 @@ impl Walker<'_> {
         if let Some(index) = if file_declared {
             None
         } else {
-            self.root_index(name)?
+            self.root_index(state, name)?
         } {
             return self.read_global(state, pc, index, None);
         }
@@ -142,7 +142,7 @@ impl Walker<'_> {
         for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.work_bytes(global.name().len().max(name.len()))?;
             if global.name() == name {
-                return self.read_global(state, pc, index, None);
+                return self.read_global(state, pc, state.source_slots.globals.data[index], None);
             }
         }
         if let Some(module) = self.function.namespace {

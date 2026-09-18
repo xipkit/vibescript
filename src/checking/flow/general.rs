@@ -22,9 +22,7 @@ pub(super) fn allocate(
         layouts,
         contracts,
     } = model;
-    let root = state.global_base
-        + crate::checking::namespaces::slot(state.global_count, program, module)
-        + 2;
+    let root = state.global_base + state.source_slots.namespace(module) + 2;
     let before = state.locals.get(ctx, root)?.value;
     let Some(mut heap) = crate::checking::heaps::entries(ctx, facts, before)? else {
         return Ok(None);

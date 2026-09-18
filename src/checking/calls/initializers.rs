@@ -1,5 +1,5 @@
 use super::*;
-use crate::checking::{flow::IssueKind, namespaces, scalar::Test};
+use crate::checking::{flow::IssueKind, scalar::Test};
 
 impl Solver<'_, '_> {
     pub(super) fn initialize_body(
@@ -86,7 +86,7 @@ impl Solver<'_, '_> {
             let Some(body) = self.world.program.namespaces[module].body else {
                 continue;
             };
-            let flag = namespaces::slot(globals.values.data.len(), self.world.program, module) + 1;
+            let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
             let initialized = globals.values.data[flag];
             let yes = facts.filter(ctx, initialized, Test::Truth, true)?;
             let no = facts.filter(ctx, initialized, Test::Truth, false)?;

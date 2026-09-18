@@ -386,8 +386,7 @@ impl Walker<'_> {
                 return Ok(false);
             };
             let slot = state.global_base + index;
-            if (self.program.globals.len()..self.program.globals.len() + self.roots.len())
-                .contains(&index)
+            if state.source_slots.root(self.ctx, index)?.is_some()
                 && !self.import_root(state, pc, slot)?
             {
                 return Ok(false);

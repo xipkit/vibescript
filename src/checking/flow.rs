@@ -4,7 +4,10 @@ use super::{
     blocks, builtins,
     calls::{Calls, Root, Target},
     facts::{Atom, Fact, Facts, HashKind},
-    globals::Globals,
+    globals::{
+        Globals,
+        layout::{Layout as GlobalLayout, Source as SourceSlots},
+    },
     graph::{Block, Exit, Graph},
     lexical::Layouts,
     relation::Relation,
@@ -271,6 +274,8 @@ struct Attempt {
 #[derive(Debug)]
 struct State {
     function: CallableId,
+    global_layout: GlobalLayout,
+    source_slots: std::sync::Arc<SourceSlots>,
     // Global address roots occupy the suffix after lexical locals and captures.
     global_base: usize,
     global_count: usize,
@@ -309,9 +314,20 @@ impl State {
             _ => 0,
         })
     }
-    fn new(locals: usize, function: CallableId, globals: usize) -> Self {
-        Self {
+    fn new(
+        ctx: &mut CallContext,
+        locals: usize,
+        function: CallableId,
+        layout: &GlobalLayout,
+    ) -> Result<Self> {
+        let globals = layout.len();
+        let Some(length) = locals.checked_add(globals) else {
+            return ctx.fail(crate::ErrorKind::Memory, "checker state size overflow");
+        };
+        Ok(Self {
             function,
+            global_layout: layout.clone(),
+            source_slots: layout.source(ctx, function.source)?,
             global_base: locals,
             global_count: globals,
             global_pending: super::pending::Pending::new(),
@@ -319,7 +335,7 @@ impl State {
             captures: None,
             capture_locals: false,
             locals: Slots::new(
-                locals + globals,
+                length,
                 Binding {
                     value: Atom::Never.fact(),
                     missing: true,
@@ -335,12 +351,14 @@ impl State {
             texts: Buffer::empty(),
             widening: None,
             integer_thresholds: Buffer::empty(),
-        }
+        })
     }
 
     fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut state = Self {
             function: self.function,
+            global_layout: self.global_layout.clone(),
+            source_slots: self.source_slots.clone(),
             global_base: self.global_base,
             global_count: self.global_count,
             global_pending: self.global_pending.snapshot(ctx)?,
@@ -394,6 +412,15 @@ impl State {
         backedge: bool,
         program: &Program,
     ) -> Result<bool> {
+        let mut changed = self.expand(ctx, &other.global_layout)?;
+        let mut normalized;
+        let other = if other.global_layout.same(&self.global_layout) {
+            other
+        } else {
+            normalized = other.snapshot(ctx)?;
+            normalized.expand(ctx, &self.global_layout)?;
+            &normalized
+        };
         // Freeze precision at the first backedge, including existing values and declared contracts.
         // Later recursive growth becomes gradual beyond that depth; script limits are unchanged.
         let depth = if backedge {
@@ -405,7 +432,7 @@ impl State {
             None
         };
         let thresholds = &self.integer_thresholds.data;
-        let mut changed = self.locals.merge(ctx, &other.locals, |ctx, a, b| {
+        changed |= self.locals.merge(ctx, &other.locals, |ctx, a, b| {
             let numeric = if backedge {
                 facts.widen_integer_thresholds(ctx, a.value, b.value, thresholds)?
             } else {
@@ -738,27 +765,32 @@ pub(super) fn analyze_body(
     let lexical = layouts.locals(ctx, program, function_index)?;
     let source = facts.source_id(ctx, layouts.source_owner)?;
     let locals = ambient::local_count(ctx, layouts, program, function_index, ambient)?;
-    let mut initial = State::new(
-        locals,
-        source.callable(function_index),
-        program.globals.len()
-            + roots.data.len()
-            + layouts.files.names.data.len()
-            + program.declarations.len()
-            + program.namespaces.len() * super::namespaces::WIDTH,
-    );
     let owned_globals;
     let globals = if let Some(globals) = globals {
         globals
     } else {
-        let mut values = Globals::initial(ctx, facts, program)?;
-        values.roots(ctx, &roots.data)?;
-        values.files(ctx, &layouts.files)?;
-        values.namespaces(ctx, facts, program, layouts.source_owner)?;
-        owned_globals = values;
+        let mut storage = super::globals::layout::Storage::new();
+        let layout = storage.prepare(
+            ctx,
+            facts,
+            super::globals::layout::Definition {
+                source,
+                owner: layouts.source_owner,
+                program,
+                files: &layouts.files,
+                roots: &roots.data,
+                receiving: None,
+            },
+        )?;
+        owned_globals = Globals::initial(ctx, &layout)?;
         &owned_globals
     };
-    assert_eq!(globals.values.data.len(), initial.global_count);
+    let mut initial = State::new(
+        ctx,
+        locals,
+        source.callable(function_index),
+        &globals.layout,
+    )?;
     initial.global_pending = globals.pending.snapshot(ctx)?;
     for (index, &value) in globals.values.data.iter().enumerate() {
         ctx.charge(1)?;
@@ -1725,7 +1757,7 @@ impl Walker<'_> {
                     if let Some(index) = if self.program.file {
                         None
                     } else {
-                        self.root_index(name)?
+                        self.root_index(&state, name)?
                     } {
                         if !self.read_global(&mut state, pc, index, None)? {
                             return Ok([None, None]);
@@ -1817,7 +1849,7 @@ impl Walker<'_> {
                     };
                     let slot = if self.program.file {
                         self.file_slot(&state, name)?.unwrap()
-                    } else if let Some(index) = self.root_index(name)? {
+                    } else if let Some(index) = self.root_index(&state, name)? {
                         state.global_base + index
                     } else if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
@@ -1896,7 +1928,7 @@ impl Walker<'_> {
                         }
                         continue;
                     }
-                    if let Some(index) = self.root_index(&self.program.members[name])? {
+                    if let Some(index) = self.root_index(&state, &self.program.members[name])? {
                         if !self.read_global(&mut state, pc, index, None)? {
                             return Ok([None, None]);
                         }
@@ -1944,13 +1976,14 @@ impl Walker<'_> {
                 }
                 Op::Declare(slot) => {
                     let binding = state.locals.get(self.ctx, slot)?;
-                    let file_start =
-                        state.global_base + self.program.globals.len() + self.roots.len();
-                    let file_slot = (file_start..file_start + self.layouts.files.names.data.len())
-                        .contains(&slot);
-                    if binding.missing
-                        && (slot < state.global_base + self.program.globals.len() || file_slot)
-                    {
+                    let global = slot.checked_sub(state.global_base);
+                    let file_slot =
+                        global.is_some_and(|index| state.source_slots.files.contains(&index));
+                    let builtin = match global {
+                        Some(index) => state.source_slots.original(self.ctx, index)?.is_some(),
+                        None => false,
+                    };
+                    if binding.missing && (slot < state.global_base || builtin || file_slot) {
                         let value = self
                             .facts
                             .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
@@ -2397,7 +2430,7 @@ impl Walker<'_> {
                         }
                         continue;
                     }
-                    if let Some(index) = self.root_index(name)? {
+                    if let Some(index) = self.root_index(&state, name)? {
                         let slot = state.global_base + index;
                         let value = state.locals.get(self.ctx, slot)?.value;
                         state
@@ -2695,7 +2728,7 @@ impl Walker<'_> {
                 }
                 Op::AutoCall(function) => {
                     let name = &self.program.functions[function].name;
-                    if let Some(index) = self.root_index(name)? {
+                    if let Some(index) = self.root_index(&state, name)? {
                         if !self.read_global(&mut state, pc, index, None)? {
                             return Ok([None, None]);
                         }
@@ -2710,7 +2743,7 @@ impl Walker<'_> {
                 }
                 Op::HostValue(host) => {
                     let name = &self.program.hosts[host];
-                    if let Some(index) = self.root_index(name)? {
+                    if let Some(index) = self.root_index(&state, name)? {
                         if !self.read_global(&mut state, pc, index, None)? {
                             return Ok([None, None]);
                         }

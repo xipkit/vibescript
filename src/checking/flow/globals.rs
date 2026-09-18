@@ -10,11 +10,14 @@ impl Walker<'_> {
     ) -> Result<Option<Address>> {
         let slot = state.global_base + index;
         let value = state.locals.get(self.ctx, slot)?.value;
+        let original = state
+            .source_slots
+            .original(self.ctx, index)?
+            .map(|index| &self.program.globals[index].1.0);
         let mut selected: Option<Address> = None;
         for index_arm in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, index_arm);
-            let original = self.program.globals.get(index).map(|(_, value)| &value.0);
             let address = if matches!((self.facts.node(arm), original), (Node::Builtin(current), Some(Kind::Builtin(original))) if current==original)
             {
                 // Original builtin reads precede arguments and produce detached temporary values.
@@ -36,7 +39,7 @@ impl Walker<'_> {
     }
 
     pub(super) fn root_target(&mut self, state: &State, name: &str) -> Result<Target> {
-        if let Some(index) = self.root_index(name)? {
+        if let Some(index) = self.root_index(state, name)? {
             return Ok(Target::Value(
                 state.locals.get(self.ctx, state.global_base + index)?.value,
             ));
@@ -50,7 +53,13 @@ impl Walker<'_> {
             for (index, (global, _)) in self.program.globals.iter().enumerate() {
                 self.ctx.work_bytes(name.len().max(global.name().len()))?;
                 if global.name() == name {
-                    let value = state.locals.get(self.ctx, state.global_base + index)?.value;
+                    let value = state
+                        .locals
+                        .get(
+                            self.ctx,
+                            state.global_base + state.source_slots.globals.data[index],
+                        )?
+                        .value;
                     return self.value_target(value);
                 }
             }
@@ -101,8 +110,7 @@ impl Walker<'_> {
         receiver: Option<bool>,
     ) -> Result<bool> {
         let slot = state.global_base + index;
-        if (self.program.globals.len()..self.program.globals.len() + self.roots.len())
-            .contains(&index)
+        if state.source_slots.root(self.ctx, index)?.is_some()
             && !self.import_root(state, pc, slot)?
         {
             return Ok(false);
@@ -113,11 +121,15 @@ impl Walker<'_> {
         };
         let mut values = Buffer::empty();
         let mut origin = Some(slot);
+        let original = state
+            .source_slots
+            .original(self.ctx, index)?
+            .map(|index| &self.program.globals[index].1.0);
         for index_arm in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, index_arm);
             if let Node::Builtin(builtin) = *self.facts.node(arm) {
-                if matches!(self.program.globals.get(index).map(|(_, value)| &value.0), Some(Kind::Builtin(original)) if *original == builtin)
+                if matches!(original, Some(Kind::Builtin(original)) if *original == builtin)
                     && (auto || !builtin.auto())
                 {
                     let mut next = state.snapshot(self.ctx)?;
@@ -148,6 +160,7 @@ impl Walker<'_> {
 impl State {
     pub(super) fn globals(&self, ctx: &mut CallContext) -> Result<Globals> {
         let mut globals = Globals::empty();
+        globals.layout = self.global_layout.clone();
         globals.pending = self.global_pending.snapshot(ctx)?;
         for index in 0..self.global_count {
             ctx.charge(1)?;
@@ -181,7 +194,7 @@ impl State {
         facts: &mut Facts,
         globals: &Globals,
     ) -> Result<()> {
-        assert_eq!(self.global_count, globals.values.data.len());
+        self.expand(ctx, &globals.layout)?;
         for (index, &value) in globals.values.data.iter().enumerate() {
             ctx.charge(1)?;
             if globals.written.data[index] {
@@ -215,6 +228,37 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn expand(&mut self, ctx: &mut CallContext, layout: &GlobalLayout) -> Result<bool> {
+        let layout = self.global_layout.latest(ctx, layout)?;
+        if self.global_layout.same(&layout) {
+            return Ok(false);
+        }
+        let Some(length) = self.global_base.checked_add(layout.len()) else {
+            return ctx.fail(crate::ErrorKind::Memory, "checker state size overflow");
+        };
+        self.locals.grow(ctx, length)?;
+        self.global_written.grow(ctx, layout.len())?;
+        for index in self.global_count..layout.len() {
+            ctx.charge(1)?;
+            let initial = layout.initial(index);
+            self.locals.set(
+                ctx,
+                self.global_base + index,
+                Binding {
+                    value: initial.value,
+                    missing: initial.missing,
+                    owner: blocks::Owner::Unknown,
+                },
+            )?;
+        }
+        self.global_count = layout.len();
+        self.global_layout = layout;
+        if self.captures.is_none() && self.global_count > 0 {
+            self.captures = Some(blocks::Captures::new(ctx, 0, &[])?);
+        }
+        Ok(true)
+    }
+
     pub(super) fn refresh_globals(
         &mut self,
         ctx: &mut CallContext,
@@ -235,3 +279,6 @@ impl State {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

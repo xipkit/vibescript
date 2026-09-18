@@ -240,13 +240,7 @@ fn identical_diagnostics_and_incomplete_locations_survive_source_collection() {
         let (world_index, handle) =
             registered(&mut ctx, &facts, &mut state, world(code, owner), layout);
         let mut solver = state.adapter(world_index, &handle);
-        let mut context = Context::plain();
-        context.globals = Globals::initial(&mut ctx, &mut facts, &code.program).unwrap();
-        context.globals.files(&mut ctx, &layout.files).unwrap();
-        context
-            .globals
-            .namespaces(&mut ctx, &mut facts, &code.program, owner)
-            .unwrap();
+        let context = Context::plain();
         let entry = solver
             .request(
                 &mut ctx,

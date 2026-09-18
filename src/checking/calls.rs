@@ -416,6 +416,7 @@ struct Job {
 struct Scheduler<'a> {
     whole: bool,
     worlds: Registry<'a>,
+    storage: super::globals::layout::Storage,
     values: super::inputs::Values,
     jobs: Buffer<Job>,
     buckets: Buffer<usize>,
@@ -438,6 +439,7 @@ impl<'a> Scheduler<'a> {
         Self {
             whole,
             worlds: Registry::new(),
+            storage: super::globals::layout::Storage::new(),
             values,
             jobs: Buffer::empty(),
             buckets: Buffer::empty(),
@@ -669,13 +671,8 @@ fn analyze_entry(
     } else if general {
         context.kind = Kind::General;
     }
-    context.globals = Globals::initial(ctx, facts, solver.world.program)?;
-    let roots = solver.roots(ctx, facts)?;
-    context.globals.roots(ctx, &roots.data)?;
-    context.globals.files(ctx, &layouts.files)?;
-    context
-        .globals
-        .namespaces(ctx, facts, solver.world.program, solver.world.source_owner)?;
+    let layout = solver.prepare(ctx, facts)?;
+    context.globals = Globals::initial(ctx, &layout)?;
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     solver.solve(ctx, facts)?;
     let result = Analysis {
@@ -692,6 +689,29 @@ fn analyze_entry(
 }
 
 impl Solver<'_, '_> {
+    fn prepare(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+    ) -> Result<super::globals::layout::Layout> {
+        if self.state.storage.layout.find(ctx, self.source)?.is_some() {
+            return Ok(self.state.storage.layout.clone());
+        }
+        let roots = self.roots(ctx, facts)?;
+        self.state.storage.prepare(
+            ctx,
+            facts,
+            super::globals::layout::Definition {
+                source: self.source,
+                owner: self.world.source_owner,
+                program: self.world.program,
+                files: &self.layouts.files,
+                roots: &roots.data,
+                receiving: None,
+            },
+        )
+    }
+
     fn solve(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<()> {
         self.state.solve(ctx, facts)
     }
@@ -710,11 +730,12 @@ impl Solver<'_, '_> {
         let mut inputs = Buffer::empty();
         let job = &self.state.jobs.data[index];
         inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
-        let context = job
+        let mut context = job
             .widened_context
             .as_ref()
             .unwrap_or(&job.context)
             .snapshot(ctx)?;
+        context.globals.expand(ctx, &self.state.storage.layout)?;
         let incoming = context.incoming(ctx)?;
         if context
             .ambient
@@ -902,6 +923,15 @@ impl Solver<'_, '_> {
         context: &Context,
     ) -> Result<usize> {
         ctx.charge(inputs.len() as u64 + 1)?;
+        let layout = self.prepare(ctx, facts)?;
+        let mut normalized;
+        let context = if context.globals.layout.same(&layout) {
+            context
+        } else {
+            normalized = context.snapshot(ctx)?;
+            normalized.globals.expand(ctx, &layout)?;
+            &normalized
+        };
         let source = facts.source_id(ctx, self.world.source_owner)?;
         let mut hash = DefaultHasher::new();
         source.hash(&mut hash);
@@ -1052,7 +1082,7 @@ impl Solver<'_, '_> {
                         && self.state.jobs.data[index]
                             .context
                             .globals
-                            .same_initialization(ctx, self.world.program, &context.globals)?
+                            .same_initialization(ctx, &context.globals)?
                         && self.state.jobs.data[index]
                             .context
                             .compatible(ctx, context)?

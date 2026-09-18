@@ -46,6 +46,31 @@ impl<T: Copy + Eq> Slots<T> {
         })
     }
 
+    /// Extends a persistent table without moving existing indices or changing snapshots.
+    pub fn grow(&mut self, ctx: &mut CallContext, len: usize) -> Result<()> {
+        ctx.checkpoint()?;
+        if len <= self.len {
+            return Ok(());
+        }
+        let bits = usize::BITS - len.saturating_sub(1).leading_zeros();
+        let target = bits.saturating_sub(1) / BITS * BITS;
+        let mut root = self.root.clone();
+        let mut shift = self.shift;
+        while shift < target {
+            ctx.charge(WIDTH as u64)?;
+            if root.is_some() {
+                let mut children = std::array::from_fn(|_| None);
+                children[0] = root;
+                root = Some(Self::allocate(ctx, Data::Branch(children))?);
+            }
+            shift += BITS;
+        }
+        self.root = root;
+        self.shift = target;
+        self.len = len;
+        Ok(())
+    }
+
     pub fn get(&self, ctx: &mut CallContext, index: usize) -> Result<T> {
         ctx.checkpoint()?;
         assert!(index < self.len);
@@ -242,5 +267,109 @@ fn same<T>(left: &Option<Arc<Node<T>>>, right: &Option<Arc<Node<T>>>) -> bool {
         (Some(left), Some(right)) => Arc::ptr_eq(left, right),
         (None, None) => true,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CallOptions, ErrorKind, Limits};
+
+    fn work(ctx: &mut CallContext) -> Result<()> {
+        let mut slots = Slots::new(1, 0usize);
+        slots.set(ctx, 0, 7)?;
+        let snapshot = slots.snapshot(ctx)?;
+        let mut assigned = vec![(0, 7)];
+        for size in [16, 17, 256, 257, 4096, 4097] {
+            let previous = slots.len;
+            let before = slots.root.clone();
+            if let Err(error) = slots.grow(ctx, size) {
+                assert_eq!(slots.len, previous);
+                assert!(same(&slots.root, &before));
+                return Err(error);
+            }
+            assert_eq!(slots.get(ctx, size - 1)?, 0);
+            slots.set(ctx, size - 1, size)?;
+            assigned.push((size - 1, size));
+            for &(index, value) in &assigned {
+                assert_eq!(slots.get(ctx, index)?, value);
+            }
+            assert_eq!(snapshot.get(ctx, 0)?, 7);
+            assert_eq!(snapshot.len, 1);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn growth_across_radix_levels_preserves_snapshots_and_exact_limits() {
+        let mut baseline = CallContext::new(CallOptions::default());
+        work(&mut baseline).unwrap();
+        let stats = baseline.stats();
+        assert_eq!(stats.retained_memory_bytes, 0);
+        for memory in [false, true] {
+            for sample in 1..=24 {
+                let mut ctx = CallContext::new(CallOptions {
+                    limits: Limits {
+                        steps: Some(if memory {
+                            stats.steps
+                        } else {
+                            stats.steps * sample as u64 / 24
+                        }),
+                        memory_bytes: Some(if memory {
+                            stats.peak_memory_bytes * sample / 24
+                        } else {
+                            stats.peak_memory_bytes
+                        }),
+                        ..Limits::default()
+                    },
+                    ..CallOptions::default()
+                });
+                let result = work(&mut ctx);
+                if sample == 24 {
+                    result.unwrap();
+                } else {
+                    assert_eq!(
+                        result.unwrap_err().kind,
+                        if memory {
+                            ErrorKind::Memory
+                        } else {
+                            ErrorKind::Steps
+                        }
+                    );
+                }
+                assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn even_noop_growth_preserves_cancellation_and_latched_failures() {
+        for reason in [
+            ErrorKind::Steps,
+            ErrorKind::Memory,
+            ErrorKind::Cancelled,
+            ErrorKind::Deadline,
+        ] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut slots = Slots::new(4, 0u8);
+            slots.set(&mut ctx, 0, 7).unwrap();
+            match reason {
+                ErrorKind::Steps => {
+                    ctx.charge(u64::MAX).unwrap_err();
+                }
+                ErrorKind::Memory => {
+                    ctx.reserve(usize::MAX).unwrap_err();
+                }
+                ErrorKind::Cancelled => ctx.cancellation().cancel(),
+                ErrorKind::Deadline => ctx.options.deadline = Some(std::time::Instant::now()),
+                _ => unreachable!(),
+            }
+            for size in [0, 4, 17] {
+                assert_eq!(slots.grow(&mut ctx, size).unwrap_err().kind, reason);
+                assert_eq!(slots.len, 4);
+            }
+            drop(slots);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
     }
 }

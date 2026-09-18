@@ -64,57 +64,69 @@ impl Walker<'_> {
     fn unknown_block_effects(&mut self, state: &mut State, pc: usize) -> Result<()> {
         // Incoming blocks cannot rebind this declaration's locals, but can reach
         // globals and objects shared with the caller. A no-op block remains possible.
-        for index in
-            0..self.program.globals.len() + self.roots.len() + self.layouts.files.names.data.len()
-        {
+        let layout = state.global_layout.clone();
+        for source in layout.sources() {
             self.ctx.charge(1)?;
-            let slot = state.global_base + index;
-            let before = state.locals.get(self.ctx, slot)?;
-            let value = self
-                .facts
-                .union(self.ctx, &[before.value, Atom::Unknown.fact()])?;
-            self.store(state, pc, slot, Operand::new(value))?;
-            let after = state.locals.get(self.ctx, slot)?;
-            state.locals.set(
-                self.ctx,
-                slot,
-                Binding {
-                    missing: before.missing,
-                    ..after
-                },
-            )?;
-        }
-        for module in 0..self.program.namespaces.len() {
-            self.ctx.charge(1)?;
-            let slot = state.global_base
-                + crate::checking::namespaces::slot(state.global_count, self.program, module);
-            let fields = state.locals.get(self.ctx, slot)?.value;
-            let value = self.unknown_fields(fields)?;
-            self.store(state, pc, slot, Operand::new(value))?;
-            let heap = state.locals.get(self.ctx, slot + 2)?.value;
-            let mut alternatives = Buffer::empty();
-            for i in 0..self.facts.arm_count(heap) {
+            for index in source
+                .globals
+                .data
+                .iter()
+                .copied()
+                .chain(source.roots.data.iter().copied())
+                .chain(source.files.clone())
+            {
                 self.ctx.charge(1)?;
-                let arm = self.facts.arm(heap, i);
-                let value = match self.facts.node(arm) {
-                    Node::Tuple(entries) => {
-                        let mut values = Buffer::empty();
-                        values.extend(self.ctx, &entries.data)?;
-                        for value in &mut values.data {
-                            *value = self.unknown_fields(*value)?;
-                        }
-                        self.facts.tuple(self.ctx, &values.data)?
-                    }
-                    Node::Array(fields) => {
-                        let fields = self.unknown_fields(*fields)?;
-                        self.facts.array(self.ctx, fields)?
-                    }
-                    _ => arm,
-                };
-                alternatives.push(self.ctx, value)?;
+                let slot = state.global_base + index;
+                let before = state.locals.get(self.ctx, slot)?;
+                let value = self
+                    .facts
+                    .union(self.ctx, &[before.value, Atom::Unknown.fact()])?;
+                self.store(state, pc, slot, Operand::new(value))?;
+                let after = state.locals.get(self.ctx, slot)?;
+                state.locals.set(
+                    self.ctx,
+                    slot,
+                    Binding {
+                        missing: before.missing,
+                        ..after
+                    },
+                )?;
             }
-            let value = self.facts.union(self.ctx, &alternatives.data)?;
-            self.store(state, pc, slot + 2, Operand::new(value))?;
+            for root in source
+                .namespaces
+                .clone()
+                .step_by(crate::checking::namespaces::WIDTH)
+            {
+                self.ctx.charge(1)?;
+                let slot = state.global_base + root;
+                let fields = state.locals.get(self.ctx, slot)?.value;
+                let value = self.unknown_fields(fields)?;
+                self.store(state, pc, slot, Operand::new(value))?;
+                let heap = state.locals.get(self.ctx, slot + 2)?.value;
+                let mut alternatives = Buffer::empty();
+                for i in 0..self.facts.arm_count(heap) {
+                    self.ctx.charge(1)?;
+                    let arm = self.facts.arm(heap, i);
+                    let value = match self.facts.node(arm) {
+                        Node::Tuple(entries) => {
+                            let mut values = Buffer::empty();
+                            values.extend(self.ctx, &entries.data)?;
+                            for value in &mut values.data {
+                                *value = self.unknown_fields(*value)?;
+                            }
+                            self.facts.tuple(self.ctx, &values.data)?
+                        }
+                        Node::Array(fields) => {
+                            let fields = self.unknown_fields(*fields)?;
+                            self.facts.array(self.ctx, fields)?
+                        }
+                        _ => arm,
+                    };
+                    alternatives.push(self.ctx, value)?;
+                }
+                let value = self.facts.union(self.ctx, &alternatives.data)?;
+                self.store(state, pc, slot + 2, Operand::new(value))?;
+            }
         }
         Ok(())
     }

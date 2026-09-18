@@ -6,9 +6,14 @@ use super::{
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 use std::hash::{Hash, Hasher};
 
-// Compiled globals, supplied roots, declarations and namespace heaps share one address layout.
+pub(super) mod layout;
+
+#[cfg(test)]
+pub(super) mod tests;
+
 #[derive(Debug)]
 pub(super) struct Globals {
+    pub layout: layout::Layout,
     pub values: Buffer<Fact>,
     pub missing: Buffer<bool>,
     pub written: Buffer<bool>,
@@ -18,6 +23,7 @@ pub(super) struct Globals {
 impl Globals {
     pub fn empty() -> Self {
         Self {
+            layout: layout::Layout::default(),
             values: Buffer::empty(),
             missing: Buffer::empty(),
             written: Buffer::empty(),
@@ -25,88 +31,37 @@ impl Globals {
         }
     }
 
-    pub fn initial(ctx: &mut CallContext, facts: &mut Facts, program: &Program) -> Result<Self> {
+    pub fn initial(ctx: &mut CallContext, layout: &layout::Layout) -> Result<Self> {
         let mut globals = Self::empty();
-        for (_, value) in &program.globals {
-            ctx.charge(1)?;
-            let value = builtins::global(ctx, facts, value)?;
-            globals.values.push(ctx, value)?;
-            globals.missing.push(ctx, false)?;
-            globals.written.push(ctx, false)?;
-        }
+        globals.expand(ctx, layout)?;
         Ok(globals)
+    }
+
+    pub fn expand(&mut self, ctx: &mut CallContext, layout: &layout::Layout) -> Result<bool> {
+        let next = self.layout.latest(ctx, layout)?;
+        if self.layout.same(&next) {
+            return Ok(false);
+        }
+        for index in self.values.data.len()..next.len() {
+            ctx.charge(1)?;
+            let initial = next.initial(index);
+            self.values.push(ctx, initial.value)?;
+            self.missing.push(ctx, initial.missing)?;
+            self.written.push(ctx, false)?;
+        }
+        self.layout = next;
+        Ok(true)
     }
 
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         ctx.charge(1)?;
         let mut globals = Self::empty();
+        globals.layout = self.layout.clone();
         globals.values.extend(ctx, &self.values.data)?;
         globals.missing.extend(ctx, &self.missing.data)?;
         globals.written.extend(ctx, &self.written.data)?;
         globals.pending = self.pending.snapshot(ctx)?;
         Ok(globals)
-    }
-
-    pub fn roots(&mut self, ctx: &mut CallContext, roots: &[super::calls::Root]) -> Result<()> {
-        for root in roots {
-            ctx.charge(1)?;
-            self.values.push(ctx, root.value)?;
-            self.missing.push(ctx, root.missing)?;
-            self.written.push(ctx, false)?;
-        }
-        Ok(())
-    }
-
-    pub fn files(
-        &mut self,
-        ctx: &mut CallContext,
-        layout: &super::file_bindings::Layout,
-    ) -> Result<()> {
-        for _ in &layout.names.data {
-            ctx.charge(1)?;
-            self.values.push(ctx, Atom::Never.fact())?;
-            self.missing.push(ctx, true)?;
-            self.written.push(ctx, false)?;
-        }
-        Ok(())
-    }
-
-    pub fn namespaces(
-        &mut self,
-        ctx: &mut CallContext,
-        facts: &mut Facts,
-        program: &Program,
-        owner: usize,
-    ) -> Result<()> {
-        for declaration in &program.declarations {
-            ctx.charge(1)?;
-            let value = match &declaration.0 {
-                crate::value::Kind::Namespace(namespace) => super::namespaces::value(
-                    ctx,
-                    facts,
-                    program,
-                    owner,
-                    namespace.definition.index,
-                )?,
-                crate::value::Kind::Enum(_) => facts.enumeration(ctx, declaration)?,
-                _ => unreachable!(),
-            };
-            self.values.push(ctx, value)?;
-            self.missing.push(ctx, false)?;
-            self.written.push(ctx, false)?;
-        }
-        for (module, definition) in program.namespaces.iter().enumerate() {
-            ctx.charge(1)?;
-            let fields = super::namespaces::initial(ctx, facts, program, owner, module)?;
-            let initialized = facts.boolean(ctx, definition.body.is_none())?;
-            let instances = facts.tuple(ctx, &[])?;
-            for value in [fields, initialized, instances, Atom::Never.fact()] {
-                self.values.push(ctx, value)?;
-                self.missing.push(ctx, false)?;
-                self.written.push(ctx, false)?;
-            }
-        }
-        Ok(())
     }
 
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
@@ -116,6 +71,7 @@ impl Globals {
                 + self.missing.data.len() as u64
                 + 1,
         )?;
+        self.layout.version().hash(hash);
         self.values.data.hash(hash);
         self.missing.data.hash(hash);
         self.written.data.hash(hash);
@@ -123,19 +79,19 @@ impl Globals {
     }
 
     /// Keeps recursive calls on either side of initialization in separate contexts.
-    pub fn same_initialization(
-        &self,
-        ctx: &mut CallContext,
-        program: &Program,
-        other: &Self,
-    ) -> Result<bool> {
-        ctx.charge(1)?;
-        for module in 0..program.namespaces.len() {
+    pub fn same_initialization(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
+        let layout = self.layout.latest(ctx, &other.layout)?;
+        for source in layout.sources() {
             ctx.charge(1)?;
-            let a = super::namespaces::slot(self.values.data.len(), program, module) + 1;
-            let b = super::namespaces::slot(other.values.data.len(), program, module) + 1;
-            if self.values.data[a] != other.values.data[b] {
-                return Ok(false);
+            for root in source.namespaces.clone().step_by(super::namespaces::WIDTH) {
+                ctx.charge(1)?;
+                let flag = root + 1;
+                let initial = layout.initial(flag).value;
+                if self.values.data.get(flag).copied().unwrap_or(initial)
+                    != other.values.data.get(flag).copied().unwrap_or(initial)
+                {
+                    return Ok(false);
+                }
             }
         }
         Ok(true)
@@ -148,7 +104,8 @@ impl Globals {
                 + self.missing.data.len() as u64
                 + 1,
         )?;
-        Ok(self.values.data == other.values.data
+        Ok(self.layout.same(&other.layout)
+            && self.values.data == other.values.data
             && self.missing.data == other.missing.data
             && self.written.data == other.written.data
             && self.pending.equal(ctx, &other.pending)?)
@@ -156,8 +113,10 @@ impl Globals {
 
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge(1)?;
-        Ok(self.values.data.len() == other.values.data.len()
-            && self.pending.compatible(ctx, &other.pending)?)
+        Ok(
+            self.layout.compatible(&other.layout)
+                && self.pending.compatible(ctx, &other.pending)?,
+        )
     }
 
     pub fn join(
@@ -167,11 +126,17 @@ impl Globals {
         other: &Self,
         depth: Option<usize>,
     ) -> Result<bool> {
-        assert_eq!(self.values.data.len(), other.values.data.len());
-        let mut changed = self.pending.join(ctx, facts, &other.pending, depth)?;
-        for (a, b) in self.values.data.iter_mut().zip(&other.values.data) {
+        let mut changed = self.expand(ctx, &other.layout)?;
+        changed |= self.pending.join(ctx, facts, &other.pending, depth)?;
+        for (index, a) in self.values.data.iter_mut().enumerate() {
             ctx.charge(1)?;
-            let value = facts.joined(ctx, *a, *b, depth)?;
+            let b = other
+                .values
+                .data
+                .get(index)
+                .copied()
+                .unwrap_or_else(|| self.layout.initial(index).value);
+            let value = facts.joined(ctx, *a, b, depth)?;
             changed |= *a != value;
             *a = value;
         }
@@ -180,10 +145,16 @@ impl Globals {
             changed |= !*a && *b;
             *a |= *b;
         }
-        for (a, b) in self.missing.data.iter_mut().zip(&other.missing.data) {
+        for (index, a) in self.missing.data.iter_mut().enumerate() {
             ctx.charge(1)?;
-            changed |= !*a && *b;
-            *a |= *b;
+            let b = other
+                .missing
+                .data
+                .get(index)
+                .copied()
+                .unwrap_or_else(|| self.layout.initial(index).missing);
+            changed |= !*a && b;
+            *a |= b;
         }
         Ok(changed)
     }
