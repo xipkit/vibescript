@@ -112,7 +112,15 @@ fn witness(
         {
             let value = literal_fact(&mut ctx, &mut facts, value);
             variables
-                .push(&mut ctx, blocks::Capture { slot, value })
+                .push(
+                    &mut ctx,
+                    blocks::Capture {
+                        slot,
+                        value,
+                        missing: false,
+                        owner: blocks::Owner::Unknown,
+                    },
+                )
                 .unwrap();
         }
     }
@@ -470,7 +478,12 @@ fn accounting(ctx: &mut CallContext) -> crate::Result<()> {
     let mut facts = Facts::new(ctx)?;
     let one = facts.integer(ctx, 1)?;
     let value = facts.tuple(ctx, &[one])?;
-    let captures = [blocks::Capture { slot, value }];
+    let captures = [blocks::Capture {
+        slot,
+        value,
+        missing: false,
+        owner: blocks::Owner::Unknown,
+    }];
     let pending = super::pending::Pending::new();
     let input = blocks::Inputs {
         pending: &pending,
@@ -661,7 +674,12 @@ fn captured_writes_remain_separate_for_different_nonlocal_exits() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let value = facts.integer(&mut ctx, 1).unwrap();
-    let captures = [blocks::Capture { slot, value }];
+    let captures = [blocks::Capture {
+        slot,
+        value,
+        missing: false,
+        owner: blocks::Owner::Unknown,
+    }];
     let pending = super::pending::Pending::new();
     let input = blocks::Inputs {
         pending: &pending,

@@ -19,6 +19,8 @@ mod mutations;
 mod normalization;
 #[cfg(test)]
 mod normalization_tests;
+#[cfg(test)]
+mod optional_capture_tests;
 mod ordering;
 mod pending;
 mod relation;

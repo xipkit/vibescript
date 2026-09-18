@@ -44,18 +44,14 @@ impl Walker<'_> {
                 parent
             };
             let binding = state.locals.get(self.ctx, parent)?;
-            if binding.missing {
-                if binding.value != Atom::Never.fact() {
-                    return Ok(false);
-                }
-                continue;
-            }
             captures.push(
                 self.ctx,
                 Link {
                     slot,
                     parent: Parent::Local(parent),
                     value: binding.value,
+                    missing: binding.missing,
+                    owner: binding.owner,
                 },
             )?;
         }
@@ -78,12 +74,16 @@ impl Walker<'_> {
                 self.ctx.charge(1)?;
                 let parent = base + link.slot;
                 let value = state.captures.as_ref().unwrap().value(self.ctx, parent)?;
+                let missing = state.captures.as_ref().unwrap().missing(self.ctx, parent)?;
+                let owner = state.captures.as_ref().unwrap().owner(self.ctx, parent)?;
                 captures.push(
                     self.ctx,
                     Link {
                         slot: locals + link.slot,
                         parent: Parent::Capture(parent),
                         value,
+                        missing,
+                        owner,
                     },
                 )?;
             }
@@ -105,9 +105,19 @@ impl Walker<'_> {
         block.destinations = Buffer::empty();
         for link in &mut block.captures.data {
             self.ctx.charge(1)?;
-            link.value = match link.parent {
-                Parent::Local(slot) => state.locals.get(self.ctx, slot)?.value,
-                Parent::Capture(slot) => state.captures.as_ref().unwrap().value(self.ctx, slot)?,
+            (link.value, link.missing, link.owner) = match link.parent {
+                Parent::Local(slot) => {
+                    let binding = state.locals.get(self.ctx, slot)?;
+                    (binding.value, binding.missing, binding.owner)
+                }
+                Parent::Capture(slot) => {
+                    let captures = state.captures.as_ref().unwrap();
+                    (
+                        captures.value(self.ctx, slot)?,
+                        captures.missing(self.ctx, slot)?,
+                        captures.owner(self.ctx, slot)?,
+                    )
+                }
             };
             if let Parent::Local(slot) = link.parent {
                 for (index, address) in state.addresses.data.iter().enumerate() {
@@ -153,7 +163,12 @@ impl Walker<'_> {
             if exit.written.get(self.ctx, link.slot)? {
                 let value = exit.captures.get(self.ctx, link.slot)?;
                 match link.parent {
-                    Parent::Local(parent) => next.store(self.ctx, self.facts, parent, value)?,
+                    Parent::Local(parent) => {
+                        let before = next.locals.get(self.ctx, parent)?;
+                        next.store(self.ctx, self.facts, parent, value)?;
+                        next.locals
+                            .set(self.ctx, parent, Binding { value, ..before })?;
+                    }
                     Parent::Capture(parent) => next
                         .captures
                         .as_mut()

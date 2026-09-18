@@ -45,6 +45,54 @@ impl Resolution {
             _ => Self::Ambiguous,
         }
     }
+
+    fn alternative(self, other: Self) -> Self {
+        if self == other { self } else { Self::Dynamic }
+    }
+}
+
+struct Candidates {
+    required: Resolution,
+    optional: Option<Resolution>,
+}
+
+impl Candidates {
+    fn new() -> Self {
+        Self {
+            required: Resolution::Missing,
+            optional: None,
+        }
+    }
+
+    fn add(&mut self, value: Resolution, optional: bool) {
+        if value == Resolution::Missing {
+            return;
+        }
+        if optional {
+            self.optional = Some(
+                self.optional
+                    .map_or(value, |before| before.alternative(value)),
+            );
+        } else {
+            self.required = self.required.merge(value);
+        }
+    }
+
+    fn finish(self) -> (Resolution, bool) {
+        match self.required {
+            Resolution::Missing => (self.optional.unwrap_or(Resolution::Missing), true),
+            Resolution::Ambiguous => (Resolution::Ambiguous, false),
+            required => (
+                self.optional
+                    .map_or(required, |value| required.alternative(value)),
+                false,
+            ),
+        }
+    }
+}
+
+fn alternative(result: &mut Option<Resolution>, value: Resolution) {
+    *result = Some(result.map_or(value, |before| before.alternative(value)));
 }
 
 struct Entry {
@@ -287,13 +335,14 @@ impl Bindings {
         let (binding, member) = name
             .split_once('.')
             .map_or((name, None), |(a, b)| (a, Some(b)));
+        let mut alternatives = None;
         for fold in [false, true] {
             if fold && member.is_some() {
                 break;
             }
             for &scope in scopes {
                 ctx.charge(1)?;
-                let mut found = Resolution::Missing;
+                let mut found = Candidates::new();
                 let entries = &self.scopes.data[scope.0];
                 let mut matched = false;
                 for entry in &entries.values.data {
@@ -315,24 +364,25 @@ impl Bindings {
                         }
                         _ => Resolution::Missing,
                     };
-                    found = found.merge(if entry.optional && value != Resolution::Missing {
-                        Resolution::Dynamic
-                    } else {
-                        value
-                    });
-                    if found == Resolution::Ambiguous {
+                    found.add(value, entry.optional);
+                    if found.required == Resolution::Ambiguous {
                         break;
                     }
                 }
                 if entries.open && (fold || !matched) {
-                    found = found.merge(Resolution::Dynamic);
+                    found.add(Resolution::Dynamic, false);
                 }
+                let (found, fallthrough) = found.finish();
                 if found != Resolution::Missing {
-                    return Ok(found);
+                    alternative(&mut alternatives, found);
+                }
+                if !fallthrough {
+                    return Ok(alternatives.unwrap());
                 }
             }
         }
-        Ok(Resolution::Missing)
+        alternative(&mut alternatives, Resolution::Missing);
+        Ok(alternatives.unwrap())
     }
 
     fn member(
@@ -342,8 +392,9 @@ impl Bindings {
         name: &[u8],
         enum_only: bool,
     ) -> Result<Resolution> {
+        let mut alternatives = None;
         for fold in [false, true] {
-            let mut found = Resolution::Missing;
+            let mut found = Candidates::new();
             let entries = &self.scopes.data[scope.0];
             let mut matched = false;
             for entry in &entries.values.data {
@@ -359,22 +410,23 @@ impl Bindings {
                     }
                     _ => Resolution::Missing,
                 };
-                found = found.merge(if entry.optional && candidate != Resolution::Missing {
-                    Resolution::Dynamic
-                } else {
-                    candidate
-                });
-                if found == Resolution::Ambiguous {
+                found.add(candidate, entry.optional);
+                if found.required == Resolution::Ambiguous {
                     break;
                 }
             }
             if entries.open && (fold || !matched) {
-                found = found.merge(Resolution::Dynamic);
+                found.add(Resolution::Dynamic, false);
             }
+            let (found, fallthrough) = found.finish();
             if found != Resolution::Missing {
-                return Ok(found);
+                alternative(&mut alternatives, found);
+            }
+            if !fallthrough {
+                return Ok(alternatives.unwrap());
             }
         }
-        Ok(Resolution::Missing)
+        alternative(&mut alternatives, Resolution::Missing);
+        Ok(alternatives.unwrap())
     }
 }

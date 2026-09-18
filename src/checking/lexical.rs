@@ -179,11 +179,6 @@ impl Layouts {
             let body = &program.functions[owner];
             for (slot, candidate) in body.local_names.iter().enumerate() {
                 ctx.charge(1)?;
-                if body.captures.get(slot).is_some_and(Option::is_some)
-                    && !self.functions.data[owner].shadows.data[slot]
-                {
-                    continue;
-                }
                 if !types::binding_name_matches(
                     ctx,
                     candidate.as_bytes(),
@@ -247,6 +242,26 @@ impl Layouts {
     pub fn type_sources(&self, ctx: &mut CallContext, function: usize) -> Result<&[TypeSource]> {
         ctx.checkpoint()?;
         Ok(&self.functions.data[function].types.data)
+    }
+
+    /// Finds a binding owner's position in a block's enclosing lexical chain.
+    pub fn depth(
+        &self,
+        ctx: &mut CallContext,
+        function: usize,
+        owner: usize,
+    ) -> Result<Option<usize>> {
+        let mut parent = self.functions.data[function].parent;
+        let mut depth = 0;
+        while let Some(function) = parent {
+            ctx.charge(1)?;
+            if function == owner {
+                return Ok(Some(depth));
+            }
+            depth += 1;
+            parent = self.functions.data[function].parent;
+        }
+        Ok(None)
     }
 
     pub fn forwarding(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {

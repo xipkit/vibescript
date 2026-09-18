@@ -17,6 +17,7 @@ use crate::{
     value::Kind,
 };
 
+mod bindings;
 mod callbacks;
 mod collection_blocks;
 mod effects;
@@ -32,6 +33,7 @@ const INVALID_CLASS: u16 = 1 << 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
+    DetachedValue(Target),
     TypeBinding {
         ty: usize,
         ambiguous: bool,
@@ -129,6 +131,7 @@ pub(super) struct Report {
 struct Binding {
     value: Fact,
     missing: bool,
+    owner: blocks::Owner,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -242,6 +245,7 @@ struct Attempt {
 
 #[derive(Debug)]
 struct State {
+    function: usize,
     locals: Slots<Binding>,
     captures: Option<blocks::Captures>,
     capture_locals: bool,
@@ -273,8 +277,9 @@ impl State {
             _ => 0,
         })
     }
-    fn new(locals: usize) -> Self {
+    fn new(locals: usize, function: usize) -> Self {
         Self {
+            function,
             captures: None,
             capture_locals: false,
             locals: Slots::new(
@@ -282,6 +287,7 @@ impl State {
                 Binding {
                     value: Atom::Never.fact(),
                     missing: true,
+                    owner: blocks::Owner::Function(function),
                 },
             ),
             stack: Buffer::empty(),
@@ -296,6 +302,7 @@ impl State {
 
     fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut state = Self {
+            function: self.function,
             locals: self.locals.snapshot(ctx)?,
             capture_locals: self.capture_locals,
             captures: self
@@ -352,6 +359,7 @@ impl State {
             Ok(Binding {
                 value: facts.joined(ctx, a.value, b.value, depth)?,
                 missing: a.missing || b.missing,
+                owner: a.owner.join(a.value, b.owner, b.value),
             })
         })?;
         if let (Some(a), Some(b)) = (&mut self.captures, &other.captures) {
@@ -434,6 +442,15 @@ impl State {
         slot: usize,
         value: Fact,
     ) -> Result<()> {
+        let before = self.locals.get(ctx, slot)?;
+        let own = blocks::Owner::Function(self.function);
+        let owner = if !before.missing {
+            before.owner
+        } else if before.value == Atom::Never.fact() {
+            own
+        } else {
+            before.owner.join(before.value, own, value)
+        };
         if self.capture_locals {
             self.captures
                 .as_mut()
@@ -446,6 +463,7 @@ impl State {
             Binding {
                 value,
                 missing: false,
+                owner,
             },
         )?;
         // An older operand can survive an assignment in its right-hand expression.
@@ -495,6 +513,7 @@ impl State {
                     Binding {
                         value,
                         missing: false,
+                        ..binding
                     },
                 )?;
                 for operand in &mut self.stack.data {
@@ -621,7 +640,7 @@ pub(super) fn analyze_body(
         &owned_layouts
     };
     let locals = layouts.locals(ctx, program, function_index)?;
-    let mut initial = State::new(locals);
+    let mut initial = State::new(locals, function_index);
     if let Some(incoming) = incoming.filter(|_| block.is_none()) {
         let mut captures = Buffer::empty();
         for link in &incoming.captures.data {
@@ -631,6 +650,8 @@ pub(super) fn analyze_body(
                 blocks::Capture {
                     slot: link.slot,
                     value: link.value,
+                    missing: link.missing,
+                    owner: link.owner,
                 },
             )?;
         }
@@ -651,7 +672,15 @@ pub(super) fn analyze_body(
                     .capture(ctx, program, function_index, capture.slot)?
                     .is_some()
             );
-            initial.store(ctx, facts, capture.slot, capture.value)?;
+            initial.locals.set(
+                ctx,
+                capture.slot,
+                Binding {
+                    value: capture.value,
+                    missing: capture.missing,
+                    owner: capture.owner,
+                },
+            )?;
         }
         let extent = blocks::extent(ctx, locals, block.inherited)?;
         let mut values = blocks::Captures::new(ctx, extent, block.captures)?;
@@ -1345,71 +1374,22 @@ impl Walker<'_> {
                         [Some((pc + 1, state)), None]
                     });
                 }
-                Op::Load(slot) | Op::LoadOptional(slot, _) => {
-                    let binding = state.locals.get(self.ctx, slot)?;
-                    if binding.missing && matches!(op, Op::LoadOptional(..)) {
-                        return self.incomplete(pc);
+                Op::LoadOptional(slot, name) => {
+                    if !self.load_optional(&mut state, pc, slot, name)? {
+                        return Ok([None, None]);
                     }
+                }
+                Op::Load(slot) => {
+                    let binding = state.locals.get(self.ctx, slot)?;
                     let value = if binding.missing {
                         self.facts
                             .union(self.ctx, &[binding.value, Atom::Nil.fact()])?
                     } else {
                         binding.value
                     };
-                    let mut readable = Buffer::empty();
-                    let mut retains_origin = true;
-                    for index in 0..self.facts.arm_count(value) {
-                        self.ctx.charge(1)?;
-                        let arm = self.facts.arm(value, index);
-                        let unreadable = match *self.facts.node(arm) {
-                            super::facts::Node::Offset(_) => Some(Target::Offset(arm)),
-                            super::facts::Node::Builtin(builtin) if !builtin.auto() => {
-                                Some(Target::Builtin(builtin))
-                            }
-                            super::facts::Node::Builtin(builtin) => {
-                                let mut next = state.snapshot(self.ctx)?;
-                                if let Some(edges) = self.invoke(
-                                    &mut next,
-                                    pc,
-                                    Target::Builtin(builtin),
-                                    Arguments::new(),
-                                )? {
-                                    for edge in edges.into_iter().flatten() {
-                                        self.extra.push(self.ctx, edge)?;
-                                    }
-                                } else {
-                                    let value = next.stack.data.pop().unwrap().value;
-                                    readable.push(self.ctx, value)?;
-                                    retains_origin = false;
-                                }
-                                continue;
-                            }
-                            _ => None,
-                        };
-                        if let Some(target) = unreadable {
-                            self.issue(
-                                pc,
-                                IssueKind::Call {
-                                    target,
-                                    failure: Failure::BuiltinValue,
-                                },
-                            )?;
-                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        } else {
-                            readable.push(self.ctx, arm)?;
-                        }
-                    }
-                    let value = self.facts.union(self.ctx, &readable.data)?;
-                    if value == Atom::Never.fact() {
+                    if !self.read_value(&mut state, pc, value, Some(slot))? {
                         return Ok([None, None]);
                     }
-                    // An auto-called builtin's result is separate from its stored descriptor.
-                    let value = if retains_origin {
-                        Operand::local(value, slot)
-                    } else {
-                        Operand::new(value)
-                    };
-                    state.stack.push(self.ctx, value)?;
                 }
                 Op::Unbound(name) => {
                     let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
@@ -1447,6 +1427,7 @@ impl Walker<'_> {
                         Binding {
                             value: Atom::Never.fact(),
                             missing: true,
+                            ..binding
                         },
                     )?;
                     return Ok([bound, binding.missing.then_some((pc + 1, state))]);
@@ -1464,6 +1445,15 @@ impl Walker<'_> {
                     if state.capture_locals {
                         state.captures.as_mut().unwrap().shadow(self.ctx, slot)?;
                     }
+                    state.locals.set(
+                        self.ctx,
+                        slot,
+                        Binding {
+                            value: Atom::Never.fact(),
+                            missing: true,
+                            owner: blocks::Owner::Function(self.function_index),
+                        },
+                    )?;
                     state.store(self.ctx, self.facts, slot, Atom::Nil.fact())?;
                 }
                 Op::BlockArg(index, autosplat) => {
@@ -1880,6 +1870,7 @@ impl Walker<'_> {
                         Binding {
                             value: Atom::Never.fact(),
                             missing: true,
+                            ..binding
                         },
                     )?;
                     return Ok([
@@ -2468,13 +2459,11 @@ impl Walker<'_> {
                 }
                 Op::AutoCall(function) => {
                     let name = &self.program.functions[function].name;
-                    // A root override is read as a value here, not called implicitly.
                     if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    let target = self.calls.resolve(self.ctx, name)?;
-                    if let Some(edges) = self.invoke(&mut state, pc, target, Arguments::new())? {
-                        return Ok(edges);
+                    if !self.read_function(&mut state, pc, function)? {
+                        return Ok([None, None]);
                     }
                 }
                 Op::Argument(kind) => {

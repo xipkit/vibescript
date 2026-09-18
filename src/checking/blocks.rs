@@ -7,9 +7,30 @@ use super::{
 use crate::{CallContext, ErrorClass, Result, budget::Buffer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Owner {
+    Function(usize),
+    Unknown,
+}
+
+impl Owner {
+    /// Combines possible binding owners while ignoring absent values.
+    pub fn join(self, value: Fact, other: Self, other_value: Fact) -> Self {
+        if value == Atom::Never.fact() {
+            other
+        } else if other_value == Atom::Never.fact() || self == other {
+            self
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Capture {
     pub slot: usize,
     pub value: Fact,
+    pub missing: bool,
+    pub owner: Owner,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -23,6 +44,8 @@ pub(super) struct Link {
     pub slot: usize,
     pub parent: Parent,
     pub value: Fact,
+    pub missing: bool,
+    pub owner: Owner,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -82,8 +105,11 @@ impl Closure {
             ctx.charge(1)?;
             assert_eq!((a.slot, a.parent), (b.slot, b.parent));
             let value = facts.union(ctx, &[a.value, b.value])?;
-            changed |= a.value != value;
+            let owner = a.owner.join(a.value, b.owner, b.value);
+            changed |= a.value != value || (!a.missing && b.missing) || a.owner != owner;
             a.value = value;
+            a.missing |= b.missing;
+            a.owner = owner;
         }
         Ok(changed)
     }
@@ -177,6 +203,8 @@ impl Exit {
 #[derive(Debug)]
 pub(super) struct Captures {
     values: Slots<Fact>,
+    missing: Slots<bool>,
+    owners: Slots<Owner>,
     attached: Slots<Attached>,
     written: Slots<bool>,
     pub pending: Pending,
@@ -186,6 +214,8 @@ impl Captures {
     pub fn new(ctx: &mut CallContext, locals: usize, inputs: &[Capture]) -> Result<Self> {
         let mut result = Self {
             values: Slots::new(locals, Atom::Never.fact()),
+            missing: Slots::new(locals, true),
+            owners: Slots::new(locals, Owner::Unknown),
             attached: Slots::new(locals, Attached::No),
             written: Slots::new(locals, false),
             pending: Pending::new(),
@@ -193,7 +223,16 @@ impl Captures {
         for input in inputs {
             ctx.charge(1)?;
             result.values.set(ctx, input.slot, input.value)?;
-            result.attached.set(ctx, input.slot, Attached::Yes)?;
+            result.missing.set(ctx, input.slot, input.missing)?;
+            result.owners.set(ctx, input.slot, input.owner)?;
+            let attached = if !input.missing {
+                Attached::Yes
+            } else if input.value == Atom::Never.fact() {
+                Attached::No
+            } else {
+                Attached::Maybe
+            };
+            result.attached.set(ctx, input.slot, attached)?;
         }
         Ok(result)
     }
@@ -201,6 +240,8 @@ impl Captures {
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         Ok(Self {
             values: self.values.snapshot(ctx)?,
+            missing: self.missing.snapshot(ctx)?,
+            owners: self.owners.snapshot(ctx)?,
             attached: self.attached.snapshot(ctx)?,
             written: self.written.snapshot(ctx)?,
             pending: self.pending.snapshot(ctx)?,
@@ -266,6 +307,16 @@ impl Captures {
         self.values.get(ctx, slot)
     }
 
+    /// Reports whether the original enclosing binding may be absent.
+    pub fn missing(&self, ctx: &mut CallContext, slot: usize) -> Result<bool> {
+        self.missing.get(ctx, slot)
+    }
+
+    /// Returns the lexical owner of an enclosing binding when it is known.
+    pub fn owner(&self, ctx: &mut CallContext, slot: usize) -> Result<Owner> {
+        self.owners.get(ctx, slot)
+    }
+
     pub fn join(
         &mut self,
         ctx: &mut CallContext,
@@ -273,17 +324,23 @@ impl Captures {
         other: &Self,
         depth: Option<usize>,
     ) -> Result<bool> {
+        let owners = self.owners.merge(ctx, &other.owners, |_, a, b| {
+            Ok(if a == b { a } else { Owner::Unknown })
+        })?;
         let values = self.values.merge(ctx, &other.values, |ctx, a, b| {
             facts.joined(ctx, a, b, depth)
         })?;
         let attached = self.attached.merge(ctx, &other.attached, |_, a, b| {
             Ok(if a == b { a } else { Attached::Maybe })
         })?;
+        let missing = self
+            .missing
+            .merge(ctx, &other.missing, |_, a, b| Ok(a || b))?;
         let written = self
             .written
             .merge(ctx, &other.written, |_, a, b| Ok(a || b))?;
         let pending = self.pending.join(ctx, facts, &other.pending, depth)?;
-        Ok(values || attached || written || pending)
+        Ok(values || missing || owners || attached || written || pending)
     }
 
     pub fn record(

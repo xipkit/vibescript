@@ -47,6 +47,8 @@ impl Context {
                 Capture {
                     slot: link.slot,
                     value: link.value,
+                    missing: link.missing,
+                    owner: link.owner,
                 },
             )?;
         }
@@ -126,8 +128,11 @@ impl Context {
         for (a, b) in self.captures.data.iter_mut().zip(&other.captures.data) {
             ctx.charge(1)?;
             let value = facts.widen(ctx, a.value, b.value, depth)?;
-            changed |= a.value != value;
+            let owner = a.owner.join(a.value, b.owner, b.value);
+            changed |= a.value != value || (!a.missing && b.missing) || a.owner != owner;
             a.value = value;
+            a.missing |= b.missing;
+            a.owner = owner;
         }
         for (a, b) in self.arguments.data.iter_mut().zip(&other.arguments.data) {
             ctx.charge(1)?;
@@ -172,6 +177,8 @@ impl Context {
                     slot: capture.slot - base,
                     parent: Parent::Local(usize::MAX),
                     value: capture.value,
+                    missing: capture.missing,
+                    owner: capture.owner,
                 },
             )?;
         }
@@ -220,6 +227,8 @@ mod tests {
                             slot,
                             parent: Parent::Local(slot),
                             value: Atom::Int.fact(),
+                            missing: false,
+                            owner: super::super::blocks::Owner::Unknown,
                         },
                     )
                     .unwrap();

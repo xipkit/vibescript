@@ -91,6 +91,102 @@ fn optional_bindings_and_open_scopes_keep_unresolved_alternatives() {
 }
 
 #[test]
+fn optional_type_candidates_cover_all_concrete_presence_combinations() {
+    let mut checked = 0;
+    for choices in 0..27 {
+        for optional in 0..8 {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut facts = Facts::new(&mut ctx).unwrap();
+            let first = facts.nominal(&mut ctx, 0, 0, b"First", None).unwrap();
+            let second = facts.nominal(&mut ctx, 0, 1, b"Second", None).unwrap();
+            let values = [Binding::Other, nominal(first, true), nominal(second, true)];
+            let names = [b"State".as_slice(), b"STATE", b"sTate"];
+            let mut abstract_bindings = Bindings::new();
+            let local = abstract_bindings.scope(&mut ctx).unwrap();
+            let outer = abstract_bindings.scope(&mut ctx).unwrap();
+            abstract_bindings
+                .insert(&mut ctx, outer, b"State", values[1])
+                .unwrap();
+            for (index, name) in names.iter().enumerate() {
+                let value = values[(choices / 3usize.pow(index as u32)) % 3];
+                if optional & (1 << index) != 0 {
+                    abstract_bindings
+                        .optional(&mut ctx, local, name, value)
+                        .unwrap();
+                } else {
+                    abstract_bindings
+                        .insert(&mut ctx, local, name, value)
+                        .unwrap();
+                }
+            }
+            let root = abstract_bindings.scope(&mut ctx).unwrap();
+            abstract_bindings
+                .insert(&mut ctx, root, b"api", Binding::Exports(local))
+                .unwrap();
+            for query in ["State", "STATE", "state", "api.State", "api.state"] {
+                let abstract_result = abstract_bindings
+                    .resolve(&mut ctx, &[root, local, outer], query, false)
+                    .unwrap();
+                let mut concrete_results = Vec::new();
+                for present in 0..8 {
+                    if present & !optional != !optional & 7 {
+                        continue;
+                    }
+                    let mut concrete = Bindings::new();
+                    let a = concrete.scope(&mut ctx).unwrap();
+                    let b = concrete.scope(&mut ctx).unwrap();
+                    concrete.insert(&mut ctx, b, b"State", values[1]).unwrap();
+                    for (index, name) in names.iter().enumerate() {
+                        if present & (1 << index) != 0 {
+                            concrete
+                                .insert(
+                                    &mut ctx,
+                                    a,
+                                    name,
+                                    values[(choices / 3usize.pow(index as u32)) % 3],
+                                )
+                                .unwrap();
+                        }
+                    }
+                    let r = concrete.scope(&mut ctx).unwrap();
+                    concrete
+                        .insert(&mut ctx, r, b"api", Binding::Exports(a))
+                        .unwrap();
+                    concrete_results.push(
+                        concrete
+                            .resolve(&mut ctx, &[r, a, b], query, false)
+                            .unwrap(),
+                    );
+                    checked += 1;
+                }
+                assert!(!concrete_results.is_empty());
+                if abstract_result != Resolution::Dynamic {
+                    assert!(
+                        concrete_results
+                            .iter()
+                            .all(|result| *result == abstract_result),
+                        "choices={choices},optional={optional},query={query},abstract={abstract_result:?},concrete={concrete_results:?}"
+                    );
+                }
+                if concrete_results
+                    .iter()
+                    .all(|result| *result == Resolution::Known(first))
+                {
+                    assert_eq!(
+                        abstract_result,
+                        Resolution::Known(first),
+                        "choices={choices},optional={optional},query={query}"
+                    );
+                }
+            }
+            drop((abstract_bindings, facts));
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+    assert_eq!(checked, 3645);
+}
+
+#[test]
 fn source_types_preserve_identity_enum_symbols_and_unexecuted_bodies() {
     let program = bytecode::compile(
         &format!("{SOURCE} module SideEffect; raise(\"must not run\"); end"),
