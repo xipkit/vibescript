@@ -204,7 +204,7 @@ fn optional_value_reads_follow_declarations_functions_and_missing_name_errors() 
 }
 
 #[test]
-fn global_replacements_remain_explicit_after_optional_capture_support() {
+fn optional_global_replacements_flow_into_captures() {
     for (body, expected) in [
         (
             "ignored=if flag; begin; Hash=[7,8]; end; end; [0].length; once {Hash.length}",
@@ -224,7 +224,7 @@ fn global_replacements_remain_explicit_after_optional_capture_support() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let report = analyze(&mut ctx, &mut facts, &script.inner.code.program).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+        assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
         for (flag, expected) in [false, true].into_iter().zip(expected) {
             assert_eq!(
                 script

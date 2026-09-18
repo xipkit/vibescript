@@ -10,6 +10,7 @@ mod enum_tests;
 mod equality;
 mod facts;
 mod flow;
+mod globals;
 mod graph;
 mod iteration;
 mod lexical;
@@ -128,3 +129,6 @@ mod dispatch_tests;
 
 #[cfg(test)]
 mod type_binding_tests;
+
+#[cfg(test)]
+mod global_tests;

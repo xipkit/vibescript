@@ -108,11 +108,10 @@ impl Walker<'_> {
                 return Ok(false);
             }
         }
-        for (global, value) in &self.program.globals {
+        for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.work_bytes(global.name().len().max(name.len()))?;
             if global.name() == name {
-                let value = builtins::global(self.ctx, self.facts, value)?;
-                return self.read_value(state, pc, value, None);
+                return self.read_global(state, pc, index, None);
             }
         }
         self.issue(

@@ -4,6 +4,7 @@ use super::{
     blocks, builtins,
     calls::{Calls, Target},
     facts::{Atom, Fact, Facts},
+    globals::Globals,
     graph::{Block, Exit, Graph},
     lexical::Layouts,
     relation::Relation,
@@ -21,6 +22,7 @@ mod bindings;
 mod callbacks;
 mod collection_blocks;
 mod effects;
+mod globals;
 mod handlers;
 mod native;
 mod types;
@@ -246,6 +248,11 @@ struct Attempt {
 #[derive(Debug)]
 struct State {
     function: usize,
+    // Global address roots occupy the suffix after lexical locals and captures.
+    global_base: usize,
+    global_count: usize,
+    global_pending: super::pending::Pending,
+    global_written: Slots<bool>,
     locals: Slots<Binding>,
     captures: Option<blocks::Captures>,
     capture_locals: bool,
@@ -277,13 +284,17 @@ impl State {
             _ => 0,
         })
     }
-    fn new(locals: usize, function: usize) -> Self {
+    fn new(locals: usize, function: usize, globals: usize) -> Self {
         Self {
             function,
+            global_base: locals,
+            global_count: globals,
+            global_pending: super::pending::Pending::new(),
+            global_written: Slots::new(globals, false),
             captures: None,
             capture_locals: false,
             locals: Slots::new(
-                locals,
+                locals + globals,
                 Binding {
                     value: Atom::Never.fact(),
                     missing: true,
@@ -303,6 +314,10 @@ impl State {
     fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         let mut state = Self {
             function: self.function,
+            global_base: self.global_base,
+            global_count: self.global_count,
+            global_pending: self.global_pending.snapshot(ctx)?,
+            global_written: self.global_written.snapshot(ctx)?,
             locals: self.locals.snapshot(ctx)?,
             capture_locals: self.capture_locals,
             captures: self
@@ -362,6 +377,12 @@ impl State {
                 owner: a.owner.join(a.value, b.owner, b.value),
             })
         })?;
+        changed |= self
+            .global_pending
+            .join(ctx, facts, &other.global_pending, depth)?;
+        changed |= self
+            .global_written
+            .merge(ctx, &other.global_written, |_, a, b| Ok(a || b))?;
         if let (Some(a), Some(b)) = (&mut self.captures, &other.captures) {
             changed |= a.join(ctx, facts, b, depth)?;
         }
@@ -451,11 +472,15 @@ impl State {
         } else {
             before.owner.join(before.value, own, value)
         };
-        if self.capture_locals {
+        if self.capture_locals && slot < self.global_base {
             self.captures
                 .as_mut()
                 .unwrap()
                 .store(ctx, facts, slot, value)?;
+        }
+        if slot >= self.global_base {
+            self.global_written
+                .set(ctx, slot - self.global_base, true)?;
         }
         self.locals.set(
             ctx,
@@ -559,6 +584,7 @@ pub(super) fn analyze(
             block: None,
             incoming: None,
             layouts: None,
+            globals: None,
         },
         &mut super::calls::Unavailable,
     )
@@ -573,6 +599,7 @@ pub(super) struct Body<'a> {
     pub block: Option<&'a blocks::Inputs<'a>>,
     pub incoming: Option<&'a blocks::Closure>,
     pub layouts: Option<&'a Layouts>,
+    pub globals: Option<&'a Globals>,
 }
 
 pub(super) fn analyze_body(
@@ -590,6 +617,7 @@ pub(super) fn analyze_body(
         block,
         incoming,
         layouts,
+        globals,
     } = body;
     let function_index = function;
     let function = &program.functions[function];
@@ -619,7 +647,9 @@ pub(super) fn analyze_body(
         .chain(function.return_type)
     {
         ctx.charge(1)?;
-        if facts.unresolved(contracts[ty]) {
+        if facts.unresolved(contracts[ty])
+            || super::globals::live_contract(ctx, program, &program.types[ty])?
+        {
             report.incomplete.push(ctx, 0)?;
             return Ok(report);
         }
@@ -640,7 +670,28 @@ pub(super) fn analyze_body(
         &owned_layouts
     };
     let locals = layouts.locals(ctx, program, function_index)?;
-    let mut initial = State::new(locals, function_index);
+    let mut initial = State::new(locals, function_index, program.globals.len());
+    let owned_globals;
+    let globals = if let Some(globals) = globals {
+        globals
+    } else {
+        owned_globals = Globals::initial(ctx, facts, program)?;
+        &owned_globals
+    };
+    assert_eq!(globals.values.data.len(), program.globals.len());
+    initial.global_pending = globals.pending.snapshot(ctx)?;
+    for (index, &value) in globals.values.data.iter().enumerate() {
+        ctx.charge(1)?;
+        initial.locals.set(
+            ctx,
+            locals + index,
+            Binding {
+                value,
+                missing: false,
+                owner: blocks::Owner::Unknown,
+            },
+        )?;
+    }
     if let Some(incoming) = incoming.filter(|_| block.is_none()) {
         let mut captures = Buffer::empty();
         for link in &incoming.captures.data {
@@ -687,6 +738,9 @@ pub(super) fn analyze_body(
         values.pending = block.pending.snapshot(ctx)?;
         initial.captures = Some(values);
         initial.capture_locals = true;
+    }
+    if initial.captures.is_none() && !program.globals.is_empty() {
+        initial.captures = Some(blocks::Captures::new(ctx, 0, &[])?);
     }
     if !function.binds_parameters {
         for (index, parameter) in function.params.iter().enumerate() {
@@ -912,9 +966,11 @@ impl Walker<'_> {
             Target::Offset(value) if attached.is_none() => {
                 builtins::protected::invoke(self.ctx, self.facts, value, &args)?
             }
-            _ => self
-                .calls
-                .invoke(self.ctx, self.facts, target, args, current_error)?,
+            _ => {
+                let globals = state.global_call(self.ctx)?;
+                self.calls
+                    .invoke(self.ctx, self.facts, target, args, current_error, &globals)?
+            }
         };
         let mut classes = result.throws;
         for failure in result.failures.data {
@@ -945,6 +1001,13 @@ impl Walker<'_> {
             self.call_exits(state, pc, &attached, result.exits)?;
             return Ok(Some([None, None]));
         }
+        if !result.exits.data.is_empty() {
+            return Ok(if self.global_exits(state, pc, result.exits)? {
+                None
+            } else {
+                Some([None, None])
+            });
+        }
         if result.value == Atom::Never.fact() {
             return Ok(Some([None, None]));
         }
@@ -962,7 +1025,7 @@ impl Walker<'_> {
                 return self.value_target(binding.value);
             }
         }
-        self.calls.resolve(self.ctx, &self.program.members[name])
+        self.root_target(state, &self.program.members[name])
     }
 
     fn value_target(&mut self, value: Fact) -> Result<Target> {
@@ -1026,7 +1089,7 @@ impl Walker<'_> {
     fn store(&mut self, state: &mut State, pc: usize, slot: usize, operand: Operand) -> Result<()> {
         let value = operand.value;
         let before = state.locals.get(self.ctx, slot)?.value;
-        if self.facts.reassignment_conflicts(self.ctx, before, value)? {
+        if slot < state.global_base && self.facts.reassignment_conflicts(self.ctx, before, value)? {
             self.issue(
                 pc,
                 IssueKind::Reassignment {
@@ -1041,13 +1104,14 @@ impl Walker<'_> {
             same: operand.origin == Some(slot),
             fresh: operand.fresh,
         };
-        if state.capture_locals {
+        if state.capture_locals && slot < state.global_base {
             state
                 .captures
                 .as_mut()
                 .unwrap()
                 .refresh(self.ctx, self.facts, slot, value, &change)?;
         }
+        state.refresh_globals(self.ctx, self.facts, slot, value, &change)?;
         for address in &mut state.addresses.data {
             self.ctx.charge(1)?;
             if address.root == Some(slot) {
@@ -1087,13 +1151,14 @@ impl Walker<'_> {
             return self.incomplete(pc).map(Some);
         }
         state.store(self.ctx, self.facts, slot, updated)?;
-        if state.capture_locals {
+        if state.capture_locals && slot < state.global_base {
             state
                 .captures
                 .as_mut()
                 .unwrap()
                 .refresh(self.ctx, self.facts, slot, updated, &change)?;
         }
+        state.refresh_globals(self.ctx, self.facts, slot, updated, &change)?;
         for pending in &mut state.addresses.data {
             self.ctx.charge(1)?;
             if pending.root == Some(slot) {
@@ -1317,41 +1382,40 @@ impl Walker<'_> {
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
-                    let (global, value) = &self.program.globals[index];
-                    if self.calls.global(self.ctx, global.name())? {
+                    if self
+                        .calls
+                        .global(self.ctx, self.program.globals[index].0.name())?
+                    {
                         return self.incomplete(pc);
                     }
-                    if let Kind::Builtin(builtin) = value.0 {
-                        let read = !matches!(op, Op::GlobalReceiver(_, false)) || !builtin.auto();
-                        if read {
-                            if !builtin.auto() {
-                                self.issue(
-                                    pc,
-                                    IssueKind::Call {
-                                        target: Target::Builtin(builtin),
-                                        failure: Failure::BuiltinValue,
-                                    },
-                                )?;
-                                self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                                return Ok([None, None]);
-                            }
-                            if let Some(edges) = self.invoke(
-                                &mut state,
-                                pc,
-                                Target::Builtin(builtin),
-                                Arguments::new(),
-                            )? {
-                                return Ok(edges);
-                            }
-                            continue;
-                        }
+                    let receiver = if let Op::GlobalReceiver(_, auto) = op {
+                        Some(auto)
+                    } else {
+                        None
+                    };
+                    if !self.read_global(&mut state, pc, index, receiver)? {
+                        return Ok([None, None]);
                     }
-                    let value = builtins::global(self.ctx, self.facts, value)?;
-                    state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::StoreGlobal(index) => {
+                    if self
+                        .calls
+                        .global(self.ctx, self.program.globals[index].0.name())?
+                    {
+                        return self.incomplete(pc);
+                    }
+                    let slot = state.global_base + index;
+                    let operand = *state.stack.data.last().unwrap();
+                    self.store(&mut state, pc, slot, operand)?;
                 }
                 Op::ResolveGlobalCall(index) => {
                     let name = self.program.globals[index].0.name();
-                    let target = self.calls.resolve(self.ctx, name)?;
+                    let target = if self.calls.global(self.ctx, name)? {
+                        self.calls.resolve(self.ctx, name)?
+                    } else {
+                        let value = state.locals.get(self.ctx, state.global_base + index)?.value;
+                        self.value_target(value)?
+                    };
                     state.arguments.push(
                         self.ctx,
                         Pending {
@@ -1495,10 +1559,42 @@ impl Walker<'_> {
                     let parameter = &self.function.params[index];
                     let mut supplied = state.snapshot(self.ctx)?;
                     let input = self.inputs[index];
-                    let value = match input {
+                    let mut value = match input {
                         Input::Supplied(value) | Input::Either(value) => Some(value),
                         Input::Default => None,
                     };
+                    if let (Some(actual), Some(ty)) = (value, parameter.ty) {
+                        value = if let Some(expected) =
+                            self.normalization_contract(&supplied, pc, ty)?
+                        {
+                            let relation = self.facts.relation(self.ctx, actual, expected)?;
+                            if relation != Relation::Accepted {
+                                self.emit_error(&supplied, pc, handlers::bit(ErrorClass::Runtime))?;
+                            }
+                            if relation == Relation::Rejected {
+                                self.issue(
+                                    pc,
+                                    IssueKind::Call {
+                                        target: Target::Function(self.function_index),
+                                        failure: Failure::Type {
+                                            parameter: index,
+                                            actual,
+                                            expected,
+                                        },
+                                    },
+                                )?;
+                            }
+                            if relation == Relation::Rejected
+                                && !self.facts.overlaps(self.ctx, actual, expected)?
+                            {
+                                None
+                            } else {
+                                Some(self.facts.normalized(self.ctx, actual, expected)?)
+                            }
+                        } else {
+                            None
+                        };
+                    }
                     if let Some(value) = value {
                         supplied.store(self.ctx, self.facts, parameter.slot, value)?;
                     }
@@ -1895,15 +1991,15 @@ impl Walker<'_> {
                     state.addresses.push(self.ctx, Address::new(None, value))?;
                 }
                 Op::AddressGlobal(index) => {
-                    let (global, value) = &self.program.globals[index];
-                    if self.calls.global(self.ctx, global.name())?
-                        || !matches!(value.0, Kind::Hash(_))
+                    if self
+                        .calls
+                        .global(self.ctx, self.program.globals[index].0.name())?
                     {
                         return self.incomplete(pc);
                     }
-                    let value = builtins::global(self.ctx, self.facts, value)?;
-                    let mut address = Address::new(None, value);
-                    address.supported = false;
+                    let Some(address) = self.global_address(&state, pc, index)? else {
+                        return Ok([None, None]);
+                    };
                     state.addresses.push(self.ctx, address)?;
                 }
                 Op::AddressIndex(count) | Op::AddressTarget(count, _) => {
@@ -2309,7 +2405,7 @@ impl Walker<'_> {
                     return Ok(edges);
                 }
                 Op::RootCall(name, _) => {
-                    let target = self.calls.resolve(self.ctx, &self.program.members[name])?;
+                    let target = self.root_target(&state, &self.program.members[name])?;
                     state.arguments.push(
                         self.ctx,
                         Pending {

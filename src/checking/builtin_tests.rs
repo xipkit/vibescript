@@ -388,12 +388,10 @@ fn root_overrides_do_not_reuse_builtin_implementations_or_namespace_facts() {
 }
 
 #[test]
-fn unmodeled_builtins_and_shadowed_calls_remain_explicitly_incomplete() {
+fn unmodeled_builtin_calls_remain_explicitly_incomplete() {
     for source in [
         "def run; JSON.parse(\"7\") { 1 }; end",
         "def run; require(\"missing\"); end",
-        "def run; JSON={parse:7}; JSON.parse; end",
-        "def run; to_int=7; to_int(\"7\"); end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();

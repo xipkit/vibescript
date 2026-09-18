@@ -8,6 +8,10 @@ impl Walker<'_> {
         pc: usize,
         ty: usize,
     ) -> Result<Option<Fact>> {
+        if super::super::globals::live_contract(self.ctx, self.program, &self.program.types[ty])? {
+            self.incomplete(pc)?;
+            return Ok(None);
+        }
         if self.block_inputs.is_none() {
             return Ok(Some(self.contracts[ty]));
         }

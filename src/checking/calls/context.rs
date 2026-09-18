@@ -1,5 +1,6 @@
 use super::*;
 use crate::checking::blocks::{Capture, Closure, Layer, Parent};
+use crate::checking::globals::Globals;
 use crate::checking::pending::Pending;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -11,6 +12,7 @@ pub(super) enum Kind {
 
 pub(super) struct Context {
     pub kind: Kind,
+    pub globals: Globals,
     pub locals: usize,
     pub inherited: Buffer<Layer>,
     pub captures: Buffer<Capture>,
@@ -22,6 +24,7 @@ impl Context {
     pub fn plain() -> Self {
         Self {
             kind: Kind::Plain,
+            globals: Globals::empty(),
             locals: 0,
             inherited: Buffer::empty(),
             captures: Buffer::empty(),
@@ -59,6 +62,7 @@ impl Context {
         ctx.charge(1)?;
         let mut next = Self::plain();
         next.kind = self.kind;
+        next.globals = self.globals.snapshot(ctx)?;
         next.pending = self.pending.snapshot(ctx)?;
         next.locals = self.locals;
         next.inherited.extend(ctx, &self.inherited.data)?;
@@ -70,6 +74,7 @@ impl Context {
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {
         ctx.charge((self.captures.data.len() + self.arguments.data.len()) as u64 + 1)?;
         self.pending.hash(ctx, hash)?;
+        self.globals.hash(ctx, hash)?;
         self.kind.hash(hash);
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         self.locals.hash(hash);
@@ -87,7 +92,8 @@ impl Context {
             && self.inherited.data == other.inherited.data
             && self.captures.data == other.captures.data
             && self.arguments.data == other.arguments.data
-            && self.pending.equal(ctx, &other.pending)?)
+            && self.pending.equal(ctx, &other.pending)?
+            && self.globals.equal(ctx, &other.globals)?)
     }
 
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
@@ -106,15 +112,18 @@ impl Context {
                 return Ok(false);
             }
         }
-        self.pending.compatible(ctx, &other.pending)
+        Ok(self.pending.compatible(ctx, &other.pending)?
+            && self.globals.compatible(ctx, &other.globals)?)
     }
 
     pub fn expands(&self, ctx: &mut CallContext, next: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         Ok(self.kind == next.kind
             && self.locals == next.locals
-            && self.inherited.data.len() < next.inherited.data.len()
-            && next.inherited.data.ends_with(&self.inherited.data))
+            && ((self.inherited.data.len() < next.inherited.data.len()
+                && next.inherited.data.ends_with(&self.inherited.data))
+                || self.globals.pending.addresses.data.len()
+                    < next.globals.pending.addresses.data.len()))
     }
 
     pub fn widen(
@@ -125,6 +134,7 @@ impl Context {
         depth: usize,
     ) -> Result<bool> {
         let mut changed = self.pending.join(ctx, facts, &other.pending, Some(depth))?;
+        changed |= self.globals.join(ctx, facts, &other.globals, Some(depth))?;
         for (a, b) in self.captures.data.iter_mut().zip(&other.captures.data) {
             ctx.charge(1)?;
             let value = facts.widen(ctx, a.value, b.value, depth)?;
@@ -288,6 +298,7 @@ mod tests {
                 let error = match operation {
                     0 => {
                         let exit = |pc| Exit {
+                            globals: Globals::empty(),
                             pending: Pending::new(),
                             pc,
                             completion: Completion::Value,

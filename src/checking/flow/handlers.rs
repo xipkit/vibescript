@@ -122,6 +122,7 @@ impl State {
             || self.addresses.data.len() != other.addresses.data.len()
             || self.raises.data.len() != other.raises.data.len()
             || self.attempts.data.len() != other.attempts.data.len()
+            || !self.global_pending.compatible(ctx, &other.global_pending)?
         {
             return Ok(false);
         }
@@ -175,13 +176,13 @@ impl Walker<'_> {
         value: Fact,
     ) -> Result<()> {
         if let (Some(report), Some(captures)) = (&mut self.report, state.captures.as_ref()) {
+            let globals = state.globals(self.ctx)?;
             captures.record(
                 self.ctx,
                 self.facts,
                 &mut report.block_exits,
-                pc,
-                completion,
-                value,
+                (pc, completion, value),
+                globals,
             )?;
         }
         Ok(())

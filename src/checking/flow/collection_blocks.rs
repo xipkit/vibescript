@@ -606,12 +606,14 @@ impl Walker<'_> {
         }
         args.block = Some(callback.snapshot(self.ctx)?);
         let current_error = before.state.current_error(self.ctx, self.current_error)?;
+        let globals = before.state.global_call(self.ctx)?;
         let result = self.calls.invoke(
             self.ctx,
             self.facts,
             Target::Block(block.function),
             args,
             current_error,
+            &globals,
         )?;
         if result.incomplete {
             self.incomplete(pc)?;
@@ -620,7 +622,8 @@ impl Walker<'_> {
         assert!(result.failures.data.is_empty());
         for exit in result.exits.data {
             self.ctx.charge(1)?;
-            let state = self.capture_exit(&before.state, &callback, &exit)?;
+            let mut state = self.capture_exit(&before.state, &callback, &exit)?;
+            state.apply_globals(self.ctx, self.facts, &exit.globals)?;
             match exit.completion {
                 Completion::Error(class) => self.emit_error(&state, pc, handlers::bit(class))?,
                 Completion::Return(depth) => self.callback_return(state, pc, depth, exit.value)?,

@@ -3,6 +3,7 @@ use super::{
     blocks,
     facts::{Atom, Fact, Facts},
     flow::{self, Issue, Report},
+    globals::{self, Globals},
     lexical::Layouts,
     relation::Relation,
 };
@@ -53,6 +54,7 @@ pub(super) trait Calls {
         target: Target,
         args: Arguments,
         current_error: u16,
+        globals: &Globals,
     ) -> Result<Outcome>;
 }
 
@@ -74,6 +76,7 @@ impl Calls for Unavailable {
         _: Target,
         _: Arguments,
         _: u16,
+        _: &Globals,
     ) -> Result<Outcome> {
         ctx.checkpoint()?;
         Ok(Outcome {
@@ -228,14 +231,9 @@ pub(super) fn analyze(
         functions,
         search: 0,
     };
-    let entry = solver.request(
-        ctx,
-        facts,
-        function,
-        inputs,
-        flow::NO_ERROR,
-        &Context::plain(),
-    )?;
+    let mut context = Context::plain();
+    context.globals = Globals::initial(ctx, facts, solver.world.program)?;
+    let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     while let Some(index) = solver.queue.data.pop() {
         ctx.charge(1)?;
         solver.current = index;
@@ -271,6 +269,7 @@ pub(super) fn analyze(
             block: block.as_ref(),
             incoming: incoming.as_ref(),
             layouts: Some(solver.layouts),
+            globals: Some(&context.globals),
         };
         let mut report = flow::analyze_body(ctx, facts, body, &mut solver)?;
         let mut returns = report.normal_returns;
@@ -665,6 +664,7 @@ impl Calls for Solver<'_> {
         target: Target,
         args: Arguments,
         current_error: u16,
+        globals: &Globals,
     ) -> Result<Outcome> {
         ctx.checkpoint()?;
         let mut outcome = Outcome {
@@ -695,6 +695,7 @@ impl Calls for Solver<'_> {
                     .map(|b| Context::receiving(ctx, b))
                     .transpose()?
                     .unwrap_or_else(Context::plain);
+                context.globals = globals.snapshot(ctx)?;
                 let inputs = if matches!(target, Target::Block(_)) {
                     context.kind = Kind::Invoked {
                         given: args.block.as_ref().unwrap().given,
@@ -702,19 +703,29 @@ impl Calls for Solver<'_> {
                     context.arguments = args.positional;
                     Buffer::empty()
                 } else {
-                    let bound = args.bind(
-                        ctx,
-                        facts,
-                        &self.world.program.functions[function].params,
-                        self.world.contracts,
-                    )?;
+                    for param in &self.world.program.functions[function].params {
+                        ctx.charge(1)?;
+                        if let Some(ty) = param.ty {
+                            if globals::live_contract(
+                                ctx,
+                                self.world.program,
+                                &self.world.program.types[ty],
+                            )? {
+                                outcome.incomplete = true;
+                                return Ok(outcome);
+                            }
+                        }
+                    }
+                    let bound =
+                        args.bind(ctx, facts, &self.world.program.functions[function].params)?;
                     if !bound.failures.data.is_empty() {
                         outcome.failures = bound.failures;
                         return Ok(outcome);
                     }
                     bound.inputs
                 };
-                if !context.inherited.data.is_empty()
+                if (!context.inherited.data.is_empty()
+                    || !globals.pending.addresses.data.is_empty())
                     && self.functions.data[function]
                     && self
                         .ancestor(ctx, Ancestor::Expanding(function, &context))?
@@ -737,14 +748,12 @@ impl Calls for Solver<'_> {
                     self.jobs.data[index].parents.push(ctx, self.current)?;
                 }
                 outcome.value = self.jobs.data[index].returns;
-                outcome.throws = self.jobs.data[index].throws;
-                if context.kind != Kind::Plain {
-                    outcome.throws = 0;
-                    if let Some(report) = &self.jobs.data[index].report {
-                        for exit in &report.block_exits.data {
-                            let exit = exit.snapshot(ctx)?;
-                            outcome.exits.push(ctx, exit)?;
-                        }
+                if context.kind == Kind::Plain && globals.values.data.is_empty() {
+                    outcome.throws = self.jobs.data[index].throws;
+                } else if let Some(report) = &self.jobs.data[index].report {
+                    for exit in &report.block_exits.data {
+                        let exit = exit.snapshot(ctx)?;
+                        outcome.exits.push(ctx, exit)?;
                     }
                 }
             }

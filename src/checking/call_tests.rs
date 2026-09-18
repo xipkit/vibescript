@@ -532,9 +532,7 @@ fn abstract_binding_matches_runtime_values_and_rejections() {
                 )
                 .unwrap();
         }
-        let bound = abstract_args
-            .bind(&mut ctx, &mut facts, params, &[])
-            .unwrap();
+        let bound = abstract_args.bind(&mut ctx, &mut facts, params).unwrap();
         let runtime = crate::arguments::Binding::new(&mut ctx, params, runtime_args);
         assert_eq!(
             !bound.failures.data.is_empty(),

@@ -245,6 +245,7 @@ impl Walker<'_> {
         for exit in exits.data {
             self.ctx.charge(1)?;
             let mut next = self.capture_exit(state, block, &exit)?;
+            next.apply_globals(self.ctx, self.facts, &exit.globals)?;
             match exit.completion {
                 Completion::Value => {
                     next.stack.push(self.ctx, Operand::new(exit.value))?;
@@ -285,12 +286,14 @@ impl Walker<'_> {
         state.stack.data.truncate(argument_base);
         args.block = Some(block.snapshot(self.ctx)?);
         let current_error = state.current_error(self.ctx, self.current_error)?;
+        let globals = state.global_call(self.ctx)?;
         let result = self.calls.invoke(
             self.ctx,
             self.facts,
             Target::Block(incoming.function),
             args,
             current_error,
+            &globals,
         )?;
         if result.incomplete {
             return self.incomplete(pc);
@@ -299,6 +302,7 @@ impl Walker<'_> {
         for exit in result.exits.data {
             self.ctx.charge(1)?;
             let mut next = self.capture_exit(&state, &block, &exit)?;
+            next.apply_globals(self.ctx, self.facts, &exit.globals)?;
             let transfer = match exit.completion {
                 Completion::Value => {
                     next.stack.push(self.ctx, Operand::new(exit.value))?;

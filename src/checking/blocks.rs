@@ -1,6 +1,7 @@
 use super::{
     addresses::{Attached, Change},
     facts::{Atom, Fact, Facts, Node},
+    globals::Globals,
     pending::Pending,
     slots::Slots,
 };
@@ -157,6 +158,7 @@ pub(super) struct Exit {
     pub captures: Slots<Fact>,
     pub written: Slots<bool>,
     pub pending: Pending,
+    pub globals: Globals,
 }
 
 impl Exit {
@@ -165,6 +167,7 @@ impl Exit {
             pc: self.pc,
             completion: self.completion,
             value: self.value,
+            globals: self.globals.snapshot(ctx)?,
             captures: self.captures.snapshot(ctx)?,
             written: self.written.snapshot(ctx)?,
             pending: self.pending.snapshot(ctx)?,
@@ -178,7 +181,8 @@ impl Exit {
             && self.value == other.value
             && self.captures.equal(ctx, &other.captures)?
             && self.written.equal(ctx, &other.written)?
-            && self.pending.equal(ctx, &other.pending)?)
+            && self.pending.equal(ctx, &other.pending)?
+            && self.globals.equal(ctx, &other.globals)?)
     }
 
     pub fn widen(
@@ -190,6 +194,8 @@ impl Exit {
     ) -> Result<()> {
         self.pending
             .join(ctx, facts, &previous.pending, Some(depth))?;
+        self.globals
+            .join(ctx, facts, &previous.globals, Some(depth))?;
         self.value = facts.widen(ctx, previous.value, self.value, depth)?;
         self.captures.merge(ctx, &previous.captures, |ctx, a, b| {
             facts.widen(ctx, b, a, depth)
@@ -348,14 +354,15 @@ impl Captures {
         ctx: &mut CallContext,
         facts: &mut Facts,
         exits: &mut Buffer<Exit>,
-        pc: usize,
-        completion: Completion,
-        value: Fact,
+        completion: (usize, Completion, Fact),
+        globals: Globals,
     ) -> Result<()> {
+        let (pc, completion, value) = completion;
         for exit in &mut exits.data {
             ctx.charge(1)?;
             if exit.pc == pc && exit.completion == completion {
                 exit.pending.join(ctx, facts, &self.pending, None)?;
+                exit.globals.join(ctx, facts, &globals, None)?;
                 exit.value = facts.union(ctx, &[exit.value, value])?;
                 exit.captures
                     .merge(ctx, &self.values, |ctx, a, b| facts.union(ctx, &[a, b]))?;
@@ -376,6 +383,7 @@ impl Captures {
                 captures,
                 written,
                 pending,
+                globals,
             },
         )
     }

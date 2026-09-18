@@ -1,7 +1,4 @@
-use super::{
-    facts::{Atom, Fact, Facts, Node},
-    relation::Relation,
-};
+use super::facts::{Atom, Fact, Facts, Node};
 use crate::{CallContext, Result, budget::Buffer, bytecode::Parameter, syntax::ParamKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -142,12 +139,12 @@ impl Arguments {
         Ok(changed)
     }
 
+    /// Binds argument shape; each supplied value is normalized when its parameter is reached.
     pub fn bind(
         mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
         params: &[Parameter],
-        contracts: &[Fact],
     ) -> Result<Bound> {
         ctx.checkpoint()?;
         self.collapse(ctx, facts, params)?;
@@ -227,23 +224,6 @@ impl Arguments {
                         .failures
                         .push(ctx, Failure::ExtraKeyword(keyword.name))?;
                 }
-            }
-        }
-        for (index, input) in bound.inputs.data.iter_mut().enumerate() {
-            ctx.charge(1)?;
-            if let (Input::Supplied(actual), Some(ty)) = (*input, params[index].ty) {
-                let expected = contracts[ty];
-                if facts.relation(ctx, actual, expected)? == Relation::Rejected {
-                    bound.failures.push(
-                        ctx,
-                        Failure::Type {
-                            parameter: index,
-                            actual,
-                            expected,
-                        },
-                    )?;
-                }
-                *input = Input::Supplied(facts.normalized(ctx, actual, expected)?);
             }
         }
         Ok(bound)
