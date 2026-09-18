@@ -76,6 +76,11 @@ impl Graph {
                 | Op::EnsureEnd
                 | Op::Yield(_)
                 | Op::Method(_, _)
+                | Op::CallMember(_)
+                | Op::CallValue
+                | Op::Mutate(_, _)
+                | Op::AddressMember(_)
+                | Op::AddressNamespaceField(_)
                 | Op::Invoke(_)
                 | Op::InvokeRoot(_) => {
                     leaders.data[pc + 1] = true;

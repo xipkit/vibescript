@@ -521,9 +521,7 @@ fn child_retained(
         ctx.charge(1)?;
         let receiver = facts.arm(receiver, i);
         let array = matches!(facts.node(receiver), Node::Tuple(_) | Node::Array(_));
-        let hash = facts.plain_hash(receiver)
-            || (method.is_none()
-                && matches!(facts.node(receiver), Node::Hash(..) | Node::Shape(..)));
+        let hash = matches!(facts.node(receiver), Node::Hash(..) | Node::Shape(..));
         let same = |ctx: &mut CallContext| -> Result<Option<bool>> {
             args.first()
                 .map_or(Ok(None), |&target| same_key(ctx, facts, target, key))

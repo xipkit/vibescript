@@ -891,7 +891,7 @@ impl Facts {
         Ok(Some(variants))
     }
 
-    fn replace(
+    pub(super) fn replace(
         &mut self,
         ctx: &mut CallContext,
         parent: Fact,

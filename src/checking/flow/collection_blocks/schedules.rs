@@ -71,7 +71,7 @@ impl Walker<'_> {
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Atom(Atom::Unknown | Atom::Any)
-                | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
+                | Node::Shape(_, _, _, HashKind::Any)
                 | Node::Hash(_, _, HashKind::Any | HashKind::Object)
                 | Node::Builtin(_)
                 | Node::TypeValue(_)

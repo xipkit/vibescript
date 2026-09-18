@@ -154,6 +154,16 @@ Seventeen focused tests include 129 block-body execution comparisons, including 
 
 This is the body-analysis layer. Attaching blocks to call contexts, resolving lexical owners across frames, repeated yields and native callbacks, routing nonlocal transfers through callers, and refreshing caller pending addresses remain unfinished. Whole-function analysis still reports attached calls and unresolved nested yields as incomplete; these body summaries do not imply that block calls pass a public checker.
 
+## Namespace object dispatch
+
+Known builtin namespace objects now use their current fields when selecting automatic, explicit, scoped, indexed, computed and forwarded calls. Stored data and callable exports can override native names according to the runtime's member rules. Optional fields and callable/data alternatives keep both successful and failing paths. Missing lookups and noncallable values retain the appropriate argument effects and catchable errors.
+
+Native namespace reads, supported collection callbacks and hash mutators use the existing collection analysis. Clearing and replacing a namespace preserve its object behavior; copies and callback outputs retain their individual dispatch rules. Merge, selection and transformation results are ordinary hashes. Protected match data and rescued errors keep their guards when replacing a namespace, and a structural hash input cannot establish that replacement will produce an unprotected value.
+
+Pending calls with different targets and pending addresses with different roots or paths remain separate until they can be joined safely. Forwarded reads keep their selected receiver while mutators observe their live address. Chained writes retain the documented [addressable field rules](value-helpers.md): `h.clone.clear` can update a stored field, while `h.clone().clear` uses a temporary copy. Analysis does not execute host callbacks or factories.
+
+The executed witnesses cover overrides, conditional fields, argument ordering, direct and forwarded mutations, callback control transfers, computed descriptors, object/plain-hash output distinctions, protected replacement, and retained nested writes. Exact and sampled work/memory limits, allocation cleanup, cancellation and deadlines exercise the same paths. The checker remains private; remaining hash helpers, mutable host/root bindings, differing live type identities, class/module initialization and dispatch, required-file and host effects, public checking and checked execution, native async callbacks, compiler allocation accounting and platform validation remain part of the full-language goal.
+
 ## Remaining integration
 
 Completion still requires:

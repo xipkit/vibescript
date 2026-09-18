@@ -319,17 +319,12 @@ fn addressed_namespace_calls_preserve_selection_and_argument_effects() {
         Some("9"),
         true,
     );
-    for source in [
-        "def run; Regex[:replace]=7; Regex.replace(\"x\",\"x\",\"y\"); end",
-        "def run; JSON.clear; end",
-    ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
-        drop((facts, report));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    }
+    witness(
+        "def run; Regex[:replace]=7; begin; Regex.replace(\"x\",\"x\",\"y\"); rescue; 9; end; end",
+        Some("9"),
+        true,
+    );
+    witness("def run; JSON.clear; JSON.size; end", Some("0"), false);
     check(
         "def run(x:int); begin; srand(x); rescue AssertionError; missing; end; 7; end",
         false,
@@ -572,7 +567,6 @@ fn custom_string_conversions_and_remaining_dynamic_work_are_explicitly_incomplet
         "def run(x:any); puts(x); end",
         "def run(x:{name:string}); sprintf(\"%s\",x); end",
         "def run; require(\"missing\"); end",
-        "def run; Regexp.new(\"x\") { 7 }; end",
     ] {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -582,6 +576,11 @@ fn custom_string_conversions_and_remaining_dynamic_work_are_explicitly_incomplet
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
     check("def run(x:any); p(x); end", false);
+    witness(
+        "def run; begin; Regexp.new(\"x\") {7}; rescue; 9; end; end",
+        Some("9"),
+        true,
+    );
 }
 
 #[test]

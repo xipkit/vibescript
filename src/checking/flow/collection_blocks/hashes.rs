@@ -1,5 +1,4 @@
 use super::*;
-use crate::checking::facts::Field;
 
 mod deep;
 
@@ -19,7 +18,8 @@ impl Walker<'_> {
             let view = self.hash_view(arm);
             match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
-                Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain) => (),
+                Node::Shape(_, _, _, HashKind::Plain | HashKind::Object)
+                | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => (),
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Shape(..)
@@ -112,7 +112,7 @@ impl Walker<'_> {
             }
             let initial = IterationState {
                 state: state.snapshot(self.ctx)?,
-                output: view,
+                output: self.plain_hash_data(view)?,
                 auxiliary: Atom::Never.fact(),
                 previous: Atom::Never.fact(),
             };
@@ -137,33 +137,7 @@ impl Walker<'_> {
     }
 
     fn plain_hash_data(&mut self, input: Fact) -> Result<Fact> {
-        match self.facts.node(input) {
-            Node::Hash(keys, values, _) => {
-                let (keys, values) = (*keys, *values);
-                self.facts.hash_kind(self.ctx, keys, values, true)
-            }
-            Node::Shape(fields, open, keys, _) => {
-                let (length, open, keys) = (fields.data.len(), *open, *keys);
-                let mut copied = Buffer::empty();
-                for index in 0..length {
-                    self.ctx.charge(1)?;
-                    let Node::Shape(fields, ..) = self.facts.node(input) else {
-                        unreachable!()
-                    };
-                    let field = &fields.data[index];
-                    copied.push(
-                        self.ctx,
-                        Field {
-                            name: field.name.clone(),
-                            value: field.value,
-                            optional: field.optional,
-                        },
-                    )?;
-                }
-                self.facts.shape_fields(self.ctx, copied, open, keys, true)
-            }
-            _ => unreachable!(),
-        }
+        self.facts.hash_as(self.ctx, input, HashKind::Plain)
     }
 
     fn hash_join(

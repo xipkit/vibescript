@@ -92,9 +92,8 @@ impl Walker<'_> {
             let kind = match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
                 Node::Tuple(_) | Node::Array(_) if method == Method::Fetch => Receiver::Array,
-                Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain) => {
-                    Receiver::Hash
-                }
+                Node::Shape(_, _, _, HashKind::Plain | HashKind::Object)
+                | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => Receiver::Hash,
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Shape(..)

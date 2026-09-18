@@ -20,6 +20,7 @@ mod mutations;
 mod normalization;
 #[cfg(test)]
 mod normalization_tests;
+mod objects;
 #[cfg(test)]
 mod optional_capture_tests;
 mod ordering;
@@ -135,3 +136,6 @@ mod global_tests;
 
 #[cfg(test)]
 mod global_type_tests;
+
+#[cfg(test)]
+mod object_tests;

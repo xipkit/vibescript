@@ -366,16 +366,11 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
 }
 
 pub(super) fn namespace(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<bool> {
-    let Node::Shape(fields, false, _, HashKind::Object) = facts.node(value) else {
-        return Ok(false);
-    };
-    for field in &fields.data {
-        ctx.charge(1)?;
-        if matches!(facts.node(field.value), Node::Builtin(_)) {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    ctx.charge(1)?;
+    Ok(matches!(
+        facts.node(value),
+        Node::Shape(_, false, _, HashKind::Object)
+    ))
 }
 
 pub(super) fn namespace_call(
@@ -387,11 +382,10 @@ pub(super) fn namespace_call(
     if !namespace(ctx, facts, receiver)? {
         return Ok(false);
     }
-    Ok(facts
-        .selected_field(ctx, receiver, name.as_bytes())?
-        .is_some_and(|(value, optional)| {
-            !optional && matches!(facts.node(value), Node::Builtin(_))
-        }))
+    match facts.selected_field(ctx, receiver, name.as_bytes())? {
+        Some((value, _)) => Ok(!facts.known_non_callable(ctx, value)?),
+        None => Ok(false),
+    }
 }
 
 pub(super) fn member(
@@ -509,34 +503,6 @@ fn member_arm(
         return Ok(None);
     }
     let Some((field, false)) = facts.selected_field(ctx, receiver, name.as_bytes())? else {
-        if !site.scope
-            && matches!(
-                name,
-                "keys" | "values" | "length" | "size" | "empty?" | "nil?" | "itself" | "dup"
-            )
-        {
-            let mut result = outcome(Atom::Never.fact());
-            if !args.positional.data.is_empty() || !args.keywords.data.is_empty() {
-                result.failures.push(ctx, Failure::BuiltinArity)?;
-                return Ok(Some(result));
-            }
-            result.value = match name {
-                "keys" => facts.array(ctx, Atom::String.fact())?,
-                "values" => {
-                    let value = facts.shape_values(ctx, receiver, false)?;
-                    facts.array(ctx, value)?
-                }
-                "nil?" | "empty?" => facts.boolean(ctx, false)?,
-                "itself" | "dup" => receiver,
-                _ => {
-                    let Node::Shape(fields, ..) = facts.node(receiver) else {
-                        unreachable!()
-                    };
-                    facts.integer(ctx, fields.data.len() as i64)?
-                }
-            };
-            return Ok(Some(result));
-        }
         if !site.scope
             && (crate::members::hash_builtin(name) || crate::members::names::universal(name))
         {

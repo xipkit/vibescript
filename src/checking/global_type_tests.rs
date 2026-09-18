@@ -317,7 +317,6 @@ fn differing_live_identities_and_unexecuted_initializers_stay_explicit() {
         "enum Status; Draft; end; enum Review; Draft; end; def echo(x:Math); x; end; def run(flag:bool); if flag; Math=Status; else; Math=Review; end; echo(:draft); end",
         "enum Status; Draft; end; enum Review; Draft; end; def echo(x:Math.State); x; end; def run(flag:bool); if flag; Math[:State]=Status; else; Math[:State]=Review; end; echo(:draft); end",
         "class Widget; raise('must not run'); end; def echo(x:Widget); x; end; def run; echo(:draft); end",
-        "enum Status; Draft; end; def run; Math.store(:State,Status); end",
     ] {
         let program = bytecode::compile(source, Vec::new(), &()).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());

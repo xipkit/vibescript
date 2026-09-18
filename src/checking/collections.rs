@@ -54,6 +54,36 @@ impl Facts {
         }
     }
 
+    /// Copies hash facts while preserving fields and replacing their dispatch provenance.
+    pub(super) fn hash_as(
+        &mut self,
+        ctx: &mut CallContext,
+        value: Fact,
+        kind: HashKind,
+    ) -> Result<Fact> {
+        ctx.charge(1)?;
+        match self.node(value) {
+            Node::Hash(keys, values, _) => self.hash_kind(ctx, *keys, *values, kind),
+            Node::Shape(fields, open, keys, _) => {
+                let (open, keys) = (*open, *keys);
+                let mut copied = Buffer::empty();
+                for field in &fields.data {
+                    ctx.charge(1)?;
+                    copied.push(
+                        ctx,
+                        super::facts::Field {
+                            name: field.name.clone(),
+                            value: field.value,
+                            optional: field.optional,
+                        },
+                    )?;
+                }
+                self.shape_fields(ctx, copied, open, keys, kind)
+            }
+            _ => unreachable!(),
+        }
+    }
+
     fn object_index(&self, ctx: &mut CallContext, value: Fact, member: &[u8]) -> Result<bool> {
         if self.plain_hash(value) {
             return Ok(false);
@@ -297,6 +327,13 @@ impl Facts {
         name: &str,
     ) -> Result<Operation> {
         let mut result = outcome(Atom::Never.fact());
+        if let Some(variants) = super::objects::variants(ctx, self, receiver, name)? {
+            for receiver in variants.data {
+                let next = self.prepare_collection_member(ctx, receiver, name)?;
+                self.merge_operation(ctx, &mut result, next)?;
+            }
+            return Ok(result);
+        }
         for i in 0..self.arm_count(receiver) {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
@@ -373,6 +410,22 @@ impl Facts {
         if matches!(self.node(receiver), Node::Named(_) | Node::Nominal { .. }) {
             return Ok(unsupported());
         }
+        match super::objects::select(ctx, self, receiver, site, name)? {
+            Some(super::objects::Selection::Field(field)) => {
+                return Ok(
+                    if site.auto && (site.scope || self.known_non_callable(ctx, field)?) {
+                        outcome(field)
+                    } else if !site.auto && self.known_non_callable(ctx, field)? {
+                        rejected()
+                    } else {
+                        unsupported()
+                    },
+                );
+            }
+            Some(super::objects::Selection::Missing) => return Ok(rejected()),
+            Some(super::objects::Selection::Incomplete) => return Ok(unsupported()),
+            _ => (),
+        }
         let array = matches!(self.node(receiver), Node::Array(_) | Node::Tuple(_));
         let hash = matches!(self.node(receiver), Node::Hash(..) | Node::Shape(..));
         let string = self.atom(receiver) == Some(Atom::String);
@@ -405,7 +458,7 @@ impl Facts {
             });
         }
         // Structural contracts can also describe capability objects whose fields override builtins.
-        if hash && !self.plain_hash(receiver) {
+        if hash && self.hash_mode(receiver) == HashKind::Any {
             return Ok(unsupported());
         }
         let arity = match name {

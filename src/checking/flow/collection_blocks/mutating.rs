@@ -22,6 +22,17 @@ impl Walker<'_> {
         let site = site.into();
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
+        if let Some(variants) =
+            crate::checking::objects::variants(self.ctx, self.facts, receiver, name)?
+        {
+            for receiver in variants.data {
+                self.ctx.charge(1)?;
+                let mut next = state.snapshot(self.ctx)?;
+                next.addresses.data.last_mut().unwrap().value = receiver;
+                self.mutable_block(&next, pc, site, args)?;
+            }
+            return Ok(());
+        }
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let source = self.facts.arm(receiver, i);
@@ -30,6 +41,20 @@ impl Walker<'_> {
             }
             let mut state = state.snapshot(self.ctx)?;
             state.addresses.data.last_mut().unwrap().value = source;
+            if matches!(
+                crate::checking::objects::select(self.ctx, self.facts, source, site.call, name)?,
+                Some(
+                    crate::checking::objects::Selection::Field(_)
+                        | crate::checking::objects::Selection::Missing
+                        | crate::checking::objects::Selection::Incomplete
+                )
+            ) {
+                state.addresses.data.pop().unwrap();
+                let arguments = args.snapshot(self.ctx)?;
+                let edges = self.member(&mut state, pc, source, site, arguments)?;
+                self.member_edges(pc, state, edges)?;
+                continue;
+            }
             let protection = state
                 .addresses
                 .data
@@ -57,9 +82,8 @@ impl Walker<'_> {
             }
             let kind = match self.facts.node(source) {
                 Node::Tuple(_) | Node::Array(_) => Some(Receiver::Array),
-                Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain) => {
-                    Some(Receiver::Hash)
-                }
+                Node::Shape(_, _, _, HashKind::Plain | HashKind::Object)
+                | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => Some(Receiver::Hash),
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Shape(..)
@@ -74,7 +98,8 @@ impl Walker<'_> {
                 _ => None,
             };
             let specialized = match (name, kind) {
-                ("delete_if" | "keep_if" | "delete", Some(_)) => true,
+                ("delete_if" | "keep_if", Some(_)) => true,
+                ("delete", Some(_)) => args.block.is_some(),
                 ("fill", Some(Receiver::Array)) => args.block.is_some(),
                 _ => false,
             };

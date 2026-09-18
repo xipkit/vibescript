@@ -15,6 +15,22 @@ impl Walker<'_> {
         }
     }
 
+    pub(super) fn member_edges(
+        &mut self,
+        pc: usize,
+        state: State,
+        edges: Option<Edges>,
+    ) -> Result<()> {
+        if let Some(edges) = edges {
+            for edge in edges.into_iter().flatten() {
+                self.extra.push(self.ctx, edge)?;
+            }
+        } else {
+            self.native_continue(pc, state)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn type_shadowed(&mut self, state: &State, guard: usize) -> Result<(bool, bool)> {
         let mut possible = false;
         for name in &self.program.type_guards[guard] {
@@ -60,6 +76,46 @@ impl Walker<'_> {
         let site = site.into();
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
+        if let Some(variants) =
+            super::super::objects::variants(self.ctx, self.facts, receiver, name)?
+        {
+            for receiver in variants.data {
+                self.ctx.charge(1)?;
+                let mut next = state.snapshot(self.ctx)?;
+                let arguments = args.snapshot(self.ctx)?;
+                let edges = self.member(&mut next, pc, receiver, site, arguments)?;
+                self.member_edges(pc, next, edges)?;
+            }
+            return Ok(Some([None, None]));
+        }
+        match crate::checking::objects::select(self.ctx, self.facts, receiver, site.call, name)? {
+            Some(crate::checking::objects::Selection::Field(field)) => {
+                if site.auto {
+                    if site.scope {
+                        state.stack.push(self.ctx, Operand::new(field))?;
+                        return Ok(None);
+                    }
+                    if self.dynamic(field)? {
+                        return self.incomplete(pc).map(Some);
+                    }
+                    return Ok(if self.read_value(state, pc, field, None)? {
+                        None
+                    } else {
+                        Some([None, None])
+                    });
+                }
+                let target = self.value_target(field)?;
+                return self.invoke(state, pc, target, args);
+            }
+            Some(crate::checking::objects::Selection::Missing) => {
+                self.collection_error(state, pc, receiver, site, &args, ErrorClass::Runtime)?;
+                return Ok(Some([None, None]));
+            }
+            Some(crate::checking::objects::Selection::Incomplete) => {
+                return self.incomplete(pc).map(Some);
+            }
+            _ => (),
+        }
         if let Some(method) = collection_blocks::text::TextMethod::parse(name) {
             if method.materializes() {
                 let mut strings = true;

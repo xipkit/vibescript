@@ -126,6 +126,18 @@ impl State {
         {
             return Ok(false);
         }
+        for (a, b) in self.addresses.data.iter().zip(&other.addresses.data) {
+            ctx.charge(1)?;
+            if !a.compatible(b) {
+                return Ok(false);
+            }
+        }
+        for (a, b) in self.arguments.data.iter().zip(&other.arguments.data) {
+            ctx.charge(1)?;
+            if a.target != b.target {
+                return Ok(false);
+            }
+        }
         for (a, b) in self.attempts.data.iter().zip(&other.attempts.data) {
             ctx.charge(1)?;
             if a.spec != b.spec

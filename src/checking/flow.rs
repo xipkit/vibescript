@@ -19,11 +19,13 @@ use crate::{
 };
 
 mod bindings;
+mod call_targets;
 mod callbacks;
 mod collection_blocks;
 mod effects;
 mod globals;
 mod handlers;
+mod member_addresses;
 mod native;
 mod types;
 use handlers::{Phase, Transfer};
@@ -1166,6 +1168,35 @@ impl Walker<'_> {
         let site = site.into();
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
+        let receiver = state.addresses.data.last().unwrap().value;
+        if let Some(variants) = super::objects::variants(self.ctx, self.facts, receiver, name)? {
+            for receiver in variants.data {
+                self.ctx.charge(1)?;
+                let mut next = state.snapshot(self.ctx)?;
+                next.addresses.data.last_mut().unwrap().value = receiver;
+                let edges = self.mutate(&mut next, pc, site, args, address_result, fresh)?;
+                self.member_edges(pc, next, edges)?;
+            }
+            return Ok(Some([None, None]));
+        }
+        if matches!(
+            super::objects::select(self.ctx, self.facts, receiver, site.call, name)?,
+            Some(
+                super::objects::Selection::Field(_)
+                    | super::objects::Selection::Missing
+                    | super::objects::Selection::Incomplete
+            )
+        ) {
+            state.addresses.data.pop().unwrap();
+            let mut arguments = Arguments::new();
+            arguments.positional.extend(self.ctx, args)?;
+            let edges = self.member(state, pc, receiver, site, arguments)?;
+            if edges.is_none() && address_result {
+                let value = state.stack.data.pop().unwrap().value;
+                state.addresses.push(self.ctx, Address::new(None, value))?;
+            }
+            return Ok(edges);
+        }
         if matches!(name, "delete_if" | "keep_if") {
             let mut arguments = Arguments::new();
             arguments.positional.extend(self.ctx, args)?;
@@ -1238,7 +1269,10 @@ impl Walker<'_> {
                 self.facts.node(arm),
                 super::facts::Node::Array(_) | super::facts::Node::Tuple(_)
             );
-            let hash = self.facts.plain_hash(arm);
+            let hash = matches!(
+                self.facts.node(arm),
+                super::facts::Node::Hash(..) | super::facts::Node::Shape(..)
+            );
             pure &= self.facts.atom(arm) == Some(Atom::String)
                 || (hash && !crate::members::hash_builtin(name));
             returns_receiver &= (array
@@ -2187,7 +2221,13 @@ impl Walker<'_> {
                         return Ok([None, None]);
                     }
                     let args = pending.arguments;
-                    if args.block.is_some() {
+                    if args.block.is_some()
+                        || super::objects::contains(
+                            self.ctx,
+                            self.facts,
+                            state.addresses.data.last().unwrap().value,
+                        )?
+                    {
                         self.mutable_block(&state, pc, site, &args)?;
                         return Ok([None, None]);
                     }
@@ -2242,128 +2282,13 @@ impl Walker<'_> {
                     }
                 }
                 Op::AddressMember(site) | Op::AddressNamespaceField(site) => {
-                    let name = &self.program.members[site.name];
-                    let receiver = state.addresses.data.last().unwrap().value;
-                    let mut protected_field = true;
-                    for i in 0..self.facts.arm_count(receiver) {
-                        self.ctx.charge(1)?;
-                        let arm = self.facts.arm(receiver, i);
-                        let super::facts::Node::Protected(shape, _) = self.facts.node(arm) else {
-                            protected_field = false;
-                            break;
-                        };
-                        if !self
-                            .facts
-                            .selected_field(self.ctx, *shape, name.as_bytes())?
-                            .is_some_and(|(_, optional)| !optional)
-                        {
-                            protected_field = false;
-                            break;
-                        }
-                    }
-                    if protected_field {
-                        let key = self.facts.string(self.ctx, name.as_bytes())?;
-                        let result = state.addresses.data.last_mut().unwrap().index(
-                            self.ctx,
-                            self.facts,
-                            &[key],
-                        )?;
-                        if let Some(edges) =
-                            self.index_outcome(&state, pc, receiver, &[key], &result)?
-                        {
-                            return Ok(edges);
-                        }
-                        continue;
-                    }
-                    if builtins::value_member(self.ctx, self.facts, receiver, name)? {
-                        state.addresses.data.pop().unwrap();
-                        if let Some(edges) =
-                            self.member(&mut state, pc, receiver, site, Arguments::new())?
-                        {
-                            return Ok(edges);
-                        }
-                        let value = state.stack.data.pop().unwrap().value;
-                        state.addresses.push(self.ctx, Address::new(None, value))?;
-                        continue;
-                    }
-                    let (mut fields, mut absent) = (false, false);
-                    for i in 0..self.facts.arm_count(receiver) {
-                        self.ctx.charge(1)?;
-                        let arm = self.facts.arm(receiver, i);
-                        match self.facts.node(arm) {
-                            super::facts::Node::Protected(shape, _) => {
-                                let selected =
-                                    self.facts
-                                        .selected_field(self.ctx, *shape, name.as_bytes())?;
-                                fields |= selected.is_some();
-                                absent |= selected.is_none();
-                            }
-                            super::facts::Node::Shape(_, open, _, _)
-                                if matches!(op, Op::AddressMember(_)) =>
-                            {
-                                let selected =
-                                    self.facts.selected_field(self.ctx, arm, name.as_bytes())?;
-                                if *open
-                                    || selected.is_some_and(|(_, optional)| {
-                                        optional && crate::members::hash_builtin(name)
-                                    })
-                                {
-                                    return self.incomplete(pc);
-                                }
-                                fields |= selected.is_some();
-                                absent |= selected.is_none();
-                            }
-                            super::facts::Node::Hash(..) if matches!(op, Op::AddressMember(_)) => {
-                                return self.incomplete(pc);
-                            }
-                            _ => absent = true,
-                        }
-                    }
-                    if fields && absent {
-                        return self.incomplete(pc);
-                    }
-                    if fields {
-                        let key = self.facts.string(self.ctx, name.as_bytes())?;
-                        let result = state.addresses.data.last_mut().unwrap().index(
-                            self.ctx,
-                            self.facts,
-                            &[key],
-                        )?;
-                        if let Some(edges) =
-                            self.index_outcome(&state, pc, receiver, &[key], &result)?
-                        {
-                            return Ok(edges);
-                        }
-                    } else if crate::bytecode::mutating_member(name)
-                        && matches!(op, Op::AddressMember(_))
-                    {
-                        if let Some(edges) = self.mutate(&mut state, pc, site, &[], true, false)? {
-                            return Ok(edges);
-                        }
-                    } else {
-                        let result =
-                            self.facts
-                                .collection_member(self.ctx, receiver, site, name, &[])?;
-                        if result.rejected {
-                            self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                            let arguments = self.facts.tuple(self.ctx, &[])?;
-                            self.issue(
-                                pc,
-                                IssueKind::Member {
-                                    name: site.name,
-                                    receiver,
-                                    arguments,
-                                },
-                            )?;
-                        }
-                        if result.unsupported {
-                            return self.incomplete(pc);
-                        }
-                        if result.value == Atom::Never.fact() {
-                            return Ok([None, None]);
-                        }
-                        *state.addresses.data.last_mut().unwrap() =
-                            Address::new(None, result.value);
+                    if let Some(edges) = self.address_member(
+                        &mut state,
+                        pc,
+                        site,
+                        matches!(op, Op::AddressNamespaceField(_)),
+                    )? {
+                        return Ok(edges);
                     }
                 }
                 Op::AddressJumpNil(target, value_result) => {
@@ -2458,77 +2383,15 @@ impl Walker<'_> {
                 }
                 Op::CallMember(site) => {
                     let receiver = state.stack.data.pop().unwrap().value;
-                    let name = &self.program.members[site.name];
-                    if matches!(self.facts.node(receiver), super::facts::Node::Offset(_)) {
-                        let target = Target::Offset(receiver);
-                        self.issue(
-                            pc,
-                            IssueKind::Call {
-                                target,
-                                failure: Failure::BuiltinValue,
-                            },
-                        )?;
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        return Ok([None, None]);
+                    if let Some(edges) = self.call_member(&mut state, pc, receiver, site)? {
+                        return Ok(edges);
                     }
-                    if let super::facts::Node::Builtin(builtin) = self.facts.node(receiver) {
-                        self.issue(
-                            pc,
-                            IssueKind::Call {
-                                target: Target::Builtin(*builtin),
-                                failure: Failure::BuiltinValue,
-                            },
-                        )?;
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        return Ok([None, None]);
-                    }
-                    let fields = if let super::facts::Node::Protected(shape, _) =
-                        self.facts.node(receiver)
-                    {
-                        *shape
-                    } else {
-                        receiver
-                    };
-                    let protected = fields != receiver;
-                    let field = if protected
-                        || matches!(
-                            self.facts.node(fields),
-                            super::facts::Node::Shape(
-                                _,
-                                false,
-                                _,
-                                HashKind::Any | HashKind::Object
-                            )
-                        ) {
-                        self.facts
-                            .selected_field(self.ctx, fields, name.as_bytes())?
-                            .and_then(|(value, optional)| (!optional).then_some(value))
-                    } else {
-                        return self.incomplete(pc);
-                    };
-                    let Some(field) = field else {
-                        if !site.scope
-                            && (crate::members::hash_builtin(name)
-                                || crate::members::names::universal(name))
-                        {
-                            return self.incomplete(pc);
-                        }
-                        self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;
-                        self.issue(
-                            pc,
-                            IssueKind::Call {
-                                target: Target::Undefined,
-                                failure: Failure::Undefined,
-                            },
-                        )?;
-                        return Ok([None, None]);
-                    };
-                    state.arguments.data.last_mut().unwrap().target = self.value_target(field)?;
                 }
                 Op::CallValue => {
                     let operand = state.stack.data.pop().unwrap();
-                    state.arguments.data.last_mut().unwrap().target =
-                        self.value_target(operand.value)?;
+                    if let Some(edges) = self.set_call_target(&mut state, pc, operand.value)? {
+                        return Ok(edges);
+                    }
                 }
                 Op::Call(_, count) | Op::Host(_, count) | Op::NonCallable(count) => {
                     let mut pending = state.arguments.data.pop().unwrap();
@@ -2750,7 +2613,7 @@ impl Walker<'_> {
                             self.facts.node(state.stack.data.last().unwrap().value),
                             super::facts::Node::TypeValue(_)
                         )
-                        && !builtins::namespace(
+                        && !super::objects::contains(
                             self.ctx,
                             self.facts,
                             state.stack.data.last().unwrap().value,

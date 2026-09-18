@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Field, Node};
+use super::facts::{Atom, Fact, Facts, Field, HashKind, Node};
 use crate::{
     CallContext, Result,
     budget::Buffer,
@@ -60,8 +60,16 @@ impl Facts {
         for i in 0..self.arm_count(receiver) {
             ctx.charge(1)?;
             let arm = self.arm(receiver, i);
-            let hash_field = matches!(self.node(arm), Node::Hash(..) | Node::Shape(..))
-                && !crate::members::hash_builtin(name);
+            let hash_field = (matches!(self.node(arm), Node::Hash(..) | Node::Shape(..))
+                && !crate::members::hash_builtin(name))
+                || matches!(
+                    super::objects::select(ctx, self, arm, site, name)?,
+                    Some(
+                        super::objects::Selection::Field(_)
+                            | super::objects::Selection::Missing
+                            | super::objects::Selection::Incomplete
+                    )
+                );
             let next =
                 if self.atom(arm) == Some(Atom::String) && matches!(name, "unshift" | "append") {
                     Mutation::rejected()
@@ -287,7 +295,7 @@ impl Facts {
                 return self.string_mutation(ctx, receiver, method, args);
             }
             Node::Hash(..) | Node::Shape(..) => {
-                if !self.plain_hash(receiver) {
+                if self.hash_mode(receiver) == HashKind::Any {
                     return Ok(Mutation::unsupported());
                 }
                 return self.hash_mutation(ctx, receiver, method, args);
@@ -689,9 +697,13 @@ impl Facts {
         args: &[Fact],
     ) -> Result<Mutation> {
         match method {
-            Method::Clear if args.is_empty() => {
-                Ok(Mutation::updated(self.shape(ctx, &[], false)?))
-            }
+            Method::Clear if args.is_empty() => Ok(Mutation::updated(self.shape_fields(
+                ctx,
+                Buffer::empty(),
+                false,
+                Atom::String.fact(),
+                self.hash_mode(receiver),
+            )?)),
             Method::Store if args.len() == 2 => {
                 self.collection_write(ctx, receiver, args[0], args[1])
             }
@@ -701,12 +713,16 @@ impl Facts {
                     ctx.charge(1)?;
                     let value = self.arm(args[0], i);
                     let next = match self.node(value) {
-                        Node::Hash(..) | Node::Shape(..) if self.plain_hash(value) => {
+                        Node::Protected(..) if self.hash_mode(receiver) == HashKind::Object => {
                             Mutation::updated(value)
                         }
-                        Node::Hash(..)
-                        | Node::Shape(..)
-                        | Node::Named(_)
+                        Node::Hash(_, _, HashKind::Any) | Node::Shape(_, _, _, HashKind::Any) => {
+                            Mutation::unsupported()
+                        }
+                        Node::Hash(..) | Node::Shape(..) => {
+                            Mutation::updated(self.hash_as(ctx, value, self.hash_mode(receiver))?)
+                        }
+                        Node::Named(_)
                         | Node::Nominal { .. }
                         | Node::Atom(Atom::Unknown | Atom::Any) => Mutation::unsupported(),
                         _ => Mutation::rejected(),

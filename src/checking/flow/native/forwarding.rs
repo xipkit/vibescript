@@ -190,17 +190,6 @@ impl Walker<'_> {
         Ok(forwarded)
     }
 
-    fn forward_edges(&mut self, pc: usize, state: State, edges: Option<Edges>) -> Result<()> {
-        if let Some(edges) = edges {
-            for edge in edges.into_iter().flatten() {
-                self.extra.push(self.ctx, edge)?;
-            }
-        } else {
-            self.native_continue(pc, state)?;
-        }
-        Ok(())
-    }
-
     pub(in crate::checking::flow) fn forwarded_member(
         &mut self,
         state: &State,
@@ -229,6 +218,16 @@ impl Walker<'_> {
             let selected = call.site.text(self.program, self.facts);
             let bytes = selected.as_bytes();
             let name = crate::members::introspection::method_name(self.ctx, bytes)?;
+            if let Some(name) = name {
+                if let Some(variants) =
+                    crate::checking::objects::variants(self.ctx, self.facts, call.receiver, name)?
+                {
+                    for receiver in variants.data {
+                        pending.push(self.ctx, Forward { receiver, ..call })?;
+                    }
+                    continue;
+                }
+            }
             let resolutions = self.forward_lookup(call.receiver, bytes, name)?;
             for resolution in resolutions.data {
                 self.ctx.charge(1)?;
@@ -297,6 +296,10 @@ impl Walker<'_> {
                     continue;
                 }
                 let mut next = state.snapshot(self.ctx)?;
+                let address = next.addresses.data.last_mut().unwrap();
+                if address.value == receiver {
+                    address.value = call.receiver;
+                }
                 let mut args = self.forward_arguments(args, call.consumed)?;
                 let edges = match resolution {
                     Resolution::Incomplete => {
@@ -335,7 +338,7 @@ impl Walker<'_> {
                             property,
                             &Arguments::new(),
                         )? {
-                            self.forward_edges(pc, next, Some(edges))?;
+                            self.member_edges(pc, next, Some(edges))?;
                             continue;
                         }
                         let value = next.stack.data.pop().unwrap().value;
@@ -384,7 +387,7 @@ impl Walker<'_> {
                         }
                     }
                 };
-                self.forward_edges(pc, next, edges)?;
+                self.member_edges(pc, next, edges)?;
             }
         }
         Ok(())

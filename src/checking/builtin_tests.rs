@@ -390,18 +390,20 @@ fn root_overrides_do_not_reuse_builtin_implementations_or_namespace_facts() {
 }
 
 #[test]
-fn unmodeled_builtin_calls_remain_explicitly_incomplete() {
-    for source in [
-        "def run; JSON.parse(\"7\") { 1 }; end",
-        "def run; require(\"missing\"); end",
-    ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
-        drop((report, facts));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    }
+fn unsupported_require_and_invalid_builtin_blocks_remain_distinct() {
+    let source = "def run; require(\"missing\"); end";
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, source).unwrap();
+    assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    witness(
+        "def run; begin; JSON.parse(\"7\") {1}; rescue; 9; end; end",
+        &[],
+        "9",
+        true,
+    );
 }
 
 #[test]

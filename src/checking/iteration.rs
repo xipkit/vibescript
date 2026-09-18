@@ -52,7 +52,7 @@ impl Facts {
                     let length = items.data.len();
                     (self.elements(ctx, arm)?, length == 0, length > 1)
                 }
-                Node::Hash(keys, values, HashKind::Plain) => {
+                Node::Hash(keys, values, HashKind::Plain | HashKind::Object) => {
                     let pair = [*keys, *values];
                     let item = if pair.contains(&Atom::Never.fact()) {
                         Atom::Never.fact()
@@ -61,7 +61,7 @@ impl Facts {
                     };
                     (item, true, true)
                 }
-                Node::Shape(fields, open, keys, HashKind::Plain) => {
+                Node::Shape(fields, open, keys, HashKind::Plain | HashKind::Object) => {
                     let (length, open, keys) = (fields.data.len(), *open, *keys);
                     let mut empty = true;
                     let mut items = Buffer::empty();
