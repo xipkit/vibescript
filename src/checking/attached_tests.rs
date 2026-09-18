@@ -1,7 +1,7 @@
 use super::{
     arguments,
     calls::{self, Host, Target, World},
-    facts::{Atom, Callable, Fact, Facts, Field, HashKind},
+    facts::{Atom, Callable, Fact, Facts, HashKind},
     normalization_tests::observed,
     relation::Relation,
 };
@@ -39,87 +39,27 @@ pub(super) fn admitted<'a>(
     hosts: &mut Buffer<Host<'a>>,
     value: &'a Value,
 ) -> Result<Fact> {
-    ctx.charge(1)?;
-    Ok(match &value.0 {
-        Kind::Nil => Atom::Nil.fact(),
-        Kind::Int(value) => facts.integer(ctx, *value)?,
-        Kind::Big(_) => Atom::Int.fact(),
-        Kind::Float(_) => Atom::Float.fact(),
-        Kind::Regex(_) => Atom::Regex.fact(),
-        Kind::Bool(value) => facts.boolean(ctx, *value)?,
-        Kind::Bytes(value) => facts.string(ctx, &value.data)?,
-        Kind::Symbol(value) => facts.symbol(ctx, &value.data)?,
-        Kind::Builtin(value) => facts.builtin(ctx, *value)?,
-        Kind::Offset(_) => {
-            let value = facts.nullable(ctx, Atom::Int.fact())?;
-            let values = facts.array(ctx, value)?;
-            facts.offset(ctx, values)?
-        }
-        Kind::Time(_) | Kind::Zoned(_) => Atom::Time.fact(),
-        Kind::Duration(_) => Atom::Duration.fact(),
-        Kind::Money(_) => Atom::Money.fact(),
-        Kind::Range(_) => Atom::Range.fact(),
-        Kind::Enum(_) => facts.enumeration(ctx, value)?,
-        Kind::EnumMember(value) => {
-            let enumeration = Value(Kind::Enum(value.enumeration.clone()));
-            let enumeration = facts.enumeration(ctx, &enumeration)?;
-            facts.enum_member(ctx, enumeration, value.index)?
-        }
-        Kind::Host(method) => {
-            let index = hosts.data.len();
-            let host = Host::new(ctx, facts, method.signature())?;
-            hosts.push(ctx, host)?;
-            facts.callable(ctx, 42, Callable::Host(index))?
-        }
-        Kind::Function(function) => {
-            let owner = if std::ptr::eq(&function.code.program, program) {
-                42
-            } else {
-                99
-            };
-            facts.callable(ctx, owner, Callable::Function(function.index))?
-        }
-        Kind::Array(array) => {
-            let mut values = Buffer::empty();
-            for value in &array.buffer.data {
-                let value = admitted(ctx, facts, program, hosts, value)?;
-                values.push(ctx, value)?;
+    let admitted = super::admission::value(ctx, facts, value, |ctx, facts, value| {
+        Ok(Some(match &value.0 {
+            Kind::Host(method) => {
+                let index = hosts.data.len();
+                let host = Host::new(ctx, facts, method.signature())?;
+                hosts.push(ctx, host)?;
+                facts.callable(ctx, 42, Callable::Host(index))?
             }
-            facts.tuple(ctx, &values.data)?
-        }
-        Kind::Hash(hash) => {
-            let mut fields = Buffer::empty();
-            for (key, value) in &hash.buffer.data {
-                let name = ctx.bytes(key.as_bytes().unwrap())?;
-                let value = admitted(ctx, facts, program, hosts, value)?;
-                fields.push(
-                    ctx,
-                    Field {
-                        name,
-                        value,
-                        optional: false,
-                    },
-                )?;
-            }
-            let shape = facts.shape_fields(
-                ctx,
-                fields,
-                false,
-                Atom::String.fact(),
-                if hash.object {
-                    HashKind::Object
+            Kind::Function(function) => {
+                let owner = if std::ptr::eq(&function.code.program, program) {
+                    42
                 } else {
-                    HashKind::Plain
-                },
-            )?;
-            if hash.tag.protected() {
-                facts.protected(ctx, shape, hash.tag)?
-            } else {
-                shape
+                    99
+                };
+                facts.callable(ctx, owner, Callable::Function(function.index))?
             }
-        }
-        _ => panic!("unsupported admitted test value"),
-    })
+            _ => return Ok(None),
+        }))
+    })?;
+    assert!(!admitted.incomplete, "unsupported admitted test value");
+    Ok(admitted.value)
 }
 
 fn witness(body: &str, expected: &str, rejected: bool) {

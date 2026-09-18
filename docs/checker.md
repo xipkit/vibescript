@@ -174,6 +174,14 @@ Argument validation precedes block analysis, including possible errors from opaq
 
 Repeated invocations use a metered worklist, preserving incompatible pending addresses separately. Widening is bounded by the call's inputs and first block completions, so a captured array that keeps wrapping itself can stabilize without raising production limits or Rust stack sizes. Unknown receiver dispatch and differing live type identities can still leave individual paths incomplete. These conservative summaries do not establish exact callback counts or replace the remaining public checker integration.
 
+## Host value admission
+
+The internal admission path now describes host values with a metered work stack and memo table. Shared arrays, hashes and descriptors are visited once within a walk, and borrowed source references keep memo identities valid. Compact integers, float bit patterns, booleans, raw strings and symbols, range bounds and compiled regexes retain their concrete facts. Arrays preserve element order; hashes retain stored key representations, object dispatch and protection. Enum imports preserve definition identity. Other scalar families retain their known runtime types, while match-offset descriptors retain their callable result domain.
+
+Callable and nominal identities come from a metadata resolver without invoking callbacks or namespace bodies. Missing identities and unresolved type-literal names set an explicit incomplete flag, including when nested inside otherwise known collections. This does not grant capability permissions or infer foreign source environments. Public entry binding, lazy root discovery and descriptor registries remain separate integration work.
+
+All work queues, memo tables, temporary fields and retained facts use the existing accounting. Inputs beyond the value-depth limit produce a recoverable guard error; cancellation, deadlines and work/memory exhaustion stay latched. The attached-method and host-call analysis fixtures now use this path in place of recursive test-only conversion. Tests compare admitted facts with executed calls and exercise shared graphs at the maximum depth, raw key storage, interrupted metadata resolution, exact quotas and sampled allocation failures on the default stack.
+
 ## Remaining integration
 
 Completion still requires:
