@@ -195,6 +195,14 @@ impl Bindings {
         for index in 0..facts.arm_count(value) {
             ctx.charge(1)?;
             let binding = match facts.node(facts.arm(value, index)) {
+                Node::TypeValue(fact)
+                    if matches!(facts.node(*fact), Node::Nominal { symbols: None, .. }) =>
+                {
+                    Binding::Type {
+                        fact: *fact,
+                        enumeration: false,
+                    }
+                }
                 Node::Enumeration { nominal, .. } => Binding::Type {
                     fact: *nominal,
                     enumeration: true,

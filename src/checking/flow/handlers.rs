@@ -134,7 +134,7 @@ impl State {
         }
         for (a, b) in self.arguments.data.iter().zip(&other.arguments.data) {
             ctx.charge(1)?;
-            if a.target != b.target {
+            if a.target != b.target || a.arguments.options_hash != b.arguments.options_hash {
                 return Ok(false);
             }
         }

@@ -207,19 +207,24 @@ fn named_reducers_and_symbol_roundtrips_use_the_same_native_contracts() {
 }
 
 #[test]
-fn unresolved_nominal_queries_stay_explicitly_incomplete() {
+fn missing_nominal_queries_are_false_and_dynamic_names_remain_incomplete() {
     for source in [
         "def run; 7.is_type?(:User); end",
         "def run; nil.is_type?(\"User?\"); end",
-        "def run(name:string); 7.is_type?(name); end",
     ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, source).unwrap();
-        assert!(!report.incomplete.data.is_empty(), "{source}: {report:?}");
-        drop((report, facts));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        witness(source, Some("false"), false);
     }
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(
+        &mut ctx,
+        &mut facts,
+        "def run(name:string); 7.is_type?(name); end",
+    )
+    .unwrap();
+    assert!(!report.incomplete.data.is_empty(), "{report:?}");
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]

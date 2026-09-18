@@ -432,8 +432,13 @@ fn value_methods_keep_known_bad_inputs_beside_gradual_alternatives() {
 
 #[test]
 fn temporal_blocks_forwarding_and_introspection_remain_explicitly_incomplete() {
-    for source in [
+    witness(
         "def run; Time.at(0).is_type?(:User); end",
+        Some("false"),
+        false,
+    );
+    for source in [
+        "def run(name:string); Time.at(0).is_type?(name); end",
         "def run(name:string); Time.at(0).send(name,\"%Y\"); end",
         "def run; Duration.build(7).after {7}; end",
     ] {

@@ -13,6 +13,7 @@ use std::sync::{
 };
 
 mod instances;
+mod introspection;
 mod operators;
 mod state;
 
@@ -34,6 +35,7 @@ fn check(
     )
 }
 
+#[track_caller]
 fn witness(script: &Script, args: &[Value], options: &CallOptions, expected: &str, issues: bool) {
     let mut ctx = CallContext::new(options.clone());
     let mut checked = check(&mut ctx, script, args, options).unwrap();
@@ -76,6 +78,7 @@ fn witness(script: &Script, args: &[Value], options: &CallOptions, expected: &st
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
+#[track_caller]
 fn run(source: &str, expected: &str) {
     let script = Engine::new().compile(source).unwrap();
     witness(&script, &[], &CallOptions::default(), expected, false);
@@ -398,13 +401,8 @@ fn checks_never_execute_method_bodies_or_host_callbacks() {
 }
 
 #[test]
-fn helpers_and_foreign_namespaces_remain_incomplete() {
-    let source = "module M;end;def run;M.respond_to?(:missing);end";
-    let script = Engine::new().compile(source).unwrap();
-    let report = script
-        .check_call("run", &[], &CallOptions::default())
-        .unwrap();
-    assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
+fn source_queries_are_modeled_while_foreign_namespaces_remain_incomplete() {
+    run("module M;end;def run;M.respond_to?(:missing);end", "false");
     let foreign = Engine::new()
         .compile("module M;def self.answer;7;end;end;M")
         .unwrap()

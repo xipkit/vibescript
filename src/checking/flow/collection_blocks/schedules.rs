@@ -68,6 +68,11 @@ impl Walker<'_> {
             );
             let supported = match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
+                Node::Instance { .. } | Node::TypeValue(_)
+                    if universal && self.namespace_index(arm).is_some() =>
+                {
+                    true
+                }
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Instance { .. }

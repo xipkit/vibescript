@@ -153,6 +153,10 @@ impl Walker<'_> {
         let (value, rejected, incomplete, throws) = if let Some(result) =
             builtins::member(self.ctx, self.facts, receiver, site.call, name, args)?
         {
+            let mut result = result;
+            if name == "is_type?" {
+                self.type_predicate_outcome(state, pc, receiver, args, &mut result)?;
+            }
             (
                 result.value,
                 !result.failures.data.is_empty(),

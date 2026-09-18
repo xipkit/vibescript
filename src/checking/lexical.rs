@@ -1,7 +1,7 @@
 use crate::{
     CallContext, ErrorKind, Result,
     budget::Buffer,
-    bytecode::{Capture, Op, Program},
+    bytecode::{Capture, Invocation, Op, Program},
     types::{self, Type, TypeKind},
 };
 
@@ -137,6 +137,30 @@ impl Layouts {
                     pending.push(ctx, &program.types[ty])?;
                 }
             }
+            for op in &body.code {
+                ctx.charge(1)?;
+                let name = match op {
+                    Op::Method(site, _)
+                    | Op::AddressMember(site)
+                    | Op::CallMember(site)
+                    | Op::Mutate(site, _)
+                    | Op::PrepareMember(site, _)
+                    | Op::Invoke(Invocation::Member(site, _)) => Some(site.name),
+                    Op::ResolveCall(_, name, _)
+                    | Op::CallName(_, name)
+                    | Op::Invoke(Invocation::ImplicitMember(_, name)) => Some(*name),
+                    _ => None,
+                };
+                if name.is_some_and(|name| {
+                    matches!(
+                        program.members[name].as_str(),
+                        "is_type?" | "send" | "public_send" | "reduce" | "inject"
+                    )
+                }) {
+                    self.capture_type(ctx, program, function, None)?;
+                    break;
+                }
+            }
             while let Some(ty) = pending.data.pop() {
                 ctx.charge(1)?;
                 match &ty.kind {
@@ -157,7 +181,7 @@ impl Layouts {
                             pending.push(ctx, option)?;
                         }
                     }
-                    TypeKind::Named => self.capture_type(ctx, program, function, &ty.name)?,
+                    TypeKind::Named => self.capture_type(ctx, program, function, Some(&ty.name))?,
                     _ => (),
                 }
             }
@@ -177,12 +201,15 @@ impl Layouts {
         ctx: &mut CallContext,
         program: &Program,
         function: usize,
-        name: &str,
+        name: Option<&str>,
     ) -> Result<()> {
-        ctx.work_bytes(name.len())?;
-        let (name, qualified) = name
-            .split_once('.')
-            .map_or((name, false), |(name, _)| (name, true));
+        let filter = name.map(|name| {
+            name.split_once('.')
+                .map_or((name, false), |(name, _)| (name, true))
+        });
+        if let Some((name, _)) = filter {
+            ctx.work_bytes(name.len())?;
+        }
         let mut parent = self.functions.data[function].parent;
         let mut depth = 0;
         while let Some(owner) = parent {
@@ -190,13 +217,15 @@ impl Layouts {
             let body = &program.functions[owner];
             for (slot, candidate) in body.local_names.iter().enumerate() {
                 ctx.charge(1)?;
-                if !types::binding_name_matches(
-                    ctx,
-                    candidate.as_bytes(),
-                    name.as_bytes(),
-                    !qualified,
-                )? {
-                    continue;
+                if let Some((name, qualified)) = filter {
+                    if !types::binding_name_matches(
+                        ctx,
+                        candidate.as_bytes(),
+                        name.as_bytes(),
+                        !qualified,
+                    )? {
+                        continue;
+                    }
                 }
                 let sources = &self.functions.data[function].types.data;
                 ctx.charge(sources.len() as u64)?;

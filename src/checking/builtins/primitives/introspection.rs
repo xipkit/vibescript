@@ -15,30 +15,45 @@ pub(super) fn member(
     let mut result = outcome(Atom::Never.fact());
     if !matches!(predicate, Predicate::Respond | Predicate::IsType) {
         let mut possible = false;
+        let mut invalid = false;
         for i in 0..facts.arm_count(actual) {
             ctx.charge(1)?;
             let value = facts.arm(actual, i);
             if value == Atom::Never.fact() {
                 continue;
             }
+            if let Node::TypeValue(class) = *facts.node(value) {
+                if matches!(facts.node(class), Node::Nominal { symbols: None, .. }) {
+                    let belongs = match facts.node(receiver) {
+                        Node::Instance { class: actual, .. } => *actual == class,
+                        _ => false,
+                    };
+                    let value = facts.boolean(ctx, belongs)?;
+                    result.value = facts.union(ctx, &[result.value, value])?;
+                    continue;
+                }
+            }
             let unknown = matches!(
                 facts.node(value),
-                Node::Atom(Atom::Unknown | Atom::Any)
-                    | Node::Named(_)
-                    | Node::Nominal { .. }
-                    | Node::Instance { .. }
+                Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. }
             ) || matches!(
                 facts.node(value),
                 Node::Hash(_, _, HashKind::Any | HashKind::Object)
                     | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
             ) && !namespace(ctx, facts, value)?;
             possible |= unknown;
+            invalid |= !unknown;
             result.throws |= RUNTIME;
         }
         if possible {
-            // Every admitted receiver here is a native value, never an instance.
-            result.value = facts.boolean(ctx, false)?;
-        } else {
+            let value = if matches!(facts.node(receiver), Node::Instance { .. }) {
+                Atom::Bool.fact()
+            } else {
+                facts.boolean(ctx, false)?
+            };
+            result.value = facts.union(ctx, &[result.value, value])?;
+        }
+        if invalid {
             result.failures.push(ctx, Failure::BuiltinDomain(actual))?;
         }
         return Ok(result);

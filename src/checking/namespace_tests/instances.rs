@@ -219,7 +219,7 @@ fn ignored_host_transfers_from_instances_keep_constructor_and_method_homes() {
 #[test]
 fn instance_analysis_keeps_unmodeled_dispatch_and_allocation_explicit() {
     for source in [
-        "class C;end;def run;C.new.respond_to?(:x);end",
+        "class C;def to_s;'c';end;end;def run;\"#{C.new}\";end",
         "class C;end;def run(n:int);for i in 1..n;C.new;end;end",
     ] {
         let script = Engine::new().compile(source).unwrap();

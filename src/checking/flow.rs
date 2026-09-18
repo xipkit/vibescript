@@ -694,6 +694,7 @@ pub(super) fn analyze_body(
         function_index,
         program.globals.len()
             + roots.data.len()
+            + program.declarations.len()
             + program.namespaces.len() * super::namespaces::WIDTH,
     );
     let owned_globals;
@@ -951,6 +952,18 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if let Target::Helper {
+            receiver,
+            name,
+            implicit,
+        } = target
+        {
+            if crate::members::introspection::supported(name)
+                || matches!(name, "send" | "public_send" | "tap" | "yield_self")
+            {
+                return self.namespace_helper(state, pc, receiver, name, implicit, args);
+            }
+        }
         if let Target::Method {
             function,
             receiver,
@@ -1558,7 +1571,7 @@ impl Walker<'_> {
                     if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    let value = self.declaration_value(index)?;
+                    let value = self.declaration_value(&state, index)?;
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::NamespaceSelf(module) => {
@@ -1625,10 +1638,13 @@ impl Walker<'_> {
                         Kind::Namespace(namespace) => &namespace.definition.name,
                         _ => return self.incomplete(pc),
                     };
-                    let Some(index) = self.root_index(name)? else {
+                    let slot = if let Some(index) = self.root_index(name)? {
+                        state.global_base + index
+                    } else if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
+                    } else {
+                        self.declaration_slot(&state, index)
                     };
-                    let slot = state.global_base + index;
                     let operand = *state.stack.data.last().unwrap();
                     self.store(&mut state, pc, slot, operand)?;
                 }
@@ -2416,13 +2432,8 @@ impl Walker<'_> {
                         arguments: Arguments::new(),
                     },
                 )?,
-                Op::ResolveCall(slot, name, _) => {
-                    if let Some(edges) = self.resolve_name(&mut state, pc, slot, name, true)? {
-                        return Ok(edges);
-                    }
-                }
-                Op::CallName(slot, name) => {
-                    if let Some(edges) = self.resolve_name(&mut state, pc, slot, name, false)? {
+                Op::ResolveCall(..) | Op::CallName(..) => {
+                    if let Some(edges) = self.resolve_name(&mut state, pc, op)? {
                         return Ok(edges);
                     }
                 }

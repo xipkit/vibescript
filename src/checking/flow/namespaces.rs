@@ -4,9 +4,10 @@ use crate::checking::namespaces::{self, Selected};
 use crate::syntax::modules::Visibility;
 
 mod instances;
+mod introspection;
 mod state;
 
-enum Selection {
+pub(super) enum Selection {
     Call(Target),
     Field(Fact, bool),
     Rejected,
@@ -56,14 +57,18 @@ impl Walker<'_> {
         )
     }
 
-    pub(super) fn declaration_value(&mut self, index: usize) -> Result<Fact> {
-        match &self.program.declarations[index].0 {
-            Kind::Namespace(namespace) => self.namespace_value(namespace.definition.index),
-            Kind::Enum(_) => self
-                .facts
-                .enumeration(self.ctx, &self.program.declarations[index]),
-            _ => unreachable!(),
-        }
+    pub(super) fn declaration_slot(&self, state: &State, index: usize) -> usize {
+        state.global_base + state.global_count
+            - self.program.namespaces.len() * namespaces::WIDTH
+            - self.program.declarations.len()
+            + index
+    }
+
+    pub(super) fn declaration_value(&mut self, state: &State, index: usize) -> Result<Fact> {
+        Ok(state
+            .locals
+            .get(self.ctx, self.declaration_slot(state, index))?
+            .value)
     }
 
     pub(super) fn namespace_index(&self, receiver: Fact) -> Option<usize> {
@@ -154,7 +159,7 @@ impl Walker<'_> {
         Ok((field.incomplete || field.value != Atom::Never.fact()).then_some(field))
     }
 
-    fn namespace_selection(
+    pub(super) fn namespace_selection(
         &mut self,
         state: &State,
         receiver: Fact,
@@ -219,24 +224,45 @@ impl Walker<'_> {
                 });
             }
         }
-        if instance {
-            let helper = match name {
-                "nil?" => Some("nil?"),
-                "itself" => Some("itself"),
-                "dup" => Some("dup"),
-                "clone" => Some("clone"),
-                "freeze" => Some("freeze"),
-                "frozen?" => Some("frozen?"),
-                "eql?" => Some("eql?"),
-                "equal?" => Some("equal?"),
-                _ => None,
-            };
-            if let Some(name) = helper {
-                return Ok(Selection::Call(Target::Helper { receiver, name }));
-            }
+        let helper = match name {
+            "nil?" => Some("nil?"),
+            "itself" => Some("itself"),
+            "dup" => Some("dup"),
+            "clone" => Some("clone"),
+            "freeze" => Some("freeze"),
+            "frozen?" => Some("frozen?"),
+            "eql?" => Some("eql?"),
+            "equal?" => Some("equal?"),
+            "send" => Some("send"),
+            "public_send" => Some("public_send"),
+            _ => crate::members::introspection::Predicate::parse(name).map(|p| p.name()),
+        };
+        if let Some(name) = helper {
+            return Ok(Selection::Call(Target::Helper {
+                receiver,
+                name,
+                implicit,
+            }));
         }
-        if crate::members::names::universal(name) {
-            return Ok(Selection::Incomplete);
+        if matches!(name, "tap" | "yield_self") {
+            let field = if instance {
+                self.instance_field(state, receiver, name)?
+            } else {
+                self.namespace_field(state, module, name)?
+            };
+            return Ok(
+                if field.incomplete || field.missing && field.value != Atom::Never.fact() {
+                    Selection::Incomplete
+                } else if field.value != Atom::Never.fact() {
+                    Selection::Field(field.value, false)
+                } else {
+                    Selection::Call(Target::Helper {
+                        receiver,
+                        name: if name == "tap" { "tap" } else { "yield_self" },
+                        implicit,
+                    })
+                },
+            );
         }
         if instance {
             let field = self.instance_field(state, receiver, name)?;
@@ -330,7 +356,18 @@ impl Walker<'_> {
         let name = &self.program.members[site.name];
         match self.namespace_selection(state, receiver, name, site.scope, false)? {
             Selection::Call(target) => {
-                state.arguments.data.last_mut().unwrap().target = target;
+                let pending = state.arguments.data.last_mut().unwrap();
+                pending.target = target;
+                if matches!(
+                    target,
+                    Target::Function(_)
+                        | Target::Method {
+                            constructor: false,
+                            ..
+                        }
+                ) {
+                    pending.arguments.options_hash = !site.parenthesized;
+                }
                 Ok(None)
             }
             Selection::Field(value, missing) => {
@@ -353,12 +390,24 @@ impl Walker<'_> {
         pc: usize,
         receiver: Fact,
         site: MemberSite,
-        args: Arguments,
+        mut args: Arguments,
         implicit: bool,
     ) -> Result<Option<Edges>> {
         let selected = site.text(self.program, self.facts);
         match self.namespace_selection(state, receiver, selected.as_str(), site.scope, implicit)? {
-            Selection::Call(target) => self.invoke(state, pc, target, args),
+            Selection::Call(target) => {
+                if matches!(
+                    target,
+                    Target::Function(_)
+                        | Target::Method {
+                            constructor: false,
+                            ..
+                        }
+                ) {
+                    args.options_hash = !site.parenthesized;
+                }
+                self.invoke(state, pc, target, args)
+            }
             Selection::Field(value, missing) => {
                 if missing {
                     self.namespace_error(state, pc, receiver, site.name, &args)?;

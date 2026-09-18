@@ -27,6 +27,7 @@ pub(super) enum Target {
     Helper {
         receiver: Fact,
         name: &'static str,
+        implicit: bool,
     },
     Method {
         function: usize,
@@ -1017,7 +1018,7 @@ impl Calls for Solver<'_> {
         if !args.admit(ctx, facts, &mut outcome.failures)? {
             return Ok(outcome);
         }
-        if let Target::Helper { receiver, name } = target {
+        if let Target::Helper { receiver, name, .. } = target {
             let site = crate::bytecode::CallSite {
                 name: usize::MAX,
                 method: None,

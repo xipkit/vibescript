@@ -5,10 +5,13 @@ impl Walker<'_> {
         &mut self,
         state: &mut State,
         pc: usize,
-        slot: usize,
-        name: usize,
-        named: bool,
+        op: Op,
     ) -> Result<Option<Edges>> {
+        let (slot, name, named, parenthesized) = match op {
+            Op::ResolveCall(slot, name, parenthesized) => (slot, name, true, parenthesized),
+            Op::CallName(slot, name) => (slot, name, false, true),
+            _ => unreachable!(),
+        };
         let unbound =
             slot == usize::MAX || state.locals.get(self.ctx, slot)?.value == Atom::Never.fact();
         if unbound {
@@ -28,18 +31,13 @@ impl Walker<'_> {
                             &self.program.members[name],
                             present,
                         )?;
-                        let edges = self.resolve_name(&mut next, pc, slot, name, named)?;
+                        let edges = self.resolve_name(&mut next, pc, op)?;
                         self.member_edges(pc, next, edges)?;
                     }
                     return Ok(Some([None, None]));
                 }
             }
         }
-        let op = if named {
-            Op::ResolveCall(slot, name, false)
-        } else {
-            Op::CallName(slot, name)
-        };
         if let Some(root) = self.root_read_slot(state, op)? {
             if !self.import_root(state, pc, root)? {
                 return Ok(Some([None, None]));
@@ -64,6 +62,18 @@ impl Walker<'_> {
         } else {
             state.arguments.data.last_mut().unwrap().target = target;
         }
+        let method = match target {
+            Target::Method { constructor, .. } => !constructor,
+            Target::Function(function) => self.program.functions[function].namespace.is_some(),
+            _ => false,
+        };
+        state
+            .arguments
+            .data
+            .last_mut()
+            .unwrap()
+            .arguments
+            .options_hash = !parenthesized || !method;
         self.resolve_value_target(state, pc)
     }
 
@@ -348,7 +358,7 @@ impl Walker<'_> {
     ) -> Result<bool> {
         self.ctx.work_bytes(name.len())?;
         let address = if let Some(&index) = self.program.declaration_names.get(name) {
-            Address::new(None, self.declaration_value(index)?)
+            Address::new(None, self.declaration_value(state, index)?)
         } else {
             let mut global = None;
             for (index, (key, _)) in self.program.globals.iter().enumerate() {

@@ -23,6 +23,49 @@ fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {
 }
 
 #[test]
+fn checked_forwarding_and_predicates_reject_bad_calls_before_host_effects() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let mut engine = Engine::new();
+    engine.register("effect", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::nil())
+    });
+    let script = engine.compile("class C;def value(x);effect();x;end;end;def accept(x:int);x;end;def run(x);c=C.new;if c.respond_to?(:value)&&c.is_type?(:C);accept(c.public_send(:send,:value,x));else;raise 'missing';end;end").unwrap();
+    let report = script
+        .check_call("run", &[Value::int(7)], &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    let outcome = executed(
+        script
+            .checked_call("run", &[Value::int(7)], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(outcome.value.as_int(), Some(7));
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("run", &[Value::boolean(false)], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("invalid forwarded result executed host effects");
+    };
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(!report.diagnostics.is_empty(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+    let script = engine.compile("class C;def configure(options);effect();options;end;end;def run;effect();C.new.configure(n:7);end").unwrap();
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("run", &[], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("strict keywords executed host effects");
+    };
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(!report.diagnostics.is_empty(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn checked_operators_reject_bad_results_before_host_effects() {
     for (definition, expression) in [
         ("def +(value);effect();value;end", "c+value"),

@@ -9,7 +9,9 @@ pub(super) fn receiver(facts: &Facts, value: Fact) -> Option<crate::members::nam
     Some(match facts.node(value) {
         Node::Tuple(_) | Node::Array(_) => Receiver::Array,
         Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => Receiver::Hash,
-        Node::Builtin(_) | Node::Offset(_) | Node::TypeValue(_) => Receiver::Other,
+        Node::Builtin(_) | Node::Offset(_) | Node::TypeValue(_) | Node::Instance { .. } => {
+            Receiver::Other
+        }
         Node::Enumeration { .. } => Receiver::Enum,
         Node::EnumMember { .. } => Receiver::EnumMember,
         _ => match facts.atom(value)? {
@@ -168,7 +170,10 @@ pub(super) fn member(
             "eql?" | "equal?" => {
                 if matches!(
                     facts.node(receiver),
-                    Node::Enumeration { .. } | Node::EnumMember { .. } | Node::Instance { .. }
+                    Node::Enumeration { .. }
+                        | Node::EnumMember { .. }
+                        | Node::Instance { .. }
+                        | Node::TypeValue(_)
                 ) {
                     return Ok(outcome(facts.set_equal(
                         ctx,

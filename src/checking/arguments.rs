@@ -47,6 +47,7 @@ pub(super) struct Arguments {
     pub positional: Buffer<Fact>,
     pub keywords: Buffer<Keyword>,
     pub block: Option<super::blocks::Closure>,
+    pub options_hash: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,12 +128,14 @@ impl Arguments {
             positional: Buffer::empty(),
             keywords: Buffer::empty(),
             block: None,
+            options_hash: true,
         }
     }
 
     pub fn snapshot(&self, ctx: &mut CallContext) -> Result<Self> {
         ctx.checkpoint()?;
         let mut args = Self::new();
+        args.options_hash = self.options_hash;
         args.positional.extend(ctx, &self.positional.data)?;
         args.keywords.extend(ctx, &self.keywords.data)?;
         args.block = self.block.as_ref().map(|b| b.snapshot(ctx)).transpose()?;
@@ -153,6 +156,7 @@ impl Arguments {
 
     pub fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
         ctx.checkpoint()?;
+        assert_eq!(self.options_hash, other.options_hash);
         assert_eq!(self.positional.data.len(), other.positional.data.len());
         assert_eq!(self.keywords.data.len(), other.keywords.data.len());
         let mut changed = false;
@@ -184,7 +188,8 @@ impl Arguments {
         facts: &mut Facts,
         params: &[Parameter],
     ) -> Result<Bound> {
-        self.bind_options(ctx, facts, params, true)
+        let options = self.options_hash;
+        self.bind_options(ctx, facts, params, options)
     }
 
     /// Host keywords bind by name without becoming a positional options hash.

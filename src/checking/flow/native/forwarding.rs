@@ -5,6 +5,7 @@ use crate::members::names::{self, Receiver};
 #[derive(Clone, Copy)]
 enum Resolution {
     Native,
+    Call(Target),
     Field(Fact),
     Property,
     Missing,
@@ -15,6 +16,7 @@ struct Forward {
     receiver: Fact,
     site: MemberSite,
     consumed: usize,
+    implicit: bool,
 }
 
 impl Walker<'_> {
@@ -24,11 +26,38 @@ impl Walker<'_> {
 
     fn forward_lookup(
         &mut self,
+        state: &State,
         receiver: Fact,
         bytes: &[u8],
         name: Option<&str>,
+        implicit: bool,
     ) -> Result<Buffer<Resolution>> {
         let mut output = Buffer::empty();
+        if self.namespace_receiver(receiver)? {
+            use crate::checking::flow::namespaces::Selection;
+            let selected = if let Some(name) = name {
+                self.namespace_selection(state, receiver, name, false, implicit)?
+            } else {
+                Selection::Rejected
+            };
+            let resolution = match selected {
+                Selection::Call(Target::Helper {
+                    name: "send" | "public_send",
+                    ..
+                }) => Resolution::Native,
+                Selection::Call(target) => Resolution::Call(target),
+                Selection::Field(value, missing) => {
+                    if missing {
+                        output.push(self.ctx, Resolution::Missing)?;
+                    }
+                    Resolution::Field(value)
+                }
+                Selection::Rejected => Resolution::Missing,
+                Selection::Incomplete => Resolution::Incomplete,
+            };
+            output.push(self.ctx, resolution)?;
+            return Ok(output);
+        }
         let Some(kind) = self.native_receiver(receiver) else {
             output.push(self.ctx, Resolution::Incomplete)?;
             return Ok(output);
@@ -211,6 +240,7 @@ impl Walker<'_> {
                         receiver,
                         site,
                         consumed: 0,
+                        implicit: false,
                     },
                 )?;
             }
@@ -230,7 +260,8 @@ impl Walker<'_> {
                     continue;
                 }
             }
-            let resolutions = self.forward_lookup(call.receiver, bytes, name)?;
+            let resolutions =
+                self.forward_lookup(state, call.receiver, bytes, name, call.implicit)?;
             for resolution in resolutions.data {
                 self.ctx.charge(1)?;
                 if matches!(resolution, Resolution::Native)
@@ -292,6 +323,7 @@ impl Walker<'_> {
                                 receiver: call.receiver,
                                 site,
                                 consumed: call.consumed + 1,
+                                implicit: name == Some("send"),
                             },
                         )?;
                     }
@@ -304,6 +336,20 @@ impl Walker<'_> {
                 }
                 let mut args = self.forward_arguments(args, call.consumed)?;
                 let edges = match resolution {
+                    Resolution::Call(target) => {
+                        next.addresses.data.pop().unwrap();
+                        if matches!(
+                            target,
+                            Target::Function(_)
+                                | Target::Method {
+                                    constructor: false,
+                                    ..
+                                }
+                        ) {
+                            args.options_hash = !call.site.parenthesized;
+                        }
+                        self.invoke(&mut next, pc, target, args)?
+                    }
                     Resolution::Incomplete => {
                         self.incomplete(pc)?;
                         continue;

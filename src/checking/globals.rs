@@ -6,7 +6,7 @@ use super::{
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 use std::hash::{Hash, Hasher};
 
-// Compiled globals, supplied roots and namespace heaps share one address layout.
+// Compiled globals, supplied roots, declarations and namespace heaps share one address layout.
 #[derive(Debug)]
 pub(super) struct Globals {
     pub values: Buffer<Fact>,
@@ -64,6 +64,23 @@ impl Globals {
         program: &Program,
         owner: usize,
     ) -> Result<()> {
+        for declaration in &program.declarations {
+            ctx.charge(1)?;
+            let value = match &declaration.0 {
+                crate::value::Kind::Namespace(namespace) => super::namespaces::value(
+                    ctx,
+                    facts,
+                    program,
+                    owner,
+                    namespace.definition.index,
+                )?,
+                crate::value::Kind::Enum(_) => facts.enumeration(ctx, declaration)?,
+                _ => unreachable!(),
+            };
+            self.values.push(ctx, value)?;
+            self.missing.push(ctx, false)?;
+            self.written.push(ctx, false)?;
+        }
         for (module, definition) in program.namespaces.iter().enumerate() {
             ctx.charge(1)?;
             let fields = super::namespaces::initial(ctx, facts, program, owner, module)?;
