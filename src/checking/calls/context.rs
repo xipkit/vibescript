@@ -14,6 +14,8 @@ pub(super) enum Kind {
 }
 
 pub(super) struct Context {
+    pub scope: blocks::Scope,
+    pub block_scope: blocks::Scope,
     pub kind: Kind,
     pub receiver: Option<Fact>,
     pub block_receiver: Option<Fact>,
@@ -31,6 +33,8 @@ pub(super) struct Context {
 impl Context {
     pub fn plain() -> Self {
         Self {
+            scope: blocks::Scope::Invocation,
+            block_scope: blocks::Scope::Invocation,
             kind: Kind::Plain,
             receiver: None,
             block_receiver: None,
@@ -54,6 +58,7 @@ impl Context {
             given: block.given,
         };
         result.block_receiver = block.receiver;
+        result.block_scope = block.scope;
         result.block_ambient = block.ambient;
         result.pending = block.pending.snapshot(ctx)?;
         result.locals = block.locals;
@@ -77,6 +82,8 @@ impl Context {
         ctx.charge(1)?;
         let mut next = Self::plain();
         next.kind = self.kind;
+        next.scope = self.scope;
+        next.block_scope = self.block_scope;
         next.receiver = self.receiver;
         next.block_receiver = self.block_receiver;
         next.ambient = self.ambient;
@@ -96,6 +103,8 @@ impl Context {
         self.pending.hash(ctx, hash)?;
         self.globals.hash(ctx, hash)?;
         self.kind.hash(hash);
+        self.scope.hash(hash);
+        self.block_scope.hash(hash);
         self.receiver.hash(hash);
         self.block_receiver.hash(hash);
         self.ambient.hash(hash);
@@ -113,6 +122,8 @@ impl Context {
         ctx.charge((self.captures.data.len() + self.arguments.data.len()) as u64 + 1)?;
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         Ok(self.kind == other.kind
+            && self.scope == other.scope
+            && self.block_scope == other.block_scope
             && self.receiver == other.receiver
             && self.block_receiver == other.block_receiver
             && self.ambient == other.ambient
@@ -129,6 +140,8 @@ impl Context {
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         if self.kind != other.kind
+            || self.scope != other.scope
+            || self.block_scope != other.block_scope
             || self.receiver != other.receiver
             || self.block_receiver != other.block_receiver
             || self.ambient != other.ambient
@@ -154,6 +167,8 @@ impl Context {
     pub fn expands(&self, ctx: &mut CallContext, next: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         Ok(self.kind == next.kind
+            && self.scope == next.scope
+            && self.block_scope == next.block_scope
             && self.receiver == next.receiver
             && self.block_receiver == next.block_receiver
             && self.ambient == next.ambient
@@ -195,11 +210,12 @@ impl Context {
 
     pub fn incoming(&self, ctx: &mut CallContext) -> Result<Option<Closure>> {
         ctx.charge(1)?;
-        let (function, receiver, ambient, given, locals, inherited, base) = match self.kind {
+        let (scope, function, receiver, ambient, given, locals, inherited, base) = match self.kind {
             Kind::Plain | Kind::General | Kind::Initializing | Kind::Entry { .. } => {
                 return Ok(None);
             }
             Kind::Receiving { function, given } => (
+                self.block_scope,
                 function,
                 self.block_receiver,
                 self.block_ambient,
@@ -213,6 +229,7 @@ impl Context {
                     return Ok(None);
                 };
                 (
+                    first.scope,
                     first.function,
                     first.receiver,
                     first.ambient,
@@ -254,6 +271,7 @@ impl Context {
             pending.addresses.push(ctx, address)?;
         }
         Ok(Some(Closure {
+            scope,
             receiver,
             ambient,
             pending,
@@ -296,6 +314,7 @@ mod tests {
                     .unwrap();
             }
             let closure = Closure {
+                scope: blocks::Scope::Invocation,
                 receiver: None,
                 ambient: None,
                 pending: Pending::new(),
@@ -373,6 +392,7 @@ mod tests {
                     3 => Context::plain().incoming(&mut ctx).unwrap_err(),
                     4 => {
                         let closure = Closure {
+                            scope: blocks::Scope::Invocation,
                             receiver: None,
                             ambient: None,
                             pending: Pending::new(),

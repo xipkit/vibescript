@@ -640,6 +640,7 @@ impl Walker<'_> {
             match exit.completion {
                 Completion::Error(class) => self.emit_error(&state, pc, handlers::bit(class))?,
                 Completion::Return(depth) => self.callback_return(state, pc, depth, exit.value)?,
+                Completion::Escape => self.callback_escape(state, pc, exit.value)?,
                 Completion::Break(_) => {
                     let mut state = state;
                     if driver.mutation.is_some() {

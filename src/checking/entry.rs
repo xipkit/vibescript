@@ -167,7 +167,7 @@ fn empty(_returns: Fact, _throws: u8) -> Analysis {
     }
 }
 
-fn unfinished(
+pub(super) fn unfinished(
     ctx: &mut CallContext,
     facts: Facts,
     function: usize,
@@ -214,6 +214,25 @@ pub(super) fn check_function(
     ctx.work_bytes(name.len())?;
     let program = &script.inner.code.program;
     let (function, constructor) = declaration(ctx, program, name)?;
+    check_declaration(
+        ctx,
+        script,
+        calls::General {
+            function,
+            constructor,
+            scope: super::blocks::Scope::Invocation,
+        },
+        options,
+    )
+}
+
+pub(super) fn check_declaration(
+    ctx: &mut CallContext,
+    script: &Script,
+    selected: calls::General,
+    options: &CallOptions,
+) -> Result<Check> {
+    let function = selected.function;
     let mut facts = Facts::new(ctx)?;
     let environment = Environment::new(ctx, &mut facts, script, options)?;
     if let Some(reason) = environment.incomplete.data.first() {
@@ -231,14 +250,7 @@ pub(super) fn check_function(
         script.inner.output_writer.is_some(),
         script.inner.error_writer.is_some(),
     ]);
-    let analysis = calls::analyze_general(
-        ctx,
-        &mut facts,
-        environment.world(),
-        function,
-        constructor,
-        values,
-    )?;
+    let analysis = calls::analyze_general(ctx, &mut facts, environment.world(), selected, values)?;
     Ok(Check {
         facts,
         analysis,

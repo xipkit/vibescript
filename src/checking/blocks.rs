@@ -7,6 +7,15 @@ use super::{
 };
 use crate::{CallContext, ErrorClass, Result, budget::Buffer};
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub(super) enum Scope {
+    #[default]
+    Invocation,
+    Declaration {
+        given: bool,
+    },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Owner {
     Function(usize),
@@ -51,6 +60,7 @@ pub(super) struct Link {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Layer {
+    pub scope: Scope,
     pub function: usize,
     pub receiver: Option<Fact>,
     pub ambient: Option<usize>,
@@ -60,6 +70,7 @@ pub(super) struct Layer {
 
 #[derive(Debug)]
 pub(super) struct Closure {
+    pub scope: Scope,
     pub function: usize,
     pub receiver: Option<Fact>,
     // Hidden local slots carry the declaring frame's raw bindings, separately from lexical aliases.
@@ -84,6 +95,7 @@ impl Closure {
         let mut destinations = Buffer::empty();
         destinations.extend(ctx, &self.destinations.data)?;
         Ok(Self {
+            scope: self.scope,
             pending: self.pending.snapshot(ctx)?,
             destinations,
             function: self.function,
@@ -103,6 +115,7 @@ impl Closure {
     pub fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         assert_eq!((self.function, self.given), (other.function, other.given));
+        assert_eq!(self.scope, other.scope);
         assert_eq!(self.ambient, other.ambient);
         assert_eq!(self.locals, other.locals);
         assert_eq!(self.inherited.data, other.inherited.data);
@@ -163,6 +176,8 @@ pub(super) struct Inputs<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Completion {
     Value,
+    // An unknown incoming block returns to a caller outside the declaration scope.
+    Escape,
     // The home of the indicated callback layer, including the invoked block itself.
     Return(usize),
     Break(bool),

@@ -13,7 +13,9 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 mod context;
 mod hosts;
 mod initializers;
+mod whole;
 use context::{Context, Kind};
+pub(super) use whole::analyze as analyze_whole;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Target {
@@ -69,6 +71,17 @@ impl Outcome {
 }
 
 pub(super) trait Calls {
+    /// Summarizes constructor fields for whole-file declaration roots without execution.
+    fn receiver_fields(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: usize,
+        _: &Globals,
+    ) -> Result<Option<Fact>> {
+        ctx.checkpoint()?;
+        Ok(None)
+    }
     /// Analyzes a namespace body with its declaring bindings and without a script block.
     fn initialize(
         &mut self,
@@ -364,6 +377,7 @@ struct Job {
 }
 
 struct Solver<'a> {
+    whole: bool,
     world: World<'a>,
     values: super::inputs::Values<'a>,
     layouts: &'a Layouts,
@@ -424,19 +438,31 @@ pub(super) fn analyze_with_values<'a>(
             failures,
             general: false,
             constructor: false,
+            scope: blocks::Scope::Invocation,
         },
         values,
     )
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct General {
+    pub function: usize,
+    pub constructor: bool,
+    pub scope: blocks::Scope,
 }
 
 pub(super) fn analyze_general<'a>(
     ctx: &mut CallContext,
     facts: &mut Facts,
     world: World<'a>,
-    function: usize,
-    constructor: bool,
+    entry: General,
     values: super::inputs::Values<'a>,
 ) -> Result<Analysis> {
+    let General {
+        function,
+        constructor,
+        scope,
+    } = entry;
     let inputs = super::arguments::general_inputs(
         ctx,
         facts,
@@ -453,6 +479,7 @@ pub(super) fn analyze_general<'a>(
             failures: &[],
             general: true,
             constructor,
+            scope,
         },
         values,
     )
@@ -464,6 +491,7 @@ struct Entry<'a> {
     failures: &'a [Failure],
     general: bool,
     constructor: bool,
+    scope: blocks::Scope,
 }
 
 fn analyze_entry<'a>(
@@ -479,6 +507,7 @@ fn analyze_entry<'a>(
         failures,
         general,
         constructor,
+        scope,
     } = entry;
     ctx.checkpoint()?;
     let mut admitted = Buffer::empty();
@@ -537,6 +566,7 @@ fn analyze_entry<'a>(
     functions.data.resize(world.program.functions.len(), false);
     let layouts = Layouts::new(ctx, world.program, world.source_owner)?;
     let mut solver = Solver {
+        whole: false,
         world,
         values,
         layouts: &layouts,
@@ -552,6 +582,7 @@ fn analyze_entry<'a>(
     solver.entry_failures.extend(ctx, failures)?;
     let mut context = Context::plain();
     context.constructor = constructor;
+    context.scope = scope;
     ctx.charge(solver.world.program.namespaces.len() as u64)?;
     if (function != 0 || solver.world.program.file)
         && solver
@@ -572,101 +603,8 @@ fn analyze_entry<'a>(
         .globals
         .namespaces(ctx, facts, solver.world.program, solver.world.source_owner)?;
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
-    while let Some(index) = solver.queue.data.pop() {
-        ctx.charge(1)?;
-        solver.current = index;
-        solver.jobs.data[index].queued = false;
-        solver.dependencies = Buffer::empty();
-        let mut inputs = Buffer::empty();
-        let job = &solver.jobs.data[index];
-        inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
-        let context = job
-            .widened_context
-            .as_ref()
-            .unwrap_or(&job.context)
-            .snapshot(ctx)?;
-        let incoming = context.incoming(ctx)?;
-        let block = if matches!(context.kind, Kind::Invoked { .. } | Kind::Initializing) {
-            Some(blocks::Inputs {
-                arguments: &context.arguments.data,
-                captures: &context.captures.data,
-                pending: &context.pending,
-                given: matches!(context.kind, Kind::Invoked { given: true }),
-                inherited: &context.inherited.data,
-            })
-        } else {
-            None
-        };
-        let function = solver.jobs.data[index].function;
-        let body = flow::Body {
-            ambient: context.ambient,
-            general: context.kind == Kind::General,
-            receiver: context.receiver,
-            constructor: context.constructor,
-            program: solver.world.program,
-            contracts: solver.world.contracts,
-            function,
-            inputs: &inputs.data,
-            current_error: solver.jobs.data[index].current_error,
-            block: block.as_ref(),
-            incoming: incoming.as_ref(),
-            layouts: Some(solver.layouts),
-            globals: Some(&context.globals),
-        };
-        let mut report = if let Kind::Entry { general } = context.kind {
-            solver.initialize_entry(ctx, facts, function, &inputs.data, &context, general)?
-        } else {
-            flow::analyze_body(ctx, facts, body, &mut solver)?
-        };
-        let mut returns = report.normal_returns;
-        let previous = solver.jobs.data[index].returns;
-        if solver.jobs.data[index].cyclic && previous != Atom::Never.fact() && previous != returns {
-            let depth = *solver.jobs.data[index]
-                .return_depth
-                .get_or_insert(facts.max_depth());
-            returns = facts.widen(ctx, previous, returns, depth)?;
-        }
-        let job = &mut solver.jobs.data[index];
-        if job.cyclic {
-            if let Some(previous) = &job.report {
-                let depth = *job.return_depth.get_or_insert(facts.max_depth());
-                for exit in &mut report.block_exits.data {
-                    for before in &previous.block_exits.data {
-                        ctx.charge(1)?;
-                        if exit.pc == before.pc && exit.completion == before.completion {
-                            exit.widen(ctx, facts, before, depth)?;
-                        }
-                    }
-                }
-            }
-        }
-        let mut changed = job.returns != returns || job.throws != report.throws;
-        if let Some(previous) = &job.report {
-            changed |= previous.block_exits.data.len() != report.block_exits.data.len();
-            for (a, b) in previous
-                .block_exits
-                .data
-                .iter()
-                .zip(&report.block_exits.data)
-            {
-                changed |= !a.equal(ctx, b)?;
-            }
-        } else {
-            changed |= !report.block_exits.data.is_empty();
-        }
-        job.returns = returns;
-        job.throws = report.throws;
-        job.report = Some(report);
-        job.dependencies = std::mem::replace(&mut solver.dependencies, Buffer::empty());
-        if changed {
-            for parent in 0..solver.jobs.data[index].parents.data.len() {
-                ctx.charge(1)?;
-                let parent = solver.jobs.data[index].parents.data[parent];
-                solver.enqueue(ctx, parent)?;
-            }
-        }
-    }
-    let mut result = Analysis {
+    solver.solve(ctx, facts)?;
+    let result = Analysis {
         #[cfg(test)]
         returns: solver.jobs.data[entry].returns,
         #[cfg(test)]
@@ -676,70 +614,182 @@ fn analyze_entry<'a>(
         #[cfg(test)]
         contexts: solver.jobs.data.len(),
     };
-    let mut reached = Buffer::with_capacity(ctx, solver.jobs.data.len())?;
-    for _ in &solver.jobs.data {
-        ctx.charge(1)?;
-        reached.data.push(false);
-    }
-    solver.queue.push(ctx, entry)?;
-    while let Some(index) = solver.queue.data.pop() {
-        ctx.charge(1)?;
-        if reached.data[index] {
-            continue;
-        }
-        reached.data[index] = true;
-        let job = &solver.jobs.data[index];
-        solver.queue.extend(ctx, &job.dependencies.data)?;
-        let report = job.report.as_ref().unwrap();
-        for &issue in &report.issues.data {
-            ctx.charge(result.issues.data.len() as u64)?;
-            if !result
-                .issues
-                .data
-                .iter()
-                .any(|old| old.function == job.function && old.issue == issue)
-            {
-                result.issues.push(
-                    ctx,
-                    LocatedIssue {
-                        function: job.function,
-                        issue,
-                    },
-                )?;
-            }
-        }
-        for &pc in &report.incomplete.data {
-            ctx.charge(result.incomplete.data.len() as u64)?;
-            if !result.incomplete.data.contains(&(job.function, pc)) {
-                result.incomplete.push(ctx, (job.function, pc))?;
-            }
-        }
-    }
-    ctx.charge(
-        result
-            .issues
-            .data
-            .len()
-            .saturating_mul(result.issues.data.len().max(1).ilog2() as usize + 1) as u64,
-    )?;
-    result
-        .issues
-        .data
-        .sort_unstable_by_key(|issue| (issue.function, issue.issue.pc));
-    ctx.charge(
-        result
-            .incomplete
-            .data
-            .len()
-            .saturating_mul(result.incomplete.data.len().max(1).ilog2() as usize + 1)
-            as u64,
-    )?;
-    result.incomplete.data.sort_unstable();
-    ctx.checkpoint()?;
-    Ok(result)
+    solver.collect(ctx, &[entry], result)
 }
 
 impl Solver<'_> {
+    fn solve(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<()> {
+        while let Some(index) = self.queue.data.pop() {
+            ctx.charge(1)?;
+            self.current = index;
+            self.jobs.data[index].queued = false;
+            self.dependencies = Buffer::empty();
+            let mut inputs = Buffer::empty();
+            let job = &self.jobs.data[index];
+            inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
+            let context = job
+                .widened_context
+                .as_ref()
+                .unwrap_or(&job.context)
+                .snapshot(ctx)?;
+            let incoming = context.incoming(ctx)?;
+            let block = if matches!(context.kind, Kind::Invoked { .. } | Kind::Initializing) {
+                Some(blocks::Inputs {
+                    arguments: &context.arguments.data,
+                    captures: &context.captures.data,
+                    pending: &context.pending,
+                    given: matches!(context.kind, Kind::Invoked { given: true }),
+                    inherited: &context.inherited.data,
+                })
+            } else {
+                None
+            };
+            let function = self.jobs.data[index].function;
+            let body = flow::Body {
+                scope: context.scope,
+                ambient: context.ambient,
+                general: context.kind == Kind::General,
+                receiver: context.receiver,
+                constructor: context.constructor,
+                program: self.world.program,
+                contracts: self.world.contracts,
+                function,
+                inputs: &inputs.data,
+                current_error: self.jobs.data[index].current_error,
+                block: block.as_ref(),
+                incoming: incoming.as_ref(),
+                layouts: Some(self.layouts),
+                globals: Some(&context.globals),
+            };
+            let mut report = if let Kind::Entry { general } = context.kind {
+                self.initialize_entry(ctx, facts, function, &inputs.data, &context, general)?
+            } else {
+                flow::analyze_body(ctx, facts, body, self)?
+            };
+            let mut returns = report.normal_returns;
+            let previous = self.jobs.data[index].returns;
+            if self.jobs.data[index].cyclic && previous != Atom::Never.fact() && previous != returns
+            {
+                let depth = *self.jobs.data[index]
+                    .return_depth
+                    .get_or_insert(facts.max_depth());
+                returns = facts.widen(ctx, previous, returns, depth)?;
+            }
+            let job = &mut self.jobs.data[index];
+            if job.cyclic {
+                if let Some(previous) = &job.report {
+                    let depth = *job.return_depth.get_or_insert(facts.max_depth());
+                    for exit in &mut report.block_exits.data {
+                        for before in &previous.block_exits.data {
+                            ctx.charge(1)?;
+                            if exit.pc == before.pc && exit.completion == before.completion {
+                                exit.widen(ctx, facts, before, depth)?;
+                            }
+                        }
+                    }
+                }
+            }
+            let mut changed = job.returns != returns || job.throws != report.throws;
+            if let Some(previous) = &job.report {
+                changed |= previous.block_exits.data.len() != report.block_exits.data.len();
+                for (a, b) in previous
+                    .block_exits
+                    .data
+                    .iter()
+                    .zip(&report.block_exits.data)
+                {
+                    changed |= !a.equal(ctx, b)?;
+                }
+            } else {
+                changed |= !report.block_exits.data.is_empty();
+            }
+            job.returns = returns;
+            job.throws = report.throws;
+            job.report = Some(report);
+            job.dependencies = std::mem::replace(&mut self.dependencies, Buffer::empty());
+            if changed {
+                for parent in 0..self.jobs.data[index].parents.data.len() {
+                    ctx.charge(1)?;
+                    let parent = self.jobs.data[index].parents.data[parent];
+                    self.enqueue(ctx, parent)?;
+                }
+            }
+        }
+        self.current = EMPTY;
+        self.dependencies = Buffer::empty();
+        Ok(())
+    }
+
+    fn collect(
+        &mut self,
+        ctx: &mut CallContext,
+        entries: &[usize],
+        mut result: Analysis,
+    ) -> Result<Analysis> {
+        let mut reached = Buffer::with_capacity(ctx, self.jobs.data.len())?;
+        for _ in &self.jobs.data {
+            ctx.charge(1)?;
+            reached.data.push(false);
+        }
+        self.queue.extend(ctx, entries)?;
+        while let Some(index) = self.queue.data.pop() {
+            ctx.charge(1)?;
+            if reached.data[index] {
+                continue;
+            }
+            reached.data[index] = true;
+            let job = &self.jobs.data[index];
+            self.queue.extend(ctx, &job.dependencies.data)?;
+            let report = job.report.as_ref().unwrap();
+            for &issue in &report.issues.data {
+                ctx.charge(result.issues.data.len() as u64)?;
+                if !result
+                    .issues
+                    .data
+                    .iter()
+                    .any(|old| old.function == job.function && old.issue == issue)
+                {
+                    result.issues.push(
+                        ctx,
+                        LocatedIssue {
+                            function: job.function,
+                            issue,
+                        },
+                    )?;
+                }
+            }
+            for &pc in &report.incomplete.data {
+                ctx.charge(result.incomplete.data.len() as u64)?;
+                if !result.incomplete.data.contains(&(job.function, pc)) {
+                    result.incomplete.push(ctx, (job.function, pc))?;
+                }
+            }
+        }
+        ctx.charge(
+            result
+                .issues
+                .data
+                .len()
+                .saturating_mul(result.issues.data.len().max(1).ilog2() as usize + 1)
+                as u64,
+        )?;
+        result
+            .issues
+            .data
+            .sort_unstable_by_key(|issue| (issue.function, issue.issue.pc));
+        ctx.charge(
+            result
+                .incomplete
+                .data
+                .len()
+                .saturating_mul(result.incomplete.data.len().max(1).ilog2() as usize + 1)
+                as u64,
+        )?;
+        result.incomplete.data.sort_unstable();
+        ctx.checkpoint()?;
+        Ok(result)
+    }
+
     fn enqueue(&mut self, ctx: &mut CallContext, index: usize) -> Result<()> {
         if !self.jobs.data[index].queued {
             self.queue.push(ctx, index)?;
@@ -943,6 +993,16 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn receiver_fields(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        module: usize,
+        globals: &Globals,
+    ) -> Result<Option<Fact>> {
+        self.constructor_fields(ctx, facts, module, globals)
+    }
+
     fn initialize(
         &mut self,
         ctx: &mut CallContext,
@@ -1185,6 +1245,7 @@ impl Calls for Solver<'_> {
                     context.constructor = constructor;
                 }
                 let inputs = if matches!(target, Target::Block(_)) {
+                    context.scope = context.block_scope;
                     context.receiver = context.block_receiver;
                     context.ambient = context.block_ambient;
                     context.kind = Kind::Invoked {

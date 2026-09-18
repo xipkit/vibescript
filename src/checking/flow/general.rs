@@ -2,6 +2,7 @@ use super::*;
 use crate::checking::facts::{Field, InstanceKind, Node, NominalId};
 
 pub(super) struct Model<'a> {
+    pub initial: Option<Fact>,
     pub program: &'a Program,
     pub layouts: &'a Layouts,
     pub contracts: &'a [Fact],
@@ -16,6 +17,7 @@ pub(super) fn allocate(
     kind: InstanceKind,
 ) -> Result<Option<Fact>> {
     let Model {
+        initial,
         program,
         layouts,
         contracts,
@@ -43,7 +45,23 @@ pub(super) fn allocate(
                 Atom::Unknown.fact()
             } else {
                 let value = facts.value_domain(ctx, contracts[ty])?;
-                facts.nullable(ctx, value)?
+                if let Some(initial) = initial {
+                    let selected = crate::checking::namespaces::field(ctx, facts, initial, name)?;
+                    let mut unknown = selected.incomplete;
+                    for i in 0..facts.arm_count(selected.value) {
+                        ctx.charge(1)?;
+                        unknown |= facts.arm(selected.value, i) == Atom::Unknown.fact();
+                    }
+                    if selected.missing {
+                        facts.nullable(ctx, value)?
+                    } else if unknown {
+                        facts.union(ctx, &[value, Atom::Unknown.fact()])?
+                    } else {
+                        value
+                    }
+                } else {
+                    facts.nullable(ctx, value)?
+                }
             };
             let name = ctx.bytes(name.as_bytes())?;
             fields.push(
@@ -122,10 +140,28 @@ impl Walker<'_> {
                         } else {
                             InstanceKind::Symbolic
                         };
+                        let initial = if self.constructor {
+                            // Constructor summaries cannot assume their own output
+                            // when admitting an existing instance as an input.
+                            matches!(self.scope, blocks::Scope::Declaration { .. })
+                                .then_some(Atom::Unknown.fact())
+                        } else {
+                            let globals = state.globals(self.ctx)?;
+                            self.calls.receiver_fields(
+                                self.ctx,
+                                self.facts,
+                                namespace.definition.index,
+                                &globals,
+                            )?
+                        };
+                        if initial == Some(Atom::Never.fact()) {
+                            return Ok(None);
+                        }
                         let Some(value) = allocate(
                             self.ctx,
                             self.facts,
                             Model {
+                                initial,
                                 program: self.program,
                                 layouts: self.layouts,
                                 contracts: self.contracts,

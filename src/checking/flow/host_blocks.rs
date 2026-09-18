@@ -145,6 +145,7 @@ impl Walker<'_> {
                 }
                 Completion::Break(_) => self.host_finish(&next, pc, index, Some(exit.value))?,
                 Completion::Return(depth) => self.callback_return(next, pc, depth, exit.value)?,
+                Completion::Escape => self.callback_escape(next, pc, exit.value)?,
             }
         }
         Ok(repeat)

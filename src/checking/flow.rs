@@ -24,6 +24,7 @@ mod bindings;
 mod call_targets;
 mod callbacks;
 mod collection_blocks;
+mod declarations;
 mod effects;
 mod general;
 mod globals;
@@ -629,6 +630,7 @@ pub(super) fn analyze(
         ctx,
         facts,
         Body {
+            scope: blocks::Scope::Invocation,
             ambient: None,
             general: false,
             receiver: None,
@@ -648,6 +650,7 @@ pub(super) fn analyze(
 }
 
 pub(super) struct Body<'a> {
+    pub scope: blocks::Scope,
     pub ambient: Option<usize>,
     pub general: bool,
     pub receiver: Option<Fact>,
@@ -670,6 +673,7 @@ pub(super) fn analyze_body(
     calls: &mut dyn Calls,
 ) -> Result<Report> {
     let Body {
+        scope,
         ambient,
         general,
         receiver,
@@ -813,6 +817,14 @@ pub(super) fn analyze_body(
         initial.captures = Some(blocks::Captures::new(ctx, 0, &[])?);
     }
     let receiver = if general && function.instance {
+        let fields = if constructor {
+            None
+        } else {
+            calls.receiver_fields(ctx, facts, function.namespace.unwrap(), globals)?
+        };
+        if fields == Some(Atom::Never.fact()) {
+            return Ok(report);
+        }
         let kind = if constructor {
             super::facts::InstanceKind::Concrete
         } else {
@@ -822,6 +834,7 @@ pub(super) fn analyze_body(
             ctx,
             facts,
             general::Model {
+                initial: fields,
                 program,
                 layouts,
                 contracts,
@@ -863,6 +876,7 @@ pub(super) fn analyze_body(
     )?;
     queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
+        scope,
         ambient,
         general,
         receiver,
@@ -947,6 +961,7 @@ pub(super) fn analyze_body(
 }
 
 struct Walker<'a> {
+    scope: blocks::Scope,
     ambient: Option<usize>,
     general: bool,
     receiver: Option<Fact>,
@@ -1922,7 +1937,9 @@ impl Walker<'_> {
                 }
                 Op::CheckBlock => {
                     if !self.given() {
-                        self.issue(pc, IssueKind::MissingBlock)?;
+                        if self.scope == blocks::Scope::Invocation {
+                            self.issue(pc, IssueKind::MissingBlock)?;
+                        }
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::LocalJump))?;
                         return Ok([None, None]);
                     }

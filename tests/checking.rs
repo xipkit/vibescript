@@ -15,6 +15,80 @@ fn check(source: &str) -> CheckReport {
         .unwrap()
 }
 
+#[test]
+fn whole_file_check_includes_unused_declarations_and_preserves_call_scopes() {
+    let script = Engine::new()
+        .compile("7;def unused(n:string)->int;n;end;class C;private def bad->bool;7;end;end")
+        .unwrap();
+    assert!(
+        script
+            .check_call("__main__", &[], &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+    let report = script.check(&CallOptions::default()).unwrap();
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert_eq!(report.diagnostics.len(), 2, "{report:?}");
+    assert!(
+        report
+            .diagnostics
+            .windows(2)
+            .all(|pair| pair[0].offset < pair[1].offset)
+    );
+    assert!(report.stats.steps > 0);
+    assert!(report.stats.retained_memory_bytes > 0);
+    let script = Engine::new()
+        .compile("x=7;module M;K=x;def self.value->int;K;end;end")
+        .unwrap();
+    assert!(script.check(&CallOptions::default()).unwrap().is_clean());
+    assert!(
+        !script
+            .check_function("M.value", &CallOptions::default())
+            .unwrap()
+            .is_clean()
+    );
+}
+
+#[test]
+fn whole_file_checks_constructor_and_block_domains_without_host_effects() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let mut engine = Engine::new();
+    let count = effects.clone();
+    engine.register("tick", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::int(7))
+    });
+    let count = effects.clone();
+    engine.set_output_writer(move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(())
+    });
+    let script = engine.compile("module M;K=tick();end;class C;property n:int;def initialize(n:int=tick());@n=n;puts @n;end;def value->int;if block_given?;yield;end;@n;end;end;def run;C.new.value;end").unwrap();
+    let report = script.check(&CallOptions::default()).unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        script
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(7)
+    );
+    assert_eq!(effects.load(Ordering::Relaxed), 3);
+}
+
+#[test]
+fn whole_file_reports_unfinished_require_analysis_without_running_it() {
+    let report = Engine::new()
+        .compile("def unused;require('missing');end")
+        .unwrap()
+        .check(&CallOptions::default())
+        .unwrap();
+    assert!(!report.is_clean());
+    assert!(!report.incomplete.is_empty(), "{report:?}");
+}
+
 fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {
     match outcome {
         CheckedOutcome::Executed(outcome) => outcome,

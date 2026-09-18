@@ -290,6 +290,18 @@ The captured state participates in snapshots, pending addresses, exceptional exi
 
 Array addition retains literal element order and snapshots; general arrays retain the union of possible element types. Known incompatible operands and element contracts remain diagnostics beside gradual unknown alternatives. Recursive concatenation uses the existing metered widening rules. Public checked calls and CLI checks cover surrounding bindings before allowing output or host effects.
 
+## Whole-file checking
+
+`Script::check(&CallOptions)` checks top-level code in source order, then checks all effective function and method declarations against their declared parameter domains and defaults. Unused private methods are included; overwritten definitions and generated accessors are excluded. Namespace bodies that top-level analysis does not reach receive independent analysis, and an earlier initializer error does not hide later declarations. Successfully reached initializers retain their declaring bindings. Unreachable bodies use gradual surrounding bindings rather than executing the declaring code.
+
+Declaration checks use namespace state from successful top-level exits when available. This differs from `check_function`, whose named-call semantics initialize namespaces without ordinary top-level statements. Concrete top-level calls are still checked with their actual arguments, and every declaration also receives the broader declared-domain check. All results are sorted and deduplicated into one report under a shared quota, cancellation token and deadline.
+
+Each callable declaration is analyzed with an incoming block absent and present. The absent block is a declaration calling precondition; an actual call without a required block remains a diagnostic. Unknown incoming blocks may return, raise, break or transfer control outside the declaration, and cleanup still runs. Their return values remain gradual. They can change external globals and object fields while preserving the declaration's local bindings, and a no-op block remains a possible path so unknown effects cannot erase known contradictions.
+
+Whole-file instance domains use constructor analysis to distinguish initialized properties from fields that a successful constructor can leave unset. This includes parameter binding, helper calls, conditional assignments, early returns, blocks and cleanup. Constructor analysis does not execute callbacks or writers. Existing class inputs remain gradual during constructor summaries, preventing a copy constructor from assuming its own output or inventing an unset field. Standalone `check_function` retains its existing conservative receiver domains; changing allocation counts and unsupported field relationships still produce incomplete analysis.
+
+Whole-file checking does not make the runtime statically typed or eliminate dynamic failures. Required-file environments, remaining helper and collection dispatch, and the other limits below still apply. The CLI currently exposes exact-call checking only.
+
 ## Remaining integration
 
 Completion still requires:
@@ -299,7 +311,7 @@ Completion still requires:
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
 - Capability descriptors spanning multiple source environments and accounting for the remaining public checking scopes. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
-- Whole-file checking and general-function CLI selection. General reachable-function and exact-call checking, exact-call CLI modes, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
+- Whole-file and general-function CLI selection. Whole-file, general reachable-function and exact-call library checking, exact-call CLI modes, sorted source diagnostics and guarded invocation are available; rejected and incomplete calls do not execute script effects.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 
 The full-language goal remains active. The exact-call gate does not complete ADR-004 or the remaining runtime and platform work.

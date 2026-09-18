@@ -203,6 +203,7 @@ impl Walker<'_> {
             Some(self.function_index),
         )?;
         let mut body = Closure {
+            scope: blocks::Scope::Invocation,
             function,
             receiver: None,
             ambient: Some(self.function_index),
@@ -244,6 +245,7 @@ impl Walker<'_> {
             match exit.completion {
                 Completion::Value => self.native_continue(pc, next)?,
                 Completion::Error(class) => self.emit_error(&next, pc, handlers::bit(class))?,
+                Completion::Escape => self.callback_escape(next, pc, exit.value)?,
                 Completion::Return(_) | Completion::Break(_) => {
                     self.incomplete(pc)?;
                 }

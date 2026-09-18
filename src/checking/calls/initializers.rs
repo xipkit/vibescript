@@ -130,6 +130,7 @@ impl Solver<'_> {
         }
         context.globals = globals;
         context.constructor = initial.constructor;
+        context.scope = initial.scope;
         let index = self.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
         self.depend(ctx, index)?;
         report.normal_returns = self.jobs.data[index].returns;

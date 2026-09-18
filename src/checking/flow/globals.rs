@@ -81,6 +81,7 @@ impl Walker<'_> {
                 blocks::Completion::Error(class) => {
                     self.emit_error(&next, pc, handlers::bit(class))?
                 }
+                blocks::Completion::Escape => self.callback_escape(next, pc, exit.value)?,
                 _ => unreachable!("ordinary functions consume their own control transfers"),
             }
         }

@@ -57,6 +57,9 @@ mod scope_tests;
 mod slots;
 mod sources;
 mod type_bindings;
+mod whole;
+#[cfg(test)]
+mod whole_tests;
 mod widening;
 
 pub use public::{CheckDiagnostic, CheckReport, CheckedOutcome};

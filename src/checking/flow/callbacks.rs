@@ -4,7 +4,9 @@ use blocks::{Closure, Completion, Layer, Link, Parent};
 
 impl Walker<'_> {
     pub(super) fn given(&self) -> bool {
-        self.incoming.is_some() || self.block_inputs.is_some_and(|b| b.given)
+        self.incoming.is_some()
+            || self.block_inputs.is_some_and(|b| b.given)
+            || self.scope == blocks::Scope::Declaration { given: true }
     }
 
     fn incoming_base(&mut self) -> Result<usize> {
@@ -81,6 +83,7 @@ impl Walker<'_> {
             inherited.push(
                 self.ctx,
                 Layer {
+                    scope: incoming.scope,
                     function: incoming.function,
                     receiver: incoming.receiver,
                     ambient: incoming.ambient,
@@ -110,6 +113,7 @@ impl Walker<'_> {
             }
         }
         state.arguments.data.last_mut().unwrap().arguments.block = Some(Closure {
+            scope: self.scope,
             receiver: self.receiver,
             ambient: self.ambient,
             pending: pending::Pending::new(),
@@ -258,6 +262,22 @@ impl Walker<'_> {
         Ok(())
     }
 
+    pub(super) fn callback_escape(&mut self, state: State, pc: usize, value: Fact) -> Result<()> {
+        let edges = self.transfer(
+            state,
+            pc,
+            Transfer::Block {
+                pc,
+                completion: Completion::Escape,
+                value,
+            },
+        )?;
+        for edge in edges.into_iter().flatten() {
+            self.extra.push(self.ctx, edge)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn call_exits(
         &mut self,
         state: &State,
@@ -277,6 +297,7 @@ impl Walker<'_> {
                 Completion::Return(depth) => {
                     self.callback_return(next, pc, depth, exit.value)?;
                 }
+                Completion::Escape => self.callback_escape(next, pc, exit.value)?,
                 Completion::Error(class) => self.emit_error(&next, pc, handlers::bit(class))?,
                 Completion::Break(_) => unreachable!("receiving functions consume block breaks"),
             }
@@ -291,6 +312,9 @@ impl Walker<'_> {
         count: usize,
     ) -> Result<Edges> {
         let Some(incoming) = self.incoming else {
+            if self.scope == (blocks::Scope::Declaration { given: true }) {
+                return self.abstract_yield(state, pc, count);
+            }
             return self.incomplete(pc);
         };
         let base = self.incoming_base()?;
@@ -350,6 +374,11 @@ impl Walker<'_> {
                     completion: Completion::Return(
                         depth + usize::from(self.block_inputs.is_some()),
                     ),
+                    value: exit.value,
+                },
+                Completion::Escape => Transfer::Block {
+                    pc,
+                    completion: Completion::Escape,
                     value: exit.value,
                 },
                 Completion::Break(supplied) => {

@@ -56,6 +56,30 @@ pub enum CheckedOutcome {
 }
 
 impl Script {
+    /// Checks top-level code, namespace bodies and every callable declaration without execution.
+    ///
+    /// Functions and methods use their declared parameter domains and both block
+    /// presence paths. Unused declarations are included. Unknown block results
+    /// remain gradual; ordinary calls still report known missing blocks.
+    /// Namespace state follows top-level initialization. Constructor analysis retains
+    /// possible unset fields when checking typed instance methods and class inputs.
+    /// All scopes share the supplied work, memory, cancellation and deadline limits.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Engine};
+    /// let script = Engine::new().compile("7;def unused -> int;false;end")?;
+    /// assert!(!script.check(&CallOptions::default())?.is_clean());
+    /// assert!(script.check_call("__main__", &[], &CallOptions::default())?.is_clean());
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn check(&self, options: &CallOptions) -> Result<CheckReport> {
+        let mut ctx = self.checking_context(options);
+        let mut report = super::whole::check(&mut ctx, self, options)?;
+        ctx.checkpoint()?;
+        report.stats = ctx.stats();
+        Ok(report)
+    }
+
     /// Checks the reachable calls of a named function without concrete arguments.
     ///
     /// Annotated parameters enter with their declared value domains; unannotated
