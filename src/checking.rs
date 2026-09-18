@@ -8,6 +8,9 @@ mod builtins;
 mod calls;
 mod cases;
 mod collections;
+mod entry;
+#[cfg(test)]
+mod entry_tests;
 #[cfg(test)]
 mod enum_tests;
 mod environment;

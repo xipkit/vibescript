@@ -200,17 +200,27 @@ Supplied values otherwise remain deferred until a reachable read or type lookup 
 
 Type lookup requests deferred roots in the existing exact, folded and qualified lookup order. Source and host contracts stop at their first failing named leaf, preserve omitted host parameters and grant checks, and load folded candidates before resolving ambiguity. Recoverable value-import failures enter script exception flow at the read or type boundary. Attached-method guards still apply to imported roots. Actual cancellation, deadlines and checker work/memory exhaustion remain latched and cannot be converted into script rescue paths.
 
-Sixteen focused test families compare analysis with execution, including unused large values under a 48 KiB budget, reachable allocation failures, maximum-depth shared inputs, invalid strict globals before effects, conditional writes and exceptional calls, negative-index mutation, value copies, target selection before argument rebinding, named aliases and failure ordering. Exact and sampled quota failures verify cleanup. This internal integration does not yet provide public argument binding, diagnostics, checking or checked invocation.
+Sixteen focused test families compare analysis with execution, including unused large values under a 48 KiB budget, reachable allocation failures, maximum-depth shared inputs, invalid strict globals before effects, conditional writes and exceptional calls, negative-index mutation, value copies, target selection before argument rebinding, named aliases and failure ordering. Exact and sampled quota failures verify cleanup. Public diagnostics, checking and checked invocation remain separate integration work.
+
+## Concrete host-call entry
+
+An internal exact-call entry accepts a compiled script, function name, positional values, keyword values and call options. Its result owns the fact arena used by the analysis. Function lookup precedes strict validation and input admission. Capability factories and file environments remain explicitly incomplete before argument import; pending namespace initializers stop analysis after argument admission, matching execution's ordering without running the prelude.
+
+Every supplied argument is described eagerly, including unused and excess values and earlier duplicate keywords. Attached-method escape checks run before later arguments or initializers. Recoverable admission guards return at the host boundary, outside script rescue handlers; checker budget exhaustion, deadlines and cancellation remain latched. Globals retain their separate lazy-read behavior. Host keywords bind by name and never become a positional options hash; script calls retain their existing options-hash rules. Shape failures precede defaults and parameter type checks.
+
+Callable metadata discovered inside argument objects remains available during body analysis and later lazy global loads. Fresh and expired grants retain their existing behavior, and host block drivers preserve ignored break and return transfers. Concrete facts select reachable paths, skip supplied defaults and retain collection isolation, enum rebinding and match-data protection. Unimplemented foreign worlds, nominal state and preludes produce an explicit incomplete result.
+
+Nineteen test families compare supported entry paths with execution and verify rejection ordering, callback nonexecution, exact and sampled work/memory limits, cancellation, deadlines and allocation cleanup. This entry remains private; it does not yet expose a public checking or checked-call API.
 
 ## Remaining integration
 
 Completion still requires:
 
 - Opaque iterable dispatch, interprocedural block control, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
-- Class/module initialization and dispatch, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, namespace dispatch, live host signatures and conservative host block schedules are implemented internally; public entry binding and whole-program integration remain required.
+- Class/module initialization and dispatch, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, namespace dispatch, live host signatures, conservative host block schedules and concrete host-call binding are implemented internally; public APIs and whole-program integration remain required.
 - Property constraints, broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.
-- Public positional/keyword input admission, capability descriptors spanning multiple source environments and checker accounting across every public entry point. Internal strict-effects validation and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
+- Public integration of positional/keyword input admission, capability descriptors spanning multiple source environments and checker accounting across every public entry point. Internal strict-effects validation, eager argument binding and deferred root loading share the runtime rules. Signature metadata is inspected without invoking callbacks or validators.
 - Sorted, deduplicated source diagnostics, whole-file checking, reachable-function checking, exact-call checking, checked invocation and CLI gates. A rejected check must not execute script effects.
 - Broader reference fixtures, required-file and capability tests, cancellation/quotas at the public boundary, and the remaining temporary compiler allocation accounting.
 

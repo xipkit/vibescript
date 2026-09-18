@@ -355,6 +355,25 @@ pub(super) fn analyze(
     function: usize,
     inputs: &[Input],
 ) -> Result<Analysis> {
+    analyze_with_values(
+        ctx,
+        facts,
+        world,
+        function,
+        inputs,
+        super::inputs::Values::new(),
+    )
+}
+
+/// Retains callable metadata discovered while importing concrete entry arguments.
+pub(super) fn analyze_with_values<'a>(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    world: World<'a>,
+    function: usize,
+    inputs: &[Input],
+    values: super::inputs::Values<'a>,
+) -> Result<Analysis> {
     ctx.checkpoint()?;
     let mut admitted = Buffer::empty();
     let mut admission_issues = Buffer::empty();
@@ -409,7 +428,7 @@ pub(super) fn analyze(
     let layouts = Layouts::new(ctx, world.program, world.source_owner)?;
     let mut solver = Solver {
         world,
-        values: super::inputs::Values::new(),
+        values,
         layouts: &layouts,
         jobs: Buffer::empty(),
         buckets: Buffer::empty(),

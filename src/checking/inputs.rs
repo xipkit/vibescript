@@ -69,7 +69,7 @@ impl<'a> Values<'a> {
             ctx.charge((index + 1 - self.loaded.data.len()) as u64)?;
             self.loaded.data.resize(index + 1, None);
         }
-        let value = match self.admit(ctx, facts, world, source) {
+        let value = match self.argument(ctx, facts, world, source) {
             Ok(value) => Loaded {
                 value: value.value,
                 incomplete: value.incomplete,
@@ -91,7 +91,8 @@ impl<'a> Values<'a> {
         Ok(value)
     }
 
-    fn admit(
+    /// Admits an eager call argument, preserving entry errors outside script handlers.
+    pub fn argument(
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,

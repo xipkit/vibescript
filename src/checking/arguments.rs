@@ -179,13 +179,35 @@ impl Arguments {
 
     /// Binds argument shape; each supplied value is normalized when its parameter is reached.
     pub fn bind(
-        mut self,
+        self,
         ctx: &mut CallContext,
         facts: &mut Facts,
         params: &[Parameter],
     ) -> Result<Bound> {
+        self.bind_options(ctx, facts, params, true)
+    }
+
+    /// Host keywords bind by name without becoming a positional options hash.
+    pub fn bind_host(
+        self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        params: &[Parameter],
+    ) -> Result<Bound> {
+        self.bind_options(ctx, facts, params, false)
+    }
+
+    fn bind_options(
+        mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        params: &[Parameter],
+        options: bool,
+    ) -> Result<Bound> {
         ctx.checkpoint()?;
-        self.collapse(ctx, facts, params)?;
+        if options {
+            self.collapse(ctx, facts, params)?;
+        }
         let mut used = Buffer::with_capacity(ctx, self.keywords.data.len())?;
         for _ in &self.keywords.data {
             ctx.charge(1)?;
