@@ -51,4 +51,16 @@ impl Sources {
         self.entries.push(ctx, entry)?;
         Ok(owner)
     }
+
+    /// Uses registration order for hashing while preserving the stable identity.
+    /// Heap addresses must not change collision work between equivalent checks.
+    pub fn key(&self, ctx: &mut CallContext, owner: usize) -> Result<(bool, usize)> {
+        for (index, entry) in self.entries.data.iter().enumerate() {
+            ctx.charge(1)?;
+            if &**entry as *const Source as usize == owner {
+                return Ok((true, index));
+            }
+        }
+        Ok((false, owner))
+    }
 }

@@ -213,7 +213,7 @@ impl Facts {
 
     fn intern(&mut self, ctx: &mut CallContext, node: Node) -> Result<Fact> {
         ctx.checkpoint()?;
-        let hash = node.hash(ctx)?;
+        let hash = node.hash(ctx, &self.sources)?;
         if !self.buckets.data.is_empty() {
             let mut index = self.buckets.data[hash as usize & (self.buckets.data.len() - 1)];
             while index != EMPTY {
@@ -990,7 +990,7 @@ fn scalar_atom(scalar: Scalar) -> Atom {
 }
 
 impl Node {
-    fn hash(&self, ctx: &mut CallContext) -> Result<u64> {
+    fn hash(&self, ctx: &mut CallContext, sources: &super::sources::Sources) -> Result<u64> {
         let mut hash = DefaultHasher::new();
         std::mem::discriminant(self).hash(&mut hash);
         ctx.charge(1)?;
@@ -1000,7 +1000,7 @@ impl Node {
             Self::Integer(value) => value.hash(&mut hash),
             Self::Float(value) => value.hash(&mut hash),
             Self::Builtin(value) => value.name().hash(&mut hash),
-            Self::Callable { owner, target } => (owner, target).hash(&mut hash),
+            Self::Callable { owner, target } => (sources.key(ctx, *owner)?, target).hash(&mut hash),
             Self::Offset(value) => value.hash(&mut hash),
             Self::Protected(value, tag) => (value, *tag as u8).hash(&mut hash),
             Self::TypeValue(value) => value.hash(&mut hash),
@@ -1038,7 +1038,15 @@ impl Node {
                     (name, field.value, field.optional).hash(&mut hash);
                 }
             }
-            Self::Nominal { identity, .. } => identity.hash(&mut hash),
+            Self::Nominal { identity, .. } => {
+                std::mem::discriminant(identity).hash(&mut hash);
+                match identity {
+                    NominalId::Binding(owner, declaration) => {
+                        (sources.key(ctx, *owner)?, declaration).hash(&mut hash)
+                    }
+                    NominalId::Enumeration(index) => index.hash(&mut hash),
+                }
+            }
         }
         Ok(hash.finish())
     }

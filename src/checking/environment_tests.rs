@@ -17,6 +17,34 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+#[test]
+fn source_identity_hashing_has_repeatable_work_with_multiple_live_arenas() {
+    let script = Engine::new().compile("class C;end;def run;7;end").unwrap();
+    let mut arenas = Vec::new();
+    let mut baseline = None;
+    for _ in 0..32 {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut facts = super::facts::Facts::new(&mut ctx).unwrap();
+        let owner = facts
+            .source_owner(&mut ctx, &script.inner.code, None)
+            .unwrap();
+        for index in 0..32 {
+            facts.integer(&mut ctx, index as i64).unwrap();
+            facts.nominal(&mut ctx, owner, index, b"C", None).unwrap();
+            facts
+                .callable(&mut ctx, owner, super::facts::Callable::Function(index))
+                .unwrap();
+        }
+        let counters = (ctx.stats().steps, ctx.stats().peak_memory_bytes);
+        assert_eq!(counters, *baseline.get_or_insert(counters));
+        arenas.push((ctx, facts));
+    }
+    for (ctx, facts) in arenas {
+        drop(facts);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+}
+
 fn signature(parameter: Option<&str>, result: &str, block: bool) -> Signature {
     Signature {
         params: parameter
