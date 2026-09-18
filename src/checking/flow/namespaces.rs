@@ -66,7 +66,7 @@ impl Walker<'_> {
         }
     }
 
-    fn namespace_index(&self, receiver: Fact) -> Option<usize> {
+    pub(super) fn namespace_index(&self, receiver: Fact) -> Option<usize> {
         let ty = match self.facts.node(receiver) {
             Node::TypeValue(ty) | Node::Instance { class: ty, .. } => *ty,
             _ => return None,

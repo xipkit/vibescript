@@ -13,6 +13,7 @@ use std::sync::{
 };
 
 mod instances;
+mod operators;
 mod state;
 
 fn check(

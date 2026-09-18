@@ -85,6 +85,13 @@ impl Graph {
                 | Op::Mutate(_, _)
                 | Op::AddressMember(_)
                 | Op::AddressNamespaceField(_)
+                | Op::Binary(_)
+                | Op::AddStore(_)
+                | Op::Index(_)
+                | Op::Shovel(_)
+                | Op::AddressIndex(_)
+                | Op::AddressTarget(..)
+                | Op::AddressStore
                 | Op::Invoke(_)
                 | Op::InvokeRoot(_) => {
                     leaders.data[pc + 1] = true;

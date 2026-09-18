@@ -137,6 +137,12 @@ pub(super) fn issue(
             out.text(" does not accept ")?;
             out.fact(facts, value)?;
         }
+        IssueKind::Operator { name, receiver } => {
+            out.text("Operator ")?;
+            out.quoted(name.as_bytes())?;
+            out.text(" is unavailable on ")?;
+            out.fact(facts, receiver)?;
+        }
         IssueKind::Binary { op, left, right } => {
             out.text("Operator ")?;
             out.quoted(op.as_bytes())?;

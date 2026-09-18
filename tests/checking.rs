@@ -23,6 +23,45 @@ fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {
 }
 
 #[test]
+fn checked_operators_reject_bad_results_before_host_effects() {
+    for (definition, expression) in [
+        ("def +(value);effect();value;end", "c+value"),
+        ("def [](value);effect();value;end", "c[value]"),
+        ("def []=(i,value);effect();99;end", "begin;c[0]=value;end"),
+    ] {
+        let effects = Arc::new(AtomicUsize::new(0));
+        let count = effects.clone();
+        let mut engine = Engine::new();
+        engine.register("effect", move |_, _| {
+            count.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::nil())
+        });
+        let script = engine.compile(&format!("class C;{definition};end;def accept(value:int);value;end;def run(value);c=C.new;accept({expression});end")).unwrap();
+        let report = script
+            .check_call("run", &[Value::int(7)], &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{report:?}");
+        assert_eq!(effects.load(Ordering::Relaxed), 0);
+        let outcome = executed(
+            script
+                .checked_call("run", &[Value::int(7)], CallOptions::default())
+                .unwrap(),
+        );
+        assert_eq!(outcome.value.as_int(), Some(7));
+        assert_eq!(effects.load(Ordering::Relaxed), 1);
+        let CheckedOutcome::Rejected(report) = script
+            .checked_call("run", &[Value::boolean(false)], CallOptions::default())
+            .unwrap()
+        else {
+            panic!("invalid operator result executed host effects");
+        };
+        assert!(report.incomplete.is_empty(), "{report:?}");
+        assert!(!report.diagnostics.is_empty(), "{report:?}");
+        assert_eq!(effects.load(Ordering::Relaxed), 1);
+    }
+}
+
+#[test]
 fn checked_constructors_reject_bad_property_writes_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();

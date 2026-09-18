@@ -1,30 +1,6 @@
 use super::*;
 
 impl Walker<'_> {
-    pub(in super::super) fn instance_operator(
-        &mut self,
-        receiver: Fact,
-        name: &str,
-    ) -> Result<bool> {
-        for i in 0..self.facts.arm_count(receiver) {
-            self.ctx.charge(1)?;
-            let receiver = self.facts.arm(receiver, i);
-            if !matches!(self.facts.node(receiver), Node::Instance { .. }) {
-                continue;
-            }
-            let Some(module) = self.namespace_index(receiver) else {
-                return Ok(true);
-            };
-            for method in &self.program.namespaces[module].instance_methods {
-                self.ctx.work_bytes(name.len().max(method.name.len()))?;
-                if method.name == name || (name == "!=" && method.name == "==") {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
-    }
-
     pub(in super::super) fn self_value(&mut self, module: usize) -> Result<Fact> {
         match self.receiver {
             Some(value) => Ok(value),
