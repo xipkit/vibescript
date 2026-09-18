@@ -55,6 +55,12 @@ pub(super) enum Failure {
     Undefined,
     HostArity,
     HostKeywords,
+    HostBlock,
+    HostTypeBinding {
+        parameter: Option<usize>,
+        expected: Fact,
+        ambiguous: bool,
+    },
     BuiltinArity,
     BuiltinBlock,
     BuiltinKeywords,

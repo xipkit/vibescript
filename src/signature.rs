@@ -45,6 +45,7 @@ pub struct SignatureParam {
     pub optional: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct Compiled {
     pub source: Signature,
     pub params: Vec<Option<Type>>,

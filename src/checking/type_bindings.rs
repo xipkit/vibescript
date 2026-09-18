@@ -378,6 +378,31 @@ impl Bindings {
         Ok(scope)
     }
 
+    /// Admits source identities while leaving unevaluated namespace bodies unknown.
+    pub fn current_source(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        program: &Program,
+        owner: usize,
+    ) -> Result<Scope> {
+        let source = self.source(ctx, facts, program, owner)?;
+        for declaration in &program.declarations {
+            ctx.charge(1)?;
+            if let Kind::Namespace(namespace) = &declaration.0 {
+                if namespace.definition.body.is_some() {
+                    self.insert(
+                        ctx,
+                        source,
+                        namespace.definition.name.as_bytes(),
+                        Binding::Unknown,
+                    )?;
+                }
+            }
+        }
+        Ok(source)
+    }
+
     /// Searches scopes in priority order, checking every exact spelling before
     /// considering folded spellings. Qualified roots always use exact spelling.
     pub fn resolve(

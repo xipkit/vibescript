@@ -72,26 +72,12 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             scopes.push(self.ctx, scope)?;
         }
-        let source = bindings.source(
+        let source = bindings.current_source(
             self.ctx,
             self.facts,
             self.program,
             self.layouts.source_owner,
         )?;
-        for declaration in &self.program.declarations {
-            self.ctx.charge(1)?;
-            if let Kind::Namespace(namespace) = &declaration.0 {
-                if namespace.definition.body.is_none() {
-                    continue;
-                }
-                bindings.insert(
-                    self.ctx,
-                    source,
-                    namespace.definition.name.as_bytes(),
-                    crate::checking::type_bindings::Binding::Unknown,
-                )?;
-            }
-        }
         for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.charge(1)?;
             let value = state.locals.get(self.ctx, state.global_base + index)?.value;

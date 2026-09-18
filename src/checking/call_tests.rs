@@ -869,22 +869,33 @@ fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
 }
 
 #[test]
-fn unresolved_host_signature_types_leave_analysis_incomplete() {
-    for (parameter, result) in [("Missing", "int"), ("int", "array<Missing>")] {
-        let method = HostMethod::new("host", |_, _, _| panic!("checker ran host"))
-            .with_signature(Signature {
-                params: vec![SignatureParam {
-                    name: "x".into(),
-                    ty: parameter.into(),
-                    optional: false,
-                }],
-                result: result.into(),
-                accepts_block: false,
-            })
-            .unwrap();
+fn missing_host_signature_types_produce_catchable_diagnostics() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    for (parameter, result, calls) in [("Missing", "int", 0), ("int", "array<Missing>", 1)] {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let observed = counter.clone();
+        let method = HostMethod::new("host", move |_, _, _| {
+            observed.fetch_add(1, Ordering::Relaxed);
+            Ok(Value::nil())
+        })
+        .with_signature(Signature {
+            params: vec![SignatureParam {
+                name: "x".into(),
+                ty: parameter.into(),
+                optional: false,
+            }],
+            result: result.into(),
+            accepts_block: false,
+        })
+        .unwrap();
         let mut engine = crate::Engine::new();
         engine.register_method("host", method.clone());
-        let script = engine.compile("def run; host(7); end").unwrap();
+        let script = engine
+            .compile("def run; begin; host(7); rescue; 99; end; end")
+            .unwrap();
         let program = &script.inner.code.program;
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
@@ -907,6 +918,24 @@ fn unresolved_host_signature_types_leave_analysis_incomplete() {
             &[],
         )
         .unwrap();
-        assert!(!result.incomplete.data.is_empty());
+        assert!(result.incomplete.data.is_empty(), "{result:?}");
+        assert!(result.issues.data.iter().any(|issue| matches!(
+            issue.issue.kind,
+            IssueKind::Call {
+                failure: Failure::HostTypeBinding { .. },
+                ..
+            }
+        )));
+        assert_eq!(result.returns, facts.integer(&mut ctx, 99).unwrap());
+        assert_eq!(counter.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            script
+                .call("run", &[], CallOptions::default())
+                .unwrap()
+                .value
+                .to_string(),
+            "99"
+        );
+        assert_eq!(counter.load(Ordering::Relaxed), calls);
     }
 }

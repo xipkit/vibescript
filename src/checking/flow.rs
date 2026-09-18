@@ -983,6 +983,8 @@ impl Walker<'_> {
                 | Failure::Undefined
                 | Failure::HostArity
                 | Failure::HostKeywords
+                | Failure::HostBlock
+                | Failure::HostTypeBinding { .. }
                 | Failure::BuiltinArity
                 | Failure::BuiltinBlock
                 | Failure::BuiltinKeywords

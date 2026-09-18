@@ -145,3 +145,6 @@ mod root_tests;
 
 #[cfg(test)]
 mod attached_tests;
+
+#[cfg(test)]
+mod host_type_tests;

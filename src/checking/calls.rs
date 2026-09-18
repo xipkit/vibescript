@@ -11,6 +11,7 @@ use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 mod context;
+mod hosts;
 use context::{Context, Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,21 +108,26 @@ impl Calls for Unavailable {
 }
 
 #[derive(Debug)]
-pub(super) struct Host {
+pub(super) struct Host<'a> {
     pub params: Buffer<Option<Fact>>,
     pub required: usize,
     pub result: Fact,
     pub constrained: bool,
     pub unresolved: bool,
+    accepts_block: bool,
+    source: Option<&'a crate::signature::Compiled>,
 }
 
-impl Host {
+impl<'a> Host<'a> {
+    /// Borrows metadata so named contracts use each call's current root and source bindings.
     pub fn new(
         ctx: &mut CallContext,
         facts: &mut Facts,
-        signature: Option<&crate::signature::Compiled>,
+        signature: Option<&'a crate::signature::Compiled>,
     ) -> Result<Self> {
-        Self::resolved(ctx, facts, signature, |_, _| Ok(None))
+        let mut host = Self::resolved(ctx, facts, signature, |_, _| Ok(None))?;
+        host.source = signature;
+        Ok(host)
     }
 
     /// Builds host type facts against an explicitly supplied binding snapshot.
@@ -138,6 +144,8 @@ impl Host {
             result: Atom::Unknown.fact(),
             constrained: signature.is_some(),
             unresolved: false,
+            accepts_block: signature.is_some_and(|s| s.source.accepts_block),
+            source: None,
         };
         if let Some(signature) = signature {
             host.required = signature.required;
@@ -164,7 +172,7 @@ pub(super) struct World<'a> {
     /// Identity owner used when constructing the source declaration contracts.
     pub source_owner: usize,
     pub contracts: &'a [Fact],
-    pub hosts: &'a [Host],
+    pub hosts: &'a [Host<'a>],
     // Callers supply unique names and admitted facts or bound descriptors, never factories.
     pub globals: &'a [(Value, Target)],
 }
@@ -806,7 +814,11 @@ impl Calls for Solver<'_> {
         if args.block.is_some()
             && !matches!(
                 target,
-                Target::Function(_) | Target::Block(_) | Target::Undefined | Target::NonCallable
+                Target::Function(_)
+                    | Target::Block(_)
+                    | Target::Host(_)
+                    | Target::Undefined
+                    | Target::NonCallable
             )
         {
             outcome.incomplete = true;
@@ -874,50 +886,7 @@ impl Calls for Solver<'_> {
                 }
             }
             Target::Host(index) => {
-                let previous_failures = outcome.failures.data.len();
-                let Some(host) = self.world.hosts.get(index) else {
-                    outcome.incomplete = true;
-                    return Ok(outcome);
-                };
-                if host.unresolved {
-                    outcome.incomplete = true;
-                    return Ok(outcome);
-                }
-                if host.constrained {
-                    if args.positional.data.len() < host.required
-                        || args.positional.data.len() > host.params.data.len()
-                    {
-                        outcome.failures.push(ctx, Failure::HostArity)?;
-                    }
-                    if !args.keywords.data.is_empty() {
-                        outcome.failures.push(ctx, Failure::HostKeywords)?;
-                    }
-                    for (index, (&actual, expected)) in args
-                        .positional
-                        .data
-                        .iter()
-                        .zip(&host.params.data)
-                        .enumerate()
-                    {
-                        ctx.charge(1)?;
-                        if let Some(expected) = expected {
-                            if facts.relation(ctx, actual, *expected)? == Relation::Rejected {
-                                outcome.failures.push(
-                                    ctx,
-                                    Failure::Type {
-                                        parameter: index,
-                                        actual,
-                                        expected: *expected,
-                                    },
-                                )?;
-                            }
-                        }
-                    }
-                }
-                if outcome.failures.data.len() == previous_failures {
-                    outcome.value = facts.value_domain(ctx, host.result)?;
-                    outcome.throws = u8::MAX;
-                }
+                self.host_call(ctx, facts, index, &args, globals, &mut outcome)?;
             }
             Target::Dynamic => {
                 outcome.value = Atom::Unknown.fact();

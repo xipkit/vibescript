@@ -32,12 +32,12 @@ fn method(counter: &Arc<AtomicUsize>) -> HostMethod {
     .unwrap()
 }
 
-fn admitted(
+pub(super) fn admitted<'a>(
     ctx: &mut CallContext,
     facts: &mut Facts,
     program: &bytecode::Program,
-    hosts: &mut Buffer<Host>,
-    value: &Value,
+    hosts: &mut Buffer<Host<'a>>,
+    value: &'a Value,
 ) -> Result<Fact> {
     Ok(match &value.0 {
         Kind::Host(method) => {
@@ -142,7 +142,7 @@ fn witness(body: &str, expected: &str, rejected: bool) {
             "run",
             &[],
             CallOptions {
-                globals: [("sms".into(), object)].into_iter().collect(),
+                globals: [("sms".into(), object.clone())].into_iter().collect(),
                 ..CallOptions::default()
             },
         )
@@ -730,7 +730,7 @@ fn supplied_arguments_reject_nested_methods_before_an_unused_parameter_body_runs
         assert!(!report.issues.data.is_empty());
         assert_eq!(
             script
-                .call("run", &[value], CallOptions::default())
+                .call("run", std::slice::from_ref(&value), CallOptions::default())
                 .unwrap_err()
                 .kind,
             ErrorKind::Type
