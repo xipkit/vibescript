@@ -32,18 +32,18 @@ fn method(counter: &Arc<AtomicUsize>) -> HostMethod {
     .unwrap()
 }
 
-pub(super) fn admitted<'a>(
+pub(super) fn admitted(
     ctx: &mut CallContext,
     facts: &mut Facts,
     program: &bytecode::Program,
-    hosts: &mut Buffer<Host<'a>>,
-    value: &'a Value,
+    hosts: &mut Buffer<Host>,
+    value: &Value,
 ) -> Result<Fact> {
     let admitted = super::admission::value(ctx, facts, value, |ctx, facts, value| {
         Ok(Some(match &value.0 {
             Kind::Host(method) => {
                 let index = hosts.data.len();
-                let host = Host::new(ctx, facts, method.signature())?;
+                let host = Host::new(ctx, facts, method.compiled_signature())?;
                 hosts.push(ctx, host)?;
                 facts.callable(ctx, 0, Callable::Host(index))?
             }

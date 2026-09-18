@@ -142,7 +142,7 @@ impl Solver<'_> {
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.values.host(&self.world, index) else {
+        let Some(host) = self.values.host(ctx, &self.world, index)? else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -179,7 +179,12 @@ impl Solver<'_> {
         }
         let params = host.params.data.len();
         for (parameter, &actual) in args.positional.data.iter().take(params).enumerate() {
-            let expected = self.values.host(&self.world, index).unwrap().params.data[parameter];
+            let expected = self
+                .values
+                .host(ctx, &self.world, index)?
+                .unwrap()
+                .params
+                .data[parameter];
             ctx.charge(1)?;
             let Some(expected) = expected else { continue };
             let Some(expected) = self.host_contract(
@@ -222,7 +227,7 @@ impl Solver<'_> {
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.values.host(&self.world, index) else {
+        let Some(host) = self.values.host(ctx, &self.world, index)? else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -286,7 +291,7 @@ impl Solver<'_> {
             } else {
                 None
             };
-            let host = self.values.host(&self.world, index).unwrap();
+            let host = self.values.host(ctx, &self.world, index)?.unwrap();
             match host.contract(
                 ctx,
                 facts,
@@ -316,7 +321,7 @@ impl Solver<'_> {
     }
 }
 
-impl Host<'_> {
+impl Host {
     fn contract(
         &self,
         ctx: &mut CallContext,
@@ -330,7 +335,7 @@ impl Host<'_> {
         if !facts.unresolved(expected) {
             return Ok(Contract::Known(expected));
         }
-        let signature = self.source.unwrap();
+        let signature = self.source.as_ref().unwrap();
         let ty = parameter.map_or(signature.result.as_ref(), |index| {
             signature.params[index].as_ref()
         });

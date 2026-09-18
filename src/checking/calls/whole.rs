@@ -1,11 +1,11 @@
 use super::*;
 use crate::bytecode::Op;
 
-pub(in crate::checking) fn analyze<'a>(
+pub(in crate::checking) fn analyze(
     ctx: &mut CallContext,
     facts: &mut Facts,
-    world: World<'a>,
-    values: super::super::inputs::Values<'a>,
+    world: World<'_>,
+    values: super::super::inputs::Values,
 ) -> Result<Analysis> {
     let program = world.program;
     let source = facts.source_id(ctx, world.source_owner)?;

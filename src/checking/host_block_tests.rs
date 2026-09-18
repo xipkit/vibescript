@@ -127,7 +127,7 @@ impl Fixture {
             panic!()
         };
         let mut hosts = Buffer::empty();
-        let host = Host::new(ctx, facts, method.signature())?;
+        let host = Host::new(ctx, facts, method.compiled_signature())?;
         hosts.push(ctx, host)?;
         let mut globals = Buffer::empty();
         for (name, value) in &self.globals {

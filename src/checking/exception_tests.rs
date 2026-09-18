@@ -464,7 +464,7 @@ fn host_failure_paths_are_analyzed_without_running_callbacks_or_validators() {
     let crate::value::Kind::Host(method) = &method.0 else {
         unreachable!()
     };
-    let host = Host::new(&mut ctx, &mut facts, method.signature()).unwrap();
+    let host = Host::new(&mut ctx, &mut facts, method.compiled_signature()).unwrap();
     let report = calls::analyze(
         &mut ctx,
         &mut facts,

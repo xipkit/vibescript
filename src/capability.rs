@@ -196,8 +196,8 @@ impl HostMethod {
     }
 
     /// Supplies immutable compiled contracts to the internal checker.
-    pub(crate) fn compiled_signature(&self) -> Option<&crate::signature::Compiled> {
-        self.definition.signature.as_deref()
+    pub(crate) fn compiled_signature(&self) -> Option<Arc<crate::signature::Compiled>> {
+        self.definition.signature.clone()
     }
 
     /// Reports whether this method can invoke an attached script block.
@@ -332,6 +332,11 @@ impl BoundMethod {
 
     pub fn signature(&self) -> Option<&crate::signature::Compiled> {
         self.definition.signature.as_deref()
+    }
+
+    /// Retains compiled checker metadata without retaining the callback or its grant.
+    pub fn compiled_signature(&self) -> Option<Arc<crate::signature::Compiled>> {
+        self.definition.signature.clone()
     }
 
     pub fn invoke(

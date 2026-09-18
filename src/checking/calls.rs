@@ -9,7 +9,10 @@ use super::{
     sources::{CallableId, SourceId},
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program};
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
+};
 
 mod context;
 mod hosts;
@@ -221,14 +224,14 @@ impl Calls for Unavailable {
 }
 
 #[derive(Debug)]
-pub(super) struct Host<'a> {
+pub(super) struct Host {
     pub params: Buffer<Option<Fact>>,
     pub required: usize,
     pub result: Fact,
     pub constrained: bool,
     pub unresolved: bool,
     accepts_block: bool,
-    source: Option<&'a crate::signature::Compiled>,
+    source: Option<Arc<crate::signature::Compiled>>,
     blocks: HostBlocks,
     granted: bool,
 }
@@ -240,12 +243,12 @@ enum HostBlocks {
     Rejected,
 }
 
-impl<'a> Host<'a> {
+impl Host {
     /// Reads a compiled registration without constructing a grant or invoking host code.
     pub fn registered(
         ctx: &mut CallContext,
         facts: &mut Facts,
-        value: &'a crate::capability::Registered,
+        value: &crate::capability::Registered,
     ) -> Result<Self> {
         match value {
             crate::capability::Registered::Callback(_) => {
@@ -266,9 +269,14 @@ impl<'a> Host<'a> {
     pub fn bound(
         ctx: &mut CallContext,
         facts: &mut Facts,
-        value: &'a crate::capability::BoundMethod,
+        value: &crate::capability::BoundMethod,
     ) -> Result<Self> {
-        let mut host = Self::method(ctx, facts, value.signature(), value.supports_block())?;
+        let mut host = Self::method(
+            ctx,
+            facts,
+            value.compiled_signature(),
+            value.supports_block(),
+        )?;
         host.granted = value.fresh_grant();
         Ok(host)
     }
@@ -276,13 +284,14 @@ impl<'a> Host<'a> {
     fn method(
         ctx: &mut CallContext,
         facts: &mut Facts,
-        signature: Option<&'a crate::signature::Compiled>,
+        signature: Option<Arc<crate::signature::Compiled>>,
         supports_block: bool,
     ) -> Result<Self> {
+        let constrained = signature.is_some();
         let mut host = Self::new(ctx, facts, signature)?;
         host.blocks = if supports_block {
             HostBlocks::Possible
-        } else if signature.is_some() {
+        } else if constrained {
             HostBlocks::Ignored
         } else {
             HostBlocks::Rejected
@@ -290,13 +299,13 @@ impl<'a> Host<'a> {
         Ok(host)
     }
 
-    /// Borrows metadata so named contracts use each call's current root and source bindings.
+    /// Retains metadata so named contracts use each call's current root and source bindings.
     pub fn new(
         ctx: &mut CallContext,
         facts: &mut Facts,
-        signature: Option<&'a crate::signature::Compiled>,
+        signature: Option<Arc<crate::signature::Compiled>>,
     ) -> Result<Self> {
-        let mut host = Self::resolved(ctx, facts, signature, |_, _| Ok(None))?;
+        let mut host = Self::resolved(ctx, facts, signature.as_deref(), |_, _| Ok(None))?;
         host.source = signature;
         Ok(host)
     }
@@ -345,10 +354,10 @@ pub(super) struct World<'a> {
     /// Identity owner used when constructing the source declaration contracts.
     pub source_owner: usize,
     pub contracts: &'a [Fact],
-    pub hosts: &'a [Host<'a>],
+    pub hosts: &'a [Host],
     // Callers supply unique names and admitted facts or bound descriptors, never factories.
     pub globals: &'a [(Value, Target)],
-    pub inputs: &'a [&'a Value],
+    pub inputs: &'a [Value],
 }
 
 #[derive(Debug)]
@@ -405,7 +414,7 @@ struct Solver<'a> {
     whole: bool,
     source: SourceId,
     world: World<'a>,
-    values: super::inputs::Values<'a>,
+    values: super::inputs::Values,
     layouts: &'a Layouts,
     jobs: Buffer<Job>,
     buckets: Buffer<usize>,
@@ -445,13 +454,13 @@ pub(super) fn analyze(
 }
 
 /// Retains callable metadata discovered while importing concrete entry arguments.
-pub(super) fn analyze_with_values<'a>(
+pub(super) fn analyze_with_values(
     ctx: &mut CallContext,
     facts: &mut Facts,
-    world: World<'a>,
+    world: World<'_>,
     function: usize,
     inputs: &[Input],
-    values: super::inputs::Values<'a>,
+    values: super::inputs::Values,
     failures: &[Failure],
 ) -> Result<Analysis> {
     analyze_entry(
@@ -477,12 +486,12 @@ pub(super) struct General {
     pub scope: blocks::Scope,
 }
 
-pub(super) fn analyze_general<'a>(
+pub(super) fn analyze_general(
     ctx: &mut CallContext,
     facts: &mut Facts,
-    world: World<'a>,
+    world: World<'_>,
     entry: General,
-    values: super::inputs::Values<'a>,
+    values: super::inputs::Values,
 ) -> Result<Analysis> {
     let General {
         function,
@@ -520,12 +529,12 @@ struct Entry<'a> {
     scope: blocks::Scope,
 }
 
-fn analyze_entry<'a>(
+fn analyze_entry(
     ctx: &mut CallContext,
     facts: &mut Facts,
-    world: World<'a>,
+    world: World<'_>,
     entry: Entry<'_>,
-    values: super::inputs::Values<'a>,
+    values: super::inputs::Values,
 ) -> Result<Analysis> {
     let Entry {
         function,
@@ -1093,7 +1102,7 @@ impl Calls for Solver<'_> {
         Ok(index.source == self.source
             && self
                 .values
-                .host(&self.world, index.index)
+                .host(ctx, &self.world, index.index)?
                 .is_some_and(|host| host.blocks == HostBlocks::Possible))
     }
 
@@ -1166,7 +1175,7 @@ impl Calls for Solver<'_> {
             Target::Unsupported
         } else {
             match target {
-                Callable::Host(index) if self.values.host(&self.world, index).is_some() => {
+                Callable::Host(index) if self.values.host(ctx, &self.world, index)?.is_some() => {
                     Target::Host(self.source.callable(index))
                 }
                 Callable::Function(index) if index < self.world.program.functions.len() => {

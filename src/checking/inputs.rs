@@ -4,6 +4,7 @@ use super::{
     facts::{Atom, Callable, Fact, Facts},
 };
 use crate::{CallContext, Result, Value, budget::Buffer, value::Kind};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Loaded {
@@ -22,32 +23,85 @@ impl Loaded {
     }
 }
 
-pub(super) struct Values<'a> {
+pub(super) struct Values {
     pub writers: Option<[bool; 2]>,
-    loaded: Buffer<Option<Loaded>>,
-    hosts: Buffer<Host<'a>>,
-    methods: Buffer<(&'a crate::capability::BoundMethod, usize)>,
+    sources: Buffer<Source>,
 }
 
-impl<'a> Values<'a> {
+struct Source {
+    owner: usize,
+    registered: usize,
+    loaded: Buffer<Option<Loaded>>,
+    methods: Buffer<Method>,
+}
+
+struct Method {
+    descriptor: Arc<crate::capability::BoundMethod>,
+    host: Host,
+}
+
+impl Values {
     pub fn new() -> Self {
         Self {
             writers: None,
-            loaded: Buffer::empty(),
-            hosts: Buffer::empty(),
-            methods: Buffer::empty(),
+            sources: Buffer::empty(),
         }
     }
 
-    pub fn cached(&self, index: usize) -> Option<Loaded> {
-        self.loaded.data.get(index).copied().flatten()
+    fn find_source(&self, ctx: &mut CallContext, world: &World<'_>) -> Result<Option<usize>> {
+        ctx.checkpoint()?;
+        for (index, source) in self.sources.data.iter().enumerate() {
+            ctx.charge(1)?;
+            if source.owner == world.source_owner {
+                if source.registered != world.hosts.len() {
+                    return Err(crate::Error::new(
+                        crate::ErrorKind::Runtime,
+                        "checker source host table changed",
+                    ));
+                }
+                return Ok(Some(index));
+            }
+        }
+        Ok(None)
     }
 
-    pub fn host<'b>(&'b self, world: &'b World<'a>, index: usize) -> Option<&'b Host<'a>> {
+    fn source(&mut self, ctx: &mut CallContext, world: &World<'_>) -> Result<usize> {
+        if let Some(index) = self.find_source(ctx, world)? {
+            return Ok(index);
+        }
+        let index = self.sources.data.len();
+        self.sources.push(
+            ctx,
+            Source {
+                owner: world.source_owner,
+                registered: world.hosts.len(),
+                loaded: Buffer::empty(),
+                methods: Buffer::empty(),
+            },
+        )?;
+        Ok(index)
+    }
+
+    /// Selects metadata in the defining source's registered and admitted host tables.
+    pub fn host<'a>(
+        &'a self,
+        ctx: &mut CallContext,
+        world: &'a World<'_>,
+        index: usize,
+    ) -> Result<Option<&'a Host>> {
+        ctx.charge(1)?;
+        let source = self.find_source(ctx, world)?;
         if index < world.hosts.len() {
-            world.hosts.get(index)
+            Ok(world.hosts.get(index))
         } else {
-            self.hosts.data.get(index - world.hosts.len())
+            let Some(source) = source else {
+                return Ok(None);
+            };
+            Ok(self.sources.data[source]
+                .methods
+                .data
+                .get(index - world.hosts.len())
+                .map(|method| &method.host))
         }
     }
 
@@ -56,20 +110,22 @@ impl<'a> Values<'a> {
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        world: &World<'a>,
+        world: &World<'_>,
         index: usize,
     ) -> Result<Loaded> {
         ctx.checkpoint()?;
-        if let Some(value) = self.cached(index) {
-            return Ok(value);
-        }
-        let Some(&source) = world.inputs.get(index) else {
+        let Some(source) = world.inputs.get(index) else {
             return Ok(Loaded::unavailable());
         };
-        self.loaded.ensure(ctx, index + 1)?;
-        if self.loaded.data.len() <= index {
-            ctx.charge((index + 1 - self.loaded.data.len()) as u64)?;
-            self.loaded.data.resize(index + 1, None);
+        let home = self.source(ctx, world)?;
+        let loaded = &mut self.sources.data[home].loaded;
+        if let Some(value) = loaded.data.get(index).copied().flatten() {
+            return Ok(value);
+        }
+        loaded.ensure(ctx, index + 1)?;
+        if loaded.data.len() <= index {
+            ctx.charge((index + 1 - loaded.data.len()) as u64)?;
+            loaded.data.resize(index + 1, None);
         }
         let value = match self.argument(ctx, facts, world, source) {
             Ok(value) => Loaded {
@@ -89,7 +145,7 @@ impl<'a> Values<'a> {
                 }
             }
         };
-        self.loaded.data[index] = Some(value);
+        self.sources.data[home].loaded.data[index] = Some(value);
         Ok(value)
     }
 
@@ -98,31 +154,42 @@ impl<'a> Values<'a> {
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        world: &super::calls::World<'a>,
-        value: &'a Value,
+        world: &World<'_>,
+        value: &Value,
     ) -> Result<admission::Admitted> {
         let mut nominal = false;
         let mut value = admission::value(ctx, facts, value, |ctx, facts, value| {
             Ok(Some(match &value.0 {
                 Kind::Host(method) => {
+                    let home = self.source(ctx, world)?;
+                    let methods = &mut self.sources.data[home].methods;
                     let mut index = None;
-                    for (previous, slot) in &self.methods.data {
+                    for (slot, previous) in methods.data.iter().enumerate() {
                         ctx.charge(1)?;
-                        if previous.same(method) {
-                            index = Some(*slot);
+                        if previous.descriptor.same(method) {
+                            index = Some(slot);
                             break;
                         }
                     }
                     let index = if let Some(index) = index {
                         index
                     } else {
-                        let index = world.hosts.len() + self.hosts.data.len();
+                        let index = methods.data.len();
                         let host = Host::bound(ctx, facts, method)?;
-                        self.hosts.push(ctx, host)?;
-                        self.methods.push(ctx, (method, index))?;
+                        methods.push(
+                            ctx,
+                            Method {
+                                descriptor: method.clone(),
+                                host,
+                            },
+                        )?;
                         index
                     };
-                    facts.callable(ctx, world.source_owner, Callable::Host(index))?
+                    facts.callable(
+                        ctx,
+                        world.source_owner,
+                        Callable::Host(world.hosts.len() + index),
+                    )?
                 }
                 Kind::Function(function) => {
                     let owner =
@@ -183,3 +250,6 @@ impl<'a> Values<'a> {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests;

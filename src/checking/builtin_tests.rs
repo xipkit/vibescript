@@ -293,7 +293,7 @@ fn registered_builtin_overrides_use_signatures_without_executing_host_code() {
     let crate::value::Kind::Host(method) = &value.0 else {
         unreachable!()
     };
-    let host = Host::new(&mut ctx, &mut facts, method.signature()).unwrap();
+    let host = Host::new(&mut ctx, &mut facts, method.compiled_signature()).unwrap();
     let report = calls::analyze(
         &mut ctx,
         &mut facts,

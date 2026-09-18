@@ -307,9 +307,9 @@ fn repeated_method_descriptors_share_metadata_but_keep_distinct_grants() {
         .0;
     assert_eq!(a, b);
     assert_ne!(a, old);
-    assert!(values.host(&world, 0).is_some());
-    assert!(values.host(&world, 1).is_some());
-    assert!(values.host(&world, 2).is_none());
+    assert!(values.host(&mut ctx, &world, 0).unwrap().is_some());
+    assert!(values.host(&mut ctx, &world, 1).unwrap().is_some());
+    assert!(values.host(&mut ctx, &world, 2).unwrap().is_none());
     witness(&script, &options, "[7, 9]", true);
 }
 

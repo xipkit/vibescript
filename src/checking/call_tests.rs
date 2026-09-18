@@ -338,7 +338,7 @@ fn registered_host_contracts_are_read_without_running_callbacks_or_validators() 
         let crate::value::Kind::Host(method) = &value.0 else {
             panic!()
         };
-        let host = Host::new(&mut ctx, &mut facts, method.signature()).unwrap();
+        let host = Host::new(&mut ctx, &mut facts, method.compiled_signature()).unwrap();
         let result = calls::analyze(
             &mut ctx,
             &mut facts,
@@ -916,7 +916,7 @@ fn missing_host_signature_types_produce_catchable_diagnostics() {
         let crate::value::Kind::Host(method) = &value.0 else {
             panic!()
         };
-        let host = Host::new(&mut ctx, &mut facts, method.signature()).unwrap();
+        let host = Host::new(&mut ctx, &mut facts, method.compiled_signature()).unwrap();
         let result = calls::analyze(
             &mut ctx,
             &mut facts,

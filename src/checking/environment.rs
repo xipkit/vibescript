@@ -7,7 +7,8 @@ use super::{
     calls::{Host, Target, World},
     facts::{Atom, Fact, Facts},
 };
-use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer};
+use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer, code::Code};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub(super) enum Incomplete {
@@ -15,23 +16,23 @@ pub(super) enum Incomplete {
 }
 
 /// A metadata snapshot for analysis; this does not bind grants or execute initializers.
-pub(super) struct Environment<'a> {
-    script: &'a Script,
+pub(super) struct Environment {
+    code: Arc<Code>,
     owner: usize,
     contracts: Buffer<Fact>,
-    hosts: Buffer<Host<'a>>,
-    values: Buffer<&'a Value>,
+    hosts: Buffer<Host>,
+    values: Buffer<Value>,
     globals: Buffer<(Value, Target)>,
     pub incomplete: Buffer<Incomplete>,
 }
 
-impl<'a> Environment<'a> {
+impl Environment {
     /// Reads compiled registrations and supplied values without invoking host code.
     pub fn new(
         ctx: &mut CallContext,
         facts: &mut Facts,
-        script: &'a Script,
-        options: &'a CallOptions,
+        script: &Script,
+        options: &CallOptions,
     ) -> Result<Self> {
         ctx.checkpoint()?;
         if script.inner.strict_effects {
@@ -39,7 +40,7 @@ impl<'a> Environment<'a> {
         }
         let code = &script.inner.code;
         let mut result = Self {
-            script,
+            code: code.clone(),
             owner: facts.source_owner(ctx, code, None)?,
             contracts: Buffer::empty(),
             hosts: Buffer::empty(),
@@ -65,7 +66,7 @@ impl<'a> Environment<'a> {
         for (name, value) in &options.globals {
             let name = ctx.bytes(name.as_bytes())?;
             let index = result.values.data.len();
-            result.values.push(ctx, value)?;
+            result.values.push(ctx, value.clone())?;
             result.bind(ctx, name, Target::Deferred(index))?;
         }
         Ok(result)
@@ -84,7 +85,7 @@ impl<'a> Environment<'a> {
     /// Exposes an immutable view for the interprocedural solver.
     pub fn world(&self) -> World<'_> {
         World {
-            program: &self.script.inner.code.program,
+            program: &self.code.program,
             source_owner: self.owner,
             contracts: &self.contracts.data,
             hosts: &self.hosts.data,
