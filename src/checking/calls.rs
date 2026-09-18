@@ -15,6 +15,8 @@ use context::{Context, Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Target {
+    /// An admitted root value or a value selected before call arguments run.
+    Value(Fact),
     Builtin(crate::builtin::Builtin),
     Offset(Fact),
     Function(usize),
@@ -35,6 +37,11 @@ pub(super) struct Outcome {
 }
 
 pub(super) trait Calls {
+    /// Copies admitted root facts without evaluating host code.
+    fn roots(&mut self, ctx: &mut CallContext) -> Result<Buffer<Root>> {
+        ctx.checkpoint()?;
+        Ok(Buffer::empty())
+    }
     /// Records host bindings that may replace source type declarations.
     fn type_bindings(
         &mut self,
@@ -59,6 +66,11 @@ pub(super) trait Calls {
 }
 
 pub(super) struct Unavailable;
+
+pub(super) struct Root {
+    pub name: Value,
+    pub value: Fact,
+}
 
 impl Calls for Unavailable {
     fn global(&mut self, ctx: &mut CallContext, _: &str) -> Result<bool> {
@@ -148,7 +160,7 @@ pub(super) struct World<'a> {
     pub source_owner: usize,
     pub contracts: &'a [Fact],
     pub hosts: &'a [Host],
-    // Callers supply already-bound descriptors; analysis never runs factories.
+    // Callers supply unique names and admitted facts or bound descriptors, never factories.
     pub globals: &'a [(Value, Target)],
 }
 
@@ -235,6 +247,8 @@ pub(super) fn analyze(
     };
     let mut context = Context::plain();
     context.globals = Globals::initial(ctx, facts, solver.world.program)?;
+    let roots = solver.roots(ctx)?;
+    context.globals.roots(ctx, &roots.data)?;
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     while let Some(index) = solver.queue.data.pop() {
         ctx.charge(1)?;
@@ -591,6 +605,22 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn roots(&mut self, ctx: &mut CallContext) -> Result<Buffer<Root>> {
+        let mut roots = Buffer::empty();
+        for (name, target) in self.world.globals {
+            ctx.charge(1)?;
+            if let Target::Value(value) = target {
+                roots.push(
+                    ctx,
+                    Root {
+                        name: name.clone(),
+                        value: *value,
+                    },
+                )?;
+            }
+        }
+        Ok(roots)
+    }
     fn type_bindings(
         &mut self,
         ctx: &mut CallContext,
@@ -795,7 +825,7 @@ impl Calls for Solver<'_> {
                 outcome.value = Atom::Unknown.fact();
                 outcome.throws = u8::MAX;
             }
-            Target::Unsupported => outcome.incomplete = true,
+            Target::Unsupported | Target::Value(_) => outcome.incomplete = true,
             Target::NonCallable => outcome.failures.push(ctx, Failure::NonCallable)?,
             Target::Undefined => outcome.failures.push(ctx, Failure::Undefined)?,
         }

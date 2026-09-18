@@ -78,6 +78,10 @@ impl Graph {
                 | Op::Method(_, _)
                 | Op::CallMember(_)
                 | Op::CallValue
+                | Op::ResolveCall(..)
+                | Op::ResolveGlobalCall(_)
+                | Op::CallName(..)
+                | Op::RootCall(..)
                 | Op::Mutate(_, _)
                 | Op::AddressMember(_)
                 | Op::AddressNamespaceField(_)

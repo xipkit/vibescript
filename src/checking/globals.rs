@@ -6,7 +6,7 @@ use super::{
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 use std::hash::{Hash, Hasher};
 
-// Call contexts use program-global indices, independent of the callee's local layout.
+// Call contexts put supplied roots after compiled globals, independent of local layout.
 #[derive(Debug)]
 pub(super) struct Globals {
     pub values: Buffer<Fact>,
@@ -41,6 +41,15 @@ impl Globals {
         globals.written.extend(ctx, &self.written.data)?;
         globals.pending = self.pending.snapshot(ctx)?;
         Ok(globals)
+    }
+
+    pub fn roots(&mut self, ctx: &mut CallContext, roots: &[super::calls::Root]) -> Result<()> {
+        for root in roots {
+            ctx.charge(1)?;
+            self.values.push(ctx, root.value)?;
+            self.written.push(ctx, false)?;
+        }
+        Ok(())
     }
 
     pub fn hash(&self, ctx: &mut CallContext, hash: &mut impl Hasher) -> Result<()> {

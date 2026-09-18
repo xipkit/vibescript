@@ -14,7 +14,8 @@ impl Walker<'_> {
         for index_arm in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, index_arm);
-            let address = if matches!((self.facts.node(arm), &self.program.globals[index].1.0), (Node::Builtin(current), Kind::Builtin(original)) if current==original)
+            let original = self.program.globals.get(index).map(|(_, value)| &value.0);
+            let address = if matches!((self.facts.node(arm), original), (Node::Builtin(current), Some(Kind::Builtin(original))) if current==original)
             {
                 // Original builtin reads precede arguments and produce detached temporary values.
                 let mut next = state.snapshot(self.ctx)?;
@@ -35,6 +36,11 @@ impl Walker<'_> {
     }
 
     pub(super) fn root_target(&mut self, state: &State, name: &str) -> Result<Target> {
+        if let Some(index) = self.root_index(name)? {
+            return Ok(Target::Value(
+                state.locals.get(self.ctx, state.global_base + index)?.value,
+            ));
+        }
         let target = self.calls.resolve(self.ctx, name)?;
         self.ctx.work_bytes(name.len())?;
         if matches!(target, Target::Builtin(_) | Target::NonCallable)
@@ -104,7 +110,7 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, index_arm);
             if let Node::Builtin(builtin) = *self.facts.node(arm) {
-                if matches!(self.program.globals[index].1.0, Kind::Builtin(original) if original == builtin)
+                if matches!(self.program.globals.get(index).map(|(_, value)| &value.0), Some(Kind::Builtin(original)) if *original == builtin)
                     && (auto || !builtin.auto())
                 {
                     let mut next = state.snapshot(self.ctx)?;

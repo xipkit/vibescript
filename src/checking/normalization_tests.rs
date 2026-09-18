@@ -53,7 +53,7 @@ pub(super) fn analyze(
     )
 }
 
-fn observed(
+pub(super) fn observed(
     ctx: &mut CallContext,
     facts: &mut Facts,
     program: &bytecode::Program,

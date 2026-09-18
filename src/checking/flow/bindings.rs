@@ -82,6 +82,9 @@ impl Walker<'_> {
 
     fn read_fallback(&mut self, state: &mut State, pc: usize, name: usize) -> Result<bool> {
         let name = &self.program.members[name];
+        if let Some(index) = self.root_index(name)? {
+            return self.read_global(state, pc, index, None);
+        }
         if self.calls.global(self.ctx, name)? {
             self.incomplete(pc)?;
             return Ok(false);

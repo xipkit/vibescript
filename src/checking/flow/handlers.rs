@@ -203,6 +203,10 @@ impl Walker<'_> {
     fn declare_slots(&mut self, state: &mut State, pc: usize, slots: &[usize]) -> Result<()> {
         for &slot in slots {
             self.ctx.charge(1)?;
+            let Some(Op::Declare(slot)) = self.root_op(state, Op::Declare(slot))? else {
+                self.incomplete(pc)?;
+                return Ok(());
+            };
             let binding = state.locals.get(self.ctx, slot)?;
             if binding.missing {
                 let value = self

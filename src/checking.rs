@@ -139,3 +139,6 @@ mod global_type_tests;
 
 #[cfg(test)]
 mod object_tests;
+
+#[cfg(test)]
+mod root_tests;

@@ -14,6 +14,13 @@ impl Walker<'_> {
         let mut bindings = Bindings::new();
         let hosts = bindings.scope(self.ctx)?;
         self.calls.type_bindings(self.ctx, &mut bindings, hosts)?;
+        for (index, root) in self.roots.iter().enumerate() {
+            self.ctx.charge(1)?;
+            let slot = state.global_base + self.program.globals.len() + index;
+            let value = state.locals.get(self.ctx, slot)?.value;
+            let binding = bindings.current(self.ctx, self.facts, value)?;
+            bindings.insert(self.ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
+        }
         let sources = self.layouts.type_sources(self.ctx, self.function_index)?;
         let mut levels: Buffer<(usize, Scope)> = Buffer::empty();
         for source in sources {
