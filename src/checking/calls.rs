@@ -69,6 +69,21 @@ impl Outcome {
 }
 
 pub(super) trait Calls {
+    /// Analyzes a namespace body with its declaring bindings and without a script block.
+    fn initialize(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: &blocks::Closure,
+        _: u16,
+        _: &Globals,
+    ) -> Result<Outcome> {
+        ctx.checkpoint()?;
+        Ok(Outcome {
+            incomplete: true,
+            ..Outcome::empty()
+        })
+    }
     /// Reports configured writer presence without retaining or invoking the callback.
     fn writer(&mut self, ctx: &mut CallContext, _: crate::output::Kind) -> Result<Option<bool>> {
         ctx.charge(1)?;
@@ -565,12 +580,12 @@ fn analyze_entry<'a>(
             .unwrap_or(&job.context)
             .snapshot(ctx)?;
         let incoming = context.incoming(ctx)?;
-        let block = if let Kind::Invoked { given } = context.kind {
+        let block = if matches!(context.kind, Kind::Invoked { .. } | Kind::Initializing) {
             Some(blocks::Inputs {
                 arguments: &context.arguments.data,
                 captures: &context.captures.data,
                 pending: &context.pending,
-                given,
+                given: matches!(context.kind, Kind::Invoked { given: true }),
                 inherited: &context.inherited.data,
             })
         } else {
@@ -578,6 +593,7 @@ fn analyze_entry<'a>(
         };
         let function = solver.jobs.data[index].function;
         let body = flow::Body {
+            ambient: context.ambient,
             general: context.kind == Kind::General,
             receiver: context.receiver,
             constructor: context.constructor,
@@ -882,6 +898,11 @@ impl Solver<'_> {
             let matched = match target {
                 Ancestor::Function(function, context) => {
                     self.jobs.data[index].function == function
+                        && self.jobs.data[index].context.globals.same_initialization(
+                            ctx,
+                            self.world.program,
+                            &context.globals,
+                        )?
                         && self.jobs.data[index].context.compatible(ctx, context)?
                 }
                 Ancestor::Expanding(function, context) => {
@@ -923,6 +944,17 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn initialize(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        body: &blocks::Closure,
+        current_error: u16,
+        globals: &Globals,
+    ) -> Result<Outcome> {
+        self.initialize_body(ctx, facts, body, current_error, globals)
+    }
+
     fn writer(&mut self, ctx: &mut CallContext, kind: crate::output::Kind) -> Result<Option<bool>> {
         ctx.charge(1)?;
         Ok(self
@@ -1155,6 +1187,7 @@ impl Calls for Solver<'_> {
                 }
                 let inputs = if matches!(target, Target::Block(_)) {
                     context.receiver = context.block_receiver;
+                    context.ambient = context.block_ambient;
                     context.kind = Kind::Invoked {
                         given: args.block.as_ref().unwrap().given,
                     };

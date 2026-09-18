@@ -954,7 +954,7 @@ fn general_reports_obey_quotas_cancellation_and_deadlines_without_effects() {
 }
 
 #[test]
-fn checked_top_level_preserves_source_order_and_rejects_unsupported_captures() {
+fn checked_top_level_preserves_source_order_and_tracks_ambient_captures() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
     let mut engine = Engine::new();
@@ -994,18 +994,28 @@ fn checked_top_level_preserves_source_order_and_rejects_unsupported_captures() {
     let script = engine
         .compile("n=7;module M;effect();C=n;end;M::C")
         .unwrap();
+    let report = script
+        .check_call("__main__", &[], &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 2);
+    let outcome = executed(
+        script
+            .checked_call("__main__", &[], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(outcome.value.as_int(), Some(7));
+    assert_eq!(effects.load(Ordering::Relaxed), 3);
+    let script = engine
+        .compile("n=false;module M;effect();C=n+1;end;M::C")
+        .unwrap();
     let CheckedOutcome::Rejected(report) = script
         .checked_call("__main__", &[], CallOptions::default())
         .unwrap()
     else {
-        panic!("unsupported ambient capture executed");
+        panic!("invalid ambient arithmetic executed");
     };
-    assert!(report.diagnostics.is_empty());
-    assert!(!report.incomplete.is_empty());
-    assert_eq!(effects.load(Ordering::Relaxed), 2);
-    assert_eq!(
-        script.run(CallOptions::default()).unwrap().value.as_int(),
-        Some(7)
-    );
+    assert!(!report.diagnostics.is_empty());
+    assert!(report.incomplete.is_empty());
     assert_eq!(effects.load(Ordering::Relaxed), 3);
 }

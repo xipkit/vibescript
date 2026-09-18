@@ -357,7 +357,13 @@ impl Walker<'_> {
         name: &str,
     ) -> Result<bool> {
         self.ctx.work_bytes(name.len())?;
-        let address = if let Some(&index) = self.program.declaration_names.get(name) {
+        let address = if let Some((slot, binding)) = self.ambient_binding(state, name)? {
+            if binding.missing {
+                self.incomplete(pc)?;
+                return Ok(false);
+            }
+            Address::new(Some(slot), binding.value)
+        } else if let Some(&index) = self.program.declaration_names.get(name) {
             Address::new(None, self.declaration_value(state, index)?)
         } else {
             let mut global = None;
@@ -496,9 +502,6 @@ impl Walker<'_> {
             )?;
             self.native_continue(pc, skipped)?;
         }
-        if !self.function.local_names.is_empty() {
-            return self.incomplete(pc).map(Some);
-        }
         state.locals.set(
             self.ctx,
             slot,
@@ -508,11 +511,8 @@ impl Walker<'_> {
             },
         )?;
         let body = self.program.namespaces[module].body.unwrap();
-        let edges = self.invoke(state, pc, Target::Function(body), Arguments::new())?;
-        if edges.is_none() {
-            state.stack.data.pop().unwrap();
-        }
-        Ok(edges)
+        self.initialize_with_ambient(state, pc, body)?;
+        Ok(Some([None, None]))
     }
 
     pub(in super::super) fn complete_namespace(&mut self, state: &mut State) -> Result<()> {

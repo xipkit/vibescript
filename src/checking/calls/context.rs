@@ -8,6 +8,7 @@ pub(super) enum Kind {
     Entry { general: bool },
     General,
     Plain,
+    Initializing,
     Receiving { function: usize, given: bool },
     Invoked { given: bool },
 }
@@ -16,6 +17,8 @@ pub(super) struct Context {
     pub kind: Kind,
     pub receiver: Option<Fact>,
     pub block_receiver: Option<Fact>,
+    pub ambient: Option<usize>,
+    pub block_ambient: Option<usize>,
     pub constructor: bool,
     pub globals: Globals,
     pub locals: usize,
@@ -31,6 +34,8 @@ impl Context {
             kind: Kind::Plain,
             receiver: None,
             block_receiver: None,
+            ambient: None,
+            block_ambient: None,
             constructor: false,
             globals: Globals::empty(),
             locals: 0,
@@ -49,6 +54,7 @@ impl Context {
             given: block.given,
         };
         result.block_receiver = block.receiver;
+        result.block_ambient = block.ambient;
         result.pending = block.pending.snapshot(ctx)?;
         result.locals = block.locals;
         result.inherited.extend(ctx, &block.inherited.data)?;
@@ -73,6 +79,8 @@ impl Context {
         next.kind = self.kind;
         next.receiver = self.receiver;
         next.block_receiver = self.block_receiver;
+        next.ambient = self.ambient;
+        next.block_ambient = self.block_ambient;
         next.constructor = self.constructor;
         next.globals = self.globals.snapshot(ctx)?;
         next.pending = self.pending.snapshot(ctx)?;
@@ -90,6 +98,8 @@ impl Context {
         self.kind.hash(hash);
         self.receiver.hash(hash);
         self.block_receiver.hash(hash);
+        self.ambient.hash(hash);
+        self.block_ambient.hash(hash);
         self.constructor.hash(hash);
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         self.locals.hash(hash);
@@ -105,6 +115,8 @@ impl Context {
         Ok(self.kind == other.kind
             && self.receiver == other.receiver
             && self.block_receiver == other.block_receiver
+            && self.ambient == other.ambient
+            && self.block_ambient == other.block_ambient
             && self.constructor == other.constructor
             && self.locals == other.locals
             && self.inherited.data == other.inherited.data
@@ -119,6 +131,8 @@ impl Context {
         if self.kind != other.kind
             || self.receiver != other.receiver
             || self.block_receiver != other.block_receiver
+            || self.ambient != other.ambient
+            || self.block_ambient != other.block_ambient
             || self.constructor != other.constructor
             || self.locals != other.locals
             || self.inherited.data != other.inherited.data
@@ -142,6 +156,8 @@ impl Context {
         Ok(self.kind == next.kind
             && self.receiver == next.receiver
             && self.block_receiver == next.block_receiver
+            && self.ambient == next.ambient
+            && self.block_ambient == next.block_ambient
             && self.constructor == next.constructor
             && self.locals == next.locals
             && ((self.inherited.data.len() < next.inherited.data.len()
@@ -179,11 +195,14 @@ impl Context {
 
     pub fn incoming(&self, ctx: &mut CallContext) -> Result<Option<Closure>> {
         ctx.charge(1)?;
-        let (function, receiver, given, locals, inherited, base) = match self.kind {
-            Kind::Plain | Kind::General | Kind::Entry { .. } => return Ok(None),
+        let (function, receiver, ambient, given, locals, inherited, base) = match self.kind {
+            Kind::Plain | Kind::General | Kind::Initializing | Kind::Entry { .. } => {
+                return Ok(None);
+            }
             Kind::Receiving { function, given } => (
                 function,
                 self.block_receiver,
+                self.block_ambient,
                 given,
                 self.locals,
                 &self.inherited.data[..],
@@ -196,6 +215,7 @@ impl Context {
                 (
                     first.function,
                     first.receiver,
+                    first.ambient,
                     first.given,
                     first.locals,
                     inherited,
@@ -235,6 +255,7 @@ impl Context {
         }
         Ok(Some(Closure {
             receiver,
+            ambient,
             pending,
             destinations: Buffer::empty(),
             function,
@@ -276,6 +297,7 @@ mod tests {
             }
             let closure = Closure {
                 receiver: None,
+                ambient: None,
                 pending: Pending::new(),
                 destinations: Buffer::empty(),
                 function: 1,
@@ -352,6 +374,7 @@ mod tests {
                     4 => {
                         let closure = Closure {
                             receiver: None,
+                            ambient: None,
                             pending: Pending::new(),
                             destinations: Buffer::empty(),
                             function: 1,

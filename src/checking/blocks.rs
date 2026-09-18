@@ -53,6 +53,7 @@ pub(super) struct Link {
 pub(super) struct Layer {
     pub function: usize,
     pub receiver: Option<Fact>,
+    pub ambient: Option<usize>,
     pub given: bool,
     pub locals: usize,
 }
@@ -61,6 +62,8 @@ pub(super) struct Layer {
 pub(super) struct Closure {
     pub function: usize,
     pub receiver: Option<Fact>,
+    // Hidden local slots carry the declaring frame's raw bindings, separately from lexical aliases.
+    pub ambient: Option<usize>,
     pub given: bool,
     pub locals: usize,
     // Each layer belongs to an earlier lexical function home, ordered nearest first.
@@ -85,6 +88,7 @@ impl Closure {
             destinations,
             function: self.function,
             receiver: self.receiver,
+            ambient: self.ambient,
             given: self.given,
             locals: self.locals,
             inherited,
@@ -99,6 +103,7 @@ impl Closure {
     pub fn join(&mut self, ctx: &mut CallContext, facts: &mut Facts, other: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         assert_eq!((self.function, self.given), (other.function, other.given));
+        assert_eq!(self.ambient, other.ambient);
         assert_eq!(self.locals, other.locals);
         assert_eq!(self.inherited.data, other.inherited.data);
         assert_eq!(self.captures.data.len(), other.captures.data.len());

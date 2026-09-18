@@ -8,6 +8,30 @@ use std::{
 const VIBES: &str = env!("CARGO_BIN_EXE_vibes");
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
+#[test]
+fn checks_initializer_captures_before_allowing_script_output() {
+    let files = Files::new();
+    let path = files.write(
+        "ambient.vibe",
+        "x=[1];module M;puts 'effect';Result=x+x.push(2);end;[x,M::Result]",
+    );
+    vibes(&[&path, "--function", "__main__", "--check"]).expect(0, "", "");
+    vibes(&[&path, "--function", "__main__", "--checked"]).expect(
+        0,
+        "effect\n[[1,2],[1,1,2]]\n",
+        "",
+    );
+    let path = files.write(
+        "invalid-ambient.vibe",
+        "x=false;module M;puts 'effect';C=x+1;end;M::C",
+    );
+    let rejected = vibes(&[&path, "--function", "__main__", "--checked"]);
+    assert_eq!(rejected.status, Some(1));
+    assert!(rejected.stdout.is_empty());
+    assert!(rejected.stderr.contains(&path));
+    assert!(rejected.stderr.contains("nothing was executed"));
+}
+
 /// A unique temporary directory of script files, removed when the test finishes.
 struct Files(PathBuf);
 

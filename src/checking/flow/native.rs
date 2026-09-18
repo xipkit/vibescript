@@ -54,6 +54,12 @@ impl Walker<'_> {
             {
                 return Ok((true, true));
             }
+            if let Some((_, binding)) = self.ambient_binding(state, name)? {
+                if !binding.missing {
+                    return Ok((true, true));
+                }
+                possible = true;
+            }
             for host in &self.program.hosts {
                 if crate::enums::compare_names(self.ctx, host.as_bytes(), name.as_bytes())?
                     == std::cmp::Ordering::Equal

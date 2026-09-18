@@ -108,6 +108,25 @@ impl Globals {
         self.pending.hash(ctx, hash)
     }
 
+    /// Keeps recursive calls on either side of initialization in separate contexts.
+    pub fn same_initialization(
+        &self,
+        ctx: &mut CallContext,
+        program: &Program,
+        other: &Self,
+    ) -> Result<bool> {
+        ctx.charge(1)?;
+        for module in 0..program.namespaces.len() {
+            ctx.charge(1)?;
+            let a = super::namespaces::slot(self.values.data.len(), program, module) + 1;
+            let b = super::namespaces::slot(other.values.data.len(), program, module) + 1;
+            if self.values.data[a] != other.values.data[b] {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub fn equal(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge(
             self.values.data.len() as u64

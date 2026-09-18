@@ -100,6 +100,9 @@ impl Walker<'_> {
             },
             _ => return Ok(None),
         };
+        if self.ambient_binding(state, name)?.is_some() {
+            return Ok(None);
+        }
         Ok(self
             .root_index(name)?
             .map(|index| state.global_base + index))

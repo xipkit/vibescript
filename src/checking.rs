@@ -2,6 +2,8 @@ mod addresses;
 mod admission;
 #[cfg(test)]
 mod admission_tests;
+#[cfg(test)]
+mod ambient_tests;
 mod arguments;
 mod blocks;
 mod builtins;

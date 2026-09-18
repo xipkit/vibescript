@@ -191,6 +191,30 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             scopes.push(self.ctx, scope)?;
         }
+        if let Some(parent) = self.ambient.filter(|_| lexical) {
+            let scope = bindings.scope(self.ctx)?;
+            let base = self
+                .layouts
+                .locals(self.ctx, self.program, self.function_index)?;
+            for (index, name) in self.program.functions[parent]
+                .local_names
+                .iter()
+                .enumerate()
+            {
+                self.ctx.charge(1)?;
+                let value = state.locals.get(self.ctx, base + index)?;
+                if value.value == Atom::Never.fact() && value.missing {
+                    continue;
+                }
+                let binding = bindings.current(self.ctx, self.facts, value.value)?;
+                if value.missing {
+                    bindings.optional(self.ctx, scope, name.as_bytes(), binding)?;
+                } else {
+                    bindings.insert(self.ctx, scope, name.as_bytes(), binding)?;
+                }
+            }
+            scopes.push(self.ctx, scope)?;
+        }
         let source = bindings.scope(self.ctx)?;
         for (index, declaration) in self.program.declarations.iter().enumerate() {
             self.ctx.charge(1)?;

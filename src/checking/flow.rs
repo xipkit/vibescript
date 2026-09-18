@@ -18,6 +18,7 @@ use crate::{
     value::Kind,
 };
 
+mod ambient;
 mod attached;
 mod bindings;
 mod call_targets;
@@ -627,6 +628,7 @@ pub(super) fn analyze(
         ctx,
         facts,
         Body {
+            ambient: None,
             general: false,
             receiver: None,
             constructor: false,
@@ -645,6 +647,7 @@ pub(super) fn analyze(
 }
 
 pub(super) struct Body<'a> {
+    pub ambient: Option<usize>,
     pub general: bool,
     pub receiver: Option<Fact>,
     pub constructor: bool,
@@ -666,6 +669,7 @@ pub(super) fn analyze_body(
     calls: &mut dyn Calls,
 ) -> Result<Report> {
     let Body {
+        ambient,
         general,
         receiver,
         constructor,
@@ -721,7 +725,8 @@ pub(super) fn analyze_body(
         owned_layouts = Layouts::new(ctx, program, 0)?;
         &owned_layouts
     };
-    let locals = layouts.locals(ctx, program, function_index)?;
+    let lexical = layouts.locals(ctx, program, function_index)?;
+    let locals = ambient::local_count(ctx, layouts, program, function_index, ambient)?;
     let mut initial = State::new(
         locals,
         function_index,
@@ -774,16 +779,17 @@ pub(super) fn analyze_body(
         initial.captures = Some(values);
     }
     if let Some(block) = block {
-        assert_eq!(function.name, "<block>");
+        assert!(function.name == "<block>" || function.initializer);
         for capture in block.captures {
             ctx.charge(1)?;
             if capture.slot >= locals {
                 continue;
             }
             assert!(
-                layouts
-                    .capture(ctx, program, function_index, capture.slot)?
-                    .is_some()
+                capture.slot >= lexical
+                    || layouts
+                        .capture(ctx, program, function_index, capture.slot)?
+                        .is_some()
             );
             initial.locals.set(
                 ctx,
@@ -829,6 +835,7 @@ pub(super) fn analyze_body(
     )?;
     queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
+        ambient,
         general,
         receiver,
         constructor,
@@ -841,7 +848,7 @@ pub(super) fn analyze_body(
         contracts,
         inputs,
         current_error,
-        block_inputs: block,
+        block_inputs: block.filter(|_| !function.initializer),
         incoming,
         calls,
         roots: &roots.data,
@@ -912,6 +919,7 @@ pub(super) fn analyze_body(
 }
 
 struct Walker<'a> {
+    ambient: Option<usize>,
     general: bool,
     receiver: Option<Fact>,
     constructor: bool,
@@ -1169,6 +1177,13 @@ impl Walker<'_> {
                 Ok(Some(Target::Unsupported))
             } else {
                 self.value_target(field.value).map(Some)
+            };
+        }
+        if let Some((_, binding)) = self.ambient_binding(state, name)? {
+            return if binding.missing {
+                Ok(Some(Target::Unsupported))
+            } else {
+                self.value_target(binding.value).map(Some)
             };
         }
         let target = self.root_target(state, name)?;
@@ -1551,7 +1566,10 @@ impl Walker<'_> {
             if !self.export_stack(&mut state, pc, self.function.code[pc])? {
                 return Ok([None, None]);
             }
-            let Some(op) = self.root_op(&state, self.function.code[pc])? else {
+            let Some(op) = self.ambient_op(&state, self.function.code[pc])? else {
+                return self.incomplete(pc);
+            };
+            let Some(op) = self.root_op(&state, op)? else {
                 return self.incomplete(pc);
             };
             if !matches!(op, Op::ResolveCall(..) | Op::CallName(..)) {
@@ -1662,10 +1680,14 @@ impl Walker<'_> {
                         return Ok(edges);
                     }
                 }
-                // Named entry initializers have no ambient frame. Nested initializers
-                // with parent locals stop at InitNamespace until captures are modeled.
-                Op::AmbientValue(..) | Op::AmbientAddress(..) => {
-                    return Ok([Some((pc + 1, state)), None]);
+                Op::AmbientValue(name, next) | Op::AmbientAddress(name, next) => {
+                    return self.ambient_edges(
+                        state,
+                        pc,
+                        name,
+                        next,
+                        matches!(op, Op::AmbientAddress(..)),
+                    );
                 }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
                     let Some(index) = self.global_index(index)? else {
@@ -2106,6 +2128,12 @@ impl Walker<'_> {
                             || self.calls.global(self.ctx, name)?
                             || self.program.names.contains_key(name)
                             || self.program.declaration_names.contains_key(name);
+                        if let Some((_, binding)) = self.ambient_binding(&state, name)? {
+                            if binding.missing {
+                                return self.incomplete(pc);
+                            }
+                            bound = true;
+                        }
                         if !bound {
                             for host in &self.program.hosts {
                                 self.ctx.work_bytes(host.len().max(name.len()))?;
@@ -2226,6 +2254,12 @@ impl Walker<'_> {
                 }
                 Op::RootAddress(name, target) => {
                     let name = &self.program.members[name];
+                    if let Some((_, binding)) = self.ambient_binding(&state, name)? {
+                        if binding.missing {
+                            return self.incomplete(pc);
+                        }
+                        continue;
+                    }
                     if let Some(index) = self.root_index(name)? {
                         let slot = state.global_base + index;
                         let value = state.locals.get(self.ctx, slot)?.value;

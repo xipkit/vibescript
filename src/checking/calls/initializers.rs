@@ -2,6 +2,31 @@ use super::*;
 use crate::checking::{flow::IssueKind, namespaces, scalar::Test};
 
 impl Solver<'_> {
+    pub(super) fn initialize_body(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        body: &blocks::Closure,
+        current_error: u16,
+        globals: &Globals,
+    ) -> Result<Outcome> {
+        let mut context = Context::receiving(ctx, body)?;
+        context.kind = Kind::Initializing;
+        context.ambient = context.block_ambient.take();
+        context.globals = globals.snapshot(ctx)?;
+        let index = self.request(ctx, facts, body.function, &[], current_error, &context)?;
+        self.depend(ctx, index)?;
+        let mut outcome = Outcome::empty();
+        outcome.value = self.jobs.data[index].returns;
+        if let Some(report) = &self.jobs.data[index].report {
+            for exit in &report.block_exits.data {
+                let exit = exit.snapshot(ctx)?;
+                outcome.exits.push(ctx, exit)?;
+            }
+        }
+        Ok(outcome)
+    }
+
     pub(super) fn depend(&mut self, ctx: &mut CallContext, index: usize) -> Result<()> {
         ctx.charge(self.dependencies.data.len() as u64)?;
         if !self.dependencies.data.contains(&index) {

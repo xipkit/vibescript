@@ -36,6 +36,9 @@ impl Walker<'_> {
             | Op::AddressBound(slot, _) => slot,
             _ => return Ok(Some(op)),
         };
+        if slot >= self.function.local_names.len() {
+            return Ok(Some(op));
+        }
         self.ctx.charge(self.function.params.len() as u64 + 1)?;
         if self.function.params.iter().any(|param| param.slot == slot) {
             return Ok(Some(op));

@@ -206,7 +206,11 @@ impl Walker<'_> {
     fn declare_slots(&mut self, state: &mut State, pc: usize, slots: &[usize]) -> Result<()> {
         for &slot in slots {
             self.ctx.charge(1)?;
-            let Some(Op::Declare(slot)) = self.root_op(state, Op::Declare(slot))? else {
+            let Some(op) = self.ambient_op(state, Op::Declare(slot))? else {
+                self.incomplete(pc)?;
+                return Ok(());
+            };
+            let Some(Op::Declare(slot)) = self.root_op(state, op)? else {
                 self.incomplete(pc)?;
                 return Ok(());
             };

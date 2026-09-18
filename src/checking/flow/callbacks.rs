@@ -9,8 +9,7 @@ impl Walker<'_> {
 
     fn incoming_base(&mut self) -> Result<usize> {
         if self.block_inputs.is_some() {
-            self.layouts
-                .locals(self.ctx, self.program, self.function_index)
+            self.local_count(self.function_index)
         } else {
             self.ctx.charge(1)?;
             Ok(0)
@@ -19,8 +18,9 @@ impl Walker<'_> {
 
     pub(super) fn attach(&mut self, state: &mut State, function: usize) -> Result<bool> {
         let mut captures = Buffer::empty();
-        let locals = self.layouts.locals(self.ctx, self.program, function)?;
-        for slot in 0..locals {
+        let lexical = self.layouts.locals(self.ctx, self.program, function)?;
+        let locals = self.local_count(function)?;
+        for slot in 0..lexical {
             self.ctx.charge(1)?;
             let capture = self
                 .layouts
@@ -55,6 +55,25 @@ impl Walker<'_> {
                 },
             )?;
         }
+        if let Some(ambient) = self.ambient {
+            let base = self
+                .layouts
+                .locals(self.ctx, self.program, self.function_index)?;
+            for index in 0..self.program.functions[ambient].local_names.len() {
+                self.ctx.charge(1)?;
+                let binding = state.locals.get(self.ctx, base + index)?;
+                captures.push(
+                    self.ctx,
+                    Link {
+                        slot: lexical + index,
+                        parent: Parent::Local(base + index),
+                        value: binding.value,
+                        missing: binding.missing,
+                        owner: binding.owner,
+                    },
+                )?;
+            }
+        }
         let mut inherited = Buffer::empty();
         let forwarding = self.layouts.forwarding(self.ctx, function)?;
         if let Some(incoming) = self.incoming.filter(|_| forwarding) {
@@ -64,6 +83,7 @@ impl Walker<'_> {
                 Layer {
                     function: incoming.function,
                     receiver: incoming.receiver,
+                    ambient: incoming.ambient,
                     given: incoming.given,
                     locals: incoming.locals,
                 },
@@ -91,6 +111,7 @@ impl Walker<'_> {
         }
         state.arguments.data.last_mut().unwrap().arguments.block = Some(Closure {
             receiver: self.receiver,
+            ambient: self.ambient,
             pending: pending::Pending::new(),
             destinations: Buffer::empty(),
             function,

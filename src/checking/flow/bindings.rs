@@ -97,6 +97,16 @@ impl Walker<'_> {
     ) -> Result<bool> {
         let index = name;
         let name = &self.program.members[name];
+        if let Some((slot, binding)) = self.ambient_binding(state, name)? {
+            if binding.missing {
+                self.incomplete(pc)?;
+                return Ok(false);
+            }
+            state
+                .stack
+                .push(self.ctx, Operand::local(binding.value, slot))?;
+            return Ok(true);
+        }
         if let Some(index) = self.root_index(name)? {
             return self.read_global(state, pc, index, None);
         }
