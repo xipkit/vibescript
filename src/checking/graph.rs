@@ -86,6 +86,8 @@ impl Graph {
                 | Op::Mutate(_, _)
                 | Op::AddressMember(_)
                 | Op::AddressNamespaceField(_)
+                | Op::NamespaceAddress(..)
+                | Op::InitNamespace(_)
                 | Op::Binary(_)
                 | Op::AddStore(_)
                 | Op::Index(_)

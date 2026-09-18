@@ -84,6 +84,7 @@ fn sources() -> Vec<String> {
         ),
         format!("schema={}int{};schema", "{x:".repeat(63), "}".repeat(63)),
         "def take(a:int|nil=nil,b:{id:int}={id:1});[a,b];end;take(b:{id:2})".into(),
+        "module M;Hash[:n]=1;Regexp[:n]=2;Regex[:n]=3;Time[:n]=4;Duration[:n]=5;JSON[:n]=6;Math[:n]=7;end;0".into(),
         "w={\"]\":3};n=10;n %w[\"]\"];17".into(),
         "def f(x);begin;x;rescue ArgumentError|TypeError=>e;raise e;ensure;nil;end;end".into(),
         format!("x=1\n{}+ 2", "\n".repeat(1024)),

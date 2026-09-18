@@ -21,6 +21,166 @@ fn run(source: &str) -> serde_json::Value {
 }
 
 #[test]
+fn builtin_namespace_writes_do_not_require_an_unrelated_read() {
+    // A separate builtin read would register the fallback and hide the regression.
+    for builtin in [
+        "Hash", "Regexp", "Regex", "Time", "Duration", "JSON", "Math",
+    ] {
+        for assignment in [
+            format!("{builtin}[:probe]=7"),
+            format!("{builtin}.probe=7"),
+            format!("{builtin}[:probe]=[1];{builtin}::probe[0]=7"),
+        ] {
+            for kind in ["module", "class"] {
+                for source in [
+                    format!("{kind} M;Result=begin;{assignment};end;end;M::Result"),
+                    format!("{kind} M;def self.write;{assignment};end;end;M.write"),
+                ] {
+                    for unused in [String::new(), format!(";def unused;{builtin};end")] {
+                        let source = source.clone() + &unused;
+                        let script = Engine::new()
+                            .compile(&source)
+                            .unwrap_or_else(|error| panic!("{source}: {error}"));
+                        let result = script
+                            .run(CallOptions::default())
+                            .unwrap_or_else(|error| panic!("{source}: {error}"));
+                        assert_eq!(result.value.as_int(), Some(7), "{source}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn builtin_namespace_writes_cover_compound_nested_and_block_addresses() {
+    for body in [
+        "Math[:probe] ||= 7",
+        "Math[:probe]=1;Math[:probe] &&= 7",
+        "Math[:probe]=2;Math[:probe] += 5",
+        "Math.probe=[2];Math.probe[0] += 5",
+        "Math[:probe]={items:[2]};Math[:probe][:items][0] += 5",
+        "Math[:probe]=[2];Math::probe[0] += 5",
+        "[1].map{|n|Math[:probe]=n+6}.first",
+    ] {
+        let source = format!("module M;Result=begin;{body};end;end;M::Result");
+        let script = Engine::new()
+            .compile(&source)
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+        assert_eq!(
+            script
+                .run(CallOptions::default())
+                .unwrap_or_else(|error| panic!("{source}: {error}"))
+                .value
+                .as_int(),
+            Some(7),
+            "{source}"
+        );
+    }
+    assert_eq!(
+        run("module M;Math[:left],JSON[:right]=[3,7];end;0"),
+        serde_json::json!(0)
+    );
+    assert_eq!(
+        run("module M;def self.write;Math[:probe]=7;end;Result=write;end;M::Result"),
+        serde_json::json!(7)
+    );
+}
+
+#[test]
+fn builtin_namespace_fallback_keeps_shadowing_and_per_call_isolation() {
+    let script = Engine::new()
+        .compile("module M;def self.write;Math[:probe][0]+=5;end;end;def run;M.write;end")
+        .unwrap();
+    let original = Value::hash(vec![(b"probe".to_vec(), Value::array(vec![Value::int(2)]))]);
+    let options = CallOptions {
+        globals: [("Math".into(), original.clone())].into(),
+        ..CallOptions::default()
+    };
+    for _ in 0..3 {
+        assert_eq!(
+            script
+                .call("run", &[], options.clone())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(7)
+        );
+        assert_eq!(json(&original), serde_json::json!({"probe":[2]}));
+    }
+    let script = Engine::new().compile("module M;Math={probe:[2]};def self.write;Math[:probe][0]+=5;end;end;def run;M.write;end").unwrap();
+    let options = CallOptions {
+        globals: [("Math".into(), Value::bytes(vec![b'x'; 128 * 1024]))].into(),
+        limits: Limits {
+            memory_bytes: Some(32 * 1024),
+            ..Limits::default()
+        },
+        ..CallOptions::default()
+    };
+    for _ in 0..3 {
+        assert_eq!(
+            script
+                .call("run", &[], options.clone())
+                .unwrap()
+                .value
+                .as_int(),
+            Some(7)
+        );
+    }
+    assert_eq!(
+        run(
+            "module Math;Items=[2];end;module M;Result=begin;Math::Items[0]+=5;end;end;[M::Result,Math::Items]"
+        ),
+        serde_json::json!([7, [7]])
+    );
+}
+
+#[test]
+fn builtin_namespace_updates_obey_limits_and_release_temporary_state() {
+    let script = Engine::new()
+        .compile("module M;64.times{Math[:items]='x'*512};end;def run;0;end")
+        .unwrap();
+    let baseline = script.call("run", &[], CallOptions::default()).unwrap();
+    assert_eq!(baseline.stats.retained_memory_bytes, 0);
+    for kind in [ErrorKind::Steps, ErrorKind::Memory] {
+        for sample in [0, 1, 8, 15, 16] {
+            let options = CallOptions {
+                limits: Limits {
+                    steps: (kind == ErrorKind::Steps).then_some(baseline.stats.steps * sample / 16),
+                    memory_bytes: (kind == ErrorKind::Memory)
+                        .then_some(baseline.stats.peak_memory_bytes * sample as usize / 16),
+                    ..Limits::default()
+                },
+                ..CallOptions::default()
+            };
+            let result = script.call("run", &[], options);
+            if sample == 16 {
+                assert_eq!(result.unwrap().stats.retained_memory_bytes, 0);
+            } else {
+                assert_eq!(result.unwrap_err().kind, kind);
+            }
+        }
+    }
+    for kind in [ErrorKind::Cancelled, ErrorKind::Deadline] {
+        let mut options = CallOptions::default();
+        if kind == ErrorKind::Cancelled {
+            options.cancellation.cancel();
+        } else {
+            options.deadline = Some(std::time::Instant::now());
+        }
+        assert_eq!(script.call("run", &[], options).unwrap_err().kind, kind);
+    }
+    assert_eq!(
+        script
+            .call("run", &[], CallOptions::default())
+            .unwrap()
+            .stats
+            .retained_memory_bytes,
+        0
+    );
+}
+
+#[test]
 fn bodies_and_blocks_keep_their_assignment_boundaries() {
     assert_eq!(
         run("x=1\nC=7\nmodule M\n x=2\n [3].each{x=3}\n D=x\n E=C\n C=9\nend\n[x,C,M.C,M.D,M.E]"),

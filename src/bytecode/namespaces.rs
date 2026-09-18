@@ -140,6 +140,8 @@ impl Compiler<'_> {
                     && (!self.instance || name.starts_with('@'))
                     && self.namespace_binding(name) =>
             {
+                // A missing field may need a builtin without another read registering it.
+                self.global(name);
                 let optional = name.starts_with('@');
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceAddress(name, optional));

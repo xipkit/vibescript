@@ -274,6 +274,11 @@ fn top_level_namespaces_initialize_in_source_order() {
     );
     top("return 7;module M;false+true;end", "7", false);
     top("module M;module N;D=7;end;C=N::D;end;M::C", "7", false);
+    top(
+        "module M;C=7;end;if Math[:again];7;else;Math[:again]=true;__main__();end",
+        "7",
+        false,
+    );
 }
 
 #[test]

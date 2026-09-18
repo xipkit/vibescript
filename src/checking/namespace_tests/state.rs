@@ -1,6 +1,32 @@
 use super::*;
 
 #[test]
+fn builtin_assignment_fallbacks_are_registered_before_initialization_and_type_lookup() {
+    for (source, expected) in [
+        ("module M;Math[:probe]=7;end;def run;0;end", "0"),
+        (
+            "module M;def self.write;Math.probe=7;end;end;def run;M.write;end",
+            "7",
+        ),
+        (
+            "module M;def self.write;Math[:probe]=[2];Math::probe[0]+=5;end;end;def run;M.write;end",
+            "7",
+        ),
+        (
+            "enum State;Ready;Done;end;module M;Math[:Status]=State;end;def run(x:Math.Status=:ready)->State;x;end",
+            "State::Ready",
+        ),
+    ] {
+        let script = Engine::new().compile(source).unwrap();
+        witness(&script, &[], &CallOptions::default(), expected, false);
+        let report = script
+            .check_function("run", &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{source}: {report:?}");
+    }
+}
+
+#[test]
 fn initializer_fields_and_class_variables_follow_runtime_state() {
     for kind in ["module", "class"] {
         for (body, call, expected) in [
@@ -325,6 +351,7 @@ fn namespace_initializers_and_state_are_metered_interruptible_and_released() {
         "module M;@@items=[1];def self.add;@@items.push(4);2;end;def self.result;@@items[-1]+=add();@@items;end;end;def run;M.result;end",
         "module M;C=3;def self.value=(x);C=x+1;99;end;end;def run;M.value=4;M::C;end",
         "module M;C=3;module N;D=[2];end;end;def run;M::N::D[0]=M::C;M::N::D;end",
+        "module M;def self.work;Math[:items]=[1,2];Math[:items][-1]+=5;end;end;def run;M.work;end",
     ] {
         metered(source);
     }
