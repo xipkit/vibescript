@@ -10,6 +10,9 @@ mod cases;
 mod collections;
 #[cfg(test)]
 mod enum_tests;
+mod environment;
+#[cfg(test)]
+mod environment_tests;
 mod equality;
 mod facts;
 mod flow;
@@ -31,6 +34,7 @@ mod pending;
 mod relation;
 mod scalar;
 mod slots;
+mod sources;
 mod type_bindings;
 mod widening;
 

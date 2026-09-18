@@ -56,6 +56,11 @@ impl Outcome {
 }
 
 pub(super) trait Calls {
+    /// Reports whether the selected host implementation may invoke its block.
+    fn host_uses_block(&mut self, ctx: &mut CallContext, _: usize) -> Result<bool> {
+        ctx.checkpoint()?;
+        Ok(true)
+    }
     /// Checks one host boundary without invoking callbacks or attached blocks.
     fn host_boundary(
         &mut self,
@@ -149,9 +154,67 @@ pub(super) struct Host<'a> {
     pub unresolved: bool,
     accepts_block: bool,
     source: Option<&'a crate::signature::Compiled>,
+    blocks: HostBlocks,
+    granted: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HostBlocks {
+    Possible,
+    Ignored,
+    Rejected,
 }
 
 impl<'a> Host<'a> {
+    /// Reads a compiled registration without constructing a grant or invoking host code.
+    pub fn registered(
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        value: &'a crate::capability::Registered,
+    ) -> Result<Self> {
+        match value {
+            crate::capability::Registered::Callback(_) => {
+                let mut host = Self::new(ctx, facts, None)?;
+                host.blocks = HostBlocks::Ignored;
+                Ok(host)
+            }
+            crate::capability::Registered::Method(method) => Self::method(
+                ctx,
+                facts,
+                method.compiled_signature(),
+                method.supports_block(),
+            ),
+        }
+    }
+
+    /// Describes a supplied descriptor, including whether its grant is reusable.
+    pub fn bound(
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        value: &'a crate::capability::BoundMethod,
+    ) -> Result<Self> {
+        let mut host = Self::method(ctx, facts, value.signature(), value.supports_block())?;
+        host.granted = value.fresh_grant();
+        Ok(host)
+    }
+
+    fn method(
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        signature: Option<&'a crate::signature::Compiled>,
+        supports_block: bool,
+    ) -> Result<Self> {
+        let mut host = Self::new(ctx, facts, signature)?;
+        host.blocks = if supports_block {
+            HostBlocks::Possible
+        } else if signature.is_some() {
+            HostBlocks::Ignored
+        } else {
+            HostBlocks::Rejected
+        };
+        Ok(host)
+    }
+
     /// Borrows metadata so named contracts use each call's current root and source bindings.
     pub fn new(
         ctx: &mut CallContext,
@@ -179,6 +242,8 @@ impl<'a> Host<'a> {
             unresolved: false,
             accepts_block: signature.is_some_and(|s| s.source.accepts_block),
             source: None,
+            blocks: HostBlocks::Possible,
+            granted: true,
         };
         if let Some(signature) = signature {
             host.required = signature.required;
@@ -698,6 +763,15 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn host_uses_block(&mut self, ctx: &mut CallContext, index: usize) -> Result<bool> {
+        ctx.charge(1)?;
+        Ok(self
+            .world
+            .hosts
+            .get(index)
+            .is_some_and(|host| host.blocks == HostBlocks::Possible))
+    }
+
     fn host_boundary(
         &mut self,
         ctx: &mut CallContext,

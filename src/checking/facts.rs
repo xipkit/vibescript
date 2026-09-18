@@ -130,6 +130,7 @@ pub(super) struct Facts {
     entries: Buffer<Entry>,
     buckets: Buffer<usize>,
     enumerations: Buffer<Fact>,
+    sources: super::sources::Sources,
     max_depth: usize,
 }
 
@@ -139,6 +140,7 @@ impl Facts {
             entries: Buffer::empty(),
             buckets: Buffer::empty(),
             enumerations: Buffer::empty(),
+            sources: super::sources::Sources::new(),
             max_depth: 0,
         };
         for atom in [
@@ -165,6 +167,16 @@ impl Facts {
 
     pub fn node(&self, fact: Fact) -> &Node {
         &self.entries.data[fact.0].node
+    }
+
+    /// Identifies source code and captured scope without retaining the scope's mutable heap.
+    pub fn source_owner(
+        &mut self,
+        ctx: &mut CallContext,
+        code: &std::sync::Arc<crate::code::Code>,
+        environment: Option<&crate::objects::Instance>,
+    ) -> Result<usize> {
+        self.sources.owner(ctx, code, environment)
     }
 
     pub fn len(&self) -> usize {

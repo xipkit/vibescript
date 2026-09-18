@@ -33,6 +33,9 @@ impl Walker<'_> {
         if guard.value == Atom::Never.fact() {
             return Ok(());
         }
+        if !self.calls.host_uses_block(self.ctx, index)? {
+            return self.host_finish(state, pc, index, None);
+        }
         let block = args.block.as_ref().unwrap();
         let first = self.host_step(state, pc, index, block)?;
         // Keep the zero-invocation state separate from repeated invocations, just

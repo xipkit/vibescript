@@ -56,6 +56,8 @@ pub(super) enum Failure {
     HostArity,
     HostKeywords,
     HostBlock,
+    HostBlockDriver,
+    HostGrant,
     HostResult {
         actual: Fact,
         expected: Fact,

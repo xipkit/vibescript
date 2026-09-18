@@ -1021,6 +1021,7 @@ impl Walker<'_> {
                 | Failure::HostArity
                 | Failure::HostKeywords
                 | Failure::HostBlock
+                | Failure::HostGrant
                 | Failure::HostResult { .. }
                 | Failure::HostTypeBinding { .. }
                 | Failure::BuiltinArity

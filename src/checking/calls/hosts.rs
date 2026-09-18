@@ -72,6 +72,14 @@ impl Solver<'_> {
             outcome.incomplete = true;
             return Ok(());
         };
+        if !host.granted {
+            outcome.failures.push(ctx, Failure::HostGrant)?;
+            return Ok(());
+        }
+        if args.block.is_some() && host.blocks == HostBlocks::Rejected {
+            outcome.failures.push(ctx, Failure::HostBlockDriver)?;
+            return Ok(());
+        }
         // Opaque argument validators run before the declarative signature checks.
         outcome.throws = u8::MAX;
         if host.constrained {
