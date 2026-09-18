@@ -34,6 +34,16 @@ pub(super) struct Outcome {
 }
 
 pub(super) trait Calls {
+    /// Records host bindings that may replace source type declarations.
+    fn type_bindings(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut super::type_bindings::Bindings,
+        _: super::type_bindings::Scope,
+    ) -> Result<bool> {
+        ctx.checkpoint()?;
+        Ok(false)
+    }
     fn global(&mut self, ctx: &mut CallContext, name: &str) -> Result<bool>;
     fn resolve(&mut self, ctx: &mut CallContext, name: &str) -> Result<Target>;
     fn invoke(
@@ -580,6 +590,23 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
+    fn type_bindings(
+        &mut self,
+        ctx: &mut CallContext,
+        bindings: &mut super::type_bindings::Bindings,
+        scope: super::type_bindings::Scope,
+    ) -> Result<bool> {
+        ctx.checkpoint()?;
+        for (name, _) in self.world.globals {
+            bindings.insert(
+                ctx,
+                scope,
+                name.as_bytes().unwrap(),
+                super::type_bindings::Binding::Unknown,
+            )?;
+        }
+        Ok(!self.world.globals.is_empty())
+    }
     fn global(&mut self, ctx: &mut CallContext, name: &str) -> Result<bool> {
         for (key, _) in self.world.globals {
             let key = key.as_bytes().unwrap();

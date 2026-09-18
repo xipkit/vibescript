@@ -22,6 +22,7 @@ mod collection_blocks;
 mod effects;
 mod handlers;
 mod native;
+mod types;
 use handlers::{Phase, Transfer};
 use native::MemberSite;
 
@@ -31,6 +32,10 @@ const INVALID_CLASS: u16 = 1 << 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum IssueKind {
+    TypeBinding {
+        ty: usize,
+        ambiguous: bool,
+    },
     MissingBlock,
     Ordering {
         name: usize,
@@ -1516,7 +1521,9 @@ impl Walker<'_> {
                 Op::BindEnd => (),
                 Op::Normalize(ty, _) => {
                     let actual = state.stack.data.last().unwrap().value;
-                    let expected = self.contracts[ty];
+                    let Some(expected) = self.normalization_contract(&state, pc, ty)? else {
+                        return Ok([None, None]);
+                    };
                     let relation = self.facts.relation(self.ctx, actual, expected)?;
                     if relation != Relation::Accepted {
                         self.emit_error(&state, pc, handlers::bit(ErrorClass::Runtime))?;

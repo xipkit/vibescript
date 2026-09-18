@@ -13,6 +13,8 @@ mod flow;
 mod graph;
 mod iteration;
 mod lexical;
+#[cfg(test)]
+mod live_type_tests;
 mod mutations;
 mod normalization;
 #[cfg(test)]

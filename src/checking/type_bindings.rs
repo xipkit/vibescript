@@ -1,4 +1,4 @@
-use super::facts::{Fact, Facts};
+use super::facts::{Atom, Fact, Facts, Node};
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program, types, value::Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,6 +70,27 @@ impl Bindings {
         Self {
             scopes: Buffer::empty(),
         }
+    }
+
+    /// Classifies current values without executing namespace bodies or host code.
+    pub fn value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Binding> {
+        let mut result = None;
+        for index in 0..facts.arm_count(value) {
+            ctx.charge(1)?;
+            let binding = match facts.node(facts.arm(value, index)) {
+                Node::Enumeration { nominal, .. } => Binding::Type {
+                    fact: *nominal,
+                    enumeration: true,
+                },
+                Node::Atom(Atom::Unknown | Atom::Any)
+                | Node::Named(_)
+                | Node::Shape(_, _, _, false)
+                | Node::Hash(_, _, false) => Binding::Unknown,
+                _ => Binding::Other,
+            };
+            result = Some(result.map_or(binding, |previous: Binding| previous.merge(binding)));
+        }
+        Ok(result.unwrap_or(Binding::Other))
     }
 
     /// Adds a closed scope whose identity remains stable in snapshots.

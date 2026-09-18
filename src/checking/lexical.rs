@@ -2,7 +2,16 @@ use crate::{
     CallContext, ErrorKind, Result,
     budget::Buffer,
     bytecode::{Capture, Op, Program},
+    types::{self, Type, TypeKind},
 };
+
+#[derive(Clone, Copy)]
+pub(super) struct TypeSource {
+    pub depth: usize,
+    pub function: usize,
+    pub name: usize,
+    pub capture: usize,
+}
 
 struct Layout {
     // Slots after compiled locals relay bindings used only by descendant blocks.
@@ -10,6 +19,7 @@ struct Layout {
     shadows: Buffer<bool>,
     parent: Option<usize>,
     forwarding: bool,
+    types: Buffer<TypeSource>,
 }
 
 pub(super) struct Layouts {
@@ -40,6 +50,7 @@ impl Layouts {
                     shadows,
                     parent: None,
                     forwarding,
+                    types: Buffer::empty(),
                 },
             )?;
         }
@@ -89,7 +100,153 @@ impl Layouts {
                 }
             }
         }
+        layouts.type_captures(ctx, program)?;
         Ok(layouts)
+    }
+
+    fn type_captures(&mut self, ctx: &mut CallContext, program: &Program) -> Result<()> {
+        for (function, body) in program.functions.iter().enumerate() {
+            ctx.charge(1)?;
+            if self.functions.data[function].parent.is_none() {
+                continue;
+            }
+            let mut pending: Buffer<&Type> = Buffer::empty();
+            for parameter in &body.params {
+                ctx.charge(1)?;
+                if let Some(ty) = parameter.ty {
+                    pending.push(ctx, &program.types[ty])?;
+                }
+            }
+            if let Some(ty) = body.return_type {
+                pending.push(ctx, &program.types[ty])?;
+            }
+            for op in &body.code {
+                ctx.charge(1)?;
+                if let Op::Normalize(ty, _) = *op {
+                    pending.push(ctx, &program.types[ty])?;
+                }
+            }
+            while let Some(ty) = pending.data.pop() {
+                ctx.charge(1)?;
+                match &ty.kind {
+                    TypeKind::Array(Some(item)) => pending.push(ctx, item)?,
+                    TypeKind::Hash(Some(pair)) => {
+                        pending.push(ctx, &pair.0)?;
+                        pending.push(ctx, &pair.1)?;
+                    }
+                    TypeKind::Shape(fields, _) => {
+                        for field in fields {
+                            ctx.charge(1)?;
+                            pending.push(ctx, &field.ty)?;
+                        }
+                    }
+                    TypeKind::Union(options) => {
+                        for option in options {
+                            ctx.charge(1)?;
+                            pending.push(ctx, option)?;
+                        }
+                    }
+                    TypeKind::Named => self.capture_type(ctx, program, function, &ty.name)?,
+                    _ => (),
+                }
+            }
+            let types = &mut self.functions.data[function].types.data;
+            ctx.charge(
+                types
+                    .len()
+                    .saturating_mul(types.len().max(1).ilog2() as usize + 1) as u64,
+            )?;
+            types.sort_unstable_by_key(|source| (source.depth, source.name));
+        }
+        Ok(())
+    }
+
+    fn capture_type(
+        &mut self,
+        ctx: &mut CallContext,
+        program: &Program,
+        function: usize,
+        name: &str,
+    ) -> Result<()> {
+        ctx.work_bytes(name.len())?;
+        let (name, qualified) = name
+            .split_once('.')
+            .map_or((name, false), |(name, _)| (name, true));
+        let mut parent = self.functions.data[function].parent;
+        let mut depth = 0;
+        while let Some(owner) = parent {
+            ctx.charge(1)?;
+            let body = &program.functions[owner];
+            for (slot, candidate) in body.local_names.iter().enumerate() {
+                ctx.charge(1)?;
+                if body.captures.get(slot).is_some_and(Option::is_some)
+                    && !self.functions.data[owner].shadows.data[slot]
+                {
+                    continue;
+                }
+                if !types::binding_name_matches(
+                    ctx,
+                    candidate.as_bytes(),
+                    name.as_bytes(),
+                    !qualified,
+                )? {
+                    continue;
+                }
+                let sources = &self.functions.data[function].types.data;
+                ctx.charge(sources.len() as u64)?;
+                if sources
+                    .iter()
+                    .any(|source| source.function == owner && source.name == slot)
+                {
+                    continue;
+                }
+                let source = Capture { depth, slot };
+                let capture = self.relay_type(ctx, program, function, source)?;
+                self.functions.data[function].types.push(
+                    ctx,
+                    TypeSource {
+                        depth,
+                        function: owner,
+                        name: slot,
+                        capture,
+                    },
+                )?;
+            }
+            depth += 1;
+            parent = self.functions.data[owner].parent;
+        }
+        Ok(())
+    }
+
+    fn relay_type(
+        &mut self,
+        ctx: &mut CallContext,
+        program: &Program,
+        function: usize,
+        mut source: Capture,
+    ) -> Result<usize> {
+        let mut child = function;
+        let mut first = None;
+        loop {
+            ctx.charge(1)?;
+            if let Some(slot) = self.find(ctx, program, child, source)? {
+                return Ok(first.unwrap_or(slot));
+            }
+            let slot = self.locals(ctx, program, child)?;
+            first.get_or_insert(slot);
+            self.functions.data[child].additional.push(ctx, source)?;
+            if source.depth == 0 {
+                return Ok(first.unwrap());
+            }
+            source.depth -= 1;
+            child = self.functions.data[child].parent.unwrap();
+        }
+    }
+
+    /// Returns captured candidate bindings in lexical scope order.
+    pub fn type_sources(&self, ctx: &mut CallContext, function: usize) -> Result<&[TypeSource]> {
+        ctx.checkpoint()?;
+        Ok(&self.functions.data[function].types.data)
     }
 
     pub fn forwarding(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {

@@ -17,7 +17,7 @@ use std::sync::{
 
 const SOURCE: &str = "enum Status; Draft; Sent; HTTPServer; end; enum Review; Draft; end;";
 
-fn analyze(
+pub(super) fn analyze(
     ctx: &mut CallContext,
     facts: &mut Facts,
     program: &bytecode::Program,
@@ -107,7 +107,7 @@ fn observed(
     }
 }
 
-fn witness(body: &str, args: &[Value], expected: &str, rejected: bool) {
+pub(super) fn witness(body: &str, args: &[Value], expected: &str, rejected: bool) {
     let source = format!("{SOURCE} {body}");
     let script = Engine::new().compile(&source).unwrap();
     let program = &script.inner.code.program;
