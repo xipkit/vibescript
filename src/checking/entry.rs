@@ -1,10 +1,11 @@
 use super::{
     arguments::Arguments,
-    calls::{self, Analysis, LocatedIssue, Target},
+    calls::{self, Analysis, LocatedIssue, Location, Target},
     environment::{Environment, Incomplete},
     facts::{Atom, Fact, Facts},
     flow::{Issue, IssueKind},
     inputs::Values,
+    sources::SourceId,
 };
 use crate::{
     CallContext, CallOptions, Error, ErrorClass, ErrorKind, Result, Script, Value, budget::Buffer,
@@ -116,6 +117,7 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
             analysis.issues.push(
                 ctx,
                 LocatedIssue {
+                    source: SourceId::ROOT,
                     function,
                     issue: Issue {
                         pc: 0,
@@ -171,7 +173,14 @@ pub(super) fn unfinished(
     message: impl Into<Pending>,
 ) -> Result<Check> {
     let mut analysis = empty(Atom::Unknown.fact(), u8::MAX);
-    analysis.incomplete.push(ctx, (function, 0))?;
+    analysis.incomplete.push(
+        ctx,
+        Location {
+            source: SourceId::ROOT,
+            function,
+            pc: 0,
+        },
+    )?;
     Ok(Check {
         facts,
         analysis,
@@ -185,6 +194,7 @@ fn detached(ctx: &mut CallContext, facts: Facts, function: usize, value: Fact) -
     analysis.issues.push(
         ctx,
         LocatedIssue {
+            source: SourceId::ROOT,
             function,
             issue: Issue {
                 pc: 0,

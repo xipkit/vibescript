@@ -293,14 +293,23 @@ fn live_resolution_preserves_the_owner_of_source_class_contracts() {
         "def once(x); yield(x); end; def run(x:Widget); once(x) {|item:Widget| item}; end",
     ] {
         let source = format!("class Widget; end; {body}");
-        let program = bytecode::compile(&source, Vec::new(), &()).unwrap();
+        let script = Engine::new().compile(&source).unwrap();
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, &program).unwrap();
+        let owner = facts
+            .source_owner(&mut ctx, &script.inner.code, None)
+            .unwrap();
+        let report = super::normalization_tests::analyze_source(
+            &mut ctx,
+            &mut facts,
+            &script.inner.code.program,
+            owner,
+        )
+        .unwrap();
         assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
         assert!(report.issues.data.is_empty(), "{source}: {report:?}");
         assert_eq!(report.throws, 0, "{source}: {report:?}");
-        let expected = facts.nominal(&mut ctx, 42, 0, b"Widget", None).unwrap();
+        let expected = facts.nominal(&mut ctx, owner, 0, b"Widget", None).unwrap();
         assert_eq!(report.returns, expected, "{source}: {report:?}");
         assert_ne!(
             report.returns,

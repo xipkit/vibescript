@@ -6,6 +6,7 @@ use super::{
     globals::Globals,
     lexical::Layouts,
     relation::Relation,
+    sources::SourceId,
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -13,6 +14,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 mod context;
 mod hosts;
 mod initializers;
+#[cfg(test)]
+mod source_tests;
 mod whole;
 use context::{Context, Kind};
 pub(super) use whole::analyze as analyze_whole;
@@ -337,8 +340,16 @@ pub(super) struct World<'a> {
 
 #[derive(Debug)]
 pub(super) struct LocatedIssue {
+    pub source: SourceId,
     pub function: usize,
     pub issue: Issue,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct Location {
+    pub source: SourceId,
+    pub function: usize,
+    pub pc: usize,
 }
 
 #[derive(Debug)]
@@ -348,12 +359,13 @@ pub(super) struct Analysis {
     #[cfg(test)]
     pub throws: u8,
     pub issues: Buffer<LocatedIssue>,
-    pub incomplete: Buffer<(usize, usize)>,
+    pub incomplete: Buffer<Location>,
     #[cfg(test)]
     pub contexts: usize,
 }
 
 struct Job {
+    source: SourceId,
     function: usize,
     error_key: u16,
     current_error: u16,
@@ -392,8 +404,8 @@ struct Solver<'a> {
 }
 
 enum Ancestor<'a> {
-    Function(usize, &'a Context),
-    Expanding(usize, &'a Context),
+    Function(SourceId, usize, &'a Context),
+    Expanding(SourceId, usize, &'a Context),
     Job(usize),
 }
 
@@ -510,6 +522,7 @@ fn analyze_entry<'a>(
         scope,
     } = entry;
     ctx.checkpoint()?;
+    let source = facts.source_id(ctx, world.source_owner)?;
     let mut admitted = Buffer::empty();
     let mut admission_issues = Buffer::empty();
     let mut rejected = false;
@@ -521,6 +534,7 @@ fn analyze_entry<'a>(
                 admission_issues.push(
                     ctx,
                     LocatedIssue {
+                        source,
                         function,
                         issue: Issue {
                             pc: 0,
@@ -620,8 +634,15 @@ fn analyze_entry<'a>(
 
 impl Solver<'_> {
     fn solve(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<()> {
+        let source = facts.source_id(ctx, self.world.source_owner)?;
         while let Some(index) = self.queue.data.pop() {
             ctx.charge(1)?;
+            if self.jobs.data[index].source != source {
+                return Err(crate::Error::new(
+                    crate::ErrorKind::Runtime,
+                    "checker job belongs to a different source",
+                ));
+            }
             self.current = index;
             self.jobs.data[index].queued = false;
             self.dependencies = Buffer::empty();
@@ -744,15 +765,13 @@ impl Solver<'_> {
             let report = job.report.as_ref().unwrap();
             for &issue in &report.issues.data {
                 ctx.charge(result.issues.data.len() as u64)?;
-                if !result
-                    .issues
-                    .data
-                    .iter()
-                    .any(|old| old.function == job.function && old.issue == issue)
-                {
+                if !result.issues.data.iter().any(|old| {
+                    old.source == job.source && old.function == job.function && old.issue == issue
+                }) {
                     result.issues.push(
                         ctx,
                         LocatedIssue {
+                            source: job.source,
                             function: job.function,
                             issue,
                         },
@@ -761,8 +780,13 @@ impl Solver<'_> {
             }
             for &pc in &report.incomplete.data {
                 ctx.charge(result.incomplete.data.len() as u64)?;
-                if !result.incomplete.data.contains(&(job.function, pc)) {
-                    result.incomplete.push(ctx, (job.function, pc))?;
+                let location = Location {
+                    source: job.source,
+                    function: job.function,
+                    pc,
+                };
+                if !result.incomplete.data.contains(&location) {
+                    result.incomplete.push(ctx, location)?;
                 }
             }
         }
@@ -777,7 +801,7 @@ impl Solver<'_> {
         result
             .issues
             .data
-            .sort_unstable_by_key(|issue| (issue.function, issue.issue.pc));
+            .sort_unstable_by_key(|issue| (issue.source, issue.function, issue.issue.pc));
         ctx.charge(
             result
                 .incomplete
@@ -809,7 +833,9 @@ impl Solver<'_> {
         context: &Context,
     ) -> Result<usize> {
         ctx.charge(inputs.len() as u64 + 1)?;
+        let source = facts.source_id(ctx, self.world.source_owner)?;
         let mut hash = DefaultHasher::new();
+        source.hash(&mut hash);
         function.hash(&mut hash);
         inputs.hash(&mut hash);
         current_error.hash(&mut hash);
@@ -821,6 +847,7 @@ impl Solver<'_> {
                 ctx.charge(inputs.len() as u64 + 1)?;
                 let job = &self.jobs.data[index];
                 if job.hash == hash
+                    && job.source == source
                     && job.function == function
                     && job.inputs.data == inputs
                     && job.error_key == current_error
@@ -832,7 +859,7 @@ impl Solver<'_> {
             }
         }
         if self.functions.data[function] {
-            if let Some(path) = self.ancestor(ctx, Ancestor::Function(function, context))? {
+            if let Some(path) = self.ancestor(ctx, Ancestor::Function(source, function, context))? {
                 let index = path.data[0];
                 self.cycle(ctx, &path.data)?;
                 let depth = *self.jobs.data[index]
@@ -894,6 +921,7 @@ impl Solver<'_> {
         self.jobs.push(
             ctx,
             Job {
+                source,
                 function,
                 error_key: current_error,
                 current_error,
@@ -946,8 +974,9 @@ impl Solver<'_> {
             ctx.charge(1)?;
             let index = pending.data[cursor].0;
             let matched = match target {
-                Ancestor::Function(function, context) => {
-                    self.jobs.data[index].function == function
+                Ancestor::Function(source, function, context) => {
+                    self.jobs.data[index].source == source
+                        && self.jobs.data[index].function == function
                         && self.jobs.data[index].context.globals.same_initialization(
                             ctx,
                             self.world.program,
@@ -955,8 +984,9 @@ impl Solver<'_> {
                         )?
                         && self.jobs.data[index].context.compatible(ctx, context)?
                 }
-                Ancestor::Expanding(function, context) => {
-                    self.jobs.data[index].function == function
+                Ancestor::Expanding(source, function, context) => {
+                    self.jobs.data[index].source == source
+                        && self.jobs.data[index].function == function
                         && self.jobs.data[index].context.expands(ctx, context)?
                 }
                 Ancestor::Job(job) => index == job,
@@ -1263,11 +1293,12 @@ impl Calls for Solver<'_> {
                     }
                     bound.inputs
                 };
+                let source = facts.source_id(ctx, self.world.source_owner)?;
                 if (!context.inherited.data.is_empty()
                     || !globals.pending.addresses.data.is_empty())
                     && self.functions.data[function]
                     && self
-                        .ancestor(ctx, Ancestor::Expanding(function, &context))?
+                        .ancestor(ctx, Ancestor::Expanding(source, function, &context))?
                         .is_some()
                 {
                     outcome.incomplete = true;

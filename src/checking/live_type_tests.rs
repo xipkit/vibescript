@@ -389,7 +389,7 @@ fn host_type_replacements_stay_dynamic_without_running_capability_factories() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
     let mut bindings = Bindings::new();
-    let scope = bindings.source(&mut ctx, &mut facts, program, 42).unwrap();
+    let scope = bindings.source(&mut ctx, &mut facts, program, 0).unwrap();
     let mut contracts = Buffer::empty();
     for ty in &program.types {
         let fact = facts
@@ -404,7 +404,7 @@ fn host_type_replacements_stay_dynamic_without_running_capability_factories() {
         &mut facts,
         World {
             inputs: &[],
-            source_owner: 42,
+            source_owner: 0,
             program,
             contracts: &contracts.data,
             hosts: &[],

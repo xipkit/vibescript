@@ -22,8 +22,17 @@ pub(super) fn analyze(
     facts: &mut Facts,
     program: &bytecode::Program,
 ) -> Result<Analysis> {
+    analyze_source(ctx, facts, program, 0)
+}
+
+pub(super) fn analyze_source(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    program: &bytecode::Program,
+    source_owner: usize,
+) -> Result<Analysis> {
     let mut bindings = Bindings::new();
-    let scope = bindings.source(ctx, facts, program, 42)?;
+    let scope = bindings.source(ctx, facts, program, source_owner)?;
     let mut contracts = Buffer::empty();
     for ty in &program.types {
         let fact = facts.annotation(ctx, ty, |ctx, name| {
@@ -43,7 +52,7 @@ pub(super) fn analyze(
         facts,
         World {
             inputs: &[],
-            source_owner: 42,
+            source_owner,
             program,
             contracts: &contracts.data,
             hosts: &[],
@@ -135,7 +144,9 @@ pub(super) fn witness(body: &str, args: &[Value], expected: &str, rejected: bool
             .incomplete
             .data
             .iter()
-            .map(|&(function, pc)| program.functions[function].code[pc])
+            .map(|&super::calls::Location { function, pc, .. }| {
+                program.functions[function].code[pc]
+            })
             .collect();
         panic!("{source}: {report:?}; unsupported: {ops:?}");
     }
@@ -326,7 +337,7 @@ fn contract(
     ty: &types::Type,
 ) -> Fact {
     let mut bindings = Bindings::new();
-    let scope = bindings.source(ctx, facts, program, 42).unwrap();
+    let scope = bindings.source(ctx, facts, program, 0).unwrap();
     facts
         .annotation(ctx, ty, |ctx, name| {
             Ok(bindings.resolve(ctx, &[scope], name, false)?.fact())
@@ -612,7 +623,7 @@ fn host_return_contracts_produce_enum_values_without_executing_callbacks() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let mut bindings = Bindings::new();
-        let scope = bindings.source(&mut ctx, &mut facts, program, 42).unwrap();
+        let scope = bindings.source(&mut ctx, &mut facts, program, 0).unwrap();
         let value = method.value();
         let Kind::Host(method) = &value.0 else {
             panic!()
@@ -626,7 +637,7 @@ fn host_return_contracts_produce_enum_values_without_executing_callbacks() {
             &mut facts,
             World {
                 inputs: &[],
-                source_owner: 42,
+                source_owner: 0,
                 program,
                 contracts: &[],
                 hosts: &[host],

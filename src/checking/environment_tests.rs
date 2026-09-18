@@ -589,6 +589,13 @@ fn source_owners_distinguish_code_and_captured_scopes_without_retaining_heaps() 
             .unwrap()
     );
     assert_ne!(plain, captured);
+    let plain_id = facts.source_id(&mut ctx, plain).unwrap();
+    let captured_id = facts.source_id(&mut ctx, captured).unwrap();
+    assert_ne!(plain_id, captured_id);
+    for source in [plain_id, captured_id] {
+        let code = facts.source_code(&mut ctx, source).unwrap().unwrap();
+        assert!(Arc::ptr_eq(&code, &first.inner.code));
+    }
     assert_ne!(
         captured,
         facts
@@ -612,6 +619,22 @@ fn source_owners_distinguish_code_and_captured_scopes_without_retaining_heaps() 
         facts
             .source_owner(&mut ctx, &first.inner.code, Some(&a))
             .unwrap()
+    );
+    assert_eq!(facts.source_id(&mut ctx, captured).unwrap(), captured_id);
+    assert_eq!(facts.source_id(&mut ctx, plain).unwrap(), plain_id);
+    assert_eq!(
+        facts.source_id(&mut ctx, 0).unwrap(),
+        super::sources::SourceId::ROOT
+    );
+    assert!(
+        facts
+            .source_code(&mut ctx, super::sources::SourceId::ROOT)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        facts.source_id(&mut ctx, 1).unwrap_err().kind,
+        ErrorKind::Runtime
     );
     drop((a, b, producer, first));
     assert!(weak_scope.upgrade().is_none());

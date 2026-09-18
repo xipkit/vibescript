@@ -153,7 +153,7 @@ impl Fixture {
             World {
                 inputs: &[],
                 program,
-                source_owner: 42,
+                source_owner: 0,
                 contracts: &contracts.data,
                 hosts: &hosts.data,
                 globals: &globals.data,

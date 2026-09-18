@@ -32,7 +32,7 @@ fn analyze_roots(
     roots: &[(Value, Target)],
 ) -> Result<Analysis> {
     let mut bindings = Bindings::new();
-    let scope = bindings.source(ctx, facts, program, 42)?;
+    let scope = bindings.source(ctx, facts, program, 0)?;
     let mut contracts = Buffer::empty();
     for ty in &program.types {
         let fact = facts.annotation(ctx, ty, |ctx, name| {
@@ -53,7 +53,7 @@ fn analyze_roots(
         World {
             inputs: &[],
             program,
-            source_owner: 42,
+            source_owner: 0,
             contracts: &contracts.data,
             hosts: &[],
             globals: roots,
@@ -95,7 +95,9 @@ fn witness(
             .incomplete
             .data
             .iter()
-            .map(|&(function, pc)| (function, pc, program.functions[function].code[pc]))
+            .map(|&super::calls::Location { function, pc, .. }| {
+                (function, pc, program.functions[function].code[pc])
+            })
             .collect();
         assert!(ops.is_empty(), "{source}: {report:?}; unsupported: {ops:?}");
         assert_eq!(

@@ -15,7 +15,11 @@ fn check(source: &str, rejected: bool) {
             .incomplete
             .data
             .iter()
-            .map(|&(f, pc)| program.functions[f].code[pc])
+            .map(
+                |&super::calls::Location {
+                     function: f, pc, ..
+                 }| program.functions[f].code[pc],
+            )
             .collect();
         panic!("{source}: {report:?}; pending {pending:?}");
     }

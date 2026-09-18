@@ -16,7 +16,9 @@ fn check(source: &str, rejected: bool) {
             .incomplete
             .data
             .iter()
-            .map(|&(function, pc)| (pc, program.functions[function].code[pc]))
+            .map(|&super::calls::Location { function, pc, .. }| {
+                (pc, program.functions[function].code[pc])
+            })
             .collect();
         panic!("{source}: {result:?}; unsupported instructions: {pending:?}");
     }

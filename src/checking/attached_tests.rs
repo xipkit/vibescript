@@ -45,11 +45,11 @@ pub(super) fn admitted<'a>(
                 let index = hosts.data.len();
                 let host = Host::new(ctx, facts, method.signature())?;
                 hosts.push(ctx, host)?;
-                facts.callable(ctx, 42, Callable::Host(index))?
+                facts.callable(ctx, 0, Callable::Host(index))?
             }
             Kind::Function(function) => {
                 let owner = if std::ptr::eq(&function.code.program, program) {
-                    42
+                    0
                 } else {
                     99
                 };
@@ -82,7 +82,7 @@ fn witness(body: &str, expected: &str, rejected: bool) {
         World {
             inputs: &[],
             program,
-            source_owner: 42,
+            source_owner: 0,
             contracts: &[],
             hosts: &hosts.data,
             globals: &[(Value::bytes(b"sms"), Target::Value(object_fact))],
@@ -100,7 +100,11 @@ fn witness(body: &str, expected: &str, rejected: bool) {
         .incomplete
         .data
         .iter()
-        .map(|&(f, pc)| (f, pc, program.functions[f].code[pc]))
+        .map(
+            |&super::calls::Location {
+                 function: f, pc, ..
+             }| (f, pc, program.functions[f].code[pc]),
+        )
         .collect();
     assert!(ops.is_empty(), "{source}: {report:?}; unsupported: {ops:?}");
     assert_eq!(
@@ -222,7 +226,7 @@ fn namespace_copies_keep_attached_methods_and_json_rejects_them() {
 fn exported_fact_projection_preserves_objects_and_filters_nested_data_iteratively() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let callable = facts.callable(&mut ctx, 42, Callable::Host(0)).unwrap();
+    let callable = facts.callable(&mut ctx, 0, Callable::Host(0)).unwrap();
     let maybe = facts
         .union(&mut ctx, &[callable, Atom::Int.fact()])
         .unwrap();
@@ -289,7 +293,7 @@ fn verify_script_args(
         World {
             inputs: &[],
             program,
-            source_owner: 42,
+            source_owner: 0,
             contracts: &contracts.data,
             hosts: &hosts.data,
             globals: &globals.data,
@@ -302,7 +306,11 @@ fn verify_script_args(
         .incomplete
         .data
         .iter()
-        .map(|&(f, pc)| (f, pc, program.functions[f].code[pc]))
+        .map(
+            |&super::calls::Location {
+                 function: f, pc, ..
+             }| (f, pc, program.functions[f].code[pc]),
+        )
         .collect();
     assert!(ops.is_empty(), "{report:?}; unsupported: {ops:?}");
     assert_eq!(!report.issues.data.is_empty(), rejected, "{report:?}");
@@ -542,7 +550,7 @@ fn method_owners_cannot_resolve_to_an_unrelated_world_with_the_same_index() {
             World {
                 inputs: &[],
                 program: &program,
-                source_owner: 42,
+                source_owner: 0,
                 contracts: &[],
                 hosts: &[host],
                 globals: &[(Value::bytes(b"item"), Target::Value(object))],
@@ -563,7 +571,7 @@ fn accounting_program() -> bytecode::Program {
 
 fn work(ctx: &mut CallContext, program: &bytecode::Program) -> Result<()> {
     let mut facts = Facts::new(ctx)?;
-    let method = facts.callable(ctx, 42, Callable::Host(0))?;
+    let method = facts.callable(ctx, 0, Callable::Host(0))?;
     let shape = facts.shape(ctx, &[(b"deliver", method, false)], false)?;
     let object = facts.hash_as(ctx, shape, HashKind::Object)?;
     let host = Host::new(ctx, &mut facts, None)?;
@@ -574,7 +582,7 @@ fn work(ctx: &mut CallContext, program: &bytecode::Program) -> Result<()> {
         World {
             inputs: &[],
             program,
-            source_owner: 42,
+            source_owner: 0,
             contracts: &[],
             hosts: &[host],
             globals: &[(name, Target::Value(object))],
@@ -690,7 +698,7 @@ fn supplied_arguments_reject_nested_methods_before_an_unused_parameter_body_runs
             World {
                 inputs: &[],
                 program,
-                source_owner: 42,
+                source_owner: 0,
                 contracts: &[],
                 hosts: &hosts.data,
                 globals: &[],
@@ -720,7 +728,7 @@ fn supplied_arguments_reject_nested_methods_before_an_unused_parameter_body_runs
 fn optional_and_uncertain_hash_projections_keep_the_object_alternatives() {
     let mut ctx = CallContext::new(CallOptions::default());
     let mut facts = Facts::new(&mut ctx).unwrap();
-    let method = facts.callable(&mut ctx, 42, Callable::Host(0)).unwrap();
+    let method = facts.callable(&mut ctx, 0, Callable::Host(0)).unwrap();
     let optional = facts
         .shape(&mut ctx, &[(b"method", method, true)], false)
         .unwrap();

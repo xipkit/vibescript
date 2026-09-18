@@ -459,7 +459,7 @@ fn resolved_enum_contracts_keep_members_across_script_boundaries() {
         let mut ctx = CallContext::new(CallOptions::default());
         let mut facts = Facts::new(&mut ctx).unwrap();
         let mut bindings = super::type_bindings::Bindings::new();
-        let scope = bindings.source(&mut ctx, &mut facts, &program, 37).unwrap();
+        let scope = bindings.source(&mut ctx, &mut facts, &program, 0).unwrap();
         let mut contracts = Buffer::empty();
         for ty in &program.types {
             let fact = facts
@@ -474,7 +474,7 @@ fn resolved_enum_contracts_keep_members_across_script_boundaries() {
             &mut facts,
             World {
                 inputs: &[],
-                source_owner: 37,
+                source_owner: 0,
                 program: &program,
                 contracts: &contracts.data,
                 hosts: &[],

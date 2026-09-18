@@ -227,7 +227,7 @@ pub(super) fn top(source: &str, expected: &str, issues: bool) {
             .incomplete
             .data
             .iter()
-            .map(|(function, pc)| {
+            .map(|super::calls::Location { function, pc, .. }| {
                 let function = &script.inner.code.program.functions[*function];
                 (&function.name, pc, function.code.get(*pc))
             })

@@ -193,6 +193,24 @@ impl Facts {
         self.sources.owner(ctx, code, environment)
     }
 
+    /// Returns a deterministic source key for call summaries and diagnostics.
+    pub fn source_id(
+        &self,
+        ctx: &mut CallContext,
+        owner: usize,
+    ) -> Result<super::sources::SourceId> {
+        self.sources.id(ctx, owner)
+    }
+
+    /// Borrows an owned source through a shared handle without retaining its mutable environment.
+    pub fn source_code(
+        &self,
+        ctx: &mut CallContext,
+        source: super::sources::SourceId,
+    ) -> Result<Option<std::sync::Arc<crate::code::Code>>> {
+        self.sources.code(ctx, source)
+    }
+
     pub fn len(&self) -> usize {
         self.entries.data.len()
     }

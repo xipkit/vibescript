@@ -1,4 +1,5 @@
 use super::{
+    calls::Location,
     entry::Check,
     public::{CheckDiagnostic, CheckReport},
 };
@@ -22,12 +23,17 @@ pub(super) fn build(
     let mut diagnostics = Buffer::empty();
     for issue in &check.analysis.issues.data {
         ctx.charge(1)?;
+        let code = check.facts.source_code(ctx, issue.source)?;
+        let program = code.as_ref().map_or(program, |code| &code.program);
         let (message, charge) = message::issue(ctx, program, &check.facts, issue)?;
         let diagnostic = locate(
             ctx,
             program,
-            issue.function,
-            issue.issue.pc,
+            Location {
+                source: issue.source,
+                function: issue.function,
+                pc: issue.issue.pc,
+            },
             check.entry,
             message,
             charge,
@@ -35,8 +41,10 @@ pub(super) fn build(
         diagnostics.push(ctx, diagnostic)?;
     }
     let mut incomplete = Buffer::empty();
-    for &(function, pc) in &check.analysis.incomplete.data {
+    for &location in &check.analysis.incomplete.data {
         ctx.charge(1)?;
+        let code = check.facts.source_code(ctx, location.source)?;
+        let program = code.as_ref().map_or(program, |code| &code.program);
         let mut writer = types::Writer::new(ctx);
         match &check.pending {
             Some(super::entry::Pending::Capability(name)) => {
@@ -47,7 +55,7 @@ pub(super) fn build(
             None => writer.text("Analysis of this expression is not implemented")?,
         }
         let (message, charge) = writer.finish();
-        let diagnostic = locate(ctx, program, function, pc, check.entry, message, charge)?;
+        let diagnostic = locate(ctx, program, location, check.entry, message, charge)?;
         incomplete.push(ctx, diagnostic)?;
     }
     order(ctx, &mut diagnostics.data)?;
@@ -66,19 +74,18 @@ pub(super) fn build(
 fn locate(
     ctx: &mut CallContext,
     program: &Program,
-    function: usize,
-    pc: usize,
+    location: Location,
     entry: bool,
     message: String,
     mut charge: Option<Charge>,
 ) -> Result<CheckDiagnostic> {
-    let function = &program.functions[function];
+    let function = &program.functions[location.function];
     let offset = if entry {
         function.offset
     } else {
         function
             .locations
-            .get(pc)
+            .get(location.pc)
             .copied()
             .unwrap_or(function.offset)
     };
@@ -99,12 +106,23 @@ fn locate(
         position,
         message,
         code_frame,
+        _source: location.source,
         _charge: charge,
     })
 }
 
 fn compare(ctx: &mut CallContext, a: &CheckDiagnostic, b: &CheckDiagnostic) -> Result<Ordering> {
     ctx.charge(1)?;
+    if let (Some(left), Some(right)) = (&a.filename, &b.filename) {
+        ctx.work_bytes(left.len().min(right.len()))?;
+    }
+    let source = a
+        .filename
+        .cmp(&b.filename)
+        .then_with(|| a._source.cmp(&b._source));
+    if source != Ordering::Equal {
+        return Ok(source);
+    }
     let offset = a.offset.cmp(&b.offset);
     if offset != Ordering::Equal {
         return Ok(offset);

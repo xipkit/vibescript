@@ -8,6 +8,7 @@ pub(in crate::checking) fn analyze<'a>(
     values: super::super::inputs::Values<'a>,
 ) -> Result<Analysis> {
     let program = world.program;
+    let source = facts.source_id(ctx, world.source_owner)?;
     let layouts = Layouts::new(ctx, program, world.source_owner)?;
     let mut functions = Buffer::with_capacity(ctx, program.functions.len())?;
     ctx.charge(program.functions.len() as u64)?;
@@ -60,7 +61,7 @@ pub(in crate::checking) fn analyze<'a>(
         .data
         .sort_unstable_by_key(|&body| program.functions[body].offset);
     for body in bodies.data {
-        if solver.whole_reached(ctx, &entries.data, body)? {
+        if solver.whole_reached(ctx, &entries.data, source, body)? {
             continue;
         }
         let mut context = solver.whole_initializer(ctx, body)?;
@@ -133,10 +134,11 @@ pub(in crate::checking) fn analyze<'a>(
 }
 
 impl Solver<'_> {
-    fn whole_reached(
+    pub(super) fn whole_reached(
         &self,
         ctx: &mut CallContext,
         entries: &[usize],
+        source: SourceId,
         function: usize,
     ) -> Result<bool> {
         let mut seen = Buffer::with_capacity(ctx, self.jobs.data.len())?;
@@ -151,7 +153,7 @@ impl Solver<'_> {
             }
             seen.data[index] = true;
             let job = &self.jobs.data[index];
-            if job.function == function {
+            if job.source == source && job.function == function {
                 return Ok(true);
             }
             pending.extend(ctx, &job.dependencies.data)?;

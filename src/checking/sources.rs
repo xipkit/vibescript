@@ -6,6 +6,14 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct SourceId(usize);
+
+impl SourceId {
+    /// Identifies a borrowed program supplied directly to the internal analyzer.
+    pub const ROOT: Self = Self(usize::MAX);
+}
+
 #[derive(Debug)]
 struct Source {
     code: Arc<Code>,
@@ -62,5 +70,36 @@ impl Sources {
             }
         }
         Ok((false, owner))
+    }
+
+    /// Resolves a source owner to its stable registration ordinal.
+    pub fn id(&self, ctx: &mut CallContext, owner: usize) -> Result<SourceId> {
+        ctx.checkpoint()?;
+        let (registered, index) = self.key(ctx, owner)?;
+        if registered {
+            Ok(SourceId(index))
+        } else if owner == 0 {
+            Ok(SourceId::ROOT)
+        } else {
+            Err(crate::Error::new(
+                crate::ErrorKind::Runtime,
+                "unknown checker source identity",
+            ))
+        }
+    }
+
+    /// Keeps a selected source alive while its metadata or diagnostics are read.
+    pub fn code(&self, ctx: &mut CallContext, source: SourceId) -> Result<Option<Arc<Code>>> {
+        ctx.charge(1)?;
+        if source == SourceId::ROOT {
+            return Ok(None);
+        }
+        self.entries
+            .data
+            .get(source.0)
+            .map(|entry| Some(entry.code.clone()))
+            .ok_or_else(|| {
+                crate::Error::new(crate::ErrorKind::Runtime, "unknown checker source identity")
+            })
     }
 }

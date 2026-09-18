@@ -48,10 +48,14 @@ fn witness(script: &Script, args: &[Value], options: &CallOptions, expected: &st
             .incomplete
             .data
             .iter()
-            .map(|(f, pc)| {
-                let function = &script.inner.code.program.functions[*f];
-                (&function.name, pc, function.code.get(*pc))
-            })
+            .map(
+                |super::calls::Location {
+                     function: f, pc, ..
+                 }| {
+                    let function = &script.inner.code.program.functions[*f];
+                    (&function.name, pc, function.code.get(*pc))
+                }
+            )
             .collect::<Vec<_>>()
     );
     assert_eq!(

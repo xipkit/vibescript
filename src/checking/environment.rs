@@ -105,7 +105,15 @@ impl<'a> Environment<'a> {
         ctx.checkpoint()?;
         if !self.incomplete.data.is_empty() {
             let mut incomplete = Buffer::empty();
-            incomplete.push(ctx, (function, 0))?;
+            let source = facts.source_id(ctx, self.owner)?;
+            incomplete.push(
+                ctx,
+                super::calls::Location {
+                    source,
+                    function,
+                    pc: 0,
+                },
+            )?;
             return Ok(Analysis {
                 returns: Atom::Unknown.fact(),
                 throws: u8::MAX,

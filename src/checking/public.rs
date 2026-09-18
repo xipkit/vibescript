@@ -16,6 +16,7 @@ pub struct CheckDiagnostic {
     pub position: Position,
     pub message: String,
     pub code_frame: String,
+    pub(super) _source: super::sources::SourceId,
     pub(super) _charge: Option<Charge>,
 }
 
@@ -28,8 +29,8 @@ impl fmt::Display for CheckDiagnostic {
 /// The result of checking one selected scope without executing script or host code.
 ///
 /// Known contradictions and unimplemented analysis paths are reported separately.
-/// Both lists are sorted by source position and deduplicated. Unknown dynamic
-/// values alone do not make a check incomplete. Counters include report storage.
+/// Both lists are sorted by source and position and deduplicated within each source.
+/// Unknown dynamic values alone do not make a check incomplete. Counters include report storage.
 #[derive(Debug)]
 pub struct CheckReport {
     pub diagnostics: Vec<CheckDiagnostic>,
