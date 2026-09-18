@@ -315,7 +315,9 @@ impl Facts {
                             continue;
                         }
                         if relation == Relation::Accepted
-                            && (!self.normalizes(expected) || self.enum_nominal(actual).is_some())
+                            && (!self.normalizes(expected)
+                                || self.enum_nominal(actual).is_some()
+                                || matches!(self.node(actual), Node::Instance { .. }))
                         {
                             let value = if self.normalizes(actual) {
                                 self.value_domain(ctx, actual)?

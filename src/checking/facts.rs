@@ -88,6 +88,10 @@ pub(super) enum Node {
     Offset(Fact),
     Protected(Fact, crate::hash::Tag),
     TypeValue(Fact),
+    Instance {
+        class: Fact,
+        slot: usize,
+    },
     Enumeration {
         nominal: Fact,
         value: Value,
@@ -306,6 +310,7 @@ impl Facts {
             | Node::Symbol(_)
             | Node::Range(..)
             | Node::Regex(_)
+            | Node::Instance { .. }
             | Node::Enumeration { .. }
             | Node::EnumMember { index: Some(_), .. } => true,
             Node::Tuple(values) => {
@@ -411,6 +416,10 @@ impl Facts {
 
     pub fn type_value(&mut self, ctx: &mut CallContext, ty: Fact) -> Result<Fact> {
         self.intern(ctx, Node::TypeValue(ty))
+    }
+
+    pub fn instance(&mut self, ctx: &mut CallContext, class: Fact, slot: usize) -> Result<Fact> {
+        self.intern(ctx, Node::Instance { class, slot })
     }
 
     pub(super) fn protected(
@@ -1004,6 +1013,7 @@ impl Node {
             Self::Offset(value) => value.hash(&mut hash),
             Self::Protected(value, tag) => (value, *tag as u8).hash(&mut hash),
             Self::TypeValue(value) => value.hash(&mut hash),
+            Self::Instance { class, slot } => (class, slot).hash(&mut hash),
             Self::Enumeration { nominal, .. } => nominal.hash(&mut hash),
             Self::EnumMember { enumeration, index } => (enumeration, index).hash(&mut hash),
             Self::Range(start, end, exclusive) => (start, end, exclusive).hash(&mut hash),
@@ -1072,6 +1082,9 @@ impl Node {
             (Self::Offset(a), Self::Offset(b)) => a == b,
             (Self::Protected(a, at), Self::Protected(b, bt)) => a == b && at == bt,
             (Self::TypeValue(a), Self::TypeValue(b)) => a == b,
+            (Self::Instance { class: a, slot: ai }, Self::Instance { class: b, slot: bi }) => {
+                a == b && ai == bi
+            }
             (Self::Enumeration { nominal: a, .. }, Self::Enumeration { nominal: b, .. }) => a == b,
             (
                 Self::EnumMember {

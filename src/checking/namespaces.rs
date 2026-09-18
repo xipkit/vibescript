@@ -1,9 +1,9 @@
 use super::facts::{Atom, Fact, Facts, Field, HashKind, Node};
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 
-pub(super) const WIDTH: usize = 2;
+pub(super) const WIDTH: usize = 3;
 
-/// Namespace heaps and completion flags follow the ordinary global bindings.
+/// Namespace fields, completion flags and instance heaps follow ordinary globals.
 pub(super) fn slot(globals: usize, program: &Program, module: usize) -> usize {
     globals - program.namespaces.len() * WIDTH + module * WIDTH
 }

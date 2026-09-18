@@ -144,7 +144,9 @@ impl Facts {
             Node::Atom(Atom::Unknown | Atom::Any) => {
                 return Ok(Mutation::new(Atom::Unknown.fact(), value));
             }
-            Node::Named(_) | Node::Nominal { .. } => return Ok(Mutation::unsupported()),
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
+                return Ok(Mutation::unsupported());
+            }
             Node::Hash(..) | Node::Shape(..) => {
                 return self.hash_write(ctx, receiver, index, value);
             }
@@ -212,7 +214,11 @@ impl Facts {
     ) -> Result<Mutation> {
         match self.atom(index) {
             Some(Atom::String | Atom::Symbol | Atom::Unknown | Atom::Any) => (),
-            None if matches!(self.node(index), Node::Named(_) | Node::Nominal { .. }) => {
+            None if matches!(
+                self.node(index),
+                Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+            ) =>
+            {
                 return Ok(Mutation::unsupported());
             }
             _ => return Ok(Mutation::rejected()),
@@ -290,7 +296,9 @@ impl Facts {
             Node::Atom(Atom::Unknown | Atom::Any) => {
                 return Ok(Mutation::new(Atom::Unknown.fact(), Atom::Unknown.fact()));
             }
-            Node::Named(_) | Node::Nominal { .. } => return Ok(Mutation::unsupported()),
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
+                return Ok(Mutation::unsupported());
+            }
             Node::String(_) | Node::Atom(Atom::String) => {
                 return self.string_mutation(ctx, receiver, method, args);
             }
@@ -358,7 +366,11 @@ impl Facts {
         match self.atom(index) {
             Some(Atom::Never) => Some(Mutation::empty()),
             Some(Atom::Int | Atom::Float | Atom::Unknown | Atom::Any) => None,
-            None if matches!(self.node(index), Node::Named(_) | Node::Nominal { .. }) => {
+            None if matches!(
+                self.node(index),
+                Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+            ) =>
+            {
                 Some(Mutation::unsupported())
             }
             _ => Some(Mutation::rejected()),
@@ -502,6 +514,7 @@ impl Facts {
                     | Node::Atom(Atom::Unknown | Atom::Any)
                     | Node::Named(_)
                     | Node::Nominal { .. }
+                    | Node::Instance { .. }
             ) {
                 return Some(false);
             }
@@ -724,6 +737,7 @@ impl Facts {
                         }
                         Node::Named(_)
                         | Node::Nominal { .. }
+                        | Node::Instance { .. }
                         | Node::Atom(Atom::Unknown | Atom::Any) => Mutation::unsupported(),
                         _ => Mutation::rejected(),
                     };
@@ -752,7 +766,11 @@ impl Facts {
     ) -> Result<Mutation> {
         match self.atom(key) {
             Some(Atom::String | Atom::Symbol | Atom::Unknown | Atom::Any) => (),
-            None if matches!(self.node(key), Node::Named(_) | Node::Nominal { .. }) => {
+            None if matches!(
+                self.node(key),
+                Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+            ) =>
+            {
                 return Ok(Mutation::unsupported());
             }
             _ => return Ok(Mutation::rejected()),
@@ -831,7 +849,11 @@ impl Facts {
                 match self.atom(arm) {
                     Some(Atom::String) => accepted.push(ctx, arm)?,
                     Some(Atom::Unknown | Atom::Any) => accepted.push(ctx, Atom::String.fact())?,
-                    None if matches!(self.node(arm), Node::Named(_) | Node::Nominal { .. }) => {
+                    None if matches!(
+                        self.node(arm),
+                        Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+                    ) =>
+                    {
                         result.unsupported = true
                     }
                     _ => result.rejected = true,

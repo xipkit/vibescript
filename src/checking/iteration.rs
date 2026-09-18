@@ -87,7 +87,11 @@ impl Facts {
                     }
                     (self.union(ctx, &items.data)?, empty, open || length > 1)
                 }
-                Node::Named(_) | Node::Nominal { .. } | Node::Hash(..) | Node::Shape(..) => {
+                Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Instance { .. }
+                | Node::Hash(..)
+                | Node::Shape(..) => {
                     result.unsupported = true;
                     continue;
                 }

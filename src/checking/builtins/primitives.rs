@@ -168,7 +168,7 @@ pub(super) fn member(
             "eql?" | "equal?" => {
                 if matches!(
                     facts.node(receiver),
-                    Node::Enumeration { .. } | Node::EnumMember { .. }
+                    Node::Enumeration { .. } | Node::EnumMember { .. } | Node::Instance { .. }
                 ) {
                     return Ok(outcome(facts.set_equal(
                         ctx,

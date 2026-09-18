@@ -84,7 +84,7 @@ impl Walker<'_> {
                     self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
                     (Atom::String.fact(), expected)
                 }
-                Node::Named(_) | Node::Nominal { .. } => {
+                Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
                     self.incomplete(pc)?;
                     continue;
                 }
@@ -321,7 +321,7 @@ impl Walker<'_> {
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
                 Ok(Some((Atom::Unknown.fact(), Atom::Unknown.fact())))
             }
-            Node::Named(_) | Node::Nominal { .. } => {
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
                 self.incomplete(pc)?;
                 Ok(None)
             }

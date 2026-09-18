@@ -23,6 +23,45 @@ fn executed(outcome: CheckedOutcome) -> vibescript::Outcome {
 }
 
 #[test]
+fn checked_constructors_reject_bad_property_writes_before_host_effects() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let mut engine = Engine::new();
+    engine.register("effect", move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::nil())
+    });
+    let script = engine.compile("class C;getter items:array<int>;def initialize;effect();@items=[1];end;def add(value);@items.push(value);end;end;def run(value);c=C.new;c.add(value);c.items;end").unwrap();
+    let report = script
+        .check_call("run", &[Value::int(2)], &CallOptions::default())
+        .unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    assert_eq!(effects.load(Ordering::Relaxed), 0);
+    let result = executed(
+        script
+            .checked_call("run", &[Value::int(2)], CallOptions::default())
+            .unwrap(),
+    );
+    assert_eq!(result.value.to_string(), "[1, 2]");
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+    let CheckedOutcome::Rejected(report) = script
+        .checked_call("run", &[Value::boolean(false)], CallOptions::default())
+        .unwrap()
+    else {
+        panic!("bad field write executed constructor effects")
+    };
+    assert!(report.incomplete.is_empty(), "{report:?}");
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|issue| issue.message.contains("Property value") && issue.message.contains("int")),
+        "{report:?}"
+    );
+    assert_eq!(effects.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn checked_namespace_calls_report_callee_types_before_host_effects() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();

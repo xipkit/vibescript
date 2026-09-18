@@ -22,6 +22,7 @@ impl Walker<'_> {
                 | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => (),
                 Node::Named(_)
                 | Node::Nominal { .. }
+                | Node::Instance { .. }
                 | Node::Shape(..)
                 | Node::Hash(..)
                 | Node::Atom(Atom::Unknown | Atom::Any) => {
@@ -82,7 +83,7 @@ impl Walker<'_> {
                         | Node::Shape(_, _, _, HashKind::Any | HashKind::Object) => {
                             self.plain_hash_data(candidate)?
                         }
-                        Node::Named(_) | Node::Nominal { .. } => {
+                        Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
                             self.incomplete(pc)?;
                             continue;
                         }

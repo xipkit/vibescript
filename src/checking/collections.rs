@@ -199,7 +199,10 @@ impl Facts {
         if unknown(self.atom(receiver)) {
             return Ok(outcome(Atom::Unknown.fact()));
         }
-        if matches!(self.node(receiver), Node::Named(_) | Node::Nominal { .. }) {
+        if matches!(
+            self.node(receiver),
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+        ) {
             return Ok(unsupported());
         }
         if receiver == Atom::Never.fact()
@@ -407,7 +410,10 @@ impl Facts {
         if receiver == Atom::Never.fact() {
             return Ok(outcome(receiver));
         }
-        if matches!(self.node(receiver), Node::Named(_) | Node::Nominal { .. }) {
+        if matches!(
+            self.node(receiver),
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }
+        ) {
             return Ok(unsupported());
         }
         match super::objects::select(ctx, self, receiver, site, name)? {

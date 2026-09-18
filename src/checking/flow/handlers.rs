@@ -324,8 +324,12 @@ impl Walker<'_> {
         }
         match transfer {
             Transfer::Return { pc, value: actual } => {
-                let mut value = actual;
-                if let Some(ty) = self.function.return_type {
+                let mut value = if self.constructor {
+                    self.receiver.unwrap()
+                } else {
+                    actual
+                };
+                if let Some(ty) = self.function.return_type.filter(|_| !self.constructor) {
                     let Some(expected) = self.normalization_contract(&mut state, pc, ty)? else {
                         return Ok([None, None]);
                     };

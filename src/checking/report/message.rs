@@ -104,6 +104,12 @@ pub(super) fn issue(
             out.text("Return value: ")?;
             out.mismatch(facts, actual, expected)?;
         }
+        IssueKind::Property { actual, expected } => {
+            out.text("Property value ")?;
+            out.fact(facts, actual)?;
+            out.text(" does not match ")?;
+            out.fact(facts, expected)?;
+        }
         IssueKind::Default { actual, expected } => {
             out.text("Default argument: ")?;
             out.mismatch(facts, actual, expected)?;
@@ -154,21 +160,26 @@ fn member(out: &mut Writer<'_>, program: &Program, name: usize) -> Result<()> {
 
 fn target(out: &mut Writer<'_>, program: &Program, target: Target) -> Result<()> {
     match target {
-        Target::Function(index) | Target::Block(index) => {
-            out.quoted(program.functions[index].trace_name.as_bytes())
-        }
+        Target::Function(index)
+        | Target::Block(index)
+        | Target::Method {
+            function: index, ..
+        } => out.quoted(program.functions[index].trace_name.as_bytes()),
         Target::Host(index) => match program.hosts.get(index) {
             Some(name) => out.quoted(name.as_bytes()),
             None => out.text("host method"),
         },
         Target::Builtin(builtin) => out.quoted(builtin.name().as_bytes()),
+        Target::Helper { name, .. } => out.quoted(name.as_bytes()),
         _ => out.text("call"),
     }
 }
 
 fn parameter(out: &mut Writer<'_>, program: &Program, target: Target, index: usize) -> Result<()> {
     out.text("argument ")?;
-    if let Target::Function(function) | Target::Block(function) = target {
+    if let Target::Function(function) | Target::Block(function) | Target::Method { function, .. } =
+        target
+    {
         if let Some(parameter) = program.functions[function].params.get(index) {
             return out.quoted(parameter.name.as_bytes());
         }

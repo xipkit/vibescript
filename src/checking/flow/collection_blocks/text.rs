@@ -174,7 +174,10 @@ impl Walker<'_> {
         );
         if matches!(
             self.facts.node(receiver),
-            Node::Named(_) | Node::Nominal { .. } | Node::Atom(Atom::Unknown | Atom::Any)
+            Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Instance { .. }
+                | Node::Atom(Atom::Unknown | Atom::Any)
         ) {
             self.incomplete(pc)?;
             return Ok(());

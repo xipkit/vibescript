@@ -52,6 +52,7 @@ pub(super) struct Link {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Layer {
     pub function: usize,
+    pub receiver: Option<Fact>,
     pub given: bool,
     pub locals: usize,
 }
@@ -59,6 +60,7 @@ pub(super) struct Layer {
 #[derive(Debug)]
 pub(super) struct Closure {
     pub function: usize,
+    pub receiver: Option<Fact>,
     pub given: bool,
     pub locals: usize,
     // Each layer belongs to an earlier lexical function home, ordered nearest first.
@@ -82,6 +84,7 @@ impl Closure {
             pending: self.pending.snapshot(ctx)?,
             destinations,
             function: self.function,
+            receiver: self.receiver,
             given: self.given,
             locals: self.locals,
             inherited,
@@ -102,6 +105,17 @@ impl Closure {
         ctx.charge(self.destinations.data.len() as u64 + 1)?;
         assert_eq!(self.destinations.data, other.destinations.data);
         let mut changed = self.pending.join(ctx, facts, &other.pending, None)?;
+        if self.receiver != other.receiver {
+            let receiver = facts.union(
+                ctx,
+                &[
+                    self.receiver.unwrap_or(Atom::Nil.fact()),
+                    other.receiver.unwrap_or(Atom::Nil.fact()),
+                ],
+            )?;
+            changed |= self.receiver != Some(receiver);
+            self.receiver = Some(receiver);
+        }
         for (a, b) in self.captures.data.iter_mut().zip(&other.captures.data) {
             ctx.charge(1)?;
             assert_eq!((a.slot, a.parent), (b.slot, b.parent));

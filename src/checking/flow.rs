@@ -103,6 +103,10 @@ pub(super) enum IssueKind {
         actual: Fact,
         expected: Fact,
     },
+    Property {
+        actual: Fact,
+        expected: Fact,
+    },
     Reassignment {
         slot: usize,
         before: Fact,
@@ -587,6 +591,8 @@ pub(super) fn analyze(
         ctx,
         facts,
         Body {
+            receiver: None,
+            constructor: false,
             program,
             function,
             contracts,
@@ -602,6 +608,8 @@ pub(super) fn analyze(
 }
 
 pub(super) struct Body<'a> {
+    pub receiver: Option<Fact>,
+    pub constructor: bool,
     pub program: &'a Program,
     pub function: usize,
     pub contracts: &'a [Fact],
@@ -620,6 +628,8 @@ pub(super) fn analyze_body(
     calls: &mut dyn Calls,
 ) -> Result<Report> {
     let Body {
+        receiver,
+        constructor,
         program,
         function,
         contracts,
@@ -644,7 +654,10 @@ pub(super) fn analyze_body(
     ctx.charge(function.params.len() as u64)?;
     if function_index == 0
         || program.file
-        || function.instance
+        || (function.instance
+            && !receiver.is_some_and(|value| {
+                matches!(facts.node(value), super::facts::Node::Instance { .. })
+            }))
         || (block.is_none() && (function.name == "<block>" || !function.captures.is_empty()))
     {
         report.incomplete.push(ctx, 0)?;
@@ -777,6 +790,8 @@ pub(super) fn analyze_body(
     )?;
     queue.push(ctx, (0, 0))?;
     let mut walker = Walker {
+        receiver,
+        constructor,
         ctx,
         facts,
         program,
@@ -856,6 +871,8 @@ pub(super) fn analyze_body(
 }
 
 struct Walker<'a> {
+    receiver: Option<Fact>,
+    constructor: bool,
     ctx: &'a mut CallContext,
     facts: &'a mut Facts,
     program: &'a Program,
@@ -926,9 +943,28 @@ impl Walker<'_> {
         &mut self,
         state: &mut State,
         pc: usize,
-        target: Target,
+        mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
+        if let Target::Method {
+            function,
+            receiver,
+            constructor: true,
+        } = target
+        {
+            let module = self.program.functions[function].namespace.unwrap();
+            let Some(instance) = self.construct(state, pc, receiver)? else {
+                return Ok(Some([None, None]));
+            };
+            if !self.program.namespaces[module].constructor.unwrap().1 {
+                args = Arguments::new();
+            }
+            target = Target::Method {
+                function,
+                receiver: instance,
+                constructor: true,
+            };
+        }
         if let Target::Host(index) = target {
             if args.block.is_some() {
                 self.host_block(state, pc, index, args)?;
@@ -1199,7 +1235,9 @@ impl Walker<'_> {
         if result.unsupported {
             return self.incomplete(pc).map(Some);
         }
-        let mut updated = result.value;
+        let Some(mut updated) = self.guard_instance(state, pc, address, result.value)? else {
+            return Ok(Some([None, None]));
+        };
         if address.attached == Attached::Maybe {
             let current = state.locals.get(self.ctx, slot)?.value;
             updated = self.facts.union(self.ctx, &[current, updated])?;
@@ -1519,8 +1557,21 @@ impl Walker<'_> {
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::NamespaceSelf(module) => {
-                    let value = self.namespace_value(module)?;
+                    let value = self.self_value(module)?;
                     state.stack.push(self.ctx, Operand::new(value))?;
+                }
+                Op::BindIvar(name, local) => {
+                    let actual = state.locals.get(self.ctx, local)?.value;
+                    let Some(value) = self.instance_store(
+                        &mut state,
+                        pc,
+                        &self.program.members[name],
+                        Operand::new(actual),
+                    )?
+                    else {
+                        return Ok([None, None]);
+                    };
+                    state.store(self.ctx, self.facts, local, value)?;
                 }
                 Op::NamespaceConstant(name, next) => {
                     return self.namespace_constant_edges(state, pc, name, next);
@@ -2758,6 +2809,9 @@ impl Walker<'_> {
                     };
                     let right = state.stack.data.pop().unwrap();
                     let left = state.stack.data.pop().unwrap();
+                    if self.instance_operator(left.value, op)? {
+                        return self.incomplete(pc);
+                    }
                     let result = self
                         .facts
                         .scalar_binary(self.ctx, op, left.value, right.value)?;
@@ -2820,6 +2874,7 @@ impl Walker<'_> {
                             self.facts.node(state.stack.data.last().unwrap().value),
                             super::facts::Node::TypeValue(_)
                         )
+                        && !self.namespace_receiver(state.stack.data.last().unwrap().value)?
                         && !super::objects::contains(
                             self.ctx,
                             self.facts,

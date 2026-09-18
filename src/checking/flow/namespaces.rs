@@ -3,10 +3,11 @@ use crate::checking::facts::{Node, NominalId};
 use crate::checking::namespaces::{self, Selected};
 use crate::syntax::modules::Visibility;
 
+mod instances;
 mod state;
 
 enum Selection {
-    Function(usize),
+    Call(Target),
     Field(Fact, bool),
     Rejected,
     Incomplete,
@@ -17,6 +18,9 @@ impl Walker<'_> {
         for i in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             let arm = self.facts.arm(value, i);
+            if matches!(self.facts.node(arm), Node::Instance { .. }) {
+                return Ok(true);
+            }
             if let Node::TypeValue(ty) = self.facts.node(arm) {
                 if matches!(self.facts.node(*ty), Node::Nominal { symbols: None, .. }) {
                     return Ok(true);
@@ -63,13 +67,14 @@ impl Walker<'_> {
     }
 
     fn namespace_index(&self, receiver: Fact) -> Option<usize> {
-        let Node::TypeValue(ty) = self.facts.node(receiver) else {
-            return None;
+        let ty = match self.facts.node(receiver) {
+            Node::TypeValue(ty) | Node::Instance { class: ty, .. } => *ty,
+            _ => return None,
         };
         let Node::Nominal {
             identity: NominalId::Binding(owner, index),
             ..
-        } = *self.facts.node(*ty)
+        } = *self.facts.node(ty)
         else {
             return None;
         };
@@ -132,7 +137,13 @@ impl Walker<'_> {
             if self.program.names.contains_key(name) {
                 return Ok(None);
             }
-            for method in &self.program.namespaces[module].methods {
+            let definition = &self.program.namespaces[module];
+            let methods = if self.function.instance {
+                &definition.instance_methods
+            } else {
+                &definition.methods
+            };
+            for method in methods {
                 self.ctx.work_bytes(method.name.len().max(name.len()))?;
                 if method.name == name {
                     return Ok(None);
@@ -156,31 +167,89 @@ impl Walker<'_> {
             return Ok(Selection::Incomplete);
         };
         let definition = &self.program.namespaces[module];
+        let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
         if scope {
-            return self.namespace_field_selection(state, module, name);
+            return if instance {
+                Ok(Selection::Rejected)
+            } else {
+                self.namespace_field_selection(state, module, name)
+            };
         }
-        if name == "new" && definition.constructor.is_some() {
-            return Ok(Selection::Incomplete);
+        if instance && name == "class" {
+            return Ok(Selection::Field(self.namespace_value(module)?, false));
         }
-        for method in &definition.methods {
+        if !instance && name == "new" {
+            if let Some((function, _)) = definition.constructor {
+                return Ok(Selection::Call(Target::Method {
+                    function,
+                    receiver,
+                    constructor: true,
+                }));
+            }
+        }
+        let methods = if instance {
+            &definition.instance_methods
+        } else {
+            &definition.methods
+        };
+        for method in methods {
             self.ctx.work_bytes(method.name.len().max(name.len()))?;
             if method.name == name {
                 let allowed = match method.visibility {
                     Visibility::Public => true,
                     Visibility::Private => implicit,
-                    Visibility::Protected => implicit || self.function.namespace == Some(module),
+                    Visibility::Protected => {
+                        implicit
+                            || (self.function.namespace == Some(module)
+                                && self.function.instance == instance)
+                    }
                 };
                 return Ok(if allowed {
-                    Selection::Function(method.function)
+                    Selection::Call(if instance {
+                        Target::Method {
+                            function: method.function,
+                            receiver,
+                            constructor: false,
+                        }
+                    } else {
+                        Target::Function(method.function)
+                    })
                 } else {
                     Selection::Rejected
                 });
             }
         }
+        if instance {
+            let helper = match name {
+                "nil?" => Some("nil?"),
+                "itself" => Some("itself"),
+                "dup" => Some("dup"),
+                "clone" => Some("clone"),
+                "freeze" => Some("freeze"),
+                "frozen?" => Some("frozen?"),
+                "eql?" => Some("eql?"),
+                "equal?" => Some("equal?"),
+                _ => None,
+            };
+            if let Some(name) = helper {
+                return Ok(Selection::Call(Target::Helper { receiver, name }));
+            }
+        }
         if crate::members::names::universal(name) {
             return Ok(Selection::Incomplete);
         }
-        self.namespace_field_selection(state, module, name)
+        if instance {
+            let field = self.instance_field(state, receiver, name)?;
+            Ok(if field.incomplete {
+                Selection::Incomplete
+            } else if field.value == Atom::Never.fact() {
+                Selection::Rejected
+            } else {
+                Selection::Field(field.value, field.missing)
+            })
+        } else {
+            self.namespace_field_selection(state, module, name)
+        }
     }
 
     fn namespace_field_selection(
@@ -206,7 +275,7 @@ impl Walker<'_> {
         name: usize,
     ) -> Result<Option<Target>> {
         let module = self.function.namespace.unwrap();
-        let receiver = self.namespace_value(module)?;
+        let receiver = self.self_value(module)?;
         Ok(Some(
             match self.namespace_selection(
                 state,
@@ -215,7 +284,7 @@ impl Walker<'_> {
                 false,
                 true,
             )? {
-                Selection::Function(function) => Target::Function(function),
+                Selection::Call(target) => target,
                 Selection::Field(value, missing) => {
                     if missing {
                         self.namespace_error(state, pc, receiver, name, &Arguments::new())?;
@@ -260,8 +329,8 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let name = &self.program.members[site.name];
         match self.namespace_selection(state, receiver, name, site.scope, false)? {
-            Selection::Function(function) => {
-                state.arguments.data.last_mut().unwrap().target = Target::Function(function);
+            Selection::Call(target) => {
+                state.arguments.data.last_mut().unwrap().target = target;
                 Ok(None)
             }
             Selection::Field(value, missing) => {
@@ -289,9 +358,7 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let selected = site.text(self.program, self.facts);
         match self.namespace_selection(state, receiver, selected.as_str(), site.scope, implicit)? {
-            Selection::Function(function) => {
-                self.invoke(state, pc, Target::Function(function), args)
-            }
+            Selection::Call(target) => self.invoke(state, pc, target, args),
             Selection::Field(value, missing) => {
                 if missing {
                     self.namespace_error(state, pc, receiver, site.name, &args)?;

@@ -140,7 +140,11 @@ impl Walker<'_> {
                             output,
                         )
                     }
-                    Node::Named(_) | Node::Nominal { .. } | Node::Hash(..) | Node::Shape(..) => {
+                    Node::Named(_)
+                    | Node::Nominal { .. }
+                    | Node::Instance { .. }
+                    | Node::Hash(..)
+                    | Node::Shape(..) => {
                         self.incomplete(pc)?;
                         continue;
                     }

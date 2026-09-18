@@ -23,7 +23,10 @@ pub(super) fn member(
             }
             let unknown = matches!(
                 facts.node(value),
-                Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. }
+                Node::Atom(Atom::Unknown | Atom::Any)
+                    | Node::Named(_)
+                    | Node::Nominal { .. }
+                    | Node::Instance { .. }
             ) || matches!(
                 facts.node(value),
                 Node::Hash(_, _, HashKind::Any | HashKind::Object)
@@ -106,9 +109,10 @@ fn callable(ctx: &mut CallContext, facts: &mut Facts, value: Fact) -> Result<Fac
         let next = match facts.node(arm) {
             Node::Atom(Atom::Never) => continue,
             Node::Builtin(_) | Node::Offset(_) => facts.boolean(ctx, true)?,
-            Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. } => {
-                Atom::Bool.fact()
-            }
+            Node::Atom(Atom::Unknown | Atom::Any)
+            | Node::Named(_)
+            | Node::Nominal { .. }
+            | Node::Instance { .. } => Atom::Bool.fact(),
             _ => facts.boolean(ctx, false)?,
         };
         result = facts.union(ctx, &[result, next])?;

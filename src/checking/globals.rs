@@ -68,7 +68,8 @@ impl Globals {
             ctx.charge(1)?;
             let fields = super::namespaces::initial(ctx, facts, program, owner, module)?;
             let initialized = facts.boolean(ctx, definition.body.is_none())?;
-            for value in [fields, initialized] {
+            let instances = facts.tuple(ctx, &[])?;
+            for value in [fields, initialized, instances] {
                 self.values.push(ctx, value)?;
                 self.missing.push(ctx, false)?;
                 self.written.push(ctx, false)?;

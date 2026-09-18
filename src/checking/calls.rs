@@ -24,6 +24,15 @@ pub(super) enum Target {
     Builtin(crate::builtin::Builtin),
     Offset(Fact),
     Function(usize),
+    Helper {
+        receiver: Fact,
+        name: &'static str,
+    },
+    Method {
+        function: usize,
+        receiver: Fact,
+        constructor: bool,
+    },
     Block(usize),
     Host(usize),
     NonCallable,
@@ -499,6 +508,8 @@ pub(super) fn analyze_with_values<'a>(
         };
         let function = solver.jobs.data[index].function;
         let body = flow::Body {
+            receiver: context.receiver,
+            constructor: context.constructor,
             program: solver.world.program,
             contracts: solver.world.contracts,
             function,
@@ -1006,10 +1017,24 @@ impl Calls for Solver<'_> {
         if !args.admit(ctx, facts, &mut outcome.failures)? {
             return Ok(outcome);
         }
+        if let Target::Helper { receiver, name } = target {
+            let site = crate::bytecode::CallSite {
+                name: usize::MAX,
+                method: None,
+                auto: false,
+                scope: false,
+                parenthesized: true,
+            };
+            return Ok(
+                super::builtins::member(ctx, facts, receiver, site, name, &args)?
+                    .expect("known instance helper"),
+            );
+        }
         if args.block.is_some()
             && !matches!(
                 target,
                 Target::Function(_)
+                    | Target::Method { .. }
                     | Target::Block(_)
                     | Target::Host(_)
                     | Target::Undefined
@@ -1024,7 +1049,9 @@ impl Calls for Solver<'_> {
             Target::Offset(value) => {
                 return super::builtins::protected::invoke(ctx, facts, value, &args);
             }
-            Target::Function(function) | Target::Block(function) => {
+            Target::Function(function)
+            | Target::Block(function)
+            | Target::Method { function, .. } => {
                 let mut context = args
                     .block
                     .as_ref()
@@ -1032,7 +1059,17 @@ impl Calls for Solver<'_> {
                     .transpose()?
                     .unwrap_or_else(Context::plain);
                 context.globals = globals.snapshot(ctx)?;
+                if let Target::Method {
+                    receiver,
+                    constructor,
+                    ..
+                } = target
+                {
+                    context.receiver = Some(receiver);
+                    context.constructor = constructor;
+                }
                 let inputs = if matches!(target, Target::Block(_)) {
+                    context.receiver = context.block_receiver;
                     context.kind = Kind::Invoked {
                         given: args.block.as_ref().unwrap().given,
                     };
@@ -1077,9 +1114,10 @@ impl Calls for Solver<'_> {
                 outcome.value = Atom::Unknown.fact();
                 outcome.throws = u8::MAX;
             }
-            Target::Unsupported | Target::Value(_) | Target::Deferred(_) => {
-                outcome.incomplete = true
-            }
+            Target::Unsupported
+            | Target::Value(_)
+            | Target::Deferred(_)
+            | Target::Helper { .. } => outcome.incomplete = true,
             Target::NonCallable => outcome.failures.push(ctx, Failure::NonCallable)?,
             Target::Undefined => outcome.failures.push(ctx, Failure::Undefined)?,
         }

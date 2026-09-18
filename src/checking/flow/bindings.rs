@@ -128,7 +128,7 @@ impl Walker<'_> {
             }
         }
         if let Some(module) = self.function.namespace {
-            let receiver = self.namespace_value(module)?;
+            let receiver = self.self_value(module)?;
             let site = CallSite {
                 name: index,
                 method: None,

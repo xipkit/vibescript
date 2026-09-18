@@ -155,6 +155,7 @@ impl<'a> Writer<'a> {
                 self.describe(facts, *value, depth + 1)?;
                 self.text(">")
             }
+            Node::Instance { class, .. } => self.describe(facts, *class, depth + 1),
             Node::Enumeration { nominal, .. } => {
                 self.text("enum ")?;
                 self.describe(facts, *nominal, depth + 1)
@@ -244,6 +245,7 @@ fn nominal(facts: &Facts, mut fact: Fact) -> Option<NominalId> {
     for _ in 0..DEPTH {
         match facts.node(fact) {
             Node::Nominal { identity, .. } => return Some(*identity),
+            Node::Instance { class, .. } => fact = *class,
             Node::Protected(inner, _) => fact = *inner,
             Node::Enumeration { nominal, .. } => fact = *nominal,
             Node::EnumMember { enumeration, .. } => fact = *enumeration,

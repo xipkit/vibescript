@@ -161,6 +161,7 @@ fn conversion(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<bool>
             Node::Atom(Atom::Unknown | Atom::Any)
                 | Node::Named(_)
                 | Node::Nominal { symbols: None, .. }
+                | Node::Instance { .. }
                 | Node::Hash(_, _, HashKind::Any | HashKind::Object)
                 | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
         );

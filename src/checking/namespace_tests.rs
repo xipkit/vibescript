@@ -12,6 +12,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+mod instances;
 mod state;
 
 fn check(
@@ -35,7 +36,20 @@ fn check(
 fn witness(script: &Script, args: &[Value], options: &CallOptions, expected: &str, issues: bool) {
     let mut ctx = CallContext::new(options.clone());
     let mut checked = check(&mut ctx, script, args, options).unwrap();
-    assert!(checked.analysis.incomplete.data.is_empty(), "{checked:?}");
+    assert!(
+        checked.analysis.incomplete.data.is_empty(),
+        "{checked:?}: {:?}",
+        checked
+            .analysis
+            .incomplete
+            .data
+            .iter()
+            .map(|(f, pc)| {
+                let function = &script.inner.code.program.functions[*f];
+                (&function.name, pc, function.code.get(*pc))
+            })
+            .collect::<Vec<_>>()
+    );
     assert_eq!(
         !checked.analysis.issues.data.is_empty(),
         issues,
@@ -383,17 +397,13 @@ fn checks_never_execute_method_bodies_or_host_callbacks() {
 }
 
 #[test]
-fn instances_helpers_and_foreign_namespaces_remain_incomplete() {
-    for source in [
-        "class M;def answer;7;end;end;def run;M.new.answer;end",
-        "module M;end;def run;M.respond_to?(:missing);end",
-    ] {
-        let script = Engine::new().compile(source).unwrap();
-        let report = script
-            .check_call("run", &[], &CallOptions::default())
-            .unwrap();
-        assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
-    }
+fn helpers_and_foreign_namespaces_remain_incomplete() {
+    let source = "module M;end;def run;M.respond_to?(:missing);end";
+    let script = Engine::new().compile(source).unwrap();
+    let report = script
+        .check_call("run", &[], &CallOptions::default())
+        .unwrap();
+    assert!(!report.incomplete.is_empty(), "{source}: {report:?}");
     let foreign = Engine::new()
         .compile("module M;def self.answer;7;end;end;M")
         .unwrap()

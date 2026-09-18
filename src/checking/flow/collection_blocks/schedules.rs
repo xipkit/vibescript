@@ -70,6 +70,7 @@ impl Walker<'_> {
                 Node::Atom(Atom::Never) => continue,
                 Node::Named(_)
                 | Node::Nominal { .. }
+                | Node::Instance { .. }
                 | Node::Atom(Atom::Unknown | Atom::Any)
                 | Node::Shape(_, _, _, HashKind::Any)
                 | Node::Hash(_, _, HashKind::Any | HashKind::Object)
@@ -276,7 +277,7 @@ impl Walker<'_> {
                     accepted = self.facts.union(self.ctx, &[accepted, Atom::Int.fact()])?;
                     continue;
                 }
-                Node::Named(_) | Node::Nominal { .. } => {
+                Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
                     self.incomplete(pc)?;
                     continue;
                 }

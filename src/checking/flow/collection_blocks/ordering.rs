@@ -53,6 +53,7 @@ impl Walker<'_> {
                 Node::Atom(Atom::Unknown | Atom::Any)
                 | Node::Named(_)
                 | Node::Nominal { .. }
+                | Node::Instance { .. }
                 | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
                 | Node::Hash(_, _, HashKind::Any | HashKind::Object) => {
                     self.incomplete(pc)?;
@@ -182,7 +183,10 @@ impl Walker<'_> {
                 let arm = self.facts.arm(value, i);
                 if matches!(
                     self.facts.node(arm),
-                    Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. }
+                    Node::Atom(Atom::Unknown | Atom::Any)
+                        | Node::Named(_)
+                        | Node::Nominal { .. }
+                        | Node::Instance { .. }
                 ) {
                     self.emit_error(&current.state, pc, handlers::bit(ErrorClass::Runtime))?;
                     accepted = self.facts.union(self.ctx, &[accepted, expected])?;

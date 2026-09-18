@@ -86,6 +86,7 @@ impl Walker<'_> {
                 | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => Some(Receiver::Hash),
                 Node::Named(_)
                 | Node::Nominal { .. }
+                | Node::Instance { .. }
                 | Node::Shape(..)
                 | Node::Hash(..)
                 | Node::Atom(Atom::Unknown | Atom::Any)

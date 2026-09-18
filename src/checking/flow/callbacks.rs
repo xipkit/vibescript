@@ -63,6 +63,7 @@ impl Walker<'_> {
                 self.ctx,
                 Layer {
                     function: incoming.function,
+                    receiver: incoming.receiver,
                     given: incoming.given,
                     locals: incoming.locals,
                 },
@@ -89,6 +90,7 @@ impl Walker<'_> {
             }
         }
         state.arguments.data.last_mut().unwrap().arguments.block = Some(Closure {
+            receiver: self.receiver,
             pending: pending::Pending::new(),
             destinations: Buffer::empty(),
             function,

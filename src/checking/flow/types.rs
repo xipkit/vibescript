@@ -13,8 +13,27 @@ impl Walker<'_> {
         pc: usize,
         ty: usize,
     ) -> Result<Option<Fact>> {
+        self.prepared_contract(state, pc, ty, true)
+    }
+
+    pub(super) fn property_contract(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        ty: usize,
+    ) -> Result<Option<Fact>> {
+        self.prepared_contract(state, pc, ty, false)
+    }
+
+    fn prepared_contract(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        ty: usize,
+        lexical: bool,
+    ) -> Result<Option<Fact>> {
         loop {
-            match self.contract(state, pc, ty)? {
+            match self.contract(state, pc, ty, lexical)? {
                 Contract::Value(value) => return Ok(value),
                 Contract::Pending(index) => {
                     let slot = state.global_base + self.program.globals.len() + index;
@@ -26,7 +45,7 @@ impl Walker<'_> {
         }
     }
 
-    fn contract(&mut self, state: &State, pc: usize, ty: usize) -> Result<Contract> {
+    fn contract(&mut self, state: &State, pc: usize, ty: usize, lexical: bool) -> Result<Contract> {
         if !self.layouts.named_annotation(self.ctx, ty)? {
             return Ok(Contract::Value(Some(self.contracts[ty])));
         }
@@ -44,7 +63,11 @@ impl Walker<'_> {
             };
             bindings.insert(self.ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
-        let sources = self.layouts.type_sources(self.ctx, self.function_index)?;
+        let sources = if lexical {
+            self.layouts.type_sources(self.ctx, self.function_index)?
+        } else {
+            &[]
+        };
         let mut levels: Buffer<(usize, Scope)> = Buffer::empty();
         for source in sources {
             self.ctx.charge(1)?;

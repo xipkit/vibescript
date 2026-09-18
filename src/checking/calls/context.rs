@@ -13,6 +13,9 @@ pub(super) enum Kind {
 
 pub(super) struct Context {
     pub kind: Kind,
+    pub receiver: Option<Fact>,
+    pub block_receiver: Option<Fact>,
+    pub constructor: bool,
     pub globals: Globals,
     pub locals: usize,
     pub inherited: Buffer<Layer>,
@@ -25,6 +28,9 @@ impl Context {
     pub fn plain() -> Self {
         Self {
             kind: Kind::Plain,
+            receiver: None,
+            block_receiver: None,
+            constructor: false,
             globals: Globals::empty(),
             locals: 0,
             inherited: Buffer::empty(),
@@ -41,6 +47,7 @@ impl Context {
             function: block.function,
             given: block.given,
         };
+        result.block_receiver = block.receiver;
         result.pending = block.pending.snapshot(ctx)?;
         result.locals = block.locals;
         result.inherited.extend(ctx, &block.inherited.data)?;
@@ -63,6 +70,9 @@ impl Context {
         ctx.charge(1)?;
         let mut next = Self::plain();
         next.kind = self.kind;
+        next.receiver = self.receiver;
+        next.block_receiver = self.block_receiver;
+        next.constructor = self.constructor;
         next.globals = self.globals.snapshot(ctx)?;
         next.pending = self.pending.snapshot(ctx)?;
         next.locals = self.locals;
@@ -77,6 +87,9 @@ impl Context {
         self.pending.hash(ctx, hash)?;
         self.globals.hash(ctx, hash)?;
         self.kind.hash(hash);
+        self.receiver.hash(hash);
+        self.block_receiver.hash(hash);
+        self.constructor.hash(hash);
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         self.locals.hash(hash);
         self.inherited.data.hash(hash);
@@ -89,6 +102,9 @@ impl Context {
         ctx.charge((self.captures.data.len() + self.arguments.data.len()) as u64 + 1)?;
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         Ok(self.kind == other.kind
+            && self.receiver == other.receiver
+            && self.block_receiver == other.block_receiver
+            && self.constructor == other.constructor
             && self.locals == other.locals
             && self.inherited.data == other.inherited.data
             && self.captures.data == other.captures.data
@@ -100,6 +116,9 @@ impl Context {
     pub fn compatible(&self, ctx: &mut CallContext, other: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         if self.kind != other.kind
+            || self.receiver != other.receiver
+            || self.block_receiver != other.block_receiver
+            || self.constructor != other.constructor
             || self.locals != other.locals
             || self.inherited.data != other.inherited.data
             || self.captures.data.len() != other.captures.data.len()
@@ -120,6 +139,9 @@ impl Context {
     pub fn expands(&self, ctx: &mut CallContext, next: &Self) -> Result<bool> {
         ctx.charge(self.inherited.data.len() as u64 + 1)?;
         Ok(self.kind == next.kind
+            && self.receiver == next.receiver
+            && self.block_receiver == next.block_receiver
+            && self.constructor == next.constructor
             && self.locals == next.locals
             && ((self.inherited.data.len() < next.inherited.data.len()
                 && next.inherited.data.ends_with(&self.inherited.data))
@@ -156,17 +178,23 @@ impl Context {
 
     pub fn incoming(&self, ctx: &mut CallContext) -> Result<Option<Closure>> {
         ctx.charge(1)?;
-        let (function, given, locals, inherited, base) = match self.kind {
+        let (function, receiver, given, locals, inherited, base) = match self.kind {
             Kind::Plain | Kind::Entry => return Ok(None),
-            Kind::Receiving { function, given } => {
-                (function, given, self.locals, &self.inherited.data[..], 0)
-            }
+            Kind::Receiving { function, given } => (
+                function,
+                self.block_receiver,
+                given,
+                self.locals,
+                &self.inherited.data[..],
+                0,
+            ),
             Kind::Invoked { .. } => {
                 let Some((first, inherited)) = self.inherited.data.split_first() else {
                     return Ok(None);
                 };
                 (
                     first.function,
+                    first.receiver,
                     first.given,
                     first.locals,
                     inherited,
@@ -205,6 +233,7 @@ impl Context {
             pending.addresses.push(ctx, address)?;
         }
         Ok(Some(Closure {
+            receiver,
             pending,
             destinations: Buffer::empty(),
             function,
@@ -245,6 +274,7 @@ mod tests {
                     .unwrap();
             }
             let closure = Closure {
+                receiver: None,
                 pending: Pending::new(),
                 destinations: Buffer::empty(),
                 function: 1,
@@ -320,6 +350,7 @@ mod tests {
                     3 => Context::plain().incoming(&mut ctx).unwrap_err(),
                     4 => {
                         let closure = Closure {
+                            receiver: None,
                             pending: Pending::new(),
                             destinations: Buffer::empty(),
                             function: 1,

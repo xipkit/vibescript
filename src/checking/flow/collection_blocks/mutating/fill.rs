@@ -281,7 +281,7 @@ impl Walker<'_> {
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
                 Bound::Unknown
             }
-            Node::Named(_) | Node::Nominal { .. } => {
+            Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => {
                 self.incomplete(pc)?;
                 return Ok(None);
             }

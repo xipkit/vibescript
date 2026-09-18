@@ -247,8 +247,20 @@ impl Facts {
                 ctx.work_bytes(a.len().min(b.len()).saturating_add(1))?;
                 return Ok(mask(a.cmp(b)));
             }
-            (Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. }, _)
-            | (_, Node::Atom(Atom::Unknown | Atom::Any) | Node::Named(_) | Node::Nominal { .. }) => {
+            (
+                Node::Atom(Atom::Unknown | Atom::Any)
+                | Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Instance { .. },
+                _,
+            )
+            | (
+                _,
+                Node::Atom(Atom::Unknown | Atom::Any)
+                | Node::Named(_)
+                | Node::Nominal { .. }
+                | Node::Instance { .. },
+            ) => {
                 return Ok(ORDERED | UNORDERED);
             }
             _ => (),

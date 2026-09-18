@@ -315,7 +315,7 @@ impl Facts {
                         Atom::Unknown.fact(),
                         self.plain_hash(matcher),
                     )?,
-                    Node::Named(_) | Node::Nominal { .. } => source,
+                    Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. } => source,
                     _ => matcher,
                 }
             } else if let (Node::Atom(Atom::Float), Node::Float(bits)) =

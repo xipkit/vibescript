@@ -277,6 +277,7 @@ impl Walker<'_> {
                 Node::Range(..) | Node::Atom(Atom::Range) => Receiver::Range,
                 Node::Named(_)
                 | Node::Nominal { .. }
+                | Node::Instance { .. }
                 | Node::Shape(..)
                 | Node::Hash(..)
                 | Node::Atom(Atom::Unknown | Atom::Any) => {
@@ -741,7 +742,8 @@ impl Walker<'_> {
                         }
                         Node::Atom(Atom::Unknown | Atom::Any)
                         | Node::Named(_)
-                        | Node::Nominal { .. } => {
+                        | Node::Nominal { .. }
+                        | Node::Instance { .. } => {
                             self.facts.array(self.ctx, Atom::Unknown.fact())?
                         }
                         _ => {

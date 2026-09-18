@@ -97,9 +97,7 @@ impl Walker<'_> {
             return Ok(None);
         }
         match self.namespace_selection(state, receiver, name, site.scope, false)? {
-            Selection::Function(function) => {
-                self.invoke(state, pc, Target::Function(function), Arguments::new())
-            }
+            Selection::Call(target) => self.invoke(state, pc, target, Arguments::new()),
             Selection::Field(value, missing) => {
                 if missing {
                     self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
@@ -135,7 +133,14 @@ impl Walker<'_> {
             return self.incomplete(pc).map(Some);
         };
         let field = &self.program.members[name];
-        for method in &self.program.namespaces[module].methods {
+        let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
+        let definition = &self.program.namespaces[module];
+        let methods = if instance {
+            &definition.instance_methods
+        } else {
+            &definition.methods
+        };
+        for method in methods {
             self.ctx.work_bytes(field.len().max(method.name.len()))?;
             if method.name.strip_suffix('=') != Some(field) {
                 continue;
@@ -144,17 +149,41 @@ impl Walker<'_> {
             args.positional.push(self.ctx, operand.value)?;
             if method.visibility == Visibility::Private
                 || (method.visibility == Visibility::Protected
-                    && self.function.namespace != Some(module))
+                    && (self.function.namespace != Some(module)
+                        || self.function.instance != instance))
             {
                 self.namespace_error(state, pc, receiver, name, &args)?;
                 return Ok(Some([None, None]));
             }
-            let edges = self.invoke(state, pc, Target::Function(method.function), args)?;
+            let target = if instance {
+                Target::Method {
+                    function: method.function,
+                    receiver,
+                    constructor: false,
+                }
+            } else {
+                Target::Function(method.function)
+            };
+            let edges = self.invoke(state, pc, target, args)?;
             if edges.is_none() {
                 state.stack.data.pop().unwrap();
                 state.stack.push(self.ctx, Operand::new(operand.value))?;
             }
             return Ok(edges);
+        }
+        if instance {
+            for method in methods {
+                self.ctx.work_bytes(field.len().max(method.name.len()))?;
+                if method.name == *field {
+                    self.namespace_error(state, pc, receiver, name, &Arguments::new())?;
+                    return Ok(Some([None, None]));
+                }
+            }
+            if !self.instance_write(state, pc, receiver, field, operand)? {
+                return Ok(Some([None, None]));
+            }
+            state.stack.push(self.ctx, Operand::new(operand.value))?;
+            return Ok(None);
         }
         if let Some(edges) = self.namespace_write(state, pc, module, field, operand)? {
             return Ok(Some(edges));
@@ -199,7 +228,7 @@ impl Walker<'_> {
         Ok(self.function.namespace)
     }
 
-    fn namespace_name_error(&mut self, state: &State, pc: usize) -> Result<()> {
+    pub(super) fn namespace_name_error(&mut self, state: &State, pc: usize) -> Result<()> {
         self.issue(
             pc,
             IssueKind::Call {
@@ -217,6 +246,12 @@ impl Walker<'_> {
         name: usize,
         optional: bool,
     ) -> Result<bool> {
+        if let Some(name) = self.program.members[name]
+            .strip_prefix('@')
+            .filter(|name| !name.starts_with('@'))
+        {
+            return self.instance_read(state, pc, name);
+        }
         let Some(module) = self.variable_module(state, pc, name)? else {
             return Ok(false);
         };
@@ -276,6 +311,17 @@ impl Walker<'_> {
         pc: usize,
         name: usize,
     ) -> Result<Option<Edges>> {
+        if let Some(name) = self.program.members[name]
+            .strip_prefix('@')
+            .filter(|name| !name.starts_with('@'))
+        {
+            let operand = *state.stack.data.last().unwrap();
+            let Some(value) = self.instance_store(state, pc, name, operand)? else {
+                return Ok(Some([None, None]));
+            };
+            state.stack.data.last_mut().unwrap().value = value;
+            return Ok(None);
+        }
         let Some(module) = self.variable_module(state, pc, name)? else {
             return Ok(Some([None, None]));
         };
@@ -340,6 +386,12 @@ impl Walker<'_> {
         name: usize,
         optional: bool,
     ) -> Result<Option<Edges>> {
+        if let Some(name) = self.program.members[name]
+            .strip_prefix('@')
+            .filter(|name| !name.starts_with('@'))
+        {
+            return self.instance_address(state, pc, name);
+        }
         let Some(module) = self.variable_module(state, pc, name)? else {
             return Ok(Some([None, None]));
         };
@@ -383,6 +435,10 @@ impl Walker<'_> {
     ) -> Result<Option<Edges>> {
         let receiver = state.addresses.data.pop().unwrap().value;
         let name = &self.program.members[site.name];
+        if matches!(self.facts.node(receiver), Node::Instance { .. }) {
+            self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
+            return Ok(Some([None, None]));
+        }
         let Some(module) = self.namespace_index(receiver) else {
             return self.incomplete(pc).map(Some);
         };

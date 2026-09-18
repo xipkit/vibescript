@@ -96,6 +96,7 @@ impl Walker<'_> {
                 | Node::Hash(_, _, HashKind::Plain | HashKind::Object) => Receiver::Hash,
                 Node::Named(_)
                 | Node::Nominal { .. }
+                | Node::Instance { .. }
                 | Node::Shape(..)
                 | Node::Hash(..)
                 | Node::Atom(Atom::Unknown | Atom::Any) => {
@@ -224,7 +225,7 @@ impl Walker<'_> {
         let mut possible_error = false;
         let value = match (kind, self.facts.node(key)) {
             (_, Node::Atom(Atom::Never)) => return Ok(key),
-            (_, Node::Named(_) | Node::Nominal { .. }) => {
+            (_, Node::Named(_) | Node::Nominal { .. } | Node::Instance { .. }) => {
                 self.incomplete(pc)?;
                 return Ok(Atom::Never.fact());
             }

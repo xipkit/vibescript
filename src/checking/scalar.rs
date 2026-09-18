@@ -168,6 +168,27 @@ impl Facts {
                 ctx.charge(1)?;
                 let left = self.arm(left, a);
                 let right = self.arm(right, b);
+                if matches!(op, "==" | "!=")
+                    && (matches!(self.node(left), Node::Instance { .. } | Node::TypeValue(_))
+                        || matches!(self.node(right), Node::Instance { .. } | Node::TypeValue(_)))
+                {
+                    let next = if [left, right].iter().any(|&value| {
+                        matches!(
+                            self.node(value),
+                            Node::Atom(Atom::Unknown | Atom::Any)
+                                | Node::Named(_)
+                                | Node::Nominal { .. }
+                        )
+                    }) {
+                        Atom::Bool.fact()
+                    } else if left == Atom::Never.fact() || right == Atom::Never.fact() {
+                        Atom::Never.fact()
+                    } else {
+                        self.boolean(ctx, (left == right) == (op == "=="))?
+                    };
+                    result.value = self.union(ctx, &[result.value, next])?;
+                    continue;
+                }
                 let enumeration = |value| {
                     matches!(
                         self.node(value),
@@ -279,6 +300,7 @@ impl Facts {
                     | Node::Shape(..)
                     | Node::Protected(..)
                     | Node::TypeValue(_)
+                    | Node::Instance { .. }
                     | Node::Enumeration { .. }
                     | Node::EnumMember { .. }
             ) {
@@ -361,6 +383,7 @@ impl Facts {
                         ..
                     } => 1 << 26,
                     Node::TypeValue(_) => 1 << 23,
+                    Node::Instance { .. } => 1 << 27,
                     Node::Enumeration { .. } => 1 << 24,
                     Node::EnumMember { .. } => 1 << 25,
                     Node::Union(_) => unreachable!(),

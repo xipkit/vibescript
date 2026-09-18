@@ -251,6 +251,20 @@ impl Facts {
                         | (Node::Named(_), _)
                         | (_, Node::Named(_)) => Relation::Gradual,
                         _ if pair.source == pair.target => Relation::Accepted,
+                        (Node::Instance { class, .. }, Node::Nominal { .. }) => {
+                            if *class == pair.target {
+                                Relation::Accepted
+                            } else {
+                                Relation::Rejected
+                            }
+                        }
+                        (Node::Nominal { .. }, Node::Instance { class, .. }) => {
+                            if pair.source == *class {
+                                Relation::Gradual
+                            } else {
+                                Relation::Rejected
+                            }
+                        }
                         (
                             Node::EnumMember {
                                 enumeration: a,
