@@ -206,21 +206,36 @@ impl Walker<'_> {
     fn declare_slots(&mut self, state: &mut State, pc: usize, slots: &[usize]) -> Result<()> {
         for &slot in slots {
             self.ctx.charge(1)?;
-            let Some(op) = self.ambient_op(state, Op::Declare(slot))? else {
-                self.incomplete(pc)?;
-                return Ok(());
-            };
-            let Some(Op::Declare(slot)) = self.root_op(state, op)? else {
-                self.incomplete(pc)?;
-                return Ok(());
-            };
-            let binding = state.locals.get(self.ctx, slot)?;
-            if binding.missing {
-                let value = self
-                    .facts
-                    .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
-                self.store(state, pc, slot, Operand::local(value, slot))?;
-            }
+            self.declare_slot(state, pc, slot)?;
+        }
+        Ok(())
+    }
+
+    fn declare_slot(&mut self, state: &mut State, pc: usize, slot: usize) -> Result<()> {
+        if let Some([mut present, mut absent]) = self.file_variants(state, Op::Declare(slot))? {
+            self.declare_slot(&mut present, pc, slot)?;
+            self.declare_slot(&mut absent, pc, slot)?;
+            present.join(self.ctx, self.facts, &absent, false, self.program)?;
+            *state = present;
+            return Ok(());
+        }
+        let Some(op) = self.ambient_op(state, Op::Declare(slot))? else {
+            self.incomplete(pc)?;
+            return Ok(());
+        };
+        let Some(op) = self.file_op(state, op)? else {
+            return Ok(());
+        };
+        let Some(Op::Declare(slot)) = self.root_op(state, op)? else {
+            self.incomplete(pc)?;
+            return Ok(());
+        };
+        let binding = state.locals.get(self.ctx, slot)?;
+        if binding.missing {
+            let value = self
+                .facts
+                .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
+            self.store(state, pc, slot, Operand::local(value, slot))?;
         }
         Ok(())
     }

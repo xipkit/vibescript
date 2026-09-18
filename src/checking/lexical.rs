@@ -24,6 +24,7 @@ struct Layout {
 
 pub(super) struct Layouts {
     pub source_owner: usize,
+    pub files: super::file_bindings::Layout,
     functions: Buffer<Layout>,
     named_annotations: Buffer<bool>,
 }
@@ -73,6 +74,7 @@ impl Layouts {
         }
         let mut layouts = Self {
             source_owner,
+            files: super::file_bindings::Layout::new(ctx, program)?,
             functions,
             named_annotations,
         };
@@ -313,6 +315,25 @@ impl Layouts {
     pub fn forwarding(&self, ctx: &mut CallContext, function: usize) -> Result<bool> {
         ctx.charge(1)?;
         Ok(self.functions.data[function].forwarding)
+    }
+
+    pub fn initializer_block(
+        &self,
+        ctx: &mut CallContext,
+        program: &Program,
+        mut function: usize,
+    ) -> Result<bool> {
+        while program.functions[function].name == "<block>" {
+            ctx.charge(1)?;
+            let Some(parent) = self.functions.data[function].parent else {
+                break;
+            };
+            if program.functions[parent].initializer {
+                return Ok(true);
+            }
+            function = parent;
+        }
+        Ok(false)
     }
 
     pub fn return_home(

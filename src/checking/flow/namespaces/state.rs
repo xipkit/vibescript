@@ -364,7 +364,7 @@ impl Walker<'_> {
             }
             Address::new(Some(slot), binding.value)
         } else if let Some(&index) = self.program.declaration_names.get(name) {
-            Address::new(None, self.declaration_value(state, index)?)
+            Address::new(None, self.load_declaration(state, pc, index)?)
         } else {
             let mut global = None;
             for (index, (key, _)) in self.program.globals.iter().enumerate() {
@@ -378,12 +378,15 @@ impl Walker<'_> {
                 self.namespace_name_error(state, pc)?;
                 return Ok(false);
             };
-            let Some(index) = self.global_index(index)? else {
+            let Some(index) = self.global_index(state, index)? else {
                 self.incomplete(pc)?;
                 return Ok(false);
             };
             let slot = state.global_base + index;
-            if index >= self.program.globals.len() && !self.import_root(state, pc, slot)? {
+            if (self.program.globals.len()..self.program.globals.len() + self.roots.len())
+                .contains(&index)
+                && !self.import_root(state, pc, slot)?
+            {
                 return Ok(false);
             }
             let Some(address) = self.global_address(state, pc, index)? else {

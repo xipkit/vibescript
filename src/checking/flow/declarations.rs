@@ -64,7 +64,9 @@ impl Walker<'_> {
     fn unknown_block_effects(&mut self, state: &mut State, pc: usize) -> Result<()> {
         // Incoming blocks cannot rebind this declaration's locals, but can reach
         // globals and objects shared with the caller. A no-op block remains possible.
-        for index in 0..self.program.globals.len() + self.roots.len() {
+        for index in
+            0..self.program.globals.len() + self.roots.len() + self.layouts.files.names.data.len()
+        {
             self.ctx.charge(1)?;
             let slot = state.global_base + index;
             let before = state.locals.get(self.ctx, slot)?;

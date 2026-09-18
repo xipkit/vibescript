@@ -61,9 +61,6 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
         ctx.charge(1)?;
         let message = match reason {
             Incomplete::Capability(name) => Pending::Capability(name.clone()),
-            Incomplete::File => {
-                Pending::Message("Required-file environment analysis is not implemented")
-            }
         };
         return unfinished(ctx, facts, function, message);
     }
@@ -239,9 +236,6 @@ pub(super) fn check_declaration(
         ctx.charge(1)?;
         let message = match reason {
             Incomplete::Capability(name) => Pending::Capability(name.clone()),
-            Incomplete::File => {
-                Pending::Message("Required-file environment analysis is not implemented")
-            }
         };
         return unfinished(ctx, facts, function, message);
     }

@@ -20,6 +20,9 @@ mod environment;
 mod environment_tests;
 mod equality;
 mod facts;
+#[cfg(test)]
+mod file_binding_tests;
+mod file_bindings;
 mod flow;
 mod globals;
 mod graph;

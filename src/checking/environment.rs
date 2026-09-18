@@ -11,7 +11,6 @@ use crate::{CallContext, CallOptions, Result, Script, Value, budget::Buffer};
 
 #[derive(Debug)]
 pub(super) enum Incomplete {
-    File,
     Capability(Value),
 }
 
@@ -55,9 +54,6 @@ impl<'a> Environment<'a> {
         for ty in &code.program.types {
             let contract = facts.annotation(ctx, ty, |_, _| Ok(None))?;
             result.contracts.push(ctx, contract)?;
-        }
-        if code.program.file {
-            result.incomplete.push(ctx, Incomplete::File)?;
         }
         for capability in &options.capabilities {
             let name = ctx.bytes(capability.name.as_bytes())?;

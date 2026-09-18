@@ -9,7 +9,8 @@ enum Contract {
 
 struct Environment {
     bindings: Bindings,
-    scopes: [Scope; 2],
+    scopes: [Scope; 3],
+    count: usize,
 }
 
 impl Solver<'_> {
@@ -39,16 +40,75 @@ impl Solver<'_> {
             bindings.insert(ctx, hosts, root.name.as_bytes().unwrap(), binding)?;
         }
         let source = bindings.source(ctx, facts, self.world.program, self.world.source_owner)?;
+        if self.world.program.file {
+            let base = self.world.program.globals.len() + roots.data.len();
+            for index in 0..self.world.program.declarations.len() {
+                let name =
+                    crate::checking::file_bindings::declaration_name(self.world.program, index);
+                let original =
+                    globals.values.data[base + self.layouts.files.names.data.len() + index];
+                let value = self.file_type_value(ctx, facts, globals, name, original)?;
+                let binding = bindings.current(ctx, facts, value)?;
+                bindings.insert(ctx, source, name.as_bytes(), binding)?;
+            }
+        }
         for (index, (name, _)) in self.world.program.globals.iter().enumerate() {
             ctx.charge(1)?;
-            let binding = bindings.current(ctx, facts, globals.values.data[index])?;
+            let value =
+                self.file_type_value(ctx, facts, globals, name.name(), globals.values.data[index])?;
+            let binding = bindings.current(ctx, facts, value)?;
             bindings.insert(ctx, source, name.name().as_bytes(), binding)?;
         }
         bindings.overlay(ctx, source, &[hosts])?;
+        let (scopes, count) = if self.world.program.file {
+            let file = bindings.scope(ctx)?;
+            let base = self.world.program.globals.len() + roots.data.len();
+            for (index, name) in self.layouts.files.names.data.iter().enumerate() {
+                ctx.charge(1)?;
+                let value = globals.values.data[base + index];
+                let missing = globals.missing.data[base + index];
+                if value == Atom::Never.fact() && missing {
+                    continue;
+                }
+                let binding = bindings.current(ctx, facts, value)?;
+                if missing {
+                    bindings.optional(ctx, file, name.as_bytes().unwrap(), binding)?;
+                } else {
+                    bindings.insert(ctx, file, name.as_bytes().unwrap(), binding)?;
+                }
+            }
+            ([file, hosts, source], 3)
+        } else {
+            ([hosts, source, source], 2)
+        };
         Ok(Environment {
             bindings,
-            scopes: [hosts, source],
+            scopes,
+            count,
         })
+    }
+
+    fn file_type_value(
+        &self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        globals: &Globals,
+        name: &str,
+        original: Fact,
+    ) -> Result<Fact> {
+        let Some(index) = self.layouts.files.index(ctx, name)? else {
+            return Ok(original);
+        };
+        let base = globals.values.data.len()
+            - self.world.program.namespaces.len() * crate::checking::namespaces::WIDTH
+            - self.world.program.declarations.len()
+            - self.layouts.files.names.data.len();
+        let value = globals.values.data[base + index];
+        if globals.missing.data[base + index] {
+            facts.union(ctx, &[value, original])
+        } else {
+            Ok(value)
+        }
     }
 
     pub(super) fn host_call(
@@ -280,10 +340,12 @@ impl Host<'_> {
             if failure.is_some() {
                 return Ok(None);
             }
-            match environment
-                .bindings
-                .resolve(ctx, &environment.scopes, name, false)?
-            {
+            match environment.bindings.resolve(
+                ctx,
+                &environment.scopes[..environment.count],
+                name,
+                false,
+            )? {
                 Resolution::Known(fact) => Ok(Some(fact)),
                 resolution => {
                     failure = Some(resolution);

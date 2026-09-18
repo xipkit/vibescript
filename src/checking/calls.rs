@@ -599,6 +599,7 @@ fn analyze_entry<'a>(
     context.globals = Globals::initial(ctx, facts, solver.world.program)?;
     let roots = solver.roots(ctx, facts)?;
     context.globals.roots(ctx, &roots.data)?;
+    context.globals.files(ctx, &layouts.files)?;
     context
         .globals
         .namespaces(ctx, facts, solver.world.program, solver.world.source_owner)?;

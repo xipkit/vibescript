@@ -89,10 +89,29 @@ impl Walker<'_> {
     }
 
     pub(super) fn declaration_value(&mut self, state: &State, index: usize) -> Result<Fact> {
-        Ok(state
+        let declared = state
             .locals
             .get(self.ctx, self.declaration_slot(state, index))?
-            .value)
+            .value;
+        let name = crate::checking::file_bindings::declaration_name(self.program, index);
+        self.file_type_value(state, name, declared)
+    }
+
+    pub(super) fn load_declaration(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        index: usize,
+    ) -> Result<Fact> {
+        let value = self.declaration_value(state, index)?;
+        if self.program.file {
+            let name = crate::checking::file_bindings::declaration_name(self.program, index);
+            let slot = self.file_slot(state, name)?.unwrap();
+            if state.locals.get(self.ctx, slot)?.missing {
+                self.store(state, pc, slot, Operand::new(value))?;
+            }
+        }
+        Ok(value)
     }
 
     pub(super) fn namespace_index(&self, receiver: Fact) -> Option<usize> {
@@ -128,7 +147,7 @@ impl Walker<'_> {
         namespaces::field(self.ctx, self.facts, fields, name)
     }
 
-    fn refine_namespace(
+    pub(super) fn refine_namespace(
         &mut self,
         state: &mut State,
         module: usize,

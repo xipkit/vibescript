@@ -302,6 +302,14 @@ Whole-file instance domains use constructor analysis to distinguish initialized 
 
 Whole-file checking does not make the runtime statically typed or eliminate dynamic failures. Required-file environments, remaining helper and collection dispatch, and the other limits below still apply. The CLI exposes this scope as `vibes check FILE`, with `vibes check --function NAME FILE` selecting general declaration checking. Both commands reject concrete argument flags before reading the source and preserve separate error and incomplete report entries. Step and memory limits, deadlines and analysis counters use the public checking context. The execution call-depth setting is accepted, but recursive analysis uses summaries under the work and memory budgets rather than execution frames.
 
+## Private file bindings
+
+The internal walker can analyze a compiled file program with its own private binding store. File assignments stay separate from host globals; parameters, lexical locals, namespace constants and initializer blocks retain their binding precedence. Missing bindings remain distinct from bound nil. Private state travels through call summaries, collection mutations, pending addresses, callbacks, rescue, retry and ensure. Reading a source class or enum establishes its file binding for later type checks, and rebinding declarations or aliases changes subsequent source and host contracts.
+
+Whole-file checks use the file's top-level state for declaration analysis; standalone named-call checks omit ordinary top-level statements. Checking never executes the file, a host callback or an initializer. Binding names, state snapshots and summaries share the existing step, memory, cancellation and deadline accounting.
+
+This is the single-source foundation for required-file analysis. Source discovery, import initialization, exports and captured foreign environments remain incomplete. General analysis can also lose correlations between a conditional private binding and mutation of its fallback: both concrete calls may check cleanly while the broader declaration check conservatively reports a missing member.
+
 ## Remaining integration
 
 Completion still requires:

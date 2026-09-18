@@ -16,8 +16,12 @@ impl Walker<'_> {
         Ok(find(self.ctx, self.roots, name)?.map(|index| self.program.globals.len() + index))
     }
 
-    pub(super) fn global_index(&mut self, index: usize) -> Result<Option<usize>> {
+    pub(super) fn global_index(&mut self, state: &State, index: usize) -> Result<Option<usize>> {
         let name = self.program.globals[index].0.name();
+        if let Some((slot, binding)) = self.file_binding(state, name)? {
+            debug_assert!(!binding.missing);
+            return Ok(Some(slot - state.global_base));
+        }
         if let Some(index) = self.root_index(name)? {
             return Ok(Some(index));
         }
@@ -25,6 +29,9 @@ impl Walker<'_> {
     }
 
     pub(super) fn root_op(&mut self, state: &State, op: Op) -> Result<Option<Op>> {
+        if self.program.file {
+            return Ok(Some(op));
+        }
         let slot = match op {
             Op::Load(slot)
             | Op::LoadOptional(slot, _)

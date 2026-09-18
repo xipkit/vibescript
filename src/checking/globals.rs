@@ -57,6 +57,20 @@ impl Globals {
         Ok(())
     }
 
+    pub fn files(
+        &mut self,
+        ctx: &mut CallContext,
+        layout: &super::file_bindings::Layout,
+    ) -> Result<()> {
+        for _ in &layout.names.data {
+            ctx.charge(1)?;
+            self.values.push(ctx, Atom::Never.fact())?;
+            self.missing.push(ctx, true)?;
+            self.written.push(ctx, false)?;
+        }
+        Ok(())
+    }
+
     pub fn namespaces(
         &mut self,
         ctx: &mut CallContext,

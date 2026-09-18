@@ -215,6 +215,24 @@ impl Walker<'_> {
             }
             scopes.push(self.ctx, scope)?;
         }
+        if self.program.file {
+            let scope = bindings.scope(self.ctx)?;
+            let base = state.global_base + self.program.globals.len() + self.roots.len();
+            for (index, name) in self.layouts.files.names.data.iter().enumerate() {
+                self.ctx.charge(1)?;
+                let value = state.locals.get(self.ctx, base + index)?;
+                if value.value == Atom::Never.fact() && value.missing {
+                    continue;
+                }
+                let binding = bindings.current(self.ctx, self.facts, value.value)?;
+                if value.missing {
+                    bindings.optional(self.ctx, scope, name.as_bytes().unwrap(), binding)?;
+                } else {
+                    bindings.insert(self.ctx, scope, name.as_bytes().unwrap(), binding)?;
+                }
+            }
+            scopes.push(self.ctx, scope)?;
+        }
         let source = bindings.scope(self.ctx)?;
         for (index, declaration) in self.program.declarations.iter().enumerate() {
             self.ctx.charge(1)?;
@@ -230,6 +248,7 @@ impl Walker<'_> {
         for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.charge(1)?;
             let value = state.locals.get(self.ctx, state.global_base + index)?.value;
+            let value = self.file_type_value(state, global.name(), value)?;
             let binding = bindings.current(self.ctx, self.facts, value)?;
             bindings.insert(self.ctx, source, global.name().as_bytes(), binding)?;
         }

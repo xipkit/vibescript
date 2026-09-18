@@ -107,16 +107,21 @@ impl Walker<'_> {
                 .push(self.ctx, Operand::local(binding.value, slot))?;
             return Ok(true);
         }
-        if let Some(index) = self.root_index(name)? {
+        let file_declared = self.file_declared_target(name)?.is_some();
+        if let Some(index) = if file_declared {
+            None
+        } else {
+            self.root_index(name)?
+        } {
             return self.read_global(state, pc, index, None);
         }
-        if self.calls.global(self.ctx, name)? {
+        if !file_declared && self.calls.global(self.ctx, name)? {
             self.incomplete(pc)?;
             return Ok(false);
         }
         self.ctx.work_bytes(name.len())?;
         if let Some(&index) = self.program.declaration_names.get(name) {
-            let value = self.declaration_value(state, index)?;
+            let value = self.load_declaration(state, pc, index)?;
             state.stack.push(self.ctx, Operand::new(value))?;
             return Ok(true);
         }

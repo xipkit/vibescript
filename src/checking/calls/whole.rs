@@ -31,6 +31,7 @@ pub(in crate::checking) fn analyze<'a>(
     context.globals = Globals::initial(ctx, facts, program)?;
     let roots = solver.roots(ctx, facts)?;
     context.globals.roots(ctx, &roots.data)?;
+    context.globals.files(ctx, &layouts.files)?;
     context
         .globals
         .namespaces(ctx, facts, program, solver.world.source_owner)?;

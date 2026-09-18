@@ -58,13 +58,19 @@ impl Walker<'_> {
     }
 
     pub(super) fn root_read_slot(&mut self, state: &State, op: Op) -> Result<Option<usize>> {
+        if self.program.file && matches!(op, Op::RootAddress(..)) {
+            return Ok(None);
+        }
         let name = match op {
             Op::Load(slot)
             | Op::LoadOptional(slot, _)
             | Op::ReceiverBound(slot, _)
             | Op::AddressLocal(slot)
             | Op::AddressBound(slot, _) => {
-                return Ok((slot >= state.global_base + self.program.globals.len()).then_some(slot));
+                let start = state.global_base + self.program.globals.len();
+                return Ok((start..start + self.roots.len())
+                    .contains(&slot)
+                    .then_some(slot));
             }
             Op::Global(index)
             | Op::GlobalReceiver(index, _)
@@ -102,6 +108,18 @@ impl Walker<'_> {
         };
         if self.ambient_binding(state, name)?.is_some() {
             return Ok(None);
+        }
+        if self.program.file {
+            if self.file_binding(state, name)?.is_some() {
+                return Ok(None);
+            }
+            if matches!(
+                op,
+                Op::ResolveCall(..) | Op::CallName(..) | Op::Declaration(_)
+            ) && self.file_target(state, name)?.is_some()
+            {
+                return Ok(None);
+            }
         }
         Ok(self
             .root_index(name)?

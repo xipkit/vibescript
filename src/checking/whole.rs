@@ -22,9 +22,6 @@ pub(super) fn check(
         ctx.charge(1)?;
         let reason = match reason {
             Incomplete::Capability(name) => Pending::Capability(name.clone()),
-            Incomplete::File => {
-                Pending::Message("Required-file environment analysis is not implemented")
-            }
         };
         let check = entry::unfinished(ctx, facts, 0, reason)?;
         return report::build(ctx, program, &check);

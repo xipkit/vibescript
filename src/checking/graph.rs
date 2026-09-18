@@ -22,6 +22,14 @@ pub(super) struct Graph {
 
 impl Graph {
     pub fn new(ctx: &mut CallContext, code: &[Op]) -> Result<Self> {
+        Self::build(ctx, code, false)
+    }
+
+    pub fn file(ctx: &mut CallContext, code: &[Op]) -> Result<Self> {
+        Self::build(ctx, code, true)
+    }
+
+    fn build(ctx: &mut CallContext, code: &[Op], file: bool) -> Result<Self> {
         let mut leaders = Buffer::with_capacity(ctx, code.len() + 1)?;
         let mut exits = Buffer::with_capacity(ctx, code.len())?;
         let mut loops = Buffer::empty();
@@ -33,6 +41,10 @@ impl Graph {
         leaders.data[code.len()] = true;
         for (pc, &op) in code.iter().enumerate() {
             ctx.charge(1)?;
+            if file && super::file_bindings::branches(op) {
+                leaders.data[pc] = true;
+                leaders.data[pc + 1] = true;
+            }
             let exit = match op {
                 Op::Jump(target) => Exit::Jump(target),
                 Op::JumpFalse(target)

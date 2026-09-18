@@ -26,6 +26,7 @@ mod callbacks;
 mod collection_blocks;
 mod declarations;
 mod effects;
+mod files;
 mod general;
 mod globals;
 mod handlers;
@@ -700,12 +701,10 @@ pub(super) fn analyze_body(
     };
     ctx.checkpoint()?;
     ctx.charge(function.params.len() as u64)?;
-    if program.file
-        || (function.instance
-            && !general
-            && !receiver.is_some_and(|value| {
-                matches!(facts.node(value), super::facts::Node::Instance { .. })
-            }))
+    if (function.instance
+        && !general
+        && !receiver
+            .is_some_and(|value| matches!(facts.node(value), super::facts::Node::Instance { .. })))
         || (block.is_none() && (function.name == "<block>" || !function.captures.is_empty()))
     {
         report.incomplete.push(ctx, 0)?;
@@ -723,7 +722,11 @@ pub(super) fn analyze_body(
             return Ok(report);
         }
     }
-    let graph = Graph::new(ctx, &function.code)?;
+    let graph = if program.file {
+        Graph::file(ctx, &function.code)?
+    } else {
+        Graph::new(ctx, &function.code)?
+    };
     let owned_layouts;
     let layouts = if let Some(layouts) = layouts {
         layouts
@@ -738,6 +741,7 @@ pub(super) fn analyze_body(
         function_index,
         program.globals.len()
             + roots.data.len()
+            + layouts.files.names.data.len()
             + program.declarations.len()
             + program.namespaces.len() * super::namespaces::WIDTH,
     );
@@ -747,6 +751,7 @@ pub(super) fn analyze_body(
     } else {
         let mut values = Globals::initial(ctx, facts, program)?;
         values.roots(ctx, &roots.data)?;
+        values.files(ctx, &layouts.files)?;
         values.namespaces(ctx, facts, program, layouts.source_owner)?;
         owned_globals = values;
         &owned_globals
@@ -1229,7 +1234,11 @@ impl Walker<'_> {
                 self.value_target(binding.value).map(Some)
             };
         }
-        let target = self.root_target(state, name)?;
+        let target = if let Some(target) = self.file_target(state, name)? {
+            target
+        } else {
+            self.root_target(state, name)?
+        };
         if target == Target::Undefined && self.function.namespace.is_some() {
             return self.implicit_namespace_target(state, pc, index);
         }
@@ -1628,11 +1637,24 @@ impl Walker<'_> {
     fn block(&mut self, block: &Block, mut state: State) -> Result<Edges> {
         for pc in block.start..block.end {
             self.ctx.charge(1)?;
+            if let Some(variants) = self.file_variants(&state, self.function.code[pc])? {
+                debug_assert_eq!(block.end, pc + 1);
+                for variant in variants {
+                    let edges = self.block(block, variant)?;
+                    for edge in edges.into_iter().flatten() {
+                        self.extra.push(self.ctx, edge)?;
+                    }
+                }
+                return Ok([None, None]);
+            }
             if !self.export_stack(&mut state, pc, self.function.code[pc])? {
                 return Ok([None, None]);
             }
             let Some(op) = self.ambient_op(&state, self.function.code[pc])? else {
                 return self.incomplete(pc);
+            };
+            let Some(op) = self.file_op(&state, op)? else {
+                continue;
             };
             let Some(op) = self.root_op(&state, op)? else {
                 return self.incomplete(pc);
@@ -1693,16 +1715,20 @@ impl Walker<'_> {
                         Kind::Namespace(namespace) => &namespace.definition.name,
                         _ => return self.incomplete(pc),
                     };
-                    if let Some(index) = self.root_index(name)? {
+                    if let Some(index) = if self.program.file {
+                        None
+                    } else {
+                        self.root_index(name)?
+                    } {
                         if !self.read_global(&mut state, pc, index, None)? {
                             return Ok([None, None]);
                         }
                         continue;
                     }
-                    if self.calls.global(self.ctx, name)? {
+                    if !self.program.file && self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    let value = self.declaration_value(&state, index)?;
+                    let value = self.load_declaration(&mut state, pc, index)?;
                     state.stack.push(self.ctx, Operand::new(value))?;
                 }
                 Op::NamespaceSelf(module) => {
@@ -1754,8 +1780,17 @@ impl Walker<'_> {
                         matches!(op, Op::AmbientAddress(..)),
                     );
                 }
+                Op::FileValue(name, next) | Op::FileAddress(name, next) => {
+                    return self.file_edges(
+                        state,
+                        pc,
+                        name,
+                        next,
+                        matches!(op, Op::FileAddress(..)),
+                    );
+                }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
-                    let Some(index) = self.global_index(index)? else {
+                    let Some(index) = self.global_index(&state, index)? else {
                         return self.incomplete(pc);
                     };
                     let receiver = if let Op::GlobalReceiver(_, auto) = op {
@@ -1773,7 +1808,9 @@ impl Walker<'_> {
                         Kind::Namespace(namespace) => &namespace.definition.name,
                         _ => return self.incomplete(pc),
                     };
-                    let slot = if let Some(index) = self.root_index(name)? {
+                    let slot = if self.program.file {
+                        self.file_slot(&state, name)?.unwrap()
+                    } else if let Some(index) = self.root_index(name)? {
                         state.global_base + index
                     } else if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
@@ -1784,16 +1821,21 @@ impl Walker<'_> {
                     self.store(&mut state, pc, slot, operand)?;
                 }
                 Op::StoreGlobal(index) => {
-                    let Some(index) = self.global_index(index)? else {
-                        return self.incomplete(pc);
+                    let slot = if self.program.file {
+                        self.file_slot(&state, self.program.globals[index].0.name())?
+                            .unwrap()
+                    } else {
+                        let Some(index) = self.global_index(&state, index)? else {
+                            return self.incomplete(pc);
+                        };
+                        state.global_base + index
                     };
-                    let slot = state.global_base + index;
                     let operand = *state.stack.data.last().unwrap();
                     self.store(&mut state, pc, slot, operand)?;
                 }
                 Op::ResolveGlobalCall(index) => {
                     let name = self.program.globals[index].0.name();
-                    let target = if let Some(index) = self.global_index(index)? {
+                    let target = if let Some(index) = self.global_index(&state, index)? {
                         Target::Value(state.locals.get(self.ctx, state.global_base + index)?.value)
                     } else {
                         self.calls.resolve(self.ctx, name)?
@@ -1895,7 +1937,13 @@ impl Walker<'_> {
                 }
                 Op::Declare(slot) => {
                     let binding = state.locals.get(self.ctx, slot)?;
-                    if binding.missing && slot < state.global_base + self.program.globals.len() {
+                    let file_start =
+                        state.global_base + self.program.globals.len() + self.roots.len();
+                    let file_slot = (file_start..file_start + self.layouts.files.names.data.len())
+                        .contains(&slot);
+                    if binding.missing
+                        && (slot < state.global_base + self.program.globals.len() || file_slot)
+                    {
                         let value = self
                             .facts
                             .union(self.ctx, &[binding.value, Atom::Nil.fact()])?;
@@ -2328,6 +2376,9 @@ impl Walker<'_> {
                     ]);
                 }
                 Op::RootAddress(name, target) => {
+                    if self.program.file {
+                        return self.file_edges(state, pc, name, target, true);
+                    }
                     let name = &self.program.members[name];
                     if let Some((_, binding)) = self.ambient_binding(&state, name)? {
                         if binding.missing {
@@ -2358,7 +2409,7 @@ impl Walker<'_> {
                     state.addresses.push(self.ctx, Address::new(None, value))?;
                 }
                 Op::AddressGlobal(index) => {
-                    let Some(index) = self.global_index(index)? else {
+                    let Some(index) = self.global_index(&state, index)? else {
                         return self.incomplete(pc);
                     };
                     let Some(address) = self.global_address(&state, pc, index)? else {
