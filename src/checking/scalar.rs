@@ -352,6 +352,14 @@ impl Facts {
                     Node::Array(_) | Node::Tuple(_) => 1 << 20,
                     Node::Hash(..) | Node::Shape(..) | Node::Protected(..) => 1 << 21,
                     Node::Builtin(_) | Node::Offset(_) => 1 << 22,
+                    Node::Callable {
+                        target: super::facts::Callable::Host(_),
+                        ..
+                    } => 1 << 22,
+                    Node::Callable {
+                        target: super::facts::Callable::Function(_),
+                        ..
+                    } => 1 << 26,
                     Node::TypeValue(_) => 1 << 23,
                     Node::Enumeration { .. } => 1 << 24,
                     Node::EnumMember { .. } => 1 << 25,

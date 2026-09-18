@@ -142,3 +142,6 @@ mod object_tests;
 
 #[cfg(test)]
 mod root_tests;
+
+#[cfg(test)]
+mod attached_tests;

@@ -815,7 +815,7 @@ fn missing_callees_fail_before_argument_analysis() {
 }
 
 #[test]
-fn shadowed_bare_function_reads_wait_for_root_value_analysis() {
+fn bare_function_reads_distinguish_attached_methods_from_opaque_roots() {
     let source = "def f -> int; 7; end; def run; f; end";
     let script = crate::Engine::new().compile(source).unwrap();
     let program = &script.inner.code.program;
@@ -840,7 +840,18 @@ fn shadowed_bare_function_reads_wait_for_root_value_analysis() {
             &[],
         )
         .unwrap();
-        assert!(!result.incomplete.data.is_empty());
+        if target == Target::NonCallable {
+            assert!(!result.incomplete.data.is_empty());
+        } else {
+            assert!(result.incomplete.data.is_empty(), "{result:?}");
+            assert!(
+                result.issues.data.iter().any(|issue| matches!(
+                    issue.issue.kind,
+                    super::flow::IssueKind::DetachedValue(_)
+                )),
+                "{result:?}"
+            );
+        }
         let runtime = script.call(
             "run",
             &[],

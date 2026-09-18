@@ -462,6 +462,7 @@ impl Facts {
             return Ok(unsupported());
         }
         let arity = match name {
+            "to_a" if hash => 0..=0,
             "length" | "size" | "bytesize" | "empty?" | "keys" | "values" | "reverse"
             | "itself" | "dup" | "nil?" => 0..=0,
             "at" | "getbyte" | "take" | "drop" => 1..=1,
@@ -477,6 +478,18 @@ impl Facts {
             return Ok(outcome(Atom::Unknown.fact()));
         }
         match name {
+            "to_a" if hash => {
+                let iteration = self.iteration(ctx, receiver)?;
+                if iteration.unsupported {
+                    return Ok(unsupported());
+                }
+                let value = if iteration.item == Atom::Never.fact() {
+                    self.tuple(ctx, &[])?
+                } else {
+                    self.array(ctx, iteration.item)?
+                };
+                Ok(outcome(value))
+            }
             "include?" | "member?" if array => {
                 let Node::Tuple(values) = self.node(receiver) else {
                     return Ok(outcome(Atom::Bool.fact()));

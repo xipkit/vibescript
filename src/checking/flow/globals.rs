@@ -100,6 +100,9 @@ impl Walker<'_> {
         receiver: Option<bool>,
     ) -> Result<bool> {
         let slot = state.global_base + index;
+        if index >= self.program.globals.len() && !self.import_root(state, pc, slot)? {
+            return Ok(false);
+        }
         let value = state.locals.get(self.ctx, slot)?.value;
         let Some(auto) = receiver else {
             return self.read_value(state, pc, value, Some(slot));

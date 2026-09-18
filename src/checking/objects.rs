@@ -92,7 +92,10 @@ pub(super) fn select(
         } else if !site.scope && names::universal(name) && !matches!(name, "tap" | "yield_self") {
             if facts.known_non_callable(ctx, field)? {
                 Selection::Native
-            } else if matches!(facts.node(field), Node::Builtin(_) | Node::Offset(_)) {
+            } else if matches!(
+                facts.node(field),
+                Node::Builtin(_) | Node::Offset(_) | Node::Callable { .. }
+            ) {
                 Selection::Field(field)
             } else {
                 Selection::Incomplete

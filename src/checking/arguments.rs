@@ -65,6 +65,7 @@ pub(super) enum Failure {
         expected: Fact,
     },
     BuiltinValue,
+    DetachedValue(Fact),
     TypeLiteral(Fact),
     BuiltinDomain(Fact),
     JsonValue(Fact),

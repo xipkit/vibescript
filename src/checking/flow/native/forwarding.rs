@@ -65,8 +65,10 @@ impl Walker<'_> {
                             if arm == Atom::Never.fact() {
                                 continue;
                             }
-                            let callable =
-                                matches!(self.facts.node(arm), Node::Builtin(_) | Node::Offset(_));
+                            let callable = matches!(
+                                self.facts.node(arm),
+                                Node::Builtin(_) | Node::Offset(_) | Node::Callable { .. }
+                            );
                             if !data_safe || callable {
                                 output.push(self.ctx, Resolution::Field(arm))?;
                             } else if self.dynamic(arm)? {

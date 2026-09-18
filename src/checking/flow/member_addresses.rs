@@ -22,6 +22,30 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
+        if matches!(self.facts.node(receiver), Node::Callable { .. }) {
+            self.export_value(state, pc, receiver, false)?;
+            return Ok(Some([None, None]));
+        }
+        if !namespace && matches!(self.facts.node(receiver), Node::Shape(..)) {
+            if let Some((field, false)) =
+                self.facts
+                    .selected_field(self.ctx, receiver, name.as_bytes())?
+            {
+                if matches!(
+                    self.facts.node(field),
+                    Node::Callable {
+                        target: super::super::facts::Callable::Function(_),
+                        ..
+                    }
+                ) {
+                    if site.auto && site.scope {
+                        self.export_value(state, pc, field, false)?;
+                        return Ok(Some([None, None]));
+                    }
+                    return self.member_address(state, pc, receiver, site);
+                }
+            }
+        }
         // Addressed chains select stored fields; an explicit helper call selects a copy.
         if matches!(
             self.facts.node(receiver),

@@ -620,7 +620,16 @@ impl Walker<'_> {
             self.incomplete(pc)?;
             return Ok(after);
         }
-        assert!(result.failures.data.is_empty());
+        for failure in result.failures.data {
+            self.issue(
+                pc,
+                IssueKind::Call {
+                    target: Target::Block(block.function),
+                    failure,
+                },
+            )?;
+            self.emit_error(&before.state, pc, handlers::bit(ErrorClass::Runtime))?;
+        }
         for exit in result.exits.data {
             self.ctx.charge(1)?;
             let mut state = self.capture_exit(&before.state, &callback, &exit)?;

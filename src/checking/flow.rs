@@ -18,6 +18,7 @@ use crate::{
     value::Kind,
 };
 
+mod attached;
 mod bindings;
 mod call_targets;
 mod callbacks;
@@ -643,7 +644,7 @@ pub(super) fn analyze_body(
         return Ok(report);
     }
     assert_eq!(inputs.len(), function.params.len());
-    let roots = calls.roots(ctx)?;
+    let roots = calls.roots(ctx, facts)?;
     for (slot, name) in function.local_names.iter().enumerate() {
         ctx.charge(function.params.len() as u64 + 1)?;
         if !function.params.iter().any(|param| param.slot == slot)
@@ -977,6 +978,7 @@ impl Walker<'_> {
         for failure in result.failures.data {
             classes |= handlers::bit(match failure {
                 Failure::Type { .. }
+                | Failure::DetachedValue(_)
                 | Failure::NonCallable
                 | Failure::Undefined
                 | Failure::HostArity
@@ -1030,6 +1032,9 @@ impl Walker<'_> {
     }
 
     fn value_target(&mut self, value: Fact) -> Result<Target> {
+        if let super::facts::Node::Callable { owner, target } = *self.facts.node(value) {
+            return self.calls.attached(self.ctx, owner, target);
+        }
         for i in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
             if matches!(
@@ -1182,6 +1187,29 @@ impl Walker<'_> {
         let selected = site.text(self.program, self.facts);
         let name = selected.as_str();
         let receiver = state.addresses.data.last().unwrap().value;
+        let mut attached = false;
+        for i in 0..self.facts.arm_count(receiver) {
+            self.ctx.charge(1)?;
+            attached |= matches!(
+                self.facts.node(self.facts.arm(receiver, i)),
+                super::facts::Node::Callable { .. }
+            );
+        }
+        if attached {
+            if self.facts.arm_count(receiver) == 1 {
+                self.export_value(state, pc, receiver, false)?;
+                return Ok(Some([None, None]));
+            }
+            for i in 0..self.facts.arm_count(receiver) {
+                self.ctx.charge(1)?;
+                let arm = self.facts.arm(receiver, i);
+                let mut next = state.snapshot(self.ctx)?;
+                next.addresses.data.last_mut().unwrap().value = arm;
+                let edges = self.mutate(&mut next, pc, site, args, address_result, fresh)?;
+                self.member_edges(pc, next, edges)?;
+            }
+            return Ok(Some([None, None]));
+        }
         if let Some(variants) = super::objects::variants(self.ctx, self.facts, receiver, name)? {
             for receiver in variants.data {
                 self.ctx.charge(1)?;
@@ -1366,9 +1394,17 @@ impl Walker<'_> {
     fn block(&mut self, block: &Block, mut state: State) -> Result<Edges> {
         for pc in block.start..block.end {
             self.ctx.charge(1)?;
+            if !self.export_stack(&mut state, pc, self.function.code[pc])? {
+                return Ok([None, None]);
+            }
             let Some(op) = self.root_op(&state, self.function.code[pc])? else {
                 return self.incomplete(pc);
             };
+            if let Some(slot) = self.root_read_slot(&state, op)? {
+                if !self.import_root(&mut state, pc, slot)? {
+                    return Ok([None, None]);
+                }
+            }
             let errors = self.potential_errors(&state, op)?;
             self.emit_error(&state, pc, errors)?;
             match op {

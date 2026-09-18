@@ -350,6 +350,7 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
             | Node::Range(..)
             | Node::Regex(_)
             | Node::Builtin(_)
+            | Node::Callable { .. }
             | Node::Offset(_)
             | Node::TypeValue(_)
             | Node::Enumeration { .. } => result.invalid = true,

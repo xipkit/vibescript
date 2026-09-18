@@ -11,7 +11,10 @@ impl Walker<'_> {
         let mut builtins = false;
         for i in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;
-            builtins |= matches!(self.facts.node(self.facts.arm(value, i)), Node::Builtin(_));
+            builtins |= matches!(
+                self.facts.node(self.facts.arm(value, i)),
+                Node::Builtin(_) | Node::Callable { .. }
+            );
         }
         if builtins && self.facts.arm_count(value) > 1 {
             for i in 0..self.facts.arm_count(value) {

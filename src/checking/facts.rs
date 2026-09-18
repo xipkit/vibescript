@@ -7,6 +7,14 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 const EMPTY: usize = usize::MAX;
 
+mod attached;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Callable {
+    Host(usize),
+    Function(usize),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(super) struct Fact(pub usize);
 
@@ -73,6 +81,10 @@ pub(super) enum Node {
     Range(Option<i64>, Option<i64>, bool),
     Regex(Value),
     Builtin(crate::builtin::Builtin),
+    Callable {
+        owner: usize,
+        target: Callable,
+    },
     Offset(Fact),
     Protected(Fact, crate::hash::Tag),
     TypeValue(Fact),
@@ -109,6 +121,8 @@ struct Entry {
     unresolved: bool,
     singleton: bool,
     depth: usize,
+    escapes: bool,
+    exported: Fact,
 }
 
 #[derive(Debug)]
@@ -321,6 +335,7 @@ impl Facts {
             }
             _ => 0,
         };
+        let escapes = self.node_escapes(ctx, &node)?;
         self.entries.push(
             ctx,
             Entry {
@@ -333,6 +348,8 @@ impl Facts {
                 unresolved,
                 singleton,
                 depth,
+                escapes,
+                exported: Fact(EMPTY),
             },
         )?;
         self.buckets.data[bucket] = fact.0;
@@ -368,6 +385,16 @@ impl Facts {
         value: crate::builtin::Builtin,
     ) -> Result<Fact> {
         self.intern(ctx, Node::Builtin(value))
+    }
+
+    /// Describes a method bound to a particular analysis world without retaining its code.
+    pub fn callable(
+        &mut self,
+        ctx: &mut CallContext,
+        owner: usize,
+        target: Callable,
+    ) -> Result<Fact> {
+        self.intern(ctx, Node::Callable { owner, target })
     }
 
     pub fn type_value(&mut self, ctx: &mut CallContext, ty: Fact) -> Result<Fact> {
@@ -961,6 +988,7 @@ impl Node {
             Self::Integer(value) => value.hash(&mut hash),
             Self::Float(value) => value.hash(&mut hash),
             Self::Builtin(value) => value.name().hash(&mut hash),
+            Self::Callable { owner, target } => (owner, target).hash(&mut hash),
             Self::Offset(value) => value.hash(&mut hash),
             Self::Protected(value, tag) => (value, *tag as u8).hash(&mut hash),
             Self::TypeValue(value) => value.hash(&mut hash),
@@ -1011,6 +1039,16 @@ impl Node {
             (Self::Integer(a), Self::Integer(b)) => a == b,
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Builtin(a), Self::Builtin(b)) => a == b,
+            (
+                Self::Callable {
+                    owner: a,
+                    target: at,
+                },
+                Self::Callable {
+                    owner: b,
+                    target: bt,
+                },
+            ) => a == b && at == bt,
             (Self::Offset(a), Self::Offset(b)) => a == b,
             (Self::Protected(a, at), Self::Protected(b, bt)) => a == b && at == bt,
             (Self::TypeValue(a), Self::TypeValue(b)) => a == b,

@@ -9,6 +9,15 @@ impl Walker<'_> {
         value: Fact,
         mut origin: Option<usize>,
     ) -> Result<bool> {
+        for index in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            if matches!(
+                self.facts.node(self.facts.arm(value, index)),
+                Node::Callable { .. }
+            ) {
+                return self.read_attached(state, pc, value, origin);
+            }
+        }
         let mut readable = Buffer::empty();
         for index in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;

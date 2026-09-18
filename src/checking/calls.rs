@@ -1,7 +1,7 @@
 use super::{
     arguments::{Arguments, Failure, Input},
     blocks,
-    facts::{Atom, Fact, Facts},
+    facts::{Atom, Callable, Fact, Facts},
     flow::{self, Issue, Report},
     globals::Globals,
     lexical::Layouts,
@@ -38,9 +38,14 @@ pub(super) struct Outcome {
 
 pub(super) trait Calls {
     /// Copies admitted root facts without evaluating host code.
-    fn roots(&mut self, ctx: &mut CallContext) -> Result<Buffer<Root>> {
+    fn roots(&mut self, ctx: &mut CallContext, _: &mut Facts) -> Result<Buffer<Root>> {
         ctx.checkpoint()?;
         Ok(Buffer::empty())
+    }
+    /// Resolves a bound method only in the world that owns its declaration.
+    fn attached(&mut self, ctx: &mut CallContext, _: usize, _: Callable) -> Result<Target> {
+        ctx.checkpoint()?;
+        Ok(Target::Unsupported)
     }
     /// Records host bindings that may replace source type declarations.
     fn type_bindings(
@@ -230,6 +235,53 @@ pub(super) fn analyze(
     inputs: &[Input],
 ) -> Result<Analysis> {
     ctx.checkpoint()?;
+    let mut admitted = Buffer::empty();
+    let mut admission_issues = Buffer::empty();
+    let mut rejected = false;
+    for &input in inputs {
+        ctx.charge(1)?;
+        let mut next = input;
+        if let Input::Supplied(value) | Input::Either(value) = input {
+            if facts.escapes(value) {
+                admission_issues.push(
+                    ctx,
+                    LocatedIssue {
+                        function,
+                        issue: Issue {
+                            pc: 0,
+                            kind: flow::IssueKind::DetachedValue(Target::Value(value)),
+                        },
+                    },
+                )?;
+                let value = facts.exported(ctx, value)?;
+                next = match input {
+                    Input::Supplied(_) => {
+                        rejected |= value == Atom::Never.fact();
+                        Input::Supplied(value)
+                    }
+                    Input::Either(_) if value == Atom::Never.fact() => Input::Default,
+                    Input::Either(_) => Input::Either(value),
+                    Input::Default => unreachable!(),
+                };
+            }
+        }
+        admitted.push(ctx, next)?;
+    }
+    let admission_throws = if admission_issues.data.is_empty() {
+        0
+    } else {
+        1 << crate::ErrorClass::Runtime as u8
+    };
+    if rejected {
+        return Ok(Analysis {
+            returns: Atom::Never.fact(),
+            throws: admission_throws,
+            issues: admission_issues,
+            incomplete: Buffer::empty(),
+            contexts: 0,
+        });
+    }
+    let inputs = &admitted.data;
     let mut functions = Buffer::with_capacity(ctx, world.program.functions.len())?;
     ctx.charge(world.program.functions.len() as u64)?;
     functions.data.resize(world.program.functions.len(), false);
@@ -247,7 +299,7 @@ pub(super) fn analyze(
     };
     let mut context = Context::plain();
     context.globals = Globals::initial(ctx, facts, solver.world.program)?;
-    let roots = solver.roots(ctx)?;
+    let roots = solver.roots(ctx, facts)?;
     context.globals.roots(ctx, &roots.data)?;
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     while let Some(index) = solver.queue.data.pop() {
@@ -338,8 +390,8 @@ pub(super) fn analyze(
     }
     let mut result = Analysis {
         returns: solver.jobs.data[entry].returns,
-        throws: solver.jobs.data[entry].throws,
-        issues: Buffer::empty(),
+        throws: solver.jobs.data[entry].throws | admission_throws,
+        issues: admission_issues,
         incomplete: Buffer::empty(),
         contexts: solver.jobs.data.len(),
     };
@@ -605,21 +657,51 @@ impl Solver<'_> {
 }
 
 impl Calls for Solver<'_> {
-    fn roots(&mut self, ctx: &mut CallContext) -> Result<Buffer<Root>> {
+    fn roots(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<Buffer<Root>> {
         let mut roots = Buffer::empty();
         for (name, target) in self.world.globals {
             ctx.charge(1)?;
-            if let Target::Value(value) = target {
+            let value = match *target {
+                Target::Value(value) => Some(value),
+                Target::Builtin(builtin) => Some(facts.builtin(ctx, builtin)?),
+                Target::Host(index) => {
+                    Some(facts.callable(ctx, self.world.source_owner, Callable::Host(index))?)
+                }
+                Target::Function(index) => {
+                    Some(facts.callable(ctx, self.world.source_owner, Callable::Function(index))?)
+                }
+                _ => None,
+            };
+            if let Some(value) = value {
                 roots.push(
                     ctx,
                     Root {
                         name: name.clone(),
-                        value: *value,
+                        value,
                     },
                 )?;
             }
         }
         Ok(roots)
+    }
+    fn attached(
+        &mut self,
+        ctx: &mut CallContext,
+        owner: usize,
+        target: Callable,
+    ) -> Result<Target> {
+        ctx.charge(1)?;
+        Ok(if owner != self.world.source_owner {
+            Target::Unsupported
+        } else {
+            match target {
+                Callable::Host(index) if index < self.world.hosts.len() => Target::Host(index),
+                Callable::Function(index) if index < self.world.program.functions.len() => {
+                    Target::Function(index)
+                }
+                _ => Target::Unsupported,
+            }
+        })
     }
     fn type_bindings(
         &mut self,
@@ -694,7 +776,7 @@ impl Calls for Solver<'_> {
         ctx: &mut CallContext,
         facts: &mut Facts,
         target: Target,
-        args: Arguments,
+        mut args: Arguments,
         current_error: u16,
         globals: &Globals,
     ) -> Result<Outcome> {
@@ -706,6 +788,21 @@ impl Calls for Solver<'_> {
             incomplete: false,
             exits: Buffer::empty(),
         };
+        for value in args.positional.data.iter_mut().chain(
+            args.keywords
+                .data
+                .iter_mut()
+                .map(|keyword| &mut keyword.value),
+        ) {
+            ctx.charge(1)?;
+            if facts.escapes(*value) {
+                outcome.failures.push(ctx, Failure::DetachedValue(*value))?;
+                *value = facts.exported(ctx, *value)?;
+                if *value == Atom::Never.fact() {
+                    return Ok(outcome);
+                }
+            }
+        }
         if args.block.is_some()
             && !matches!(
                 target,
@@ -738,7 +835,7 @@ impl Calls for Solver<'_> {
                     let bound =
                         args.bind(ctx, facts, &self.world.program.functions[function].params)?;
                     if !bound.failures.data.is_empty() {
-                        outcome.failures = bound.failures;
+                        outcome.failures.extend(ctx, &bound.failures.data)?;
                         return Ok(outcome);
                     }
                     bound.inputs
@@ -777,6 +874,7 @@ impl Calls for Solver<'_> {
                 }
             }
             Target::Host(index) => {
+                let previous_failures = outcome.failures.data.len();
                 let Some(host) = self.world.hosts.get(index) else {
                     outcome.incomplete = true;
                     return Ok(outcome);
@@ -816,7 +914,7 @@ impl Calls for Solver<'_> {
                         }
                     }
                 }
-                if outcome.failures.data.is_empty() {
+                if outcome.failures.data.len() == previous_failures {
                     outcome.value = facts.value_domain(ctx, host.result)?;
                     outcome.throws = u8::MAX;
                 }
