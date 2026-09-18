@@ -49,7 +49,8 @@ pub(super) fn supported(
     if universal(name) {
         return Ok(match facts.node(receiver) {
             Node::Named(_) | Node::Nominal { .. } => false,
-            Node::Hash(_, _, false) | Node::Shape(_, _, _, false) => {
+            Node::Hash(_, _, HashKind::Any | HashKind::Object)
+            | Node::Shape(_, _, _, HashKind::Any | HashKind::Object) => {
                 namespace(ctx, facts, receiver)? && !namespace_call(ctx, facts, receiver, name)?
             }
             Node::Atom(Atom::Unknown | Atom::Any | Atom::Never) => false,

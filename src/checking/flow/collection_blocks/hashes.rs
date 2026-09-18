@@ -19,7 +19,7 @@ impl Walker<'_> {
             let view = self.hash_view(arm);
             match self.facts.node(view) {
                 Node::Atom(Atom::Never) => continue,
-                Node::Shape(_, _, _, true) | Node::Hash(_, _, true) => (),
+                Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain) => (),
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Shape(..)
@@ -67,7 +67,8 @@ impl Walker<'_> {
                     self.ctx.charge(1)?;
                     let candidate = self.hash_view(self.facts.arm(source, j));
                     let value = match self.facts.node(candidate) {
-                        Node::Shape(_, _, _, true) | Node::Hash(_, _, true) => candidate,
+                        Node::Shape(_, _, _, HashKind::Plain)
+                        | Node::Hash(_, _, HashKind::Plain) => candidate,
                         Node::Atom(Atom::Never) => continue,
                         Node::Atom(Atom::Unknown | Atom::Any) => {
                             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
@@ -77,7 +78,8 @@ impl Walker<'_> {
                             self.facts
                                 .hash_kind(self.ctx, keys, Atom::Unknown.fact(), true)?
                         }
-                        Node::Hash(_, _, false) | Node::Shape(_, _, _, false) => {
+                        Node::Hash(_, _, HashKind::Any | HashKind::Object)
+                        | Node::Shape(_, _, _, HashKind::Any | HashKind::Object) => {
                             self.plain_hash_data(candidate)?
                         }
                         Node::Named(_) | Node::Nominal { .. } => {

@@ -3,12 +3,7 @@ use super::{
     facts::{Fact, Facts},
     pending::Pending,
 };
-use crate::{
-    CallContext, Result,
-    budget::Buffer,
-    bytecode::Program,
-    types::{Type, TypeKind},
-};
+use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
 use std::hash::{Hash, Hasher};
 
 // Call contexts use program-global indices, independent of the callee's local layout.
@@ -90,49 +85,4 @@ impl Globals {
         }
         Ok(changed)
     }
-}
-
-/// Identifies contracts that need live global type resolution instead of cached declarations.
-pub(super) fn live_contract(ctx: &mut CallContext, program: &Program, ty: &Type) -> Result<bool> {
-    let mut pending = Buffer::empty();
-    pending.push(ctx, ty)?;
-    while let Some(ty) = pending.data.pop() {
-        ctx.charge(1)?;
-        match &ty.kind {
-            TypeKind::Named => {
-                ctx.work_bytes(ty.name.len())?;
-                let (root, qualified) = ty
-                    .name
-                    .split_once('.')
-                    .map_or((ty.name.as_str(), false), |(root, _)| (root, true));
-                for (global, _) in &program.globals {
-                    ctx.charge(1)?;
-                    if crate::types::binding_name_matches(
-                        ctx,
-                        global.name().as_bytes(),
-                        root.as_bytes(),
-                        !qualified,
-                    )? {
-                        return Ok(true);
-                    }
-                }
-            }
-            TypeKind::Array(Some(element)) => pending.push(ctx, element)?,
-            TypeKind::Hash(Some(pair)) => pending.extend(ctx, &[&pair.0, &pair.1])?,
-            TypeKind::Shape(fields, _) => {
-                for field in fields {
-                    ctx.charge(1)?;
-                    pending.push(ctx, &field.ty)?;
-                }
-            }
-            TypeKind::Union(types) => {
-                for ty in types {
-                    ctx.charge(1)?;
-                    pending.push(ctx, ty)?;
-                }
-            }
-            _ => (),
-        }
-    }
-    Ok(false)
 }

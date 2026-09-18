@@ -75,19 +75,7 @@ impl Walker<'_> {
                 }
                 return Ok(0);
             }
-            Op::Normalize(ty, _) => {
-                return Ok(
-                    if self
-                        .facts
-                        .relation(self.ctx, top().unwrap(), self.contracts[ty])?
-                        == Relation::Accepted
-                    {
-                        0
-                    } else {
-                        runtime
-                    },
-                );
-            }
+            Op::Normalize(..) => return Ok(0),
             Op::Range(start, end, _) => {
                 let n = usize::from(start) + usize::from(end);
                 &state.stack.data[state.stack.data.len() - n..]

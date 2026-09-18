@@ -364,6 +364,12 @@ fn dynamic_hash_writes_preserve_plain_dispatch_and_do_not_change_annotations() {
     let annotation = facts.hash(&mut ctx, Atom::String.fact(), element).unwrap();
     assert_ne!(result.receiver, annotation);
     assert!(!facts.plain_hash(annotation));
+    let object_write = facts
+        .collection_write(&mut ctx, annotation, Atom::String.fact(), text)
+        .unwrap();
+    assert!(!object_write.unsupported && !object_write.rejected);
+    assert!(!facts.plain_hash(object_write.receiver));
+    assert_eq!(object_write.value, text);
     assert_eq!(
         facts
             .relation(&mut ctx, result.receiver, annotation)

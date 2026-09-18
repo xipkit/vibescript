@@ -192,15 +192,6 @@ impl Address {
     ) -> Result<Operation> {
         self.protected = self.protection(ctx, facts)?;
         let result = facts.collection_index(ctx, self.value, args)?;
-        for i in 0..facts.arm_count(self.value) {
-            ctx.charge(1)?;
-            let value = facts.arm(self.value, i);
-            if matches!(facts.node(value), Node::Hash(..) | Node::Shape(..))
-                && !facts.plain_hash(value)
-            {
-                self.supported = false;
-            }
-        }
         if let [key] = args {
             let stored = stored(ctx, facts, self.value, *key)?;
             let key = captured(ctx, facts, self.value, *key)?;
@@ -530,7 +521,9 @@ fn child_retained(
         ctx.charge(1)?;
         let receiver = facts.arm(receiver, i);
         let array = matches!(facts.node(receiver), Node::Tuple(_) | Node::Array(_));
-        let hash = facts.plain_hash(receiver);
+        let hash = facts.plain_hash(receiver)
+            || (method.is_none()
+                && matches!(facts.node(receiver), Node::Hash(..) | Node::Shape(..)));
         let same = |ctx: &mut CallContext| -> Result<Option<bool>> {
             args.first()
                 .map_or(Ok(None), |&target| same_key(ctx, facts, target, key))

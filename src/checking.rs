@@ -132,3 +132,6 @@ mod type_binding_tests;
 
 #[cfg(test)]
 mod global_tests;
+
+#[cfg(test)]
+mod global_type_tests;

@@ -273,10 +273,8 @@ fn global_mutations_preserve_existing_arguments_and_skip_noop_replacements() {
 }
 
 #[test]
-fn global_analysis_keeps_live_types_and_expanding_pending_contexts_explicit() {
+fn global_analysis_keeps_expanding_pending_contexts_and_descriptor_objects_explicit() {
     for source in [
-        "enum Status; Draft; end; def typed(x:Math); x; end; def run; Math=Status; typed(:draft); end",
-        "enum Status; Draft; end; def run; Math=Status; [:draft].map {|x:Math| x}; end",
         "def walk(n:int); if n>0; Math.push(walk(n-1)); end; 7; end; def run; Math=[]; walk(3); Math; end",
         "def run; to_int=Math::sqrt; to_int.nil?; end",
         "def run; JSON={parse:Math::sqrt}; JSON.parse(9); end",

@@ -138,9 +138,6 @@ impl Facts {
             }
             Node::Named(_) | Node::Nominal { .. } => return Ok(Mutation::unsupported()),
             Node::Hash(..) | Node::Shape(..) => {
-                if !self.plain_hash(receiver) {
-                    return Ok(Mutation::unsupported());
-                }
                 return self.hash_write(ctx, receiver, index, value);
             }
             Node::Tuple(_) | Node::Array(_) => (),
@@ -244,7 +241,7 @@ impl Facts {
         let keys = self.union(ctx, &[keys, Atom::String.fact()])?;
         let values = self.union(ctx, &[values, value])?;
         Ok(Mutation::new(
-            self.hash_kind(ctx, keys, values, true)?,
+            self.hash_kind(ctx, keys, values, self.hash_mode(receiver))?,
             value,
         ))
     }

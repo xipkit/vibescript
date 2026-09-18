@@ -266,21 +266,17 @@ fn enum_facts_preserve_nominal_contracts_and_distinct_singletons() {
 }
 
 #[test]
-fn class_initializers_and_unresolved_type_environments_stay_explicit() {
-    for expression in [
-        "class Widget; raise(\"must not run\"); end; def run; Widget; end",
-        "enum Status; Draft; end; def run(x:Status); x.name; end",
-    ] {
-        let mut ctx = CallContext::new(CallOptions::default());
-        let mut facts = Facts::new(&mut ctx).unwrap();
-        let report = analyze(&mut ctx, &mut facts, expression).unwrap();
-        assert!(
-            !report.incomplete.data.is_empty(),
-            "{expression}: {report:?}"
-        );
-        drop((report, facts));
-        assert_eq!(ctx.stats().retained_memory_bytes, 0);
-    }
+fn class_initializers_stay_explicit() {
+    let expression = "class Widget; raise(\"must not run\"); end; def run; Widget; end";
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let report = analyze(&mut ctx, &mut facts, expression).unwrap();
+    assert!(
+        !report.incomplete.data.is_empty(),
+        "{expression}: {report:?}"
+    );
+    drop((report, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 fn checked_expression(expression: &str) {
@@ -411,6 +407,7 @@ fn analyze_program(
         ctx,
         facts,
         World {
+            source_owner: 0,
             program,
             contracts: &contracts.data,
             hosts: &[],
@@ -473,6 +470,7 @@ fn resolved_enum_contracts_keep_members_across_script_boundaries() {
             &mut ctx,
             &mut facts,
             World {
+                source_owner: 37,
                 program: &program,
                 contracts: &contracts.data,
                 hosts: &[],

@@ -1,7 +1,7 @@
 use super::{
     arguments::{Arguments, Failure},
     calls::Outcome,
-    facts::{Atom, Fact, Facts, Field, Node},
+    facts::{Atom, Fact, Facts, Field, HashKind, Node},
     relation::Relation,
     scalar::Test,
 };
@@ -94,7 +94,7 @@ pub(super) fn global(ctx: &mut CallContext, facts: &mut Facts, value: &Value) ->
             },
         )?;
     }
-    facts.shape_fields(ctx, fields, false, Atom::String.fact(), false)
+    facts.shape_fields(ctx, fields, false, Atom::String.fact(), HashKind::Object)
 }
 
 fn parameter(
@@ -366,7 +366,7 @@ fn json_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Encod
 }
 
 pub(super) fn namespace(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<bool> {
-    let Node::Shape(fields, false, _, false) = facts.node(value) else {
+    let Node::Shape(fields, false, _, HashKind::Object) = facts.node(value) else {
         return Ok(false);
     };
     for field in &fields.data {

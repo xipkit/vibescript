@@ -1,9 +1,11 @@
 use super::{
     collection_tests::analyze,
-    facts::{Atom, Facts, Node},
+    facts::{Atom, Facts, HashKind, Node},
     relation::Relation,
 };
-use crate::{CallContext, CallOptions, ErrorKind, Limits, Result, bytecode::Method};
+use crate::{
+    CallContext, CallOptions, ErrorKind, Limits, Result, budget::Buffer, bytecode::Method,
+};
 
 #[test]
 fn growing_collections_converge_without_losing_known_scalar_alternatives() {
@@ -122,7 +124,31 @@ fn hash_joins_preserve_optional_fields_and_plain_provenance() {
         .unwrap();
     let joined = facts.widen(&mut ctx, a, general, 1).unwrap();
     assert!(!facts.plain_hash(joined));
-    assert!(matches!(facts.node(joined), Node::Hash(_, _, false)));
+    assert!(matches!(
+        facts.node(joined),
+        Node::Hash(_, _, HashKind::Any)
+    ));
+    for left in [HashKind::Plain, HashKind::Object, HashKind::Any] {
+        for right in [HashKind::Plain, HashKind::Object, HashKind::Any] {
+            let expected = if left == right { left } else { HashKind::Any };
+            let a = facts
+                .hash_kind(&mut ctx, Atom::String.fact(), Atom::Int.fact(), left)
+                .unwrap();
+            let b = facts
+                .hash_kind(&mut ctx, Atom::String.fact(), Atom::Bool.fact(), right)
+                .unwrap();
+            let joined = facts.widen(&mut ctx, a, b, 1).unwrap();
+            assert_eq!(facts.hash_mode(joined), expected);
+            let a = facts
+                .shape_fields(&mut ctx, Buffer::empty(), false, Atom::String.fact(), left)
+                .unwrap();
+            let b = facts
+                .shape_fields(&mut ctx, Buffer::empty(), false, Atom::String.fact(), right)
+                .unwrap();
+            let joined = facts.widen(&mut ctx, a, b, 1).unwrap();
+            assert_eq!(facts.hash_mode(joined), expected);
+        }
+    }
 }
 
 #[test]

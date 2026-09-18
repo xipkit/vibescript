@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Node};
+use super::facts::{Atom, Fact, Facts, HashKind, Node};
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::Program, types, value::Kind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -113,6 +113,63 @@ pub(super) struct Bindings {
 }
 
 impl Bindings {
+    /// Classifies live facts and their known type exports without executing code.
+    pub fn current(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &Facts,
+        value: Fact,
+    ) -> Result<Binding> {
+        let mut result = None;
+        for index in 0..facts.arm_count(value) {
+            ctx.charge(1)?;
+            let value = facts.arm(value, index);
+            let binding = match facts.node(value) {
+                Node::Shape(fields, open, _, HashKind::Object) => {
+                    let scope = self.scope(ctx)?;
+                    for field in &fields.data {
+                        ctx.charge(1)?;
+                        let binding = Self::member_value(ctx, facts, field.value)?;
+                        self.bind(
+                            ctx,
+                            scope,
+                            field.name.as_bytes().unwrap(),
+                            binding,
+                            field.optional,
+                        )?;
+                    }
+                    if *open {
+                        self.open(ctx, scope)?;
+                    }
+                    Binding::Exports(scope)
+                }
+                Node::Hash(_, _, HashKind::Object) => {
+                    let scope = self.scope(ctx)?;
+                    self.open(ctx, scope)?;
+                    Binding::Exports(scope)
+                }
+                _ => Self::value(ctx, facts, value)?,
+            };
+            result = Some(result.map_or(binding, |before: Binding| before.merge(binding)));
+        }
+        Ok(result.unwrap_or(Binding::Other))
+    }
+
+    fn member_value(ctx: &mut CallContext, facts: &Facts, value: Fact) -> Result<Binding> {
+        let mut result = None;
+        for index in 0..facts.arm_count(value) {
+            ctx.charge(1)?;
+            let value = facts.arm(value, index);
+            let binding = match facts.node(value) {
+                Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
+                | Node::Hash(_, _, HashKind::Any | HashKind::Object) => Binding::Other,
+                _ => Self::value(ctx, facts, value)?,
+            };
+            result = Some(result.map_or(binding, |before: Binding| before.merge(binding)));
+        }
+        Ok(result.unwrap_or(Binding::Other))
+    }
+
     /// Creates an empty, accounted binding arena.
     pub fn new() -> Self {
         Self {
@@ -132,8 +189,8 @@ impl Bindings {
                 },
                 Node::Atom(Atom::Unknown | Atom::Any)
                 | Node::Named(_)
-                | Node::Shape(_, _, _, false)
-                | Node::Hash(_, _, false) => Binding::Unknown,
+                | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
+                | Node::Hash(_, _, HashKind::Any | HashKind::Object) => Binding::Unknown,
                 _ => Binding::Other,
             };
             result = Some(result.map_or(binding, |previous: Binding| previous.merge(binding)));
@@ -429,4 +486,33 @@ impl Bindings {
         alternative(&mut alternatives, Resolution::Missing);
         Ok(alternatives.unwrap())
     }
+}
+
+/// Detects named leaves once so primitive normalization can reuse its cached contract.
+pub(super) fn named_annotation(ctx: &mut CallContext, ty: &crate::types::Type) -> Result<bool> {
+    use crate::types::TypeKind;
+    let mut pending = Buffer::empty();
+    pending.push(ctx, ty)?;
+    while let Some(ty) = pending.data.pop() {
+        ctx.charge(1)?;
+        match &ty.kind {
+            TypeKind::Named => return Ok(true),
+            TypeKind::Array(Some(element)) => pending.push(ctx, element)?,
+            TypeKind::Hash(Some(pair)) => pending.extend(ctx, &[&pair.0, &pair.1])?,
+            TypeKind::Shape(fields, _) => {
+                for field in fields {
+                    ctx.charge(1)?;
+                    pending.push(ctx, &field.ty)?;
+                }
+            }
+            TypeKind::Union(options) => {
+                for option in options {
+                    ctx.charge(1)?;
+                    pending.push(ctx, option)?;
+                }
+            }
+            _ => (),
+        }
+    }
+    Ok(false)
 }

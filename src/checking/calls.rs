@@ -3,7 +3,7 @@ use super::{
     blocks,
     facts::{Atom, Fact, Facts},
     flow::{self, Issue, Report},
-    globals::{self, Globals},
+    globals::Globals,
     lexical::Layouts,
     relation::Relation,
 };
@@ -144,6 +144,8 @@ impl Host {
 
 pub(super) struct World<'a> {
     pub program: &'a Program,
+    /// Identity owner used when constructing the source declaration contracts.
+    pub source_owner: usize,
     pub contracts: &'a [Fact],
     pub hosts: &'a [Host],
     // Callers supply already-bound descriptors; analysis never runs factories.
@@ -219,7 +221,7 @@ pub(super) fn analyze(
     let mut functions = Buffer::with_capacity(ctx, world.program.functions.len())?;
     ctx.charge(world.program.functions.len() as u64)?;
     functions.data.resize(world.program.functions.len(), false);
-    let layouts = Layouts::new(ctx, world.program)?;
+    let layouts = Layouts::new(ctx, world.program, world.source_owner)?;
     let mut solver = Solver {
         world,
         layouts: &layouts,
@@ -703,19 +705,6 @@ impl Calls for Solver<'_> {
                     context.arguments = args.positional;
                     Buffer::empty()
                 } else {
-                    for param in &self.world.program.functions[function].params {
-                        ctx.charge(1)?;
-                        if let Some(ty) = param.ty {
-                            if globals::live_contract(
-                                ctx,
-                                self.world.program,
-                                &self.world.program.types[ty],
-                            )? {
-                                outcome.incomplete = true;
-                                return Ok(outcome);
-                            }
-                        }
-                    }
                     let bound =
                         args.bind(ctx, facts, &self.world.program.functions[function].params)?;
                     if !bound.failures.data.is_empty() {

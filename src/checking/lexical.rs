@@ -23,11 +23,13 @@ struct Layout {
 }
 
 pub(super) struct Layouts {
+    pub source_owner: usize,
     functions: Buffer<Layout>,
+    named_annotations: Buffer<bool>,
 }
 
 impl Layouts {
-    pub fn new(ctx: &mut CallContext, program: &Program) -> Result<Self> {
+    pub fn new(ctx: &mut CallContext, program: &Program, source_owner: usize) -> Result<Self> {
         ctx.checkpoint()?;
         let mut functions = Buffer::empty();
         for function in &program.functions {
@@ -64,7 +66,16 @@ impl Layouts {
                 }
             }
         }
-        let mut layouts = Self { functions };
+        let mut named_annotations = Buffer::empty();
+        for ty in &program.types {
+            let named = super::type_bindings::named_annotation(ctx, ty)?;
+            named_annotations.push(ctx, named)?;
+        }
+        let mut layouts = Self {
+            source_owner,
+            functions,
+            named_annotations,
+        };
         for (function, body) in program.functions.iter().enumerate() {
             ctx.charge(1)?;
             if layouts.functions.data[function].forwarding {
@@ -236,6 +247,12 @@ impl Layouts {
             source.depth -= 1;
             child = self.functions.data[child].parent.unwrap();
         }
+    }
+
+    /// Reports whether an annotation requires live name resolution.
+    pub fn named_annotation(&self, ctx: &mut CallContext, ty: usize) -> Result<bool> {
+        ctx.charge(1)?;
+        Ok(self.named_annotations.data[ty])
     }
 
     /// Returns captured candidate bindings in lexical scope order.

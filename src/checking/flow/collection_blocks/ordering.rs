@@ -53,8 +53,8 @@ impl Walker<'_> {
                 Node::Atom(Atom::Unknown | Atom::Any)
                 | Node::Named(_)
                 | Node::Nominal { .. }
-                | Node::Shape(_, _, _, false)
-                | Node::Hash(_, _, false) => {
+                | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
+                | Node::Hash(_, _, HashKind::Any | HashKind::Object) => {
                     self.incomplete(pc)?;
                     continue;
                 }

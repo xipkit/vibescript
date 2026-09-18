@@ -3,7 +3,7 @@ use super::{
     arguments::{self, Arguments, Failure, Input},
     blocks, builtins,
     calls::{Calls, Target},
-    facts::{Atom, Fact, Facts},
+    facts::{Atom, Fact, Facts, HashKind},
     globals::Globals,
     graph::{Block, Exit, Graph},
     lexical::Layouts,
@@ -640,20 +640,6 @@ pub(super) fn analyze_body(
         return Ok(report);
     }
     assert_eq!(inputs.len(), function.params.len());
-    for ty in function
-        .params
-        .iter()
-        .filter_map(|param| param.ty)
-        .chain(function.return_type)
-    {
-        ctx.charge(1)?;
-        if facts.unresolved(contracts[ty])
-            || super::globals::live_contract(ctx, program, &program.types[ty])?
-        {
-            report.incomplete.push(ctx, 0)?;
-            return Ok(report);
-        }
-    }
     for (slot, name) in function.local_names.iter().enumerate() {
         ctx.charge(function.params.len() as u64 + 1)?;
         if !function.params.iter().any(|param| param.slot == slot) && calls.global(ctx, name)? {
@@ -666,7 +652,7 @@ pub(super) fn analyze_body(
     let layouts = if let Some(layouts) = layouts {
         layouts
     } else {
-        owned_layouts = Layouts::new(ctx, program)?;
+        owned_layouts = Layouts::new(ctx, program, 0)?;
         &owned_layouts
     };
     let locals = layouts.locals(ctx, program, function_index)?;
@@ -2507,7 +2493,12 @@ impl Walker<'_> {
                     let field = if protected
                         || matches!(
                             self.facts.node(fields),
-                            super::facts::Node::Shape(_, false, _, false)
+                            super::facts::Node::Shape(
+                                _,
+                                false,
+                                _,
+                                HashKind::Any | HashKind::Object
+                            )
                         ) {
                         self.facts
                             .selected_field(self.ctx, fields, name.as_bytes())?

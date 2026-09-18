@@ -310,7 +310,9 @@ impl Walker<'_> {
             Transfer::Return { pc, value: actual } => {
                 let mut value = actual;
                 if let Some(ty) = self.function.return_type {
-                    let expected = self.contracts[ty];
+                    let Some(expected) = self.normalization_contract(&state, pc, ty)? else {
+                        return Ok([None, None]);
+                    };
                     let relation = self.facts.relation(self.ctx, actual, expected)?;
                     if relation != Relation::Accepted {
                         if let Some(report) = self.report.as_mut() {

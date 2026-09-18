@@ -1,5 +1,5 @@
 use super::{
-    facts::{Atom, Fact, Facts, Field, Node},
+    facts::{Atom, Fact, Facts, Field, HashKind, Node},
     relation::Relation,
 };
 use crate::{CallContext, ErrorKind, Result, budget::Buffer, value::Kind};
@@ -112,8 +112,8 @@ enum Task {
     Union(usize),
     Array,
     Tuple(usize),
-    Hash(Fact, bool),
-    Shape(Buffer<Field>, bool, Fact, bool),
+    Hash(Fact, HashKind),
+    Shape(Buffer<Field>, bool, Fact, HashKind),
     Protected(crate::hash::Tag),
     Options(Fact, Buffer<Fact>, usize, Normalized),
     Candidate(Fact, Buffer<Fact>, usize, Normalized, bool),

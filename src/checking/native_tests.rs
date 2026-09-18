@@ -314,8 +314,12 @@ fn addressed_namespace_calls_preserve_selection_and_argument_effects() {
     ] {
         witness(source, Some(expected), rejected);
     }
+    witness(
+        "def run; JSON[:parse]=7; begin; JSON.parse(\"7\"); rescue; 9; end; end",
+        Some("9"),
+        true,
+    );
     for source in [
-        "def run; JSON[:parse]=7; JSON.parse(\"7\"); end",
         "def run; Regex[:replace]=7; Regex.replace(\"x\",\"x\",\"y\"); end",
         "def run; JSON.clear; end",
     ] {

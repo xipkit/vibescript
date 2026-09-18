@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Node};
+use super::facts::{Atom, Fact, Facts, HashKind, Node};
 use crate::{CallContext, Result, Value, budget::Buffer};
 
 const NO: u8 = 1;
@@ -206,7 +206,10 @@ impl Facts {
                                 continue;
                             }
                         }
-                        (Node::Shape(a, false, _, true), Node::Shape(b, false, _, true)) => {
+                        (
+                            Node::Shape(a, false, _, HashKind::Plain),
+                            Node::Shape(b, false, _, HashKind::Plain),
+                        ) => {
                             let mut required = true;
                             for field in a.data.iter().chain(&b.data) {
                                 ctx.charge(1)?;

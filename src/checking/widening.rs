@@ -1,4 +1,4 @@
-use super::facts::{Atom, Fact, Facts, Field, Node, same_bytes};
+use super::facts::{Atom, Fact, Facts, Field, HashKind, Node, same_bytes};
 use crate::{CallContext, Result, Value, budget::Buffer};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -93,8 +93,8 @@ enum Task {
     Union(Buffer<Fact>, usize),
     Array,
     Tuple(usize),
-    Hash(Fact, bool),
-    Shape(Buffer<Field>, bool, Fact, bool),
+    Hash(Fact, HashKind),
+    Shape(Buffer<Field>, bool, Fact, HashKind),
 }
 
 impl Facts {
@@ -266,12 +266,19 @@ impl Facts {
         hashes: &[Fact],
         depth: usize,
     ) -> Result<()> {
-        let (mut plain, mut shapes, mut open) = (true, true, false);
+        let (mut plain, mut shapes, mut open) = (None, true, false);
         let mut keys = Buffer::empty();
         let mut elements = Buffer::empty();
         for &hash in hashes {
             ctx.charge(1)?;
-            plain &= self.plain_hash(hash);
+            let kind = self.hash_mode(hash);
+            plain = Some(plain.map_or(kind, |previous| {
+                if previous == kind {
+                    kind
+                } else {
+                    HashKind::Any
+                }
+            }));
             match self.node(hash) {
                 Node::Hash(key, element, _) => {
                     shapes = false;
@@ -291,6 +298,7 @@ impl Facts {
                 _ => unreachable!(),
             }
         }
+        let plain = plain.unwrap_or(HashKind::Any);
         let keys = self.union(ctx, &keys.data)?;
         if depth == 0 {
             let value = self.hash_kind(ctx, keys, Atom::Unknown.fact(), plain)?;

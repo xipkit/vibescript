@@ -25,6 +25,7 @@ pub(super) fn analyze(ctx: &mut CallContext, facts: &mut Facts, source: &str) ->
         ctx,
         facts,
         World {
+            source_owner: 0,
             program: &program,
             contracts: &contracts.data,
             hosts: &[],

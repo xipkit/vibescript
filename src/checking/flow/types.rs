@@ -8,20 +8,13 @@ impl Walker<'_> {
         pc: usize,
         ty: usize,
     ) -> Result<Option<Fact>> {
-        if super::super::globals::live_contract(self.ctx, self.program, &self.program.types[ty])? {
-            self.incomplete(pc)?;
-            return Ok(None);
-        }
-        if self.block_inputs.is_none() {
+        if !self.layouts.named_annotation(self.ctx, ty)? {
             return Ok(Some(self.contracts[ty]));
         }
         let mut bindings = Bindings::new();
         let hosts = bindings.scope(self.ctx)?;
-        let replaced = self.calls.type_bindings(self.ctx, &mut bindings, hosts)?;
+        self.calls.type_bindings(self.ctx, &mut bindings, hosts)?;
         let sources = self.layouts.type_sources(self.ctx, self.function_index)?;
-        if sources.is_empty() && !replaced && !self.facts.unresolved(self.contracts[ty]) {
-            return Ok(Some(self.contracts[ty]));
-        }
         let mut levels: Buffer<(usize, Scope)> = Buffer::empty();
         for source in sources {
             self.ctx.charge(1)?;
@@ -30,7 +23,7 @@ impl Walker<'_> {
             if value.value == Atom::Never.fact() && value.missing {
                 continue;
             }
-            let binding = Bindings::value(self.ctx, self.facts, value.value)?;
+            let binding = bindings.current(self.ctx, self.facts, value.value)?;
             if binding == TypeBinding::Other {
                 continue;
             }
@@ -72,10 +65,18 @@ impl Walker<'_> {
             self.ctx.charge(1)?;
             scopes.push(self.ctx, scope)?;
         }
-        let source = bindings.source(self.ctx, self.facts, self.program, 0)?;
+        let source = bindings.source(
+            self.ctx,
+            self.facts,
+            self.program,
+            self.layouts.source_owner,
+        )?;
         for declaration in &self.program.declarations {
             self.ctx.charge(1)?;
             if let Kind::Namespace(namespace) = &declaration.0 {
+                if namespace.definition.body.is_none() {
+                    continue;
+                }
                 bindings.insert(
                     self.ctx,
                     source,
@@ -83,6 +84,12 @@ impl Walker<'_> {
                     crate::checking::type_bindings::Binding::Unknown,
                 )?;
             }
+        }
+        for (index, (global, _)) in self.program.globals.iter().enumerate() {
+            self.ctx.charge(1)?;
+            let value = state.locals.get(self.ctx, state.global_base + index)?.value;
+            let binding = bindings.current(self.ctx, self.facts, value)?;
+            bindings.insert(self.ctx, source, global.name().as_bytes(), binding)?;
         }
         bindings.overlay(self.ctx, source, &[hosts])?;
         scopes.extend(self.ctx, &[hosts, source])?;

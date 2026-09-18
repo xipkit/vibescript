@@ -48,6 +48,20 @@ pub(super) enum NominalId {
     Enumeration(usize),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum HashKind {
+    Plain,
+    Object,
+    // Structural contracts and joins may describe either dispatch behavior.
+    Any,
+}
+
+impl From<bool> for HashKind {
+    fn from(plain: bool) -> Self {
+        if plain { Self::Plain } else { Self::Any }
+    }
+}
+
 #[derive(Debug)]
 pub(super) enum Node {
     Atom(Atom),
@@ -72,9 +86,8 @@ pub(super) enum Node {
     },
     Array(Fact),
     Tuple(Buffer<Fact>),
-    // The last flag identifies ordinary hashes; annotations may describe objects too.
-    Hash(Fact, Fact, bool),
-    Shape(Buffer<Field>, bool, Fact, bool),
+    Hash(Fact, Fact, HashKind),
+    Shape(Buffer<Field>, bool, Fact, HashKind),
     Union(Buffer<Fact>),
     Choice(Buffer<Fact>),
     Named(Value),
@@ -273,7 +286,7 @@ impl Facts {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().all(|&value| self.singleton(value))
             }
-            Node::Shape(fields, false, keys, true) if *keys == Atom::String.fact() => {
+            Node::Shape(fields, false, keys, HashKind::Plain) if *keys == Atom::String.fact() => {
                 ctx.charge(fields.data.len() as u64)?;
                 fields
                     .data
@@ -426,9 +439,9 @@ impl Facts {
         ctx: &mut CallContext,
         key: Fact,
         value: Fact,
-        plain: bool,
+        kind: impl Into<HashKind>,
     ) -> Result<Fact> {
-        self.intern(ctx, Node::Hash(key, value, plain))
+        self.intern(ctx, Node::Hash(key, value, kind.into()))
     }
 
     pub fn shape(
@@ -459,7 +472,7 @@ impl Facts {
         mut fields: Buffer<Field>,
         open: bool,
         keys: Fact,
-        plain: bool,
+        kind: impl Into<HashKind>,
     ) -> Result<Fact> {
         let mut work = 0usize;
         for field in &fields.data {
@@ -487,7 +500,7 @@ impl Facts {
         for (_, field) in ordered.data.drain(..) {
             fields.push(ctx, field)?;
         }
-        self.intern(ctx, Node::Shape(fields, open, keys, plain))
+        self.intern(ctx, Node::Shape(fields, open, keys, kind.into()))
     }
 
     pub fn nominal(

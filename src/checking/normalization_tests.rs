@@ -2,7 +2,7 @@ use super::{
     arguments,
     calls::{self, Analysis, Host, World},
     collection_tests::literal_fact,
-    facts::{Atom, Fact, Facts, Field, Node},
+    facts::{Atom, Fact, Facts, Field, HashKind, Node},
     relation::Relation,
     type_bindings::Bindings,
 };
@@ -42,6 +42,7 @@ pub(super) fn analyze(
         ctx,
         facts,
         World {
+            source_owner: 42,
             program,
             contracts: &contracts.data,
             hosts: &[],
@@ -94,7 +95,17 @@ fn observed(
                     .unwrap();
             }
             let shape = facts
-                .shape_fields(ctx, fields, false, Atom::String.fact(), !hash.object)
+                .shape_fields(
+                    ctx,
+                    fields,
+                    false,
+                    Atom::String.fact(),
+                    if hash.object {
+                        HashKind::Object
+                    } else {
+                        HashKind::Plain
+                    },
+                )
                 .unwrap();
             if hash.tag.protected() {
                 facts.protected(ctx, shape, hash.tag).unwrap()
@@ -613,6 +624,7 @@ fn host_return_contracts_produce_enum_values_without_executing_callbacks() {
             &mut ctx,
             &mut facts,
             World {
+                source_owner: 42,
                 program,
                 contracts: &[],
                 hosts: &[host],

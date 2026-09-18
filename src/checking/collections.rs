@@ -1,5 +1,5 @@
 use super::{
-    facts::{Atom, Fact, Facts, Node},
+    facts::{Atom, Fact, Facts, HashKind, Node},
     scalar::{Operation, Test},
 };
 use crate::{CallContext, Result, Value, budget::Buffer, bytecode::CallSite};
@@ -42,8 +42,16 @@ impl Facts {
     pub(super) fn plain_hash(&self, value: Fact) -> bool {
         matches!(
             self.node(value),
-            Node::Shape(_, _, _, true) | Node::Hash(_, _, true)
+            Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain)
         )
+    }
+
+    /// Distinguishes plain hashes, namespace objects, and uncertain provenance.
+    pub(super) fn hash_mode(&self, value: Fact) -> HashKind {
+        match self.node(value) {
+            Node::Hash(_, _, kind) | Node::Shape(_, _, _, kind) => *kind,
+            _ => unreachable!(),
+        }
     }
 
     fn object_index(&self, ctx: &mut CallContext, value: Fact, member: &[u8]) -> Result<bool> {

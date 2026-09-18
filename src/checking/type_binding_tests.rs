@@ -519,6 +519,7 @@ fn source_annotations_enable_nominal_script_argument_and_return_contracts() {
             &mut ctx,
             &mut facts,
             World {
+                source_owner: 0,
                 program,
                 contracts: &contracts.data,
                 hosts: &[],
@@ -597,6 +598,7 @@ fn resolved_host_contracts_validate_nominal_arguments_without_running_the_host()
             &mut ctx,
             &mut facts,
             World {
+                source_owner: 0,
                 program,
                 contracts: &[],
                 hosts: &[host],
@@ -675,6 +677,7 @@ fn missing_ambiguous_and_dynamic_host_type_bindings_remain_explicit() {
             &mut ctx,
             &mut facts,
             World {
+                source_owner: 0,
                 program: &program,
                 contracts: &[],
                 hosts: &[host],
@@ -982,6 +985,7 @@ fn named_binding_results_match_executed_host_signature_resolution() {
                 &mut ctx,
                 &mut facts,
                 World {
+                    source_owner: 0,
                     program,
                     contracts: &[],
                     hosts: &[host],

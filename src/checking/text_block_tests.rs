@@ -526,6 +526,7 @@ fn supplied_text(source: &str, text: &[u8], expected: Option<&str>) -> u64 {
         &mut ctx,
         &mut facts,
         World {
+            source_owner: 0,
             program: &program,
             contracts: &[],
             hosts: &[],

@@ -57,7 +57,9 @@ impl Walker<'_> {
             }
             let kind = match self.facts.node(source) {
                 Node::Tuple(_) | Node::Array(_) => Some(Receiver::Array),
-                Node::Shape(_, _, _, true) | Node::Hash(_, _, true) => Some(Receiver::Hash),
+                Node::Shape(_, _, _, HashKind::Plain) | Node::Hash(_, _, HashKind::Plain) => {
+                    Some(Receiver::Hash)
+                }
                 Node::Named(_)
                 | Node::Nominal { .. }
                 | Node::Shape(..)

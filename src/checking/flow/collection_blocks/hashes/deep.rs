@@ -90,7 +90,8 @@ impl Walker<'_> {
                 frame.arm += 1;
                 if matches!(
                     self.facts.node(arm),
-                    Node::Hash(_, _, false) | Node::Shape(_, _, _, false)
+                    Node::Hash(_, _, HashKind::Any | HashKind::Object)
+                        | Node::Shape(_, _, _, HashKind::Any | HashKind::Object)
                 ) {
                     // Nested hash data is traversed directly, without member dispatch.
                     arm = self.plain_hash_data(arm)?;
@@ -119,7 +120,9 @@ impl Walker<'_> {
                             self.facts.tuple(self.ctx, &[])?,
                         )
                     }
-                    Node::Array(_) | Node::Hash(_, _, true) | Node::Shape(_, _, _, true) => {
+                    Node::Array(_)
+                    | Node::Hash(_, _, HashKind::Plain)
+                    | Node::Shape(_, _, _, HashKind::Plain) => {
                         let hash = !matches!(self.facts.node(arm), Node::Array(_));
                         let iteration = self.facts.iteration(self.ctx, arm)?;
                         let output = if hash {
