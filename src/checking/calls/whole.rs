@@ -4,30 +4,17 @@ use crate::bytecode::Op;
 pub(in crate::checking) fn analyze(
     ctx: &mut CallContext,
     facts: &mut Facts,
-    world: World<'_>,
+    environment: crate::checking::environment::Environment,
     values: super::super::inputs::Values,
 ) -> Result<Analysis> {
-    let program = world.program;
-    let source = facts.source_id(ctx, world.source_owner)?;
-    let layouts = Layouts::new(ctx, program, world.source_owner)?;
-    let mut functions = Buffer::with_capacity(ctx, program.functions.len())?;
-    ctx.charge(program.functions.len() as u64)?;
-    functions.data.resize(program.functions.len(), false);
-    let mut solver = Solver {
-        whole: true,
-        source,
-        world,
-        values,
-        layouts: &layouts,
-        jobs: Buffer::empty(),
-        buckets: Buffer::empty(),
-        queue: Buffer::empty(),
-        current: EMPTY,
-        dependencies: Buffer::empty(),
-        functions,
-        search: 0,
-        entry_failures: Buffer::empty(),
-    };
+    let handle = Handle::owned(ctx, facts, environment)?;
+    let view = handle.view();
+    let program = view.world.program;
+    let source = view.source;
+    let layouts = view.layouts;
+    let mut state = Scheduler::new(values, true);
+    let world_index = state.worlds.insert(ctx, handle.clone())?;
+    let mut solver = state.adapter(world_index, &handle);
     let mut context = Context::plain();
     context.kind = Kind::General;
     context.globals = Globals::initial(ctx, facts, program)?;
@@ -123,18 +110,18 @@ pub(in crate::checking) fn analyze(
     solver.solve(ctx, facts)?;
     let analysis = Analysis {
         #[cfg(test)]
-        returns: solver.jobs.data[entry].returns,
+        returns: solver.state.jobs.data[entry].returns,
         #[cfg(test)]
-        throws: solver.jobs.data[entry].throws,
+        throws: solver.state.jobs.data[entry].throws,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
         #[cfg(test)]
-        contexts: solver.jobs.data.len(),
+        contexts: solver.state.jobs.data.len(),
     };
     solver.collect(ctx, &entries.data, analysis)
 }
 
-impl Solver<'_> {
+impl Solver<'_, '_> {
     pub(super) fn whole_reached(
         &self,
         ctx: &mut CallContext,
@@ -142,9 +129,9 @@ impl Solver<'_> {
         source: SourceId,
         function: usize,
     ) -> Result<bool> {
-        let mut seen = Buffer::with_capacity(ctx, self.jobs.data.len())?;
-        ctx.charge(self.jobs.data.len() as u64)?;
-        seen.data.resize(self.jobs.data.len(), false);
+        let mut seen = Buffer::with_capacity(ctx, self.state.jobs.data.len())?;
+        ctx.charge(self.state.jobs.data.len() as u64)?;
+        seen.data.resize(self.state.jobs.data.len(), false);
         let mut pending = Buffer::empty();
         pending.extend(ctx, entries)?;
         while let Some(index) = pending.data.pop() {
@@ -153,7 +140,7 @@ impl Solver<'_> {
                 continue;
             }
             seen.data[index] = true;
-            let job = &self.jobs.data[index];
+            let job = &self.state.jobs.data[index];
             if job.source == source && job.function == function {
                 return Ok(true);
             }
@@ -169,7 +156,7 @@ impl Solver<'_> {
         module: usize,
         globals: &Globals,
     ) -> Result<Option<Fact>> {
-        if !self.whole {
+        if !self.state.whole {
             return Ok(None);
         }
         let program = self.world.program;
@@ -211,7 +198,7 @@ impl Solver<'_> {
             let index =
                 self.request(ctx, facts, function, &inputs.data, flow::NO_ERROR, &context)?;
             self.depend(ctx, index)?;
-            let Some(report) = &self.jobs.data[index].report else {
+            let Some(report) = &self.state.jobs.data[index].report else {
                 pending = true;
                 continue;
             };
@@ -246,7 +233,7 @@ impl Solver<'_> {
         index: usize,
         initial: &Globals,
     ) -> Result<Globals> {
-        let report = self.jobs.data[index].report.as_ref().unwrap();
+        let report = self.state.jobs.data[index].report.as_ref().unwrap();
         ctx.charge(report.block_exits.data.len() as u64)?;
         let normal = report
             .block_exits

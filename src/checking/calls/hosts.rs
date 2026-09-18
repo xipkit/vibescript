@@ -13,7 +13,7 @@ struct Environment {
     count: usize,
 }
 
-impl Solver<'_> {
+impl Solver<'_, '_> {
     fn host_environment(
         &mut self,
         ctx: &mut CallContext,
@@ -142,7 +142,7 @@ impl Solver<'_> {
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.values.host(ctx, &self.world, index)? else {
+        let Some(host) = self.state.values.host(ctx, &self.world, index)? else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -180,6 +180,7 @@ impl Solver<'_> {
         let params = host.params.data.len();
         for (parameter, &actual) in args.positional.data.iter().take(params).enumerate() {
             let expected = self
+                .state
                 .values
                 .host(ctx, &self.world, index)?
                 .unwrap()
@@ -227,7 +228,7 @@ impl Solver<'_> {
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.values.host(ctx, &self.world, index)? else {
+        let Some(host) = self.state.values.host(ctx, &self.world, index)? else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -291,7 +292,7 @@ impl Solver<'_> {
             } else {
                 None
             };
-            let host = self.values.host(ctx, &self.world, index)?.unwrap();
+            let host = self.state.values.host(ctx, &self.world, index)?.unwrap();
             match host.contract(
                 ctx,
                 facts,

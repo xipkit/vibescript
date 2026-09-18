@@ -1,7 +1,7 @@
 use super::*;
 use crate::checking::{flow::IssueKind, namespaces, scalar::Test};
 
-impl Solver<'_> {
+impl Solver<'_, '_> {
     pub(super) fn initialize_body(
         &mut self,
         ctx: &mut CallContext,
@@ -31,8 +31,8 @@ impl Solver<'_> {
         )?;
         self.depend(ctx, index)?;
         let mut outcome = Outcome::empty();
-        outcome.value = self.jobs.data[index].returns;
-        if let Some(report) = &self.jobs.data[index].report {
+        outcome.value = self.state.jobs.data[index].returns;
+        if let Some(report) = &self.state.jobs.data[index].report {
             for exit in &report.block_exits.data {
                 let exit = exit.snapshot(ctx)?;
                 outcome.exits.push(ctx, exit)?;
@@ -42,16 +42,22 @@ impl Solver<'_> {
     }
 
     pub(super) fn depend(&mut self, ctx: &mut CallContext, index: usize) -> Result<()> {
-        ctx.charge(self.dependencies.data.len() as u64)?;
-        if !self.dependencies.data.contains(&index) {
-            self.dependencies.push(ctx, index)?;
+        ctx.charge(self.state.dependencies.data.len() as u64)?;
+        if !self.state.dependencies.data.contains(&index) {
+            self.state.dependencies.push(ctx, index)?;
         }
-        ctx.charge(self.jobs.data[index].parents.data.len() as u64)?;
-        if !self.jobs.data[index].parents.data.contains(&self.current) {
+        ctx.charge(self.state.jobs.data[index].parents.data.len() as u64)?;
+        if !self.state.jobs.data[index]
+            .parents
+            .data
+            .contains(&self.state.current)
+        {
             if let Some(path) = self.ancestor(ctx, Ancestor::Job(index))? {
                 self.cycle(ctx, &path.data)?;
             }
-            self.jobs.data[index].parents.push(ctx, self.current)?;
+            self.state.jobs.data[index]
+                .parents
+                .push(ctx, self.state.current)?;
         }
         Ok(())
     }
@@ -99,8 +105,8 @@ impl Solver<'_> {
             context.globals.values.data[flag] = no;
             let index = self.request(ctx, facts, body, &[], flow::NO_ERROR, &context)?;
             self.depend(ctx, index)?;
-            report.throws |= self.jobs.data[index].throws;
-            if let Some(result) = &self.jobs.data[index].report {
+            report.throws |= self.state.jobs.data[index].throws;
+            if let Some(result) = &self.state.jobs.data[index].report {
                 for exit in &result.block_exits.data {
                     ctx.charge(1)?;
                     if exit.completion == blocks::Completion::Value {
@@ -121,8 +127,11 @@ impl Solver<'_> {
             globals = next;
         }
         // Runtime initializes namespaces before binding the entry's argument shape.
-        if !self.entry_failures.data.is_empty() {
-            for &failure in &self.entry_failures.data {
+        let failures = &self.state.worlds.entries.data[self.world_index]
+            .entry_failures
+            .data;
+        if !failures.is_empty() {
+            for &failure in failures {
                 ctx.charge(1)?;
                 report.issues.push(
                     ctx,
@@ -147,9 +156,9 @@ impl Solver<'_> {
         context.scope = initial.scope;
         let index = self.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
         self.depend(ctx, index)?;
-        report.normal_returns = self.jobs.data[index].returns;
-        report.throws |= self.jobs.data[index].throws;
-        if let Some(result) = &self.jobs.data[index].report {
+        report.normal_returns = self.state.jobs.data[index].returns;
+        report.throws |= self.state.jobs.data[index].throws;
+        if let Some(result) = &self.state.jobs.data[index].report {
             report.returns = result.returns;
             for exit in &result.block_exits.data {
                 let exit = exit.snapshot(ctx)?;

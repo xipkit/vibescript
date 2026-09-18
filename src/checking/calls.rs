@@ -20,8 +20,10 @@ mod initializers;
 #[cfg(test)]
 mod source_tests;
 mod whole;
+mod worlds;
 use context::{Context, Kind};
 pub(super) use whole::analyze as analyze_whole;
+use worlds::{Handle, Registry};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Target {
@@ -349,6 +351,7 @@ impl Host {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct World<'a> {
     pub program: &'a Program,
     /// Identity owner used when constructing the source declaration contracts.
@@ -410,20 +413,64 @@ struct Job {
     report: Option<Report>,
 }
 
-struct Solver<'a> {
+struct Scheduler<'a> {
     whole: bool,
-    source: SourceId,
-    world: World<'a>,
+    worlds: Registry<'a>,
     values: super::inputs::Values,
-    layouts: &'a Layouts,
     jobs: Buffer<Job>,
     buckets: Buffer<usize>,
     queue: Buffer<usize>,
     current: usize,
     dependencies: Buffer<usize>,
-    functions: Buffer<bool>,
     search: usize,
-    entry_failures: Buffer<Failure>,
+}
+
+struct Solver<'s, 'a> {
+    source: SourceId,
+    world: World<'s>,
+    layouts: &'s Layouts,
+    world_index: usize,
+    state: &'s mut Scheduler<'a>,
+}
+
+impl<'a> Scheduler<'a> {
+    fn new(values: super::inputs::Values, whole: bool) -> Self {
+        Self {
+            whole,
+            worlds: Registry::new(),
+            values,
+            jobs: Buffer::empty(),
+            buckets: Buffer::empty(),
+            queue: Buffer::empty(),
+            current: EMPTY,
+            dependencies: Buffer::empty(),
+            search: 0,
+        }
+    }
+
+    fn adapter<'s>(&'s mut self, world_index: usize, handle: &'s Handle<'a>) -> Solver<'s, 'a> {
+        let view = handle.view();
+        Solver {
+            source: view.source,
+            world: view.world,
+            layouts: view.layouts,
+            world_index,
+            state: self,
+        }
+    }
+
+    fn solve(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<()> {
+        ctx.checkpoint()?;
+        while let Some(index) = self.queue.data.pop() {
+            ctx.charge(1)?;
+            let (world_index, handle) = self.worlds.get(ctx, self.jobs.data[index].source)?;
+            self.adapter(world_index, &handle)
+                .solve_job(ctx, facts, index)?;
+        }
+        self.current = EMPTY;
+        self.dependencies = Buffer::empty();
+        Ok(())
+    }
 }
 
 enum Ancestor<'a> {
@@ -598,26 +645,14 @@ fn analyze_entry(
         });
     }
     let inputs = &admitted.data;
-    let mut functions = Buffer::with_capacity(ctx, world.program.functions.len())?;
-    ctx.charge(world.program.functions.len() as u64)?;
-    functions.data.resize(world.program.functions.len(), false);
     let layouts = Layouts::new(ctx, world.program, world.source_owner)?;
-    let mut solver = Solver {
-        whole: false,
-        source,
-        world,
-        values,
-        layouts: &layouts,
-        jobs: Buffer::empty(),
-        buckets: Buffer::empty(),
-        queue: Buffer::empty(),
-        current: EMPTY,
-        dependencies: Buffer::empty(),
-        functions,
-        search: 0,
-        entry_failures: Buffer::empty(),
-    };
-    solver.entry_failures.extend(ctx, failures)?;
+    let handle = Handle::borrowed(ctx, facts, world, &layouts)?;
+    let mut state = Scheduler::new(values, false);
+    let world_index = state.worlds.insert(ctx, handle.clone())?;
+    let mut solver = state.adapter(world_index, &handle);
+    solver.state.worlds.entries.data[world_index]
+        .entry_failures
+        .extend(ctx, failures)?;
     let mut context = Context::plain();
     context.constructor = constructor;
     context.scope = scope;
@@ -645,133 +680,134 @@ fn analyze_entry(
     solver.solve(ctx, facts)?;
     let result = Analysis {
         #[cfg(test)]
-        returns: solver.jobs.data[entry].returns,
+        returns: solver.state.jobs.data[entry].returns,
         #[cfg(test)]
-        throws: solver.jobs.data[entry].throws | admission_throws,
+        throws: solver.state.jobs.data[entry].throws | admission_throws,
         issues: admission_issues,
         incomplete: Buffer::empty(),
         #[cfg(test)]
-        contexts: solver.jobs.data.len(),
+        contexts: solver.state.jobs.data.len(),
     };
     solver.collect(ctx, &[entry], result)
 }
 
-impl Solver<'_> {
+impl Solver<'_, '_> {
     fn solve(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<()> {
-        let source = facts.source_id(ctx, self.world.source_owner)?;
-        while let Some(index) = self.queue.data.pop() {
-            ctx.charge(1)?;
-            if self.jobs.data[index].source != source {
-                return Err(crate::Error::new(
-                    crate::ErrorKind::Runtime,
-                    "checker job belongs to a different source",
-                ));
-            }
-            self.current = index;
-            self.jobs.data[index].queued = false;
-            self.dependencies = Buffer::empty();
-            let mut inputs = Buffer::empty();
-            let job = &self.jobs.data[index];
-            inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
-            let context = job
-                .widened_context
-                .as_ref()
-                .unwrap_or(&job.context)
-                .snapshot(ctx)?;
-            let incoming = context.incoming(ctx)?;
-            if context
-                .ambient
-                .is_some_and(|ambient| ambient.source != source)
-            {
-                return Err(crate::Error::new(
-                    crate::ErrorKind::Runtime,
-                    "checker ambient binding belongs to a different source",
-                ));
-            }
-            let block = if matches!(context.kind, Kind::Invoked { .. } | Kind::Initializing) {
-                Some(blocks::Inputs {
-                    arguments: &context.arguments.data,
-                    captures: &context.captures.data,
-                    pending: &context.pending,
-                    given: matches!(context.kind, Kind::Invoked { given: true }),
-                    inherited: &context.inherited.data,
-                })
-            } else {
-                None
-            };
-            let function = self.jobs.data[index].function;
-            let body = flow::Body {
-                scope: context.scope,
-                ambient: context.ambient.map(|ambient| ambient.index),
-                general: context.kind == Kind::General,
-                receiver: context.receiver,
-                constructor: context.constructor,
-                program: self.world.program,
-                contracts: self.world.contracts,
-                function,
-                inputs: &inputs.data,
-                current_error: self.jobs.data[index].current_error,
-                block: block.as_ref(),
-                incoming: incoming.as_ref(),
-                layouts: Some(self.layouts),
-                globals: Some(&context.globals),
-            };
-            let mut report = if let Kind::Entry { general } = context.kind {
-                self.initialize_entry(ctx, facts, function, &inputs.data, &context, general)?
-            } else {
-                flow::analyze_body(ctx, facts, body, self)?
-            };
-            let mut returns = report.normal_returns;
-            let previous = self.jobs.data[index].returns;
-            if self.jobs.data[index].cyclic && previous != Atom::Never.fact() && previous != returns
-            {
-                let depth = *self.jobs.data[index]
-                    .return_depth
-                    .get_or_insert(facts.max_depth());
-                returns = facts.widen(ctx, previous, returns, depth)?;
-            }
-            let job = &mut self.jobs.data[index];
-            if job.cyclic {
-                if let Some(previous) = &job.report {
-                    let depth = *job.return_depth.get_or_insert(facts.max_depth());
-                    for exit in &mut report.block_exits.data {
-                        for before in &previous.block_exits.data {
-                            ctx.charge(1)?;
-                            if exit.pc == before.pc && exit.completion == before.completion {
-                                exit.widen(ctx, facts, before, depth)?;
-                            }
+        self.state.solve(ctx, facts)
+    }
+
+    fn requested(&self, function: usize) -> bool {
+        self.state.worlds.entries.data[self.world_index]
+            .functions
+            .data[function]
+    }
+
+    fn solve_job(&mut self, ctx: &mut CallContext, facts: &mut Facts, index: usize) -> Result<()> {
+        let source = self.source;
+        self.state.current = index;
+        self.state.jobs.data[index].queued = false;
+        self.state.dependencies = Buffer::empty();
+        let mut inputs = Buffer::empty();
+        let job = &self.state.jobs.data[index];
+        inputs.extend(ctx, &job.widened.as_ref().unwrap_or(&job.inputs).data)?;
+        let context = job
+            .widened_context
+            .as_ref()
+            .unwrap_or(&job.context)
+            .snapshot(ctx)?;
+        let incoming = context.incoming(ctx)?;
+        if context
+            .ambient
+            .is_some_and(|ambient| ambient.source != source)
+        {
+            return Err(crate::Error::new(
+                crate::ErrorKind::Runtime,
+                "checker ambient binding belongs to a different source",
+            ));
+        }
+        let block = if matches!(context.kind, Kind::Invoked { .. } | Kind::Initializing) {
+            Some(blocks::Inputs {
+                arguments: &context.arguments.data,
+                captures: &context.captures.data,
+                pending: &context.pending,
+                given: matches!(context.kind, Kind::Invoked { given: true }),
+                inherited: &context.inherited.data,
+            })
+        } else {
+            None
+        };
+        let function = self.state.jobs.data[index].function;
+        let body = flow::Body {
+            scope: context.scope,
+            ambient: context.ambient.map(|ambient| ambient.index),
+            general: context.kind == Kind::General,
+            receiver: context.receiver,
+            constructor: context.constructor,
+            program: self.world.program,
+            contracts: self.world.contracts,
+            function,
+            inputs: &inputs.data,
+            current_error: self.state.jobs.data[index].current_error,
+            block: block.as_ref(),
+            incoming: incoming.as_ref(),
+            layouts: Some(self.layouts),
+            globals: Some(&context.globals),
+        };
+        let mut report = if let Kind::Entry { general } = context.kind {
+            self.initialize_entry(ctx, facts, function, &inputs.data, &context, general)?
+        } else {
+            flow::analyze_body(ctx, facts, body, self)?
+        };
+        let mut returns = report.normal_returns;
+        let previous = self.state.jobs.data[index].returns;
+        if self.state.jobs.data[index].cyclic
+            && previous != Atom::Never.fact()
+            && previous != returns
+        {
+            let depth = *self.state.jobs.data[index]
+                .return_depth
+                .get_or_insert(facts.max_depth());
+            returns = facts.widen(ctx, previous, returns, depth)?;
+        }
+        let job = &mut self.state.jobs.data[index];
+        if job.cyclic {
+            if let Some(previous) = &job.report {
+                let depth = *job.return_depth.get_or_insert(facts.max_depth());
+                for exit in &mut report.block_exits.data {
+                    for before in &previous.block_exits.data {
+                        ctx.charge(1)?;
+                        if exit.pc == before.pc && exit.completion == before.completion {
+                            exit.widen(ctx, facts, before, depth)?;
                         }
                     }
                 }
             }
-            let mut changed = job.returns != returns || job.throws != report.throws;
-            if let Some(previous) = &job.report {
-                changed |= previous.block_exits.data.len() != report.block_exits.data.len();
-                for (a, b) in previous
-                    .block_exits
-                    .data
-                    .iter()
-                    .zip(&report.block_exits.data)
-                {
-                    changed |= !a.equal(ctx, b)?;
-                }
-            } else {
-                changed |= !report.block_exits.data.is_empty();
+        }
+        let mut changed = job.returns != returns || job.throws != report.throws;
+        if let Some(previous) = &job.report {
+            changed |= previous.block_exits.data.len() != report.block_exits.data.len();
+            for (a, b) in previous
+                .block_exits
+                .data
+                .iter()
+                .zip(&report.block_exits.data)
+            {
+                changed |= !a.equal(ctx, b)?;
             }
-            job.returns = returns;
-            job.throws = report.throws;
-            job.report = Some(report);
-            job.dependencies = std::mem::replace(&mut self.dependencies, Buffer::empty());
-            if changed {
-                for parent in 0..self.jobs.data[index].parents.data.len() {
-                    ctx.charge(1)?;
-                    let parent = self.jobs.data[index].parents.data[parent];
-                    self.enqueue(ctx, parent)?;
-                }
+        } else {
+            changed |= !report.block_exits.data.is_empty();
+        }
+        job.returns = returns;
+        job.throws = report.throws;
+        job.report = Some(report);
+        job.dependencies = std::mem::replace(&mut self.state.dependencies, Buffer::empty());
+        if changed {
+            for parent in 0..self.state.jobs.data[index].parents.data.len() {
+                ctx.charge(1)?;
+                let parent = self.state.jobs.data[index].parents.data[parent];
+                self.enqueue(ctx, parent)?;
             }
         }
-        self.current = EMPTY;
-        self.dependencies = Buffer::empty();
         Ok(())
     }
 
@@ -781,20 +817,20 @@ impl Solver<'_> {
         entries: &[usize],
         mut result: Analysis,
     ) -> Result<Analysis> {
-        let mut reached = Buffer::with_capacity(ctx, self.jobs.data.len())?;
-        for _ in &self.jobs.data {
+        let mut reached = Buffer::with_capacity(ctx, self.state.jobs.data.len())?;
+        for _ in &self.state.jobs.data {
             ctx.charge(1)?;
             reached.data.push(false);
         }
-        self.queue.extend(ctx, entries)?;
-        while let Some(index) = self.queue.data.pop() {
+        self.state.queue.extend(ctx, entries)?;
+        while let Some(index) = self.state.queue.data.pop() {
             ctx.charge(1)?;
             if reached.data[index] {
                 continue;
             }
             reached.data[index] = true;
-            let job = &self.jobs.data[index];
-            self.queue.extend(ctx, &job.dependencies.data)?;
+            let job = &self.state.jobs.data[index];
+            self.state.queue.extend(ctx, &job.dependencies.data)?;
             let report = job.report.as_ref().unwrap();
             for &issue in &report.issues.data {
                 ctx.charge(result.issues.data.len() as u64)?;
@@ -849,9 +885,9 @@ impl Solver<'_> {
     }
 
     fn enqueue(&mut self, ctx: &mut CallContext, index: usize) -> Result<()> {
-        if !self.jobs.data[index].queued {
-            self.queue.push(ctx, index)?;
-            self.jobs.data[index].queued = true;
+        if !self.state.jobs.data[index].queued {
+            self.state.queue.push(ctx, index)?;
+            self.state.jobs.data[index].queued = true;
         }
         Ok(())
     }
@@ -874,11 +910,12 @@ impl Solver<'_> {
         current_error.hash(&mut hash);
         context.hash(ctx, &mut hash)?;
         let hash = hash.finish();
-        if !self.buckets.data.is_empty() {
-            let mut index = self.buckets.data[hash as usize & (self.buckets.data.len() - 1)];
+        if !self.state.buckets.data.is_empty() {
+            let mut index =
+                self.state.buckets.data[hash as usize & (self.state.buckets.data.len() - 1)];
             while index != EMPTY {
                 ctx.charge(inputs.len() as u64 + 1)?;
-                let job = &self.jobs.data[index];
+                let job = &self.state.jobs.data[index];
                 if job.hash == hash
                     && job.source == source
                     && job.function == function
@@ -891,41 +928,41 @@ impl Solver<'_> {
                 index = job.next;
             }
         }
-        if self.functions.data[function] {
+        if self.requested(function) {
             if let Some(path) = self.ancestor(ctx, Ancestor::Function(source, function, context))? {
                 let index = path.data[0];
                 self.cycle(ctx, &path.data)?;
-                let depth = *self.jobs.data[index]
+                let depth = *self.state.jobs.data[index]
                     .input_depth
                     .get_or_insert(facts.max_depth());
                 let mut joined = Buffer::empty();
-                let mut changed = self.jobs.data[index].current_error | current_error
-                    != self.jobs.data[index].current_error;
-                self.jobs.data[index].current_error |= current_error;
-                let mut widened_context = self.jobs.data[index]
+                let mut changed = self.state.jobs.data[index].current_error | current_error
+                    != self.state.jobs.data[index].current_error;
+                self.state.jobs.data[index].current_error |= current_error;
+                let mut widened_context = self.state.jobs.data[index]
                     .widened_context
                     .as_ref()
-                    .unwrap_or(&self.jobs.data[index].context)
+                    .unwrap_or(&self.state.jobs.data[index].context)
                     .snapshot(ctx)?;
                 changed |= widened_context.widen(ctx, facts, context, depth)?;
                 for (i, &incoming) in inputs.iter().enumerate() {
                     ctx.charge(1)?;
-                    let job = &self.jobs.data[index];
+                    let job = &self.state.jobs.data[index];
                     let before = job.widened.as_ref().unwrap_or(&job.inputs).data[i];
                     let value = before.widen(ctx, facts, incoming, depth)?;
                     changed |= before != value;
                     joined.push(ctx, value)?;
                 }
                 if changed {
-                    self.jobs.data[index].widened = Some(joined);
-                    self.jobs.data[index].widened_context = Some(widened_context);
+                    self.state.jobs.data[index].widened = Some(joined);
+                    self.state.jobs.data[index].widened_context = Some(widened_context);
                     self.enqueue(ctx, index)?;
                 }
                 return Ok(index);
             }
         }
-        if self.jobs.data.len() >= self.buckets.data.len() / 2 {
-            let Some(length) = self.buckets.data.len().max(8).checked_mul(2) else {
+        if self.state.jobs.data.len() >= self.state.buckets.data.len() / 2 {
+            let Some(length) = self.state.buckets.data.len().max(8).checked_mul(2) else {
                 return ctx.fail(crate::ErrorKind::Memory, "checker call table size overflow");
             };
             let mut buckets = Buffer::with_capacity(ctx, length)?;
@@ -933,25 +970,25 @@ impl Solver<'_> {
                 ctx.charge(1)?;
                 buckets.data.push(EMPTY);
             }
-            for (index, job) in self.jobs.data.iter_mut().enumerate() {
+            for (index, job) in self.state.jobs.data.iter_mut().enumerate() {
                 ctx.charge(1)?;
                 let bucket = job.hash as usize & (length - 1);
                 job.next = buckets.data[bucket];
                 buckets.data[bucket] = index;
             }
-            self.buckets = buckets;
+            self.state.buckets = buckets;
         }
         let mut copied = Buffer::empty();
         copied.extend(ctx, inputs)?;
         let context = context.snapshot(ctx)?;
         let mut parents = Buffer::empty();
         // A newly created context cannot close a cycle. Record its first edge directly.
-        if self.current != EMPTY {
-            parents.push(ctx, self.current)?;
+        if self.state.current != EMPTY {
+            parents.push(ctx, self.state.current)?;
         }
-        let index = self.jobs.data.len();
-        let bucket = hash as usize & (self.buckets.data.len() - 1);
-        self.jobs.push(
+        let index = self.state.jobs.data.len();
+        let bucket = hash as usize & (self.state.buckets.data.len() - 1);
+        self.state.jobs.push(
             ctx,
             Job {
                 source,
@@ -967,7 +1004,7 @@ impl Solver<'_> {
                 cyclic: false,
                 visited: 0,
                 hash,
-                next: self.buckets.data[bucket],
+                next: self.state.buckets.data[bucket],
                 parents,
                 dependencies: Buffer::empty(),
                 queued: false,
@@ -976,8 +1013,10 @@ impl Solver<'_> {
                 report: None,
             },
         )?;
-        self.buckets.data[bucket] = index;
-        self.functions.data[function] = true;
+        self.state.buckets.data[bucket] = index;
+        self.state.worlds.entries.data[self.world_index]
+            .functions
+            .data[function] = true;
         self.enqueue(ctx, index)?;
         Ok(index)
     }
@@ -988,39 +1027,40 @@ impl Solver<'_> {
         target: Ancestor<'_>,
     ) -> Result<Option<Buffer<usize>>> {
         ctx.checkpoint()?;
-        if self.current == EMPTY {
+        if self.state.current == EMPTY {
             return Ok(None);
         }
-        self.search = self.search.wrapping_add(1);
-        if self.search == 0 {
-            for job in &mut self.jobs.data {
+        self.state.search = self.state.search.wrapping_add(1);
+        if self.state.search == 0 {
+            for job in &mut self.state.jobs.data {
                 ctx.charge(1)?;
                 job.visited = 0;
             }
-            self.search = 1;
+            self.state.search = 1;
         }
         let mut pending = Buffer::empty();
-        pending.push(ctx, (self.current, EMPTY))?;
-        self.jobs.data[self.current].visited = self.search;
+        pending.push(ctx, (self.state.current, EMPTY))?;
+        self.state.jobs.data[self.state.current].visited = self.state.search;
         let mut cursor = 0;
         while cursor < pending.data.len() {
             ctx.charge(1)?;
             let index = pending.data[cursor].0;
             let matched = match target {
                 Ancestor::Function(source, function, context) => {
-                    self.jobs.data[index].source == source
-                        && self.jobs.data[index].function == function
-                        && self.jobs.data[index].context.globals.same_initialization(
-                            ctx,
-                            self.world.program,
-                            &context.globals,
-                        )?
-                        && self.jobs.data[index].context.compatible(ctx, context)?
+                    self.state.jobs.data[index].source == source
+                        && self.state.jobs.data[index].function == function
+                        && self.state.jobs.data[index]
+                            .context
+                            .globals
+                            .same_initialization(ctx, self.world.program, &context.globals)?
+                        && self.state.jobs.data[index]
+                            .context
+                            .compatible(ctx, context)?
                 }
                 Ancestor::Expanding(source, function, context) => {
-                    self.jobs.data[index].source == source
-                        && self.jobs.data[index].function == function
-                        && self.jobs.data[index].context.expands(ctx, context)?
+                    self.state.jobs.data[index].source == source
+                        && self.state.jobs.data[index].function == function
+                        && self.state.jobs.data[index].context.expands(ctx, context)?
                 }
                 Ancestor::Job(job) => index == job,
             };
@@ -1034,11 +1074,11 @@ impl Solver<'_> {
                 }
                 return Ok(Some(path));
             }
-            for i in 0..self.jobs.data[index].parents.data.len() {
+            for i in 0..self.state.jobs.data[index].parents.data.len() {
                 ctx.charge(1)?;
-                let parent = self.jobs.data[index].parents.data[i];
-                if self.jobs.data[parent].visited != self.search {
-                    self.jobs.data[parent].visited = self.search;
+                let parent = self.state.jobs.data[index].parents.data[i];
+                if self.state.jobs.data[parent].visited != self.state.search {
+                    self.state.jobs.data[parent].visited = self.state.search;
                     pending.push(ctx, (parent, cursor))?;
                 }
             }
@@ -1050,13 +1090,13 @@ impl Solver<'_> {
     fn cycle(&mut self, ctx: &mut CallContext, path: &[usize]) -> Result<()> {
         for &index in path {
             ctx.charge(1)?;
-            self.jobs.data[index].cyclic = true;
+            self.state.jobs.data[index].cyclic = true;
         }
         Ok(())
     }
 }
 
-impl Calls for Solver<'_> {
+impl Calls for Solver<'_, '_> {
     fn receiver_fields(
         &mut self,
         ctx: &mut CallContext,
@@ -1081,6 +1121,7 @@ impl Calls for Solver<'_> {
     fn writer(&mut self, ctx: &mut CallContext, kind: crate::output::Kind) -> Result<Option<bool>> {
         ctx.charge(1)?;
         Ok(self
+            .state
             .values
             .writers
             .map(|writers| writers[usize::from(kind == crate::output::Kind::Warn)]))
@@ -1094,13 +1135,14 @@ impl Calls for Solver<'_> {
         let Some((_, Target::Deferred(input))) = self.world.globals.get(index) else {
             return Ok(super::inputs::Loaded::unavailable());
         };
-        self.values.read(ctx, facts, &self.world, *input)
+        self.state.values.read(ctx, facts, &self.world, *input)
     }
 
     fn host_uses_block(&mut self, ctx: &mut CallContext, index: CallableId) -> Result<bool> {
         ctx.charge(1)?;
         Ok(index.source == self.source
             && self
+                .state
                 .values
                 .host(ctx, &self.world, index.index)?
                 .is_some_and(|host| host.blocks == HostBlocks::Possible))
@@ -1175,7 +1217,9 @@ impl Calls for Solver<'_> {
             Target::Unsupported
         } else {
             match target {
-                Callable::Host(index) if self.values.host(ctx, &self.world, index)?.is_some() => {
+                Callable::Host(index)
+                    if self.state.values.host(ctx, &self.world, index)?.is_some() =>
+                {
                     Target::Host(self.source.callable(index))
                 }
                 Callable::Function(index) if index < self.world.program.functions.len() => {
@@ -1344,7 +1388,7 @@ impl Calls for Solver<'_> {
                 let source = facts.source_id(ctx, self.world.source_owner)?;
                 if (!context.inherited.data.is_empty()
                     || !globals.pending.addresses.data.is_empty())
-                    && self.functions.data[function]
+                    && self.requested(function)
                     && self
                         .ancestor(ctx, Ancestor::Expanding(source, function, &context))?
                         .is_some()
@@ -1355,10 +1399,10 @@ impl Calls for Solver<'_> {
                 let index =
                     self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
                 self.depend(ctx, index)?;
-                outcome.value = self.jobs.data[index].returns;
+                outcome.value = self.state.jobs.data[index].returns;
                 if context.kind == Kind::Plain && globals.values.data.is_empty() {
-                    outcome.throws = self.jobs.data[index].throws;
-                } else if let Some(report) = &self.jobs.data[index].report {
+                    outcome.throws = self.state.jobs.data[index].throws;
+                } else if let Some(report) = &self.state.jobs.data[index].report {
                     for exit in &report.block_exits.data {
                         let exit = exit.snapshot(ctx)?;
                         outcome.exits.push(ctx, exit)?;

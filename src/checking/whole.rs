@@ -31,7 +31,7 @@ pub(super) fn check(
         script.inner.output_writer.is_some(),
         script.inner.error_writer.is_some(),
     ]);
-    let analysis = calls::analyze_whole(ctx, &mut facts, environment.world(), values)?;
+    let analysis = calls::analyze_whole(ctx, &mut facts, environment, values)?;
     let check = Check {
         facts,
         analysis,

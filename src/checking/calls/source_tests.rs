@@ -12,29 +12,16 @@ fn world(code: &Code, owner: usize) -> World<'_> {
     }
 }
 
-fn solver<'a>(
+fn registered<'a>(
     ctx: &mut CallContext,
     facts: &Facts,
+    state: &mut Scheduler<'a>,
     world: World<'a>,
     layouts: &'a Layouts,
-) -> Solver<'a> {
-    let mut functions = Buffer::with_capacity(ctx, world.program.functions.len()).unwrap();
-    functions.data.resize(world.program.functions.len(), false);
-    Solver {
-        whole: false,
-        source: facts.source_id(ctx, world.source_owner).unwrap(),
-        world,
-        values: super::super::inputs::Values::new(),
-        layouts,
-        jobs: Buffer::empty(),
-        buckets: Buffer::empty(),
-        queue: Buffer::empty(),
-        current: EMPTY,
-        dependencies: Buffer::empty(),
-        functions,
-        search: 0,
-        entry_failures: Buffer::empty(),
-    }
+) -> (usize, Handle<'a>) {
+    let handle = Handle::borrowed(ctx, facts, world, layouts).unwrap();
+    let index = state.worlds.insert(ctx, handle.clone()).unwrap();
+    (index, handle)
 }
 
 #[test]
@@ -51,7 +38,7 @@ fn same_function_indexes_keep_separate_summaries_across_sources_and_scopes() {
     let layouts = Layouts::new(&mut ctx, &first.program, a).unwrap();
     let other = Layouts::new(&mut ctx, &second.program, b).unwrap();
     let captured = Layouts::new(&mut ctx, &first.program, c).unwrap();
-    let mut solver = solver(&mut ctx, &facts, world(&first, a), &layouts);
+    let mut state = Scheduler::new(super::super::inputs::Values::new(), false);
     let function = first.program.names["run"];
     assert_eq!(function, second.program.names["run"]);
     let context = Context::plain();
@@ -63,9 +50,9 @@ fn same_function_indexes_keep_separate_summaries_across_sources_and_scopes() {
         (&second, b, &other, falsity),
         (&first, c, &captured, seven),
     ] {
-        solver.source = facts.source_id(&mut ctx, owner).unwrap();
-        solver.world = world(code, owner);
-        solver.layouts = layout;
+        let (world_index, handle) =
+            registered(&mut ctx, &facts, &mut state, world(code, owner), layout);
+        let mut solver = state.adapter(world_index, &handle);
         let entry = solver
             .request(
                 &mut ctx,
@@ -79,7 +66,7 @@ fn same_function_indexes_keep_separate_summaries_across_sources_and_scopes() {
         assert!(!entries.contains(&entry));
         entries.push(entry);
         solver.solve(&mut ctx, &mut facts).unwrap();
-        assert_eq!(solver.jobs.data[entry].returns, expected);
+        assert_eq!(solver.state.jobs.data[entry].returns, expected);
         assert_eq!(
             solver
                 .request(
@@ -94,8 +81,8 @@ fn same_function_indexes_keep_separate_summaries_across_sources_and_scopes() {
             entry
         );
     }
-    assert_eq!(solver.jobs.data.len(), 3);
-    drop(solver);
+    assert_eq!(state.jobs.data.len(), 3);
+    drop(state);
     drop((layouts, other, captured, facts, scope));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
@@ -112,7 +99,10 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
     let source_a = facts.source_id(&mut ctx, a).unwrap();
     let source_b = facts.source_id(&mut ctx, b).unwrap();
     let layouts = Layouts::new(&mut ctx, &code.program, a).unwrap();
-    let mut solver = solver(&mut ctx, &facts, world(&code, a), &layouts);
+    let other = Layouts::new(&mut ctx, &code.program, b).unwrap();
+    let mut state = Scheduler::new(super::super::inputs::Values::new(), false);
+    let (world_index, handle) = registered(&mut ctx, &facts, &mut state, world(&code, a), &layouts);
+    let mut solver = state.adapter(world_index, &handle);
     let function = code.program.names["run"];
     let context = Context::plain();
     let first = solver
@@ -126,7 +116,7 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
         )
         .unwrap();
     solver.solve(&mut ctx, &mut facts).unwrap();
-    solver.current = first;
+    solver.state.current = first;
     assert!(
         solver
             .ancestor(&mut ctx, Ancestor::Function(source_a, function, &context))
@@ -154,8 +144,9 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
             .unwrap()
             .is_some()
     );
-    solver.source = source_b;
-    solver.world = world(&code, b);
+    let (world_index, other_handle) =
+        registered(&mut ctx, &facts, &mut state, world(&code, b), &other);
+    let mut solver = state.adapter(world_index, &other_handle);
     for target in [
         Ancestor::Function(source_b, function, &context),
         Ancestor::Expanding(source_b, function, &expanded),
@@ -173,8 +164,8 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
         )
         .unwrap();
     assert_ne!(first, second);
-    assert!(!solver.jobs.data[first].cyclic);
-    assert!(solver.jobs.data[first].widened.is_none());
+    assert!(!solver.state.jobs.data[first].cyclic);
+    assert!(solver.state.jobs.data[first].widened.is_none());
     assert!(
         solver
             .whole_reached(&mut ctx, &[first], source_a, function)
@@ -185,7 +176,7 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
             .whole_reached(&mut ctx, &[first], source_b, function)
             .unwrap()
     );
-    solver.jobs.data[first]
+    solver.state.jobs.data[first]
         .dependencies
         .push(&mut ctx, second)
         .unwrap();
@@ -194,13 +185,13 @@ fn recursion_and_whole_file_reachability_do_not_confuse_sources() {
             .whole_reached(&mut ctx, &[first], source_b, function)
             .unwrap()
     );
-    drop(solver);
-    drop((layouts, facts, scope, expanded));
+    drop(state);
+    drop((layouts, other, facts, scope, expanded));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]
-fn a_queued_job_cannot_run_with_another_sources_program() {
+fn an_unregistered_queued_source_cannot_use_another_sources_program() {
     let first = Code::compile("def run;7;end", &Default::default()).unwrap();
     let second = Code::compile("nil", &Default::default()).unwrap();
     let mut ctx = CallContext::new(CallOptions::default());
@@ -208,8 +199,11 @@ fn a_queued_job_cannot_run_with_another_sources_program() {
     let a = facts.source_owner(&mut ctx, &first, None).unwrap();
     let b = facts.source_owner(&mut ctx, &second, None).unwrap();
     let layouts = Layouts::new(&mut ctx, &first.program, a).unwrap();
-    let mut solver = solver(&mut ctx, &facts, world(&first, a), &layouts);
-    solver
+    let mut state = Scheduler::new(super::super::inputs::Values::new(), false);
+    let (world_index, handle) =
+        registered(&mut ctx, &facts, &mut state, world(&first, a), &layouts);
+    let mut solver = state.adapter(world_index, &handle);
+    let entry = solver
         .request(
             &mut ctx,
             &mut facts,
@@ -219,13 +213,12 @@ fn a_queued_job_cannot_run_with_another_sources_program() {
             &Context::plain(),
         )
         .unwrap();
-    solver.source = facts.source_id(&mut ctx, b).unwrap();
-    solver.world = world(&second, b);
+    solver.state.jobs.data[entry].source = facts.source_id(&mut ctx, b).unwrap();
     assert_eq!(
         solver.solve(&mut ctx, &mut facts).unwrap_err().kind,
         ErrorKind::Runtime
     );
-    drop(solver);
+    drop(state);
     drop((layouts, facts));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
@@ -241,12 +234,12 @@ fn identical_diagnostics_and_incomplete_locations_survive_source_collection() {
     let b = facts.source_owner(&mut ctx, &second, None).unwrap();
     let layouts = Layouts::new(&mut ctx, &first.program, a).unwrap();
     let other = Layouts::new(&mut ctx, &second.program, b).unwrap();
-    let mut solver = solver(&mut ctx, &facts, world(&first, a), &layouts);
+    let mut state = Scheduler::new(super::super::inputs::Values::new(), false);
     let mut entries = Vec::new();
     for (code, owner, layout) in [(&first, a, &layouts), (&second, b, &other)] {
-        solver.source = facts.source_id(&mut ctx, owner).unwrap();
-        solver.world = world(code, owner);
-        solver.layouts = layout;
+        let (world_index, handle) =
+            registered(&mut ctx, &facts, &mut state, world(code, owner), layout);
+        let mut solver = state.adapter(world_index, &handle);
         let mut context = Context::plain();
         context.globals = Globals::initial(&mut ctx, &mut facts, &code.program).unwrap();
         context.globals.files(&mut ctx, &layout.files).unwrap();
@@ -265,14 +258,17 @@ fn identical_diagnostics_and_incomplete_locations_survive_source_collection() {
             )
             .unwrap();
         entries.extend([entry, entry]);
-        solver.solve(&mut ctx, &mut facts).unwrap();
     }
+    state.solve(&mut ctx, &mut facts).unwrap();
+    let source = facts.source_id(&mut ctx, a).unwrap();
+    let (world_index, handle) = state.worlds.get(&mut ctx, source).unwrap();
+    let mut solver = state.adapter(world_index, &handle);
     let analysis = Analysis {
         returns: Atom::Unknown.fact(),
         throws: 0,
         issues: Buffer::empty(),
         incomplete: Buffer::empty(),
-        contexts: solver.jobs.data.len(),
+        contexts: solver.state.jobs.data.len(),
     };
     let analysis = solver.collect(&mut ctx, &entries, analysis).unwrap();
     assert_eq!(analysis.issues.data.len(), 2, "{analysis:?}");
@@ -294,7 +290,7 @@ fn identical_diagnostics_and_incomplete_locations_survive_source_collection() {
     let report = super::super::report::build(&mut ctx, &first.program, &check).unwrap();
     assert_eq!(report.diagnostics.len(), 2);
     assert_eq!(report.incomplete.len(), 2);
-    drop(solver);
+    drop(state);
     drop((report, check, layouts, other));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
@@ -310,7 +306,10 @@ fn qualified_call_targets_never_dispatch_through_an_unrelated_source() {
     let source_a = facts.source_id(&mut ctx, a).unwrap();
     let source_b = facts.source_id(&mut ctx, b).unwrap();
     let layouts = Layouts::new(&mut ctx, &first.program, a).unwrap();
-    let mut solver = solver(&mut ctx, &facts, world(&first, a), &layouts);
+    let mut state = Scheduler::new(super::super::inputs::Values::new(), false);
+    let (world_index, handle) =
+        registered(&mut ctx, &facts, &mut state, world(&first, a), &layouts);
+    let mut solver = state.adapter(world_index, &handle);
     let function = first.program.names["run"];
     assert_eq!(
         solver.resolve(&mut ctx, "run").unwrap(),
@@ -345,7 +344,7 @@ fn qualified_call_targets_never_dispatch_through_an_unrelated_source() {
             .unwrap();
         assert!(outcome.incomplete);
         assert_eq!(outcome.value, Atom::Never.fact());
-        assert!(solver.jobs.data.is_empty());
+        assert!(solver.state.jobs.data.is_empty());
     }
     for boundary in [
         HostBoundary::Arguments(&Arguments::new()),
@@ -357,7 +356,7 @@ fn qualified_call_targets_never_dispatch_through_an_unrelated_source() {
         assert!(outcome.incomplete);
     }
     assert!(!solver.host_uses_block(&mut ctx, foreign).unwrap());
-    drop(solver);
+    drop(state);
     drop((layouts, facts));
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
@@ -370,7 +369,10 @@ fn foreign_source_fast_paths_preserve_latched_failures_and_cancellation() {
         let mut facts = Facts::new(&mut ctx).unwrap();
         let owner = facts.source_owner(&mut ctx, &code, None).unwrap();
         let layouts = Layouts::new(&mut ctx, &code.program, owner).unwrap();
-        let mut solver = solver(&mut ctx, &facts, world(&code, owner), &layouts);
+        let mut state = Scheduler::new(super::super::inputs::Values::new(), false);
+        let (world_index, handle) =
+            registered(&mut ctx, &facts, &mut state, world(&code, owner), &layouts);
+        let mut solver = state.adapter(world_index, &handle);
         let foreign = SourceId::ROOT.callable(1);
         let closure = blocks::Closure {
             scope: blocks::Scope::Invocation,
@@ -419,7 +421,7 @@ fn foreign_source_fast_paths_preserve_latched_failures_and_cancellation() {
             assert_eq!(result.err().unwrap().kind, reason);
         }
         assert_eq!(ctx.checkpoint().unwrap_err().kind, reason);
-        drop(solver);
+        drop(state);
         drop((layouts, facts, closure));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
