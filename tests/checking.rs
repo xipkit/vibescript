@@ -954,6 +954,78 @@ fn general_reports_obey_quotas_cancellation_and_deadlines_without_effects() {
 }
 
 #[test]
+fn general_method_reports_select_declarations_and_preserve_constructor_rules() {
+    let script = Engine::new().compile("class C;def initialize(@n:int)->int;'bad';end;private def read->int;'bad';end;def self.read->int;7;end;end;module M;module N;def self.answer->int;7;end;end;end;def unused->int;false;end").unwrap();
+    for name in ["C.new", "C.read", "M::N.answer"] {
+        let report = script
+            .check_function(name, &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{name}: {report:?}");
+    }
+    for (name, function) in [("C#initialize", "initialize"), ("C#read", "read")] {
+        let report = script
+            .check_function(name, &CallOptions::default())
+            .unwrap();
+        assert_eq!(report.diagnostics.len(), 1, "{name}: {report:?}");
+        assert!(report.incomplete.is_empty(), "{name}: {report:?}");
+        let diagnostic = &report.diagnostics[0];
+        assert_eq!(diagnostic.function, function);
+        assert!(diagnostic.message.contains("expected int, got string"));
+        assert_eq!(diagnostic.position.line, 1);
+        assert!(diagnostic.position.column > 1);
+        assert!(diagnostic.code_frame.contains("'bad'"));
+    }
+    assert_eq!(
+        script
+            .check_function("C#missing", &CallOptions::default())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Name
+    );
+    assert_eq!(
+        script
+            .check_call("C#read", &[], &CallOptions::default())
+            .unwrap_err()
+            .kind,
+        ErrorKind::Name
+    );
+}
+
+#[test]
+fn general_method_checks_never_execute_constructors_initializers_or_host_effects() {
+    let effects = Arc::new(AtomicUsize::new(0));
+    let count = effects.clone();
+    let method = HostMethod::new("tick", move |_, _, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::int(7))
+    })
+    .with_signature(Signature {
+        params: vec![],
+        result: "int".into(),
+        accepts_block: false,
+    })
+    .unwrap();
+    let mut engine = Engine::new();
+    engine.register_method("tick", method);
+    let count = effects.clone();
+    engine.set_output_writer(move |_, _| {
+        count.fetch_add(1, Ordering::Relaxed);
+        Ok(())
+    });
+    let script = engine.compile("class C;K=tick();property n:int;def initialize;@n=tick();puts @n;end;def run(n:int=tick())->int;@n=n;puts @n;@n;end;def self.value->int;tick();end;end;def witness;C.new.run;end").unwrap();
+    for name in ["C.new", "C#run", "C.value"] {
+        let report = script
+            .check_function(name, &CallOptions::default())
+            .unwrap();
+        assert!(report.is_clean(), "{name}: {report:?}");
+        assert_eq!(effects.load(Ordering::Relaxed), 0);
+    }
+    let outcome = script.call("witness", &[], CallOptions::default()).unwrap();
+    assert_eq!(outcome.value.as_int(), Some(7));
+    assert_eq!(effects.load(Ordering::Relaxed), 5);
+}
+
+#[test]
 fn checked_top_level_preserves_source_order_and_tracks_ambient_captures() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();

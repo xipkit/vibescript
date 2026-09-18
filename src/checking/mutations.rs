@@ -482,6 +482,34 @@ impl Facts {
 
     pub(super) fn definitely_equal(&self, a: Fact, b: Fact) -> Option<bool> {
         if let (
+            Node::Instance {
+                class: ac,
+                kind: ak,
+                ..
+            },
+            Node::Instance {
+                class: bc,
+                kind: bk,
+                ..
+            },
+        ) = (self.node(a), self.node(b))
+        {
+            use super::facts::InstanceKind;
+            return if ac != bc
+                || (ak != bk && (*ak == InstanceKind::Concrete || *bk == InstanceKind::Concrete))
+            {
+                Some(false)
+            } else if *ak == InstanceKind::Summary || *bk == InstanceKind::Summary {
+                None
+            } else if a == b {
+                Some(true)
+            } else if *ak == InstanceKind::Concrete && *bk == InstanceKind::Concrete {
+                Some(false)
+            } else {
+                None
+            };
+        }
+        if let (
             Node::EnumMember {
                 enumeration: a,
                 index: ai,

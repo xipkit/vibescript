@@ -77,6 +77,7 @@ impl Graph {
                 | Op::Yield(_)
                 | Op::Method(_, _)
                 | Op::CallMember(_)
+                | Op::PrepareMember(..)
                 | Op::CallValue
                 | Op::TextPart
                 | Op::ResolveCall(..)
@@ -85,6 +86,7 @@ impl Graph {
                 | Op::RootCall(..)
                 | Op::Mutate(_, _)
                 | Op::AddressMember(_)
+                | Op::AddressMemberTarget(..)
                 | Op::AddressNamespaceField(_)
                 | Op::NamespaceAddress(..)
                 | Op::InitNamespace(_)
@@ -143,6 +145,6 @@ impl Graph {
                 std::cmp::Ordering::Equal => return Ok(middle),
             }
         }
-        panic!("jump target is not a basic block");
+        panic!("jump target {pc} is not a basic block");
     }
 }

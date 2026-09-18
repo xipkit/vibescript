@@ -213,10 +213,7 @@ pub(super) fn check_function(
     ctx.checkpoint()?;
     ctx.work_bytes(name.len())?;
     let program = &script.inner.code.program;
-    let function = *program
-        .names
-        .get(name)
-        .ok_or_else(|| Error::new(ErrorKind::Name, format!("unknown function {name}")))?;
+    let (function, constructor) = declaration(ctx, program, name)?;
     let mut facts = Facts::new(ctx)?;
     let environment = Environment::new(ctx, &mut facts, script, options)?;
     if let Some(reason) = environment.incomplete.data.first() {
@@ -234,11 +231,56 @@ pub(super) fn check_function(
         script.inner.output_writer.is_some(),
         script.inner.error_writer.is_some(),
     ]);
-    let analysis = calls::analyze_general(ctx, &mut facts, environment.world(), function, values)?;
+    let analysis = calls::analyze_general(
+        ctx,
+        &mut facts,
+        environment.world(),
+        function,
+        constructor,
+        values,
+    )?;
     Ok(Check {
         facts,
         analysis,
         entry: false,
         pending: None,
     })
+}
+
+fn declaration(
+    ctx: &mut CallContext,
+    program: &crate::bytecode::Program,
+    name: &str,
+) -> Result<(usize, bool)> {
+    if let Some(&function) = program.names.get(name) {
+        return Ok((function, false));
+    }
+    for namespace in &program.namespaces {
+        ctx.work_bytes(name.len().max(namespace.name.len()))?;
+        let Some(member) = name.strip_prefix(&namespace.name) else {
+            continue;
+        };
+        if member == ".new" {
+            if let Some((function, _)) = namespace.constructor {
+                return Ok((function, true));
+            }
+        }
+        let (methods, member) = if let Some(member) = member.strip_prefix('.') {
+            (&namespace.methods, member)
+        } else if let Some(member) = member.strip_prefix('#') {
+            (&namespace.instance_methods, member)
+        } else {
+            continue;
+        };
+        for method in methods {
+            ctx.work_bytes(member.len().max(method.name.len()))?;
+            if method.name == member {
+                return Ok((method.function, false));
+            }
+        }
+    }
+    Err(Error::new(
+        ErrorKind::Name,
+        format!("unknown function {name}"),
+    ))
 }

@@ -71,18 +71,9 @@ impl Walker<'_> {
             .locals
             .get(self.ctx, self.namespace_slot(state, module) + 2)?
             .value;
-        let mut fields = Buffer::empty();
-        for i in 0..self.facts.arm_count(heap) {
-            self.ctx.charge(1)?;
-            let Node::Tuple(entries) = self.facts.node(self.facts.arm(heap, i)) else {
-                return Ok(None);
-            };
-            let Some(&value) = entries.data.get(slot) else {
-                return Ok(None);
-            };
-            fields.push(self.ctx, value)?;
-        }
-        self.facts.union(self.ctx, &fields.data).map(Some)
+        let key = self.facts.integer(self.ctx, slot as i64)?;
+        let fields = crate::checking::heaps::read(self.ctx, self.facts, heap, key)?;
+        Ok((!fields.unsupported).then_some(fields.value))
     }
 
     pub(super) fn instance_field(
@@ -98,7 +89,34 @@ impl Walker<'_> {
                 incomplete: true,
             });
         };
-        namespaces::field(self.ctx, self.facts, fields, name)
+        let mut selected = Selected {
+            value: Atom::Never.fact(),
+            missing: false,
+            incomplete: false,
+        };
+        for i in 0..self.facts.arm_count(fields) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(fields, i);
+            if matches!(self.facts.node(arm), Node::Hash(..)) {
+                let key = self.facts.string(self.ctx, name.as_bytes())?;
+                let next = self.facts.collection_index(self.ctx, arm, &[key])?;
+                selected.value = self.facts.union(self.ctx, &[selected.value, next.value])?;
+                selected.incomplete |= next.unsupported || next.rejected;
+                continue;
+            }
+            let next = namespaces::field(self.ctx, self.facts, arm, name)?;
+            let open = matches!(self.facts.node(arm), Node::Shape(_, true, _, _));
+            let value = if open && next.incomplete {
+                self.facts
+                    .union(self.ctx, &[next.value, Atom::Unknown.fact()])?
+            } else {
+                next.value
+            };
+            selected.value = self.facts.union(self.ctx, &[selected.value, value])?;
+            selected.missing |= next.missing;
+            selected.incomplete |= next.incomplete && !open;
+        }
+        Ok(selected)
     }
 
     fn instance_root(&mut self, state: &State, receiver: Fact) -> Result<Option<Address>> {
@@ -115,7 +133,7 @@ impl Walker<'_> {
         let heap = state.locals.get(self.ctx, root)?.value;
         let mut address = Address::new(Some(root), heap);
         let key = self.facts.integer(self.ctx, slot as i64)?;
-        address.index(self.ctx, self.facts, &[key])?;
+        address.instance_index(self.ctx, self.facts, key)?;
         Ok(Some(address))
     }
 
@@ -178,6 +196,7 @@ impl Walker<'_> {
         };
         let fields = address.value;
         let key = self.facts.string(self.ctx, name.as_bytes())?;
+        address.object = Some((receiver, key));
         address.target(self.ctx, self.facts, &[key], false)?;
         let result = self
             .facts
@@ -225,6 +244,7 @@ impl Walker<'_> {
         let key = self.facts.string(self.ctx, name.as_bytes())?;
         address.index(self.ctx, self.facts, &[key])?;
         address.instance = Some((receiver, key));
+        address.object = Some((receiver, key));
         state.addresses.push(self.ctx, address)?;
         Ok(None)
     }
@@ -233,38 +253,7 @@ impl Walker<'_> {
         let Some(module) = self.namespace_index(receiver) else {
             return Ok(None);
         };
-        let mut getter = None;
-        let mut setter = None;
-        for method in &self.program.namespaces[module].instance_methods {
-            self.ctx.work_bytes(name.len().max(method.name.len()))?;
-            if method.name.strip_suffix('=') == Some(name) {
-                setter = Some(method.function)
-            }
-            if method.name == name {
-                getter = Some(method.function)
-            }
-        }
-        Ok(if let Some(setter) = setter {
-            let function = &self.program.functions[setter];
-            if function
-                .accessor
-                .as_ref()
-                .is_some_and(|(field, setter)| field == name && *setter)
-            {
-                function.params.first().and_then(|param| param.ty)
-            } else {
-                None
-            }
-        } else {
-            getter.and_then(|getter| {
-                let function = &self.program.functions[getter];
-                function
-                    .accessor
-                    .as_ref()
-                    .filter(|(field, setter)| field == name && !setter)
-                    .and(function.return_type)
-            })
-        })
+        namespaces::property_type(self.ctx, self.program, module, name)
     }
 
     fn normalize_property(
@@ -314,7 +303,7 @@ impl Walker<'_> {
         let name = name.clone();
         let name = std::str::from_utf8(name.as_bytes().unwrap()).unwrap();
         let index = self.facts.integer(self.ctx, slot as i64)?;
-        let fields = self.facts.collection_index(self.ctx, updated, &[index])?;
+        let fields = crate::checking::heaps::read(self.ctx, self.facts, updated, index)?;
         let value = self
             .facts
             .collection_index(self.ctx, fields.value, &[key])?;

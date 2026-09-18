@@ -423,6 +423,7 @@ pub(super) fn analyze_with_values<'a>(
             inputs,
             failures,
             general: false,
+            constructor: false,
         },
         values,
     )
@@ -433,6 +434,7 @@ pub(super) fn analyze_general<'a>(
     facts: &mut Facts,
     world: World<'a>,
     function: usize,
+    constructor: bool,
     values: super::inputs::Values<'a>,
 ) -> Result<Analysis> {
     let inputs = super::arguments::general_inputs(
@@ -450,6 +452,7 @@ pub(super) fn analyze_general<'a>(
             inputs: &inputs.data,
             failures: &[],
             general: true,
+            constructor,
         },
         values,
     )
@@ -460,6 +463,7 @@ struct Entry<'a> {
     inputs: &'a [Input],
     failures: &'a [Failure],
     general: bool,
+    constructor: bool,
 }
 
 fn analyze_entry<'a>(
@@ -474,6 +478,7 @@ fn analyze_entry<'a>(
         inputs,
         failures,
         general,
+        constructor,
     } = entry;
     ctx.checkpoint()?;
     let mut admitted = Buffer::empty();
@@ -546,6 +551,7 @@ fn analyze_entry<'a>(
     };
     solver.entry_failures.extend(ctx, failures)?;
     let mut context = Context::plain();
+    context.constructor = constructor;
     ctx.charge(solver.world.program.namespaces.len() as u64)?;
     if (function != 0 || solver.world.program.file)
         && solver
@@ -608,14 +614,7 @@ fn analyze_entry<'a>(
             globals: Some(&context.globals),
         };
         let mut report = if let Kind::Entry { general } = context.kind {
-            solver.initialize_entry(
-                ctx,
-                facts,
-                function,
-                &inputs.data,
-                &context.globals,
-                general,
-            )?
+            solver.initialize_entry(ctx, facts, function, &inputs.data, &context, general)?
         } else {
             flow::analyze_body(ctx, facts, body, &mut solver)?
         };

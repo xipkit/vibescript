@@ -15,6 +15,30 @@ pub(super) enum Selection {
 }
 
 impl Walker<'_> {
+    pub(super) fn standard_nil_receiver(&mut self, value: Fact) -> Result<bool> {
+        for i in 0..self.facts.arm_count(value) {
+            self.ctx.charge(1)?;
+            let arm = self.facts.arm(value, i);
+            if let Some(module) = self.namespace_index(arm) {
+                let definition = &self.program.namespaces[module];
+                let methods = if matches!(self.facts.node(arm), Node::Instance { .. }) {
+                    &definition.instance_methods
+                } else {
+                    &definition.methods
+                };
+                for method in methods {
+                    self.ctx.work_bytes(method.name.len())?;
+                    if method.name == "nil?" {
+                        return Ok(false);
+                    }
+                }
+            } else if !self.facts.known_nil_receiver(self.ctx, arm)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub(super) fn namespace_receiver(&mut self, value: Fact) -> Result<bool> {
         for i in 0..self.facts.arm_count(value) {
             self.ctx.charge(1)?;

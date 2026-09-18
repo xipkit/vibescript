@@ -149,9 +149,13 @@ fn general_checks_follow_callees_but_keep_unrelated_code_outside_the_scope() {
 }
 
 #[test]
-fn general_checks_model_array_addition_and_keep_unmodeled_instance_dispatch_explicit() {
+fn general_checks_model_arrays_and_instances_but_keep_widened_allocations_explicit() {
     general("def run(a:array<int>,b:array<int>);a+b;end", true);
-    let source = "class C;def read;7;end;end;def run(value:C);value.read;end";
+    general(
+        "class C;def read;7;end;end;def run(value:C);value.read;end",
+        true,
+    );
+    let source = "class C;end;def run(n:int);for i in 1..n;C.new;end;end";
     let script = Engine::new().compile(source).unwrap();
     let report = script
         .check_function("run", &CallOptions::default())

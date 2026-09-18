@@ -25,6 +25,7 @@ mod call_targets;
 mod callbacks;
 mod collection_blocks;
 mod effects;
+mod general;
 mod globals;
 mod handlers;
 mod host_blocks;
@@ -697,6 +698,7 @@ pub(super) fn analyze_body(
     ctx.charge(function.params.len() as u64)?;
     if program.file
         || (function.instance
+            && !general
             && !receiver.is_some_and(|value| {
                 matches!(facts.node(value), super::facts::Node::Instance { .. })
             }))
@@ -810,6 +812,32 @@ pub(super) fn analyze_body(
     if initial.captures.is_none() && initial.global_count > 0 {
         initial.captures = Some(blocks::Captures::new(ctx, 0, &[])?);
     }
+    let receiver = if general && function.instance {
+        let kind = if constructor {
+            super::facts::InstanceKind::Concrete
+        } else {
+            super::facts::InstanceKind::Symbolic
+        };
+        let value = general::allocate(
+            ctx,
+            facts,
+            general::Model {
+                program,
+                layouts,
+                contracts,
+            },
+            &mut initial,
+            function.namespace.unwrap(),
+            kind,
+        )?;
+        if value.is_none() {
+            report.incomplete.push(ctx, 0)?;
+            return Ok(report);
+        }
+        value
+    } else {
+        receiver
+    };
     if !function.binds_parameters {
         for (index, parameter) in function.params.iter().enumerate() {
             ctx.charge(1)?;
@@ -1312,6 +1340,28 @@ impl Walker<'_> {
         }
         let Some(mut updated) = self.guard_instance(state, pc, address, result.value)? else {
             return Ok(Some([None, None]));
+        };
+        let Some((aliased, alias_address)) = self.alias_instances(state, pc, address, updated)?
+        else {
+            return Ok(Some([None, None]));
+        };
+        updated = aliased;
+        let change = match (&alias_address, change) {
+            (
+                Some(address),
+                Change::Mutation {
+                    method,
+                    args,
+                    fresh,
+                    ..
+                },
+            ) => Change::Mutation {
+                address,
+                method,
+                args,
+                fresh,
+            },
+            (_, change) => change,
         };
         if address.attached == Attached::Maybe {
             let current = state.locals.get(self.ctx, slot)?.value;
@@ -1938,6 +1988,14 @@ impl Walker<'_> {
                         };
                     }
                     if let Some(value) = value {
+                        let value = if self.general {
+                            let Some(value) = self.general_value(&mut supplied, pc, value)? else {
+                                return Ok([None, None]);
+                            };
+                            value
+                        } else {
+                            value
+                        };
                         supplied.store(self.ctx, self.facts, parameter.slot, value)?;
                     }
                     return Ok([
@@ -2718,22 +2776,10 @@ impl Walker<'_> {
                 Op::Method(site, 0)
                     if !site.scope
                         && matches!(site.method, Some(Method::IsNil))
-                        && !matches!(
-                            self.facts.node(state.stack.data.last().unwrap().value),
-                            super::facts::Node::TypeValue(_)
-                        )
-                        && !self.namespace_receiver(state.stack.data.last().unwrap().value)?
-                        && !super::objects::contains(
-                            self.ctx,
-                            self.facts,
-                            state.stack.data.last().unwrap().value,
-                        )? =>
+                        && self
+                            .standard_nil_receiver(state.stack.data.last().unwrap().value)? =>
                 {
                     let operand = state.stack.data.pop().unwrap();
-                    // Nominal receivers may implement their own method; that dispatch is unfinished.
-                    if !self.facts.known_nil_receiver(self.ctx, operand.value)? {
-                        return self.incomplete(pc);
-                    }
                     let value = self.facts.test_result(self.ctx, operand.value, Test::Nil)?;
                     let predicate = operand.origin.map(|slot| Predicate {
                         slot,
@@ -2774,6 +2820,30 @@ impl Walker<'_> {
                         return Ok([None, None]);
                     }
                     state.stack.data.last_mut().unwrap().value = result.value;
+                }
+                Op::Method(site, 0)
+                    if !site.scope && matches!(site.method, Some(Method::IsNil)) =>
+                {
+                    let operand = state.stack.data.pop().unwrap();
+                    if !matches!(
+                        self.facts.node(operand.value),
+                        super::facts::Node::TypeValue(_)
+                    ) && !self.namespace_receiver(operand.value)?
+                        && !super::objects::contains(self.ctx, self.facts, operand.value)?
+                    {
+                        return self.incomplete(pc);
+                    }
+                    for nil in [true, false] {
+                        let mut next = state.snapshot(self.ctx)?;
+                        if !next.narrow(self.ctx, self.facts, operand, Test::Nil, nil)? {
+                            continue;
+                        }
+                        let receiver =
+                            self.facts.filter(self.ctx, operand.value, Test::Nil, nil)?;
+                        let edges = self.member(&mut next, pc, receiver, site, Arguments::new())?;
+                        self.member_edges(pc, next, edges)?;
+                    }
+                    return Ok([None, None]);
                 }
                 Op::Method(site, count) => {
                     let base = state.stack.data.len() - count - 1;

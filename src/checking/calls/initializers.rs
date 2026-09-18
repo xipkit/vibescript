@@ -48,9 +48,10 @@ impl Solver<'_> {
         facts: &mut Facts,
         function: usize,
         inputs: &[Input],
-        globals: &Globals,
+        initial: &Context,
         general: bool,
     ) -> Result<Report> {
+        let globals = &initial.globals;
         let mut report = Report {
             returns: Atom::Never.fact(),
             normal_returns: Atom::Never.fact(),
@@ -128,6 +129,7 @@ impl Solver<'_> {
             context.kind = Kind::General;
         }
         context.globals = globals;
+        context.constructor = initial.constructor;
         let index = self.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
         self.depend(ctx, index)?;
         report.normal_returns = self.jobs.data[index].returns;

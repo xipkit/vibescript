@@ -23,6 +23,7 @@ mod facts;
 mod flow;
 mod globals;
 mod graph;
+mod heaps;
 #[cfg(test)]
 mod input_tests;
 mod inputs;
@@ -33,6 +34,8 @@ mod iteration;
 mod lexical;
 #[cfg(test)]
 mod live_type_tests;
+#[cfg(test)]
+mod method_scope_tests;
 mod mutations;
 #[cfg(test)]
 mod namespace_tests;

@@ -1,0 +1,321 @@
+use super::*;
+use crate::checking::facts::{Field, InstanceKind, Node, NominalId};
+
+pub(super) struct Model<'a> {
+    pub program: &'a Program,
+    pub layouts: &'a Layouts,
+    pub contracts: &'a [Fact],
+}
+
+pub(super) fn allocate(
+    ctx: &mut CallContext,
+    facts: &mut Facts,
+    model: Model<'_>,
+    state: &mut State,
+    module: usize,
+    kind: InstanceKind,
+) -> Result<Option<Fact>> {
+    let Model {
+        program,
+        layouts,
+        contracts,
+    } = model;
+    let root = state.global_base
+        + crate::checking::namespaces::slot(state.global_count, program, module)
+        + 2;
+    let before = state.locals.get(ctx, root)?.value;
+    let Some(mut heap) = crate::checking::heaps::entries(ctx, facts, before)? else {
+        return Ok(None);
+    };
+    let slot = heap.data.len();
+    let mut fields = Buffer::empty();
+    if kind != InstanceKind::Concrete {
+        for method in &program.namespaces[module].instance_methods {
+            ctx.charge(1)?;
+            let Some((name, _)) = &program.functions[method.function].accessor else {
+                continue;
+            };
+            let Some(ty) = crate::checking::namespaces::property_type(ctx, program, module, name)?
+            else {
+                continue;
+            };
+            let value = if layouts.named_annotation(ctx, ty)? {
+                Atom::Unknown.fact()
+            } else {
+                let value = facts.value_domain(ctx, contracts[ty])?;
+                facts.nullable(ctx, value)?
+            };
+            let name = ctx.bytes(name.as_bytes())?;
+            fields.push(
+                ctx,
+                Field {
+                    name,
+                    value,
+                    optional: false,
+                },
+            )?;
+        }
+    }
+    let fields = facts.shape_fields(
+        ctx,
+        fields,
+        kind != InstanceKind::Concrete,
+        Atom::String.fact(),
+        crate::checking::facts::HashKind::Plain,
+    )?;
+    heap.push(ctx, fields)?;
+    let next = facts.tuple(ctx, &heap.data)?;
+    state.store(ctx, facts, root, next)?;
+    let class =
+        crate::checking::namespaces::value(ctx, facts, program, layouts.source_owner, module)?;
+    let Node::TypeValue(class) = *facts.node(class) else {
+        unreachable!()
+    };
+    let value = facts.instance_kind(ctx, class, slot, kind)?;
+    if kind != InstanceKind::Concrete {
+        let before = state.locals.get(ctx, root + 1)?.value;
+        let aliases = facts.union(ctx, &[before, value])?;
+        state.store(ctx, facts, root + 1, aliases)?;
+    }
+    Ok(Some(value))
+}
+
+enum Task {
+    Visit(Fact, bool),
+    Array,
+    Hash(crate::checking::facts::HashKind),
+    Tuple(usize),
+    Union(usize),
+    Shape(Buffer<Field>, bool, Fact, crate::checking::facts::HashKind),
+}
+
+impl Walker<'_> {
+    pub(super) fn general_value(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        value: Fact,
+    ) -> Result<Option<Fact>> {
+        let mut tasks = Buffer::empty();
+        let mut values = Buffer::empty();
+        tasks.push(self.ctx, Task::Visit(value, false))?;
+        while let Some(task) = tasks.data.pop() {
+            self.ctx.charge(1)?;
+            let value = match task {
+                Task::Visit(value, summary) => match self.facts.node(value) {
+                    Node::Nominal {
+                        identity: NominalId::Binding(owner, index),
+                        symbols: None,
+                        ..
+                    } if *owner == self.layouts.source_owner => {
+                        let Kind::Namespace(namespace) = &self.program.declarations[*index].0
+                        else {
+                            values.push(self.ctx, value)?;
+                            continue;
+                        };
+                        if namespace.definition.constructor.is_none() {
+                            values.push(self.ctx, value)?;
+                            continue;
+                        }
+                        let kind = if summary {
+                            InstanceKind::Summary
+                        } else {
+                            InstanceKind::Symbolic
+                        };
+                        let Some(value) = allocate(
+                            self.ctx,
+                            self.facts,
+                            Model {
+                                program: self.program,
+                                layouts: self.layouts,
+                                contracts: self.contracts,
+                            },
+                            state,
+                            namespace.definition.index,
+                            kind,
+                        )?
+                        else {
+                            self.incomplete(pc)?;
+                            return Ok(None);
+                        };
+                        value
+                    }
+                    Node::Array(element) => {
+                        tasks.push(self.ctx, Task::Array)?;
+                        tasks.push(self.ctx, Task::Visit(*element, true))?;
+                        continue;
+                    }
+                    Node::Hash(key, value, kind) => {
+                        tasks.push(self.ctx, Task::Hash(*kind))?;
+                        tasks.push(self.ctx, Task::Visit(*value, true))?;
+                        tasks.push(self.ctx, Task::Visit(*key, true))?;
+                        continue;
+                    }
+                    Node::Tuple(elements) | Node::Union(elements) => {
+                        tasks.push(
+                            self.ctx,
+                            if matches!(self.facts.node(value), Node::Tuple(_)) {
+                                Task::Tuple(elements.data.len())
+                            } else {
+                                Task::Union(elements.data.len())
+                            },
+                        )?;
+                        for &element in elements.data.iter().rev() {
+                            tasks.push(self.ctx, Task::Visit(element, summary))?;
+                        }
+                        continue;
+                    }
+                    Node::Shape(fields, open, key, kind) => {
+                        let mut copied = Buffer::empty();
+                        for field in &fields.data {
+                            self.ctx.charge(1)?;
+                            copied.push(
+                                self.ctx,
+                                Field {
+                                    name: field.name.clone(),
+                                    value: field.value,
+                                    optional: field.optional,
+                                },
+                            )?;
+                        }
+                        tasks.push(self.ctx, Task::Shape(copied, *open, *key, *kind))?;
+                        for field in fields.data.iter().rev() {
+                            tasks.push(self.ctx, Task::Visit(field.value, summary))?;
+                        }
+                        continue;
+                    }
+                    _ => value,
+                },
+                Task::Array => {
+                    let element = values.data.pop().unwrap();
+                    self.facts.array(self.ctx, element)?
+                }
+                Task::Hash(kind) => {
+                    let value = values.data.pop().unwrap();
+                    let key = values.data.pop().unwrap();
+                    self.facts.hash_kind(self.ctx, key, value, kind)?
+                }
+                Task::Tuple(count) | Task::Union(count) => {
+                    let start = values.data.len() - count;
+                    let value = if matches!(task, Task::Tuple(_)) {
+                        self.facts.tuple(self.ctx, &values.data[start..])?
+                    } else {
+                        self.facts.union(self.ctx, &values.data[start..])?
+                    };
+                    values.data.truncate(start);
+                    value
+                }
+                Task::Shape(mut fields, open, key, kind) => {
+                    let start = values.data.len() - fields.data.len();
+                    for (field, &value) in fields.data.iter_mut().zip(&values.data[start..]) {
+                        self.ctx.charge(1)?;
+                        field.value = value;
+                    }
+                    values.data.truncate(start);
+                    self.facts.shape_fields(self.ctx, fields, open, key, kind)?
+                }
+            };
+            values.push(self.ctx, value)?;
+        }
+        assert_eq!(values.data.len(), 1);
+        Ok(values.data.pop())
+    }
+
+    pub(super) fn alias_instances(
+        &mut self,
+        state: &State,
+        pc: usize,
+        address: &Address,
+        updated: Fact,
+    ) -> Result<Option<(Fact, Option<Address>)>> {
+        let Some((receiver, key)) = address.object else {
+            return Ok(Some((updated, None)));
+        };
+        let Node::Instance { slot, kind, .. } = *self.facts.node(receiver) else {
+            unreachable!()
+        };
+        let root = address.root.unwrap();
+        let aliases = state.locals.get(self.ctx, root + 1)?.value;
+        if aliases == Atom::Never.fact() || kind == InstanceKind::Concrete {
+            return Ok(Some((updated, None)));
+        }
+        let mut descriptors = Buffer::empty();
+        for i in 0..self.facts.arm_count(aliases) {
+            self.ctx.charge(1)?;
+            let descriptor = self.facts.arm(aliases, i);
+            if !matches!(self.facts.node(descriptor), Node::Instance { .. }) {
+                self.incomplete(pc)?;
+                return Ok(None);
+            }
+            descriptors.push(self.ctx, descriptor)?;
+        }
+        let index = self.facts.integer(self.ctx, slot as i64)?;
+        let selected = crate::checking::heaps::read(self.ctx, self.facts, updated, index)?;
+        let changed = self
+            .facts
+            .collection_index(self.ctx, selected.value, &[key])?;
+        if selected.unsupported || changed.unsupported {
+            self.incomplete(pc)?;
+            return Ok(None);
+        }
+        let Some(mut entries_copy) =
+            crate::checking::heaps::entries(self.ctx, self.facts, updated)?
+        else {
+            let all =
+                crate::checking::heaps::read(self.ctx, self.facts, updated, Atom::Int.fact())?;
+            let changed = self
+                .facts
+                .collection_write(self.ctx, all.value, key, changed.value)?;
+            if selected.unsupported || all.unsupported || changed.unsupported {
+                self.incomplete(pc)?;
+                return Ok(None);
+            }
+            let fields = self.facts.union(self.ctx, &[all.value, changed.receiver])?;
+            let updated = self.facts.array(self.ctx, fields)?;
+            return Ok(Some((updated, Some(address.aliased(self.ctx)?))));
+        };
+        let mut shared = false;
+        for (other, fields) in entries_copy.data.iter_mut().enumerate() {
+            self.ctx.charge(1)?;
+            if other == slot {
+                if kind == InstanceKind::Summary {
+                    let index = self.facts.integer(self.ctx, slot as i64)?;
+                    let before = state.locals.get(self.ctx, root)?.value;
+                    let before = crate::checking::heaps::read(self.ctx, self.facts, before, index)?;
+                    if before.unsupported {
+                        self.incomplete(pc)?;
+                        return Ok(None);
+                    }
+                    *fields = self.facts.union(self.ctx, &[*fields, before.value])?;
+                    shared = true;
+                }
+                continue;
+            }
+            let mut possible = false;
+            for &descriptor in &descriptors.data {
+                self.ctx.charge(1)?;
+                if matches!(self.facts.node(descriptor), Node::Instance { slot, .. } if *slot == other)
+                {
+                    possible = true;
+                    break;
+                }
+            }
+            if possible {
+                let mutation =
+                    self.facts
+                        .collection_write(self.ctx, *fields, key, changed.value)?;
+                if mutation.unsupported {
+                    self.incomplete(pc)?;
+                    return Ok(None);
+                }
+                *fields = self.facts.union(self.ctx, &[*fields, mutation.receiver])?;
+                shared = true;
+            }
+        }
+        if !shared {
+            return Ok(Some((updated, None)));
+        }
+        let updated = self.facts.tuple(self.ctx, &entries_copy.data)?;
+        Ok(Some((updated, Some(address.aliased(self.ctx)?))))
+    }
+}

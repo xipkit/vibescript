@@ -235,6 +235,13 @@ impl Facts {
                         Atom::Bool.fact()
                     } else if left == Atom::Never.fact() || right == Atom::Never.fact() {
                         Atom::Never.fact()
+                    } else if matches!(self.node(left), Node::Instance { .. })
+                        && matches!(self.node(right), Node::Instance { .. })
+                    {
+                        match self.definitely_equal(left, right) {
+                            Some(equal) => self.boolean(ctx, equal == (op == "=="))?,
+                            None => Atom::Bool.fact(),
+                        }
                     } else {
                         self.boolean(ctx, (left == right) == (op == "=="))?
                     };

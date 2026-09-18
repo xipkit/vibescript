@@ -25,7 +25,7 @@ impl fmt::Display for CheckDiagnostic {
     }
 }
 
-/// The result of checking one concrete call without executing script or host code.
+/// The result of checking one selected scope without executing script or host code.
 ///
 /// Known contradictions and unimplemented analysis paths are reported separately.
 /// Both lists are sorted by source position and deduplicated. Unknown dynamic
@@ -60,6 +60,10 @@ impl Script {
     ///
     /// Annotated parameters enter with their declared value domains; unannotated
     /// parameters remain gradual. Optional defaults are included in the analysis.
+    /// Select instance methods with `Class#method`, static or module methods with
+    /// `Namespace.method`, and constructors with `Class.new`. These are declaration
+    /// selectors for checking, not names accepted by [`Self::call`]. Instance
+    /// methods begin with unknown receiver state, without calling a constructor.
     /// Namespace initialization follows ordinary named-call ordering. This does
     /// not check unrelated functions or provide whole-file validation, and it
     /// never executes initializers, callbacks or writers to discover their values.

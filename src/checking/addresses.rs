@@ -37,6 +37,7 @@ impl Attached {
 struct Hop {
     container: Fact,
     key: Fact,
+    instance: bool,
 }
 
 #[derive(Debug)]
@@ -49,6 +50,7 @@ pub(super) struct Address {
     pub supported: bool,
     pub member: Option<usize>,
     pub instance: Option<(Fact, Fact)>,
+    pub object: Option<(Fact, Fact)>,
     path: Buffer<Hop>,
 }
 
@@ -75,6 +77,7 @@ impl Address {
         self.supported.hash(hash);
         self.member.hash(hash);
         self.instance.hash(hash);
+        self.object.hash(hash);
         self.path.data.hash(hash);
         self.selectors.data.hash(hash);
         Ok(())
@@ -89,6 +92,7 @@ impl Address {
             && self.supported == other.supported
             && self.member == other.member
             && self.instance == other.instance
+            && self.object == other.object
             && self.path.data == other.path.data
             && self.selectors.data == other.selectors.data)
     }
@@ -97,6 +101,7 @@ impl Address {
         self.root == other.root
             && self.member == other.member
             && self.instance == other.instance
+            && self.object == other.object
             && self.path.data.len() == other.path.data.len()
             && self.selectors.data.len() == other.selectors.data.len()
     }
@@ -123,6 +128,7 @@ impl Address {
             supported: true,
             member: None,
             instance: None,
+            object: None,
             path: Buffer::empty(),
         }
     }
@@ -134,8 +140,16 @@ impl Address {
         address.supported = self.supported;
         address.member = self.member;
         address.instance = self.instance;
+        address.object = self.object;
         address.path.extend(ctx, &self.path.data)?;
         address.selectors.extend(ctx, &self.selectors.data)?;
+        Ok(address)
+    }
+
+    /// Broadens the receiver selector when the same field may have changed through an alias.
+    pub fn aliased(&self, ctx: &mut CallContext) -> Result<Self> {
+        let mut address = self.snapshot(ctx)?;
+        address.path.data.first_mut().unwrap().key = Atom::Int.fact();
         Ok(address)
     }
 
@@ -171,6 +185,7 @@ impl Address {
         }
         if self.member != other.member
             || self.instance != other.instance
+            || self.object != other.object
             || self.path.data.len() != other.path.data.len()
             || self.selectors.data.len() != other.selectors.data.len()
         {
@@ -185,6 +200,7 @@ impl Address {
             let next = Hop {
                 container: facts.joined(ctx, a.container, b.container, depth)?,
                 key: facts.joined(ctx, a.key, b.key, depth)?,
+                instance: a.instance && b.instance,
             };
             changed |= *a != next;
             *a = next;
@@ -214,6 +230,7 @@ impl Address {
                 Hop {
                     container: self.value,
                     key,
+                    instance: false,
                 },
             )?;
             self.attached = self.attached.and(stored);
@@ -223,6 +240,27 @@ impl Address {
         }
         self.value = result.value;
         Ok(result)
+    }
+
+    /// Selects a known object without adding the missing-element arm of an ordinary array read.
+    pub fn instance_index(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        key: Fact,
+    ) -> Result<()> {
+        let result = super::heaps::read(ctx, facts, self.value, key)?;
+        self.path.push(
+            ctx,
+            Hop {
+                container: self.value,
+                key,
+                instance: true,
+            },
+        )?;
+        self.value = result.value;
+        self.supported &= !result.unsupported;
+        Ok(())
     }
 
     pub fn protection(&self, ctx: &mut CallContext, facts: &Facts) -> Result<Attached> {
@@ -311,18 +349,25 @@ impl Address {
         let mut attached = self.attached.and(retention);
         for hop in &self.path.data {
             ctx.charge(1)?;
-            attached = attached.and(stored(ctx, facts, selected, hop.key)?);
+            if !hop.instance {
+                attached = attached.and(stored(ctx, facts, selected, hop.key)?);
+            }
             if attached == Attached::No {
                 self.attached = Attached::No;
                 return Ok(());
             }
-            let value = facts.collection_index(ctx, selected, &[hop.key])?;
+            let value = if hop.instance {
+                super::heaps::read(ctx, facts, selected, hop.key)?
+            } else {
+                facts.collection_index(ctx, selected, &[hop.key])?
+            };
             self.supported &= !value.unsupported;
             updated.push(
                 ctx,
                 Hop {
                     container: selected,
                     key: hop.key,
+                    instance: hop.instance,
                 },
             )?;
             selected = value.value;

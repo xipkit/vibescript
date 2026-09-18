@@ -1,6 +1,6 @@
 use super::{
     builtins,
-    facts::{Fact, Facts},
+    facts::{Atom, Fact, Facts},
     pending::Pending,
 };
 use crate::{CallContext, Result, budget::Buffer, bytecode::Program};
@@ -86,7 +86,7 @@ impl Globals {
             let fields = super::namespaces::initial(ctx, facts, program, owner, module)?;
             let initialized = facts.boolean(ctx, definition.body.is_none())?;
             let instances = facts.tuple(ctx, &[])?;
-            for value in [fields, initialized, instances] {
+            for value in [fields, initialized, instances, Atom::Never.fact()] {
                 self.values.push(ctx, value)?;
                 self.missing.push(ctx, false)?;
                 self.written.push(ctx, false)?;
