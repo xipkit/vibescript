@@ -252,6 +252,36 @@ impl Walker<'_> {
                 } else {
                     None
                 };
+                let predicate =
+                    if let Some(comparison) = crate::checking::integers::Comparison::parse(op) {
+                        if self.facts.integer_hull(self.ctx, left.value)?.is_some()
+                            && self.facts.integer_hull(self.ctx, right.value)?.is_some()
+                        {
+                            left.origin
+                                .map(|slot| Predicate {
+                                    slot,
+                                    test: Test::Integer {
+                                        comparison,
+                                        other: right.value,
+                                    },
+                                    yes: true,
+                                })
+                                .or_else(|| {
+                                    right.origin.map(|slot| Predicate {
+                                        slot,
+                                        test: Test::Integer {
+                                            comparison: comparison.reversed(),
+                                            other: left.value,
+                                        },
+                                        yes: true,
+                                    })
+                                })
+                        } else {
+                            predicate
+                        }
+                    } else {
+                        predicate
+                    };
                 if let Op::AddStore(slot) = instruction {
                     self.store(state, pc, slot, Operand::new(result.value))?;
                 }

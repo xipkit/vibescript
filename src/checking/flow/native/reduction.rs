@@ -164,7 +164,7 @@ impl Walker<'_> {
             assert_eq!(next.addresses.data.len(), state.addresses.data.len());
             value = self.facts.union(self.ctx, &[value, output])?;
             if let Some(joined) = &mut joined {
-                joined.join(self.ctx, self.facts, &next, false)?;
+                joined.join(self.ctx, self.facts, &next, false, self.program)?;
             } else {
                 joined = Some(next);
             }

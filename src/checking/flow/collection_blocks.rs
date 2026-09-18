@@ -214,8 +214,9 @@ impl IterationState {
         other: &Self,
         repeat: bool,
         depth: usize,
+        program: &Program,
     ) -> Result<bool> {
-        let changed = self.state.join(ctx, facts, &other.state, repeat)?;
+        let changed = self.state.join(ctx, facts, &other.state, repeat, program)?;
         let output = facts.widen(ctx, self.output, other.output, depth)?;
         let auxiliary = facts.widen(ctx, self.auxiliary, other.auxiliary, depth)?;
         let previous = facts.widen(ctx, self.previous, other.previous, depth)?;
@@ -394,7 +395,8 @@ impl Walker<'_> {
                         break;
                     };
                     let output = current.output;
-                    let changed = current.join(self.ctx, self.facts, &next, true, depth)?;
+                    let changed =
+                        current.join(self.ctx, self.facts, &next, true, depth, self.program)?;
                     // Counts need scalar widening; structural widening preserves literals.
                     if method == Count && current.output != output {
                         current.output = Atom::Int.fact();
@@ -581,7 +583,7 @@ impl Walker<'_> {
             let value = self.collection_input(&mut before, pc, driver, item)?;
             if let Some(next) = self.collection_result(before, pc, driver, item, value, depth)? {
                 if let Some(after) = &mut after {
-                    after.join(self.ctx, self.facts, &next, false, depth)?;
+                    after.join(self.ctx, self.facts, &next, false, depth, self.program)?;
                 } else {
                     after = Some(next);
                 }
@@ -657,7 +659,7 @@ impl Walker<'_> {
                         self.collection_result(next, pc, driver, item, exit.value, depth)?
                     {
                         if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &next, false, depth)?;
+                            after.join(self.ctx, self.facts, &next, false, depth, self.program)?;
                         } else {
                             after = Some(next);
                         }

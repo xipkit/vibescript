@@ -260,7 +260,14 @@ impl Walker<'_> {
                     return self.deep_done(walk, Some(current));
                 }
                 let changed = if let Some(stable) = &mut walk.stable {
-                    stable.join(self.ctx, self.facts, &current, true, walk.depth)?
+                    stable.join(
+                        self.ctx,
+                        self.facts,
+                        &current,
+                        true,
+                        walk.depth,
+                        self.program,
+                    )?
                 } else {
                     walk.depth = self.collection_depth(&current, driver, walk.source)?;
                     current.state.widening.get_or_insert(walk.depth);
@@ -401,7 +408,7 @@ impl Walker<'_> {
                 current.state.widening.get_or_insert(depth);
                 first = false;
             }
-            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                 break;
             }
         }

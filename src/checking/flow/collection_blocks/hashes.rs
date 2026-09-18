@@ -148,7 +148,7 @@ impl Walker<'_> {
         depth: usize,
     ) -> Result<()> {
         if let Some(target) = target {
-            target.join(self.ctx, self.facts, &value, false, depth)?;
+            target.join(self.ctx, self.facts, &value, false, depth, self.program)?;
         } else {
             *target = Some(value);
         }
@@ -195,7 +195,7 @@ impl Walker<'_> {
                     else {
                         break;
                     };
-                    if !current.join(self.ctx, self.facts, &next, true, depth)? {
+                    if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                         break;
                     }
                 }

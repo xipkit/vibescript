@@ -5,7 +5,14 @@ use crate::{CallContext, Result, budget::Buffer};
 pub(super) enum Test {
     Truth,
     Nil,
-    Case { matcher: Fact, splat: bool },
+    Case {
+        matcher: Fact,
+        splat: bool,
+    },
+    Integer {
+        comparison: super::integers::Comparison,
+        other: Fact,
+    },
 }
 
 pub(super) struct Operation {
@@ -24,6 +31,9 @@ impl Facts {
     ) -> Result<Fact> {
         if let Test::Case { matcher, splat } = test {
             return self.case_filter(ctx, value, matcher, splat, yes);
+        }
+        if let Test::Integer { comparison, other } = test {
+            return self.filter_integers(ctx, value, comparison, other, yes);
         }
         let mut kept = Buffer::empty();
         for index in 0..self.arm_count(value) {
@@ -98,11 +108,8 @@ impl Facts {
                 (_, Some(Atom::Unknown | Atom::Any)) => Atom::Unknown.fact(),
                 ("+", Some(Atom::Int | Atom::Float | Atom::String)) => arm,
                 ("-", Some(atom @ (Atom::Int | Atom::Float))) => {
-                    if let Node::Integer(n) = self.node(arm) {
-                        match n.checked_neg() {
-                            Some(n) => self.integer(ctx, n)?,
-                            None => atom.fact(),
-                        }
+                    if let Some(bounds) = self.integer_bounds(arm) {
+                        self.integer_range(ctx, bounds.negate())?
                     } else if let Node::Float(bits) = self.node(arm) {
                         self.float(ctx, -f64::from_bits(*bits))?
                     } else {
@@ -247,6 +254,22 @@ impl Facts {
                     result.unsupported = true;
                     continue;
                 };
+                if let (Some(a), Some(b)) = (self.integer_bounds(left), self.integer_bounds(right))
+                {
+                    if let Some(bounds) = a.arithmetic(op, b) {
+                        let next = self.integer_range(ctx, bounds)?;
+                        result.value = self.union(ctx, &[result.value, next])?;
+                        continue;
+                    }
+                    if let Some(comparison) = super::integers::Comparison::parse(op) {
+                        let next = match a.compare(comparison, b) {
+                            Some(value) => self.boolean(ctx, value)?,
+                            None => Atom::Bool.fact(),
+                        };
+                        result.value = self.union(ctx, &[result.value, next])?;
+                        continue;
+                    }
+                }
                 let next = if a == Atom::Never || b == Atom::Never {
                     Atom::Never.fact()
                 } else if matches!(a, Atom::Any | Atom::Unknown)
@@ -370,7 +393,7 @@ impl Facts {
                     Node::Atom(Atom::Int | Atom::Float) => 1 << Atom::Int as u32,
                     Node::Atom(atom) => 1 << *atom as u32,
                     Node::Boolean(_) => 1 << Atom::Bool as u32,
-                    Node::Integer(_) => 1 << Atom::Int as u32,
+                    Node::Integer(_) | Node::IntegerBounds(_) => 1 << Atom::Int as u32,
                     Node::Float(_) => 1 << Atom::Int as u32,
                     Node::String(_) => 1 << Atom::String as u32,
                     Node::Symbol(_) => 1 << Atom::Symbol as u32,
@@ -424,7 +447,7 @@ impl Facts {
         match self.node(value) {
             Node::Atom(atom) => Some(*atom),
             Node::Boolean(_) => Some(Atom::Bool),
-            Node::Integer(_) => Some(Atom::Int),
+            Node::Integer(_) | Node::IntegerBounds(_) => Some(Atom::Int),
             Node::Float(_) => Some(Atom::Float),
             Node::String(_) => Some(Atom::String),
             Node::Symbol(_) => Some(Atom::Symbol),

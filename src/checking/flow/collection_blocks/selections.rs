@@ -19,7 +19,7 @@ impl Walker<'_> {
         if matches!(self.facts.node(contains), Node::Boolean(false)) {
             return Ok(Some(kept));
         }
-        current.join(self.ctx, self.facts, &kept, false, depth)?;
+        current.join(self.ctx, self.facts, &kept, false, depth, self.program)?;
         Ok(Some(current))
     }
 
@@ -160,7 +160,7 @@ impl Walker<'_> {
                             self.group_append(hit.output, found)?
                         };
                         if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &hit, false, depth)?;
+                            after.join(self.ctx, self.facts, &hit, false, depth, self.program)?;
                         } else {
                             after = Some(hit);
                         }
@@ -199,7 +199,7 @@ impl Walker<'_> {
                     };
                     if let Some(next) = next {
                         if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &next, false, depth)?;
+                            after.join(self.ctx, self.facts, &next, false, depth, self.program)?;
                         } else {
                             after = Some(next);
                         }
@@ -230,6 +230,10 @@ impl Walker<'_> {
                 return Ok(Atom::Never.fact());
             }
             (Receiver::Array, Node::Integer(_)) => key,
+            (Receiver::Array, Node::IntegerBounds(bounds)) => {
+                possible_error = bounds.min.is_none() || bounds.max.is_none();
+                key
+            }
             (Receiver::Array, Node::Float(bits)) => {
                 let value = f64::from_bits(*bits);
                 if value.is_finite()

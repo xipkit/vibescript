@@ -26,6 +26,13 @@ Incomplete analysis is never treated as clean and never causes the checker to ex
 
 The scope is exactly one call: the named function, the supplied values and whatever that call reaches. Unused functions, top-level statements and the file as a whole are not checked, and a clean result does not prove that the script is type safe; dynamic values keep their runtime contracts, so a `--checked` execution can still fail with an ordinary error. See the [checker notes](checker.md) for the analysis itself.
 
+For example, the supplied array length makes the indexed loop in `total.vibe` checkable:
+
+```sh
+./scripts/cargo run --release -- examples/total.vibe --function total --arg '[10,20,30]' --checked
+# {"total":60,"count":3}
+```
+
 ## Limits and counters
 
 `--steps N` and `--memory N` set the step and tracked-memory quotas (zero disables one), `--recursion N` sets the call-depth limit and `--timeout-ms N` sets an absolute deadline measured from option parsing. The defaults are one million steps, 16 MiB and 256 frames. Analysis and execution each receive the supplied quotas and share the deadline. Exhausted quotas, deadlines, unknown functions, read failures and parse errors print their message on stderr and exit with status 1.

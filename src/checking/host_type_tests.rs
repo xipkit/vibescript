@@ -467,7 +467,10 @@ fn host_arity_keywords_and_block_guards_precede_type_resolution() {
         let report = fixture.analyze(&mut ctx, &mut facts, &[]).unwrap();
         assert!(report.incomplete.data.is_empty(), "{source}: {report:?}");
         assert!(report.issues.data.iter().any(|issue| matches!(issue.issue.kind, IssueKind::Call { failure: actual, .. } if actual == failure)), "{source}: {report:?}");
-        assert_eq!(report.returns, Atom::Int.fact());
+        assert!(matches!(
+            facts.node(report.returns),
+            super::facts::Node::Integer(7)
+        ));
         assert_eq!(report.contexts, 1);
         assert_eq!(fixture.run(&[]).value.to_string(), "7");
         assert_eq!(fixture.counters[0].load(Ordering::Relaxed), 0);

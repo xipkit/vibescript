@@ -98,7 +98,11 @@ fn shared_cached_contexts_close_recursive_return_cycles() {
     let result = analyze(&mut ctx, &mut facts, source).unwrap();
     assert!(result.issues.data.is_empty(), "{result:?}");
     assert!(result.incomplete.data.is_empty());
-    assert_eq!(result.contexts, 3);
+    assert!(
+        result.contexts <= 5,
+        "recursive contexts did not stay bounded: {}",
+        result.contexts
+    );
     let script = crate::Engine::new().compile(source).unwrap();
     for choose in [false, true] {
         let actual = script

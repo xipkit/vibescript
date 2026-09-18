@@ -154,7 +154,7 @@ impl Walker<'_> {
                     let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
                         break;
                     };
-                    if !current.join(self.ctx, self.facts, &next, true, depth)? {
+                    if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                         break;
                     }
                 }
@@ -399,10 +399,14 @@ impl Walker<'_> {
                 && run.comparison == entry.comparison
                 && run.sort.same(self.ctx, &entry.sort)?
             {
-                if entry
-                    .current
-                    .join(self.ctx, self.facts, &run.current, false, depth)?
-                {
+                if entry.current.join(
+                    self.ctx,
+                    self.facts,
+                    &run.current,
+                    false,
+                    depth,
+                    self.program,
+                )? {
                     pending.push(self.ctx, index)?;
                 }
                 return Ok(());
@@ -538,7 +542,7 @@ impl Walker<'_> {
             let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
                 break;
             };
-            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                 break;
             }
         }

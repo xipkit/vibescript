@@ -249,6 +249,36 @@ fn checked_call_executes_only_a_clean_call() {
 }
 
 #[test]
+fn checks_and_executes_the_total_example_with_bounded_array_reads() {
+    let file = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/total.vibe");
+    let file = file.to_str().unwrap();
+    for (input, output) in [
+        ("[10,20,30]", "{\"total\":60,\"count\":3}\n"),
+        ("[]", "{\"total\":0,\"count\":0}\n"),
+        ("[10,\"bad\",30]", "{\"total\":\"10bad30\",\"count\":3}\n"),
+    ] {
+        vibes(&[file, "--function", "total", "--arg", input, "--check"]).expect(0, "", "");
+        vibes(&[file, "--function", "total", "--arg", input, "--checked"]).expect(0, output, "");
+    }
+    let result = vibes(&[
+        file,
+        "--function",
+        "total",
+        "--arg",
+        "[10,false,30]",
+        "--checked",
+    ]);
+    assert_eq!(result.status, Some(1));
+    assert_eq!(result.stdout, "");
+    assert!(
+        result.stderr.contains("does not accept"),
+        "{}",
+        result.stderr
+    );
+    assert!(!result.stderr.contains("incomplete"), "{}", result.stderr);
+}
+
+#[test]
 fn checked_conversion_errors_precede_all_script_output() {
     let files = Files::new();
     let file = files.write(
@@ -561,7 +591,7 @@ fn limits_deadlines_and_unknown_functions_fail_with_nonzero_status() {
             "--arg",
             "100000",
             "--steps",
-            "2000",
+            "10000",
         ];
         args.extend(mode);
         let run = vibes(&args);

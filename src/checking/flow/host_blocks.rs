@@ -89,7 +89,7 @@ impl Walker<'_> {
         for (index, state) in states.data.iter_mut().enumerate() {
             self.ctx.charge(1)?;
             if state.compatible(self.ctx, &next)? {
-                if state.join(self.ctx, self.facts, &next, true)? {
+                if state.join(self.ctx, self.facts, &next, true, self.program)? {
                     self.ctx.charge(pending.data.len() as u64)?;
                     if !pending.data.contains(&index) {
                         pending.push(self.ctx, index)?;

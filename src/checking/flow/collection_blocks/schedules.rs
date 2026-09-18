@@ -89,7 +89,7 @@ impl Walker<'_> {
                     universal || matches!(method, EachSlice | EachCons | Cycle)
                 }
                 Node::Range(..) | Node::Atom(Atom::Range) => universal || method == Step,
-                Node::Integer(_) | Node::Atom(Atom::Int) => {
+                Node::Integer(_) | Node::IntegerBounds(_) | Node::Atom(Atom::Int) => {
                     universal || matches!(method, Times | Upto | Downto | Step)
                 }
                 Node::Hash(..) => {
@@ -269,7 +269,7 @@ impl Walker<'_> {
                     Domain::Nonzero => *n != 0,
                     _ => true,
                 },
-                Node::Atom(Atom::Int | Atom::Unknown | Atom::Any) => {
+                Node::IntegerBounds(_) | Node::Atom(Atom::Int | Atom::Unknown | Atom::Any) => {
                     if bounds {
                         self.emit_error(state, pc, handlers::bit(ErrorClass::Limit))?;
                     }
@@ -572,7 +572,7 @@ impl Walker<'_> {
                     return self.collection_done(next, pc, driver.method, source);
                 }
             }
-            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                 if !matches!(count, Repetitions::Infinite) {
                     self.collection_done(current, pc, driver.method, source)?;
                 }

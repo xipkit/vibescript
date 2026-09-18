@@ -87,10 +87,11 @@ fn scalar_literal_facts_keep_values_without_changing_type_boundaries() {
     let result = facts.scalar_unary(&mut ctx, "-", int).unwrap();
     assert!(matches!(facts.node(result.value), Node::Integer(-7)));
     let min = facts.integer(&mut ctx, i64::MIN).unwrap();
-    assert_eq!(
-        facts.scalar_unary(&mut ctx, "-", min).unwrap().value,
-        Atom::Int.fact()
-    );
+    let negated = facts.scalar_unary(&mut ctx, "-", min).unwrap().value;
+    assert_eq!(facts.atom(negated), Some(Atom::Int));
+    let bounds = facts.integer_bounds(negated).unwrap();
+    assert!(bounds.includes(-i128::from(i64::MIN)));
+    assert!(!bounds.includes(0));
 }
 
 #[test]

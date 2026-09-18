@@ -75,6 +75,7 @@ pub(super) enum Node {
     Atom(Atom),
     Boolean(bool),
     Integer(i64),
+    IntegerBounds(super::integers::Bounds),
     Float(u64),
     String(Value),
     Symbol(Value),
@@ -436,6 +437,19 @@ impl Facts {
         self.intern(ctx, Node::Offset(values))
     }
 
+    pub(super) fn integer_range(
+        &mut self,
+        ctx: &mut CallContext,
+        bounds: super::integers::Bounds,
+    ) -> Result<Fact> {
+        match (bounds.min, bounds.max) {
+            (None, None) => Ok(Atom::Int.fact()),
+            (Some(a), Some(b)) if a > b => Ok(Atom::Never.fact()),
+            (Some(a), Some(b)) if a == b => self.integer(ctx, a),
+            _ => self.intern(ctx, Node::IntegerBounds(bounds)),
+        }
+    }
+
     pub fn integer(&mut self, ctx: &mut CallContext, value: i64) -> Result<Fact> {
         self.intern(ctx, Node::Integer(value))
     }
@@ -742,7 +756,7 @@ impl Facts {
         arms.data.retain(|&fact| match self.node(fact) {
             Node::Boolean(_) => bools != 3,
             Node::Symbol(_) => !symbols,
-            Node::Integer(_) => !integers,
+            Node::Integer(_) | Node::IntegerBounds(_) => !integers,
             Node::Float(_) => !floats,
             Node::String(_) => !strings,
             Node::Range(..) => !ranges,
@@ -1007,6 +1021,7 @@ impl Node {
             Self::Atom(value) => value.hash(&mut hash),
             Self::Boolean(value) => value.hash(&mut hash),
             Self::Integer(value) => value.hash(&mut hash),
+            Self::IntegerBounds(value) => value.hash(&mut hash),
             Self::Float(value) => value.hash(&mut hash),
             Self::Builtin(value) => value.name().hash(&mut hash),
             Self::Callable { owner, target } => (sources.key(ctx, *owner)?, target).hash(&mut hash),
@@ -1067,6 +1082,7 @@ impl Node {
             (Self::Atom(a), Self::Atom(b)) => a == b,
             (Self::Boolean(a), Self::Boolean(b)) => a == b,
             (Self::Integer(a), Self::Integer(b)) => a == b,
+            (Self::IntegerBounds(a), Self::IntegerBounds(b)) => a == b,
             (Self::Float(a), Self::Float(b)) => a == b,
             (Self::Builtin(a), Self::Builtin(b)) => a == b,
             (

@@ -1,6 +1,6 @@
 # Gradual checker implementation
 
-Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. Whole-file checking, general function checks and CLI gates are not implemented. Ordinary calls retain their runtime contracts.
+Exact-call checking is available through `Script::check_call` and `check_call_with_keywords`. `checked_call` and `checked_call_with_keywords` execute only when the report is clean. The checker remains unfinished: unsupported analysis paths appear separately in `CheckReport::incomplete` and prevent checked execution. Whole-file and general function checking remain unfinished. The CLI exposes exact-call analysis through `--check` and guarded execution through `--checked`. Ordinary calls retain their runtime contracts.
 
 ## Type facts
 
@@ -254,11 +254,21 @@ Interpolation and percent word/symbol arrays retain metered pending text facts. 
 
 Twelve rendering test families compare these paths with execution, including raw bytes, nested templates, ignored host control errors, missing writers, side-effect order and exact/sampled work and memory limits. Public checked calls reject invalid conversion return contracts before host effects. Opaque values that may dispatch an unknown `to_s` remain explicitly incomplete; format output and arbitrary writer errors use conservative summaries.
 
+## Integer bounds and indexed loops
+
+Integer facts retain compact constants and conservative lower/upper bounds through addition, subtraction, multiplication and negation. Comparisons refine the selected binding on both branch outcomes, including reversed comparisons, negation and short-circuit guards. Array literals and supplied tuple-shaped values retain exact lengths, so a loop such as `i = 0; while i < items.length; sum += items[i]; i += 1; end` can establish that every indexed read is present. Negative indices use the same bounds rules. Indices that can leave the array retain the possible nil result.
+
+Backedges widen growing integers using a finite set of source constants; repeated call analysis and `retry` cannot extend that set with newly inferred values. Nested collection facts and recursive calls widen expanding bounds while retaining stable positions and fields. Arithmetic beyond compact integer endpoints rounds the inferred bounds outward, matching arbitrary-precision execution without assuming wrapping. Assignment and callback writes invalidate stale predicates through the existing origin tracking.
+
+Ten integer test families compare these paths with runtime witnesses, including host-returned indices without executing callbacks during analysis, negative and reversed guards, retries, mixed integer/float case matching, nested updates and overflow. Quota, cancellation and deadline tests verify that interrupted bounds analysis releases its temporary storage. A CLI regression checks and executes `examples/total.vibe`, including the previously rejected `[10,20,30]` call, empty inputs, valid scalar concatenation and rejected operands.
+
+Generalized array sizes, relationships between two changing variables, stored predicates and remaining scalar operations can still lose precision. Bounds do not establish correlations between independent values or complete general function checking. A clean report still relies on runtime contracts for gradual values.
+
 ## Remaining integration
 
 Completion still requires:
 
-- Opaque iterable dispatch, interprocedural block control, general type narrowing, scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
+- Opaque iterable dispatch, interprocedural block control, general type narrowing, remaining scalar constant propagation and stored predicate relations. Collection-loop, recursive-call and exception-effect precision need further work; value-origin facts must preserve correlations without confusing equivalent types with identical values.
 - Instance allocation summaries, dynamic type atoms, optional helper field alternatives, opaque implicit conversions, initialization requiring ambient parent-local captures, remaining builtin helpers, variable-size splats, foreign attached-method environments, opaque value dispatch and unresolved lexical ownership. Known source calls, named-call namespace initialization and state, static and instance operator dispatch, introspection and forwarding, live host signatures, conservative host block schedules and concrete host-call binding are implemented; whole-program integration remains required.
 - Broader mutable-container dispatch, precise attachment correlations and invalidation after unmodeled effects. Ordinary addressed writes and collection-loop widening are integrated internally.
 - Required-file source discovery and export analysis without executing initializers, plus the selected source and root binding rules.

@@ -67,7 +67,15 @@ fn stable_tuple_positions_and_literal_keys_survive_loop_joins() {
     let a = facts.tuple(&mut ctx, &[one, text]).unwrap();
     let b = facts.tuple(&mut ctx, &[two, text]).unwrap();
     let joined = facts.widen(&mut ctx, a, b, 1).unwrap();
-    let first = facts.union(&mut ctx, &[one, two]).unwrap();
+    let first = facts
+        .integer_range(
+            &mut ctx,
+            super::integers::Bounds {
+                min: Some(1),
+                max: Some(2),
+            },
+        )
+        .unwrap();
     assert_eq!(joined, facts.tuple(&mut ctx, &[first, text]).unwrap());
     let key = facts.string(&mut ctx, b"key").unwrap();
     let other = facts.string(&mut ctx, b"other").unwrap();

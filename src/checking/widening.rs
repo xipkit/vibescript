@@ -116,6 +116,9 @@ impl Facts {
         if a == b {
             return Ok(a);
         }
+        if let (Some(a), Some(b)) = (self.integer_hull(ctx, a)?, self.integer_hull(ctx, b)?) {
+            return self.integer_range(ctx, a.widen(b));
+        }
         let value = self.union(ctx, &[a, b])?;
         let mut tasks = Buffer::empty();
         let mut values = Buffer::empty();
@@ -174,6 +177,31 @@ impl Facts {
                             Node::Hash(..) | Node::Shape(..) => hashes.push(ctx, arm)?,
                             _ => scalar.push(ctx, arm)?,
                         }
+                    }
+                    let mut count = 0;
+                    let mut bounds: Option<super::integers::Bounds> = None;
+                    let mut previous = None;
+                    for &value in &scalar.data {
+                        ctx.charge(1)?;
+                        if let Some(next) = self.integer_bounds(value) {
+                            count += 1;
+                            bounds = Some(bounds.map_or(next, |before| before.hull(next)));
+                            if previous.is_none()
+                                && matches!(self.node(value), Node::IntegerBounds(_))
+                            {
+                                previous = Some(next);
+                            }
+                        }
+                    }
+                    if count > 1 {
+                        let bounds = bounds.unwrap();
+                        let bounds = previous.map_or(bounds, |before| before.widen(bounds));
+                        ctx.charge(scalar.data.len() as u64)?;
+                        scalar
+                            .data
+                            .retain(|&value| self.integer_bounds(value).is_none());
+                        let value = self.integer_range(ctx, bounds)?;
+                        scalar.push(ctx, value)?;
                     }
                     let count =
                         usize::from(!arrays.data.is_empty()) + usize::from(!hashes.data.is_empty());

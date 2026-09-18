@@ -24,6 +24,9 @@ mod graph;
 #[cfg(test)]
 mod input_tests;
 mod inputs;
+#[cfg(test)]
+mod integer_tests;
+mod integers;
 mod iteration;
 mod lexical;
 #[cfg(test)]

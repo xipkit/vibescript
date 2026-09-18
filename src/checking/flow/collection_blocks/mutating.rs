@@ -225,7 +225,7 @@ impl Walker<'_> {
             let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
                 break;
             };
-            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                 break;
             }
         }
@@ -258,7 +258,7 @@ impl Walker<'_> {
                 next.output = self.group_append(next.output, item.pair.unwrap().0)?;
             }
             if let Some(kept) = &mut result {
-                kept.join(self.ctx, self.facts, &next, false, depth)?;
+                kept.join(self.ctx, self.facts, &next, false, depth, self.program)?;
             } else {
                 result = Some(next);
             }

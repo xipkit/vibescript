@@ -304,7 +304,7 @@ impl Walker<'_> {
                     if let Some((state, value)) = next {
                         output = self.facts.union(self.ctx, &[output, value])?;
                         if let Some(after) = &mut after {
-                            after.join(self.ctx, self.facts, &state, false)?;
+                            after.join(self.ctx, self.facts, &state, false, self.program)?;
                         } else {
                             after = Some(state);
                         }

@@ -426,7 +426,7 @@ fn static_dispatch_is_metered_interruptible_and_releases_facts() {
     metered(source);
 }
 
-fn metered(source: &str) {
+pub(super) fn metered(source: &str) {
     let script = Engine::new().compile(source).unwrap();
     metered_script(&script);
 }

@@ -141,7 +141,7 @@ impl<'a> Writer<'a> {
                 Atom::Regex => "regex",
             }),
             Node::Boolean(_) => self.text("bool"),
-            Node::Integer(_) => self.text("int"),
+            Node::Integer(_) | Node::IntegerBounds(_) => self.text("int"),
             Node::Float(_) => self.text("float"),
             Node::String(_) => self.text("string"),
             Node::Symbol(_) => self.text("symbol"),

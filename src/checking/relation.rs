@@ -386,6 +386,19 @@ impl Facts {
                                 Relation::Rejected
                             }
                         }
+                        _ if self.integer_bounds(pair.source).is_some()
+                            && self.integer_bounds(pair.target).is_some() =>
+                        {
+                            let source = self.integer_bounds(pair.source).unwrap();
+                            let target = self.integer_bounds(pair.target).unwrap();
+                            if source.intersection(target).is_none() {
+                                Relation::Rejected
+                            } else if !pair.overlap && target.contains(source) {
+                                Relation::Accepted
+                            } else {
+                                Relation::Gradual
+                            }
+                        }
                         (Node::Integer(_), Node::Atom(Atom::Int))
                         | (Node::Float(_), Node::Atom(Atom::Float))
                         | (Node::Range(..), Node::Atom(Atom::Range))

@@ -181,7 +181,7 @@ impl Walker<'_> {
                         self.incomplete(pc)?;
                         return Ok(false);
                     }
-                    normal.join(self.ctx, self.facts, &next, false)?;
+                    normal.join(self.ctx, self.facts, &next, false, self.program)?;
                 } else {
                     normal = Some(next);
                 }

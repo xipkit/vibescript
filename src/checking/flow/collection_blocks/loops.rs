@@ -61,7 +61,7 @@ impl Walker<'_> {
             let Some(next) = self.collection_step(before, pc, driver, item, depth)? else {
                 break;
             };
-            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                 break;
             }
         }

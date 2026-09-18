@@ -314,6 +314,26 @@ impl Facts {
                 return Ok(outcome(self.tuple(ctx, &selected.data)?));
             }
         }
+        if length.is_none() {
+            if let (Node::Tuple(values), Some(bounds)) =
+                (self.node(receiver), self.integer_bounds(index))
+            {
+                let size = values.data.len() as i128;
+                let mut selected = Buffer::empty();
+                for (index, &value) in values.data.iter().enumerate() {
+                    ctx.charge(1)?;
+                    if bounds.includes(index as i128) || bounds.includes(index as i128 - size) {
+                        selected.push(ctx, value)?;
+                    }
+                }
+                if bounds.min.is_none_or(|n| i128::from(n) < -size)
+                    || bounds.max.is_none_or(|n| i128::from(n) >= size)
+                {
+                    selected.push(ctx, Atom::Nil.fact())?;
+                }
+                return Ok(outcome(self.union(ctx, &selected.data)?));
+            }
+        }
         let element = self.elements(ctx, receiver)?;
         let value = if length.is_some() || selector == Some(Atom::Range) {
             self.array(ctx, element)?
@@ -517,7 +537,23 @@ impl Facts {
             }
             "itself" | "dup" => Ok(outcome(receiver)),
             "nil?" => Ok(outcome(self.test_result(ctx, receiver, Test::Nil)?)),
-            "length" | "size" if array || hash || string => Ok(outcome(Atom::Int.fact())),
+            "length" | "size" if array || hash || string => {
+                let value = match self.node(receiver) {
+                    Node::Tuple(values) => match i64::try_from(values.data.len()) {
+                        Ok(length) => self.integer(ctx, length)?,
+                        Err(_) => Atom::Int.fact(),
+                    },
+                    Node::Array(_) => self.integer_range(
+                        ctx,
+                        super::integers::Bounds {
+                            min: Some(0),
+                            max: None,
+                        },
+                    )?,
+                    _ => Atom::Int.fact(),
+                };
+                Ok(outcome(value))
+            }
             "bytesize" if string || self.atom(receiver) == Some(Atom::Symbol) => {
                 Ok(outcome(Atom::Int.fact()))
             }

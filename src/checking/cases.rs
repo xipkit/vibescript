@@ -289,7 +289,9 @@ impl Facts {
                             matcher
                         }
                     }
-                    Node::Atom(Atom::Int | Atom::Float | Atom::Range) | Node::Range(..) => {
+                    Node::IntegerBounds(_)
+                    | Node::Atom(Atom::Int | Atom::Float | Atom::Range)
+                    | Node::Range(..) => {
                         self.union(ctx, &[Atom::Int.fact(), Atom::Float.fact()])?
                     }
                     Node::Float(bits) => {

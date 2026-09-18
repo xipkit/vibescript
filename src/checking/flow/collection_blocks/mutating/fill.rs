@@ -394,7 +394,7 @@ impl Walker<'_> {
             if let Some(count) = &mut iterations {
                 *count -= 1;
             }
-            if !current.join(self.ctx, self.facts, &next, true, depth)? {
+            if !current.join(self.ctx, self.facts, &next, true, depth, self.program)? {
                 self.mutable_done(current, pc, source, Mutation::Fill)?;
                 break;
             }

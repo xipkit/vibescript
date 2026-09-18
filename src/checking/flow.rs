@@ -282,6 +282,7 @@ struct State {
     raises: Buffer<u16>,
     texts: Buffer<Fact>,
     widening: Option<usize>,
+    integer_thresholds: Buffer<i64>,
 }
 
 #[derive(Debug)]
@@ -328,6 +329,7 @@ impl State {
             raises: Buffer::empty(),
             texts: Buffer::empty(),
             widening: None,
+            integer_thresholds: Buffer::empty(),
         }
     }
 
@@ -353,6 +355,7 @@ impl State {
             raises: Buffer::empty(),
             texts: Buffer::empty(),
             widening: None,
+            integer_thresholds: Buffer::empty(),
         };
         state.stack.extend(ctx, &self.stack.data)?;
         state.loops.extend(ctx, &self.loops.data)?;
@@ -384,17 +387,30 @@ impl State {
         facts: &mut Facts,
         other: &Self,
         backedge: bool,
+        program: &Program,
     ) -> Result<bool> {
         // Freeze precision at the first backedge, including existing values and declared contracts.
         // Later recursive growth becomes gradual beyond that depth; script limits are unchanged.
         let depth = if backedge {
+            if self.widening.is_none() {
+                self.integer_thresholds = facts.integer_thresholds(ctx, program)?;
+            }
             Some(*self.widening.get_or_insert_with(|| facts.max_depth()))
         } else {
             None
         };
+        let thresholds = &self.integer_thresholds.data;
         let mut changed = self.locals.merge(ctx, &other.locals, |ctx, a, b| {
+            let numeric = if backedge {
+                facts.widen_integer_thresholds(ctx, a.value, b.value, thresholds)?
+            } else {
+                None
+            };
             Ok(Binding {
-                value: facts.joined(ctx, a.value, b.value, depth)?,
+                value: match numeric {
+                    Some(value) => value,
+                    None => facts.joined(ctx, a.value, b.value, depth)?,
+                },
                 missing: a.missing || b.missing,
                 owner: a.owner.join(a.value, b.owner, b.value),
             })
@@ -859,6 +875,7 @@ pub(super) fn analyze_body(
                     walker.facts,
                     &state,
                     backedge,
+                    program,
                 )?;
                 (selected, changed)
             } else {
