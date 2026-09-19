@@ -224,6 +224,7 @@ impl Walker<'_> {
                 count_overflow: false,
                 exact: matches!(self.facts.node(view), Node::Tuple(_)),
                 site: Some(site),
+                offset: Offset::None,
             };
             let initial = IterationState {
                 state: state.snapshot(self.ctx)?,

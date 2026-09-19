@@ -50,7 +50,7 @@ impl Walker<'_> {
             Find | Count | Any | All | NoneMatch | Sum | Grep | GrepV => 1,
             Reduce if kind == Receiver::Array => 2,
             Reduce => 1,
-            Index | Rindex if block.is_none() => 1,
+            Index | Rindex if block.is_none() => 2,
             _ => 0,
         };
         let rejects_keywords = kind == Receiver::Range
@@ -77,10 +77,17 @@ impl Walker<'_> {
             || count > maximum
             || (kind == Receiver::Range && matches!(method, Find | Count) && count != 0)
             || (rejects_keywords && !args.keywords.data.is_empty())
-            || (matches!(method, Index | Rindex) && block.is_none() && count != 1)
+            || (matches!(method, Index | Rindex) && block.is_none() && count == 0)
         {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
             return Ok(None);
+        }
+        let mut offset = Offset::None;
+        if matches!(method, Index | Rindex) && block.is_none() && count == 2 {
+            let Some(resolved) = self.index_offset(state, pc, receiver, site, args, method)? else {
+                return Ok(None);
+            };
+            offset = resolved;
         }
         if method == Find && count == 1 {
             let value = args.positional.data[0];
@@ -212,9 +219,62 @@ impl Walker<'_> {
                 count_overflow,
                 exact: matches!(self.facts.node(receiver), Node::Tuple(_)),
                 site: Some(site),
+                offset,
             },
             output,
         )))
+    }
+
+    // Validates the value-form index/rindex offset the way the runtime does:
+    // a negative literal is a definite error, an unknown numeric value may
+    // still be negative, non-finite or out of range, and anything else is
+    // rejected. A forward offset past a known tuple leaves only the miss.
+    fn index_offset(
+        &mut self,
+        state: &State,
+        pc: usize,
+        receiver: Fact,
+        site: MemberSite,
+        args: &Arguments,
+        method: Method,
+    ) -> Result<Option<Offset>> {
+        let value = args.positional.data[1];
+        let numeric = self
+            .facts
+            .union(self.ctx, &[Atom::Int.fact(), Atom::Float.fact()])?;
+        if !self.collection_parameter(state, pc, receiver, site, args, (value, numeric))? {
+            return Ok(None);
+        }
+        let literal = if self.facts.arm_count(value) == 1 {
+            match self.facts.node(value) {
+                Node::Integer(n) => Some(*n),
+                Node::Float(bits) => {
+                    let n = f64::from_bits(*bits);
+                    if n.is_finite() && n >= i64::MIN as f64 && n < 9223372036854775808.0 {
+                        Some(n as i64)
+                    } else {
+                        Some(-1)
+                    }
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let Some(literal) = literal else {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            return Ok(Some(Offset::Unknown));
+        };
+        if literal < 0 {
+            self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
+            return Ok(None);
+        }
+        let offset = usize::try_from(literal).unwrap_or(usize::MAX);
+        let exact = matches!(self.facts.node(receiver), Node::Tuple(_));
+        if method == Method::Index && offset > 0 && !exact {
+            return Ok(Some(Offset::Unknown));
+        }
+        Ok(Some(Offset::Known(offset)))
     }
 
     pub(in crate::checking::flow) fn collection_parameter(
@@ -409,7 +469,7 @@ impl Walker<'_> {
                     let state = current.state.snapshot(self.ctx)?;
                     self.collection_terminal(state, pc, result)?;
                 }
-                if keep == Atom::Never.fact() {
+                if keep == Atom::Never.fact() && driver.offset != Offset::Unknown {
                     return Ok(None);
                 }
                 if method == TakeWhile {

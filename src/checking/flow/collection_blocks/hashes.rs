@@ -53,6 +53,7 @@ impl Walker<'_> {
                 count_overflow: false,
                 exact: false,
                 site: Some(site),
+                offset: Offset::None,
             };
             if method == Method::DeepTransformKeys {
                 for done in self.deep_hash(state, pc, driver, view)?.data {

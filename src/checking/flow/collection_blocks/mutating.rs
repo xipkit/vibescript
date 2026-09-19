@@ -152,6 +152,7 @@ impl Walker<'_> {
                 count_overflow: false,
                 exact: true,
                 site: Some(site),
+                offset: Offset::None,
             };
             match mutation {
                 Mutation::Filter { .. } => self.mutable_filter(state, pc, source, kind, driver)?,

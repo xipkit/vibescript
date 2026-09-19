@@ -118,6 +118,7 @@ impl Walker<'_> {
                         exact: matcher.is_some()
                             && matches!(self.facts.node(receiver), Node::String(_)),
                         site: Some(site),
+                        offset: Offset::None,
                     };
                     if let (Node::String(text), Some(matcher)) =
                         (self.facts.node(receiver), matcher.as_mut())

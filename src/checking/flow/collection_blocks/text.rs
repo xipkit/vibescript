@@ -132,6 +132,7 @@ impl Walker<'_> {
                 count_overflow: false,
                 exact: matches!(self.facts.node(arm), Node::String(_)),
                 site: Some(site),
+                offset: Offset::None,
             };
             if let Node::String(value) = self.facts.node(arm) {
                 let value = value.clone();

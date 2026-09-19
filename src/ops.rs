@@ -463,6 +463,52 @@ pub(crate) fn arity(args: &[Value], n: usize) -> Result<()> {
     }
 }
 
+fn index_name(method: Method) -> &'static str {
+    if matches!(method, Method::Rindex) {
+        "array.rindex"
+    } else {
+        "array.index"
+    }
+}
+
+fn index_offset(method: Method, value: &Value) -> Result<usize> {
+    match crate::sequence::integer(value) {
+        Ok(n) if n >= 0 => Ok(usize::try_from(n).unwrap_or(usize::MAX)),
+        _ => Err(Error::new(
+            ErrorKind::Argument,
+            format!("{} offset must be non-negative integer", index_name(method)),
+        )),
+    }
+}
+
+fn array_index(
+    ctx: &mut CallContext,
+    array: &[Value],
+    needle: &Value,
+    offset: Option<usize>,
+    reverse: bool,
+) -> Result<Option<usize>> {
+    if array.is_empty() {
+        return Ok(None);
+    }
+    if reverse {
+        let start = offset.unwrap_or(array.len() - 1).min(array.len() - 1);
+        for i in (0..=start).rev() {
+            if equal(ctx, &array[i], needle, 0)? {
+                return Ok(Some(i));
+            }
+        }
+    } else {
+        let start = offset.unwrap_or(0);
+        for (i, item) in array.iter().enumerate().skip(start) {
+            if equal(ctx, item, needle, 0)? {
+                return Ok(Some(i));
+            }
+        }
+    }
+    Ok(None)
+}
+
 pub(crate) fn method(
     ctx: &mut CallContext,
     method: Method,
@@ -554,22 +600,32 @@ pub(crate) fn method(
             Ok(Value::int(value.require_bytes()?.len() as i64))
         }
         Include | Index | Rindex => {
-            arity(args, 1)?;
             if matches!(method, Include) && matches!(value.0, Kind::Hash(_)) {
+                arity(args, 1)?;
                 return crate::collections::method(ctx, Key, value, args);
             }
             let found = if let Some(array) = value.as_array() {
-                let mut found = None;
-                for (i, item) in array.iter().enumerate() {
-                    if equal(ctx, item, &args[0], 0)? {
-                        found = Some(i);
-                        if !matches!(method, Rindex) {
-                            break;
-                        }
+                if matches!(method, Include) {
+                    arity(args, 1)?;
+                    array_index(ctx, array, &args[0], None, false)?
+                } else {
+                    if args.is_empty() || args.len() > 2 {
+                        return Err(Error::new(
+                            ErrorKind::Argument,
+                            format!(
+                                "{} expects a value (with optional offset) or a block",
+                                index_name(method)
+                            ),
+                        ));
                     }
+                    let offset = match args.get(1) {
+                        Some(offset) => Some(index_offset(method, offset)?),
+                        None => None,
+                    };
+                    array_index(ctx, array, &args[0], offset, matches!(method, Rindex))?
                 }
-                found
             } else {
+                arity(args, 1)?;
                 let bytes = value.require_bytes()?;
                 let needle = args[0].require_bytes()?;
                 let found = find(ctx, bytes, needle, matches!(method, Rindex))?;

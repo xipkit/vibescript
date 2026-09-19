@@ -169,6 +169,15 @@ enum Callback<'a> {
     Operation(Fact),
 }
 
+// Value-form index/rindex start position. `Unknown` means positions may be
+// skipped, so a certain match can no longer terminate the scan.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Offset {
+    None,
+    Known(usize),
+    Unknown,
+}
+
 #[derive(Clone, Copy)]
 struct Driver<'a> {
     method: Method,
@@ -178,6 +187,7 @@ struct Driver<'a> {
     count_overflow: bool,
     exact: bool,
     site: Option<MemberSite>,
+    offset: Offset,
 }
 
 impl<'a> Driver<'a> {
@@ -186,6 +196,14 @@ impl<'a> Driver<'a> {
             Some(block)
         } else {
             None
+        }
+    }
+
+    fn skips(self, position: usize) -> bool {
+        match (self.method, self.offset) {
+            (Method::Index, Offset::Known(offset)) => position < offset,
+            (Method::Rindex, Offset::Known(offset)) => position > offset,
+            _ => false,
         }
     }
 }
@@ -348,6 +366,9 @@ impl Walker<'_> {
                     } else {
                         index
                     };
+                    if driver.skips(position) {
+                        continue;
+                    }
                     let Node::Tuple(items) = self.facts.node(view) else {
                         unreachable!()
                     };

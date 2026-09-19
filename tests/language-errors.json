@@ -122983,5 +122983,155 @@
     "go_error": "attempted to call non-callable value",
     "stdout": true,
     "stderr": true
+  },
+  {
+    "name": "array_offset_index_negative_error",
+    "body": "[1,2,1].index(1,-1)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_big_error",
+    "body": "[1,2,1].index(1,2**63)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_nan_error",
+    "body": "[1,2,1].index(1,0.0/0.0)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_infinity_error",
+    "body": "[1,2,1].index(1,1.0/0.0)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_float_overflow_error",
+    "body": "[1,2,1].index(1,9223372036854775808.0)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_string_error",
+    "body": "[1,2,1].index(1,\"1\")",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_nil_error",
+    "body": "[1,2,1].index(1,nil)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_bool_error",
+    "body": "[1,2,1].index(1,true)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_empty_validation",
+    "body": "[].index(1,-1)",
+    "go_error": "array.index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_index_value_with_block",
+    "body": "[1,2,1].index(1,1){true}",
+    "go_error": "array.index takes a value or a block, not both"
+  },
+  {
+    "name": "array_offset_find_index_negative_error",
+    "body": "[1,2,1].find_index(1,-1)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_big_error",
+    "body": "[1,2,1].find_index(1,2**63)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_nan_error",
+    "body": "[1,2,1].find_index(1,0.0/0.0)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_infinity_error",
+    "body": "[1,2,1].find_index(1,1.0/0.0)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_float_overflow_error",
+    "body": "[1,2,1].find_index(1,9223372036854775808.0)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_string_error",
+    "body": "[1,2,1].find_index(1,\"1\")",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_nil_error",
+    "body": "[1,2,1].find_index(1,nil)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_bool_error",
+    "body": "[1,2,1].find_index(1,true)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_empty_validation",
+    "body": "[].find_index(1,-1)",
+    "go_error": "array.find_index offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_find_index_value_with_block",
+    "body": "[1,2,1].find_index(1,1){true}",
+    "go_error": "array.find_index takes a value or a block, not both"
+  },
+  {
+    "name": "array_offset_rindex_negative_error",
+    "body": "[1,2,1].rindex(1,-1)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_big_error",
+    "body": "[1,2,1].rindex(1,2**63)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_nan_error",
+    "body": "[1,2,1].rindex(1,0.0/0.0)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_infinity_error",
+    "body": "[1,2,1].rindex(1,1.0/0.0)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_float_overflow_error",
+    "body": "[1,2,1].rindex(1,9223372036854775808.0)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_string_error",
+    "body": "[1,2,1].rindex(1,\"1\")",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_nil_error",
+    "body": "[1,2,1].rindex(1,nil)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_bool_error",
+    "body": "[1,2,1].rindex(1,true)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_empty_validation",
+    "body": "[].rindex(1,-1)",
+    "go_error": "array.rindex offset must be non-negative integer"
+  },
+  {
+    "name": "array_offset_rindex_value_with_block",
+    "body": "[1,2,1].rindex(1,1){true}",
+    "go_error": "array.rindex takes a value or a block, not both"
   }
 ]

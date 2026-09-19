@@ -124,6 +124,7 @@ impl Walker<'_> {
                 count_overflow: false,
                 exact: true,
                 site: Some(site),
+                offset: Offset::None,
             };
             let initial = IterationState {
                 state: state.snapshot(self.ctx)?,

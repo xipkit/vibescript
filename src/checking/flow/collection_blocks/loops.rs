@@ -35,6 +35,7 @@ impl Walker<'_> {
             count_overflow: false,
             exact: false,
             site: None,
+            offset: Offset::None,
         };
         let initial = IterationState {
             state: state.snapshot(self.ctx)?,

@@ -87,6 +87,7 @@ impl Walker<'_> {
                 count_overflow: false,
                 exact: true,
                 site: Some(site),
+                offset: Offset::None,
             };
             for &offset in &offsets.data {
                 self.ctx.charge(1)?;
