@@ -342,6 +342,12 @@ Literal named `is_type?` calls preserve source histories for native, class, modu
 
 Arbitrary dynamic type alternatives still require further analysis support; ordinary runtime execution supports these expressions.
 
+## Inspectable capability grants
+
+`Capability::from_value(name, value)` supplies the actual host binding template used by execution. All public checking scopes can inspect its data and published `HostMethod` signatures without running a factory, callback, validator or async future. Exact calls, declaration checks and whole-file checks retain strict-effects validation, global and lexical precedence, attached methods, required-file bindings and expired-grant rejection. `Capability::new` remains the factory API; any opaque factory grant keeps analysis explicitly incomplete, including shadowed factories.
+
+Templates use the existing metered deferred-input reader, sharing identities with supplied arguments and globals. Execution still imports every grant before script initialization, while checking admits a template when it is used. A clean report can therefore still encounter an ordinary import failure during execution. Names, metadata, traversal and diagnostics share the normal work, memory, cancellation and deadline limits; retained results keep their own runtime storage charges. See the [capability guide](capabilities.md) for the constructor and per-call state rules.
+
 ## Structural equality
 
 Ordinary `==` and `!=` analyze scalar literals, arrays and hashes. Exact tuples and closed required fields retain matching and mismatching results, including mixed integer/float comparisons without rounding distinct integers, signed zeros, NaN, byte-equivalent hash keys and object/plain-hash distinctions. Computed containers keep their value snapshots while comparison arguments mutate their original bindings. Nested instances compare identity; top-level source operators retain their existing dispatch. General collection types, optional/open fields and unknown values remain conservative rather than treating shared type facts as identical values.

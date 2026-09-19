@@ -1,5 +1,8 @@
 use serde_json::{Value as Json, json};
-use vibescript::{CallOptions, Capability, Error, ErrorKind, HostMethod, Value, stringify_json};
+use vibescript::{
+    CallOptions, Capability, Error, ErrorKind, HostMethod, Signature, SignatureParam, Value,
+    stringify_json,
+};
 
 /// Encodes comparison results without changing the language's JSON contract.
 pub fn encode(
@@ -117,8 +120,21 @@ pub fn notification(name: &str) -> vibescript::Result<Capability> {
             }
             Ok(())
         },
-    );
-    Ok(Capability::new(name, move |_| {
-        Ok(Value::object(vec![(b"send".to_vec(), send.value())]))
-    }))
+    )
+    .with_signature(Signature {
+        params: fields
+            .iter()
+            .map(|name| SignatureParam {
+                name: (*name).into(),
+                ty: "string".into(),
+                optional: false,
+            })
+            .collect(),
+        result: "hash".into(),
+        accepts_block: false,
+    })?;
+    Ok(Capability::from_value(
+        name,
+        Value::object(vec![(b"send".to_vec(), send.value())]),
+    ))
 }

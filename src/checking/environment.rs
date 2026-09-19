@@ -42,20 +42,33 @@ impl Environment {
         let code = &script.inner.code;
         let owner = facts.source_owner(ctx, code, None)?;
         let mut result = Self::module(ctx, facts, code, owner, &script.inner.loader)?;
+        // Grants bind in order and explicit globals bind last, matching runtime precedence.
+        // A value template is the exact value each invocation imports, so it joins the
+        // deferred inputs; a factory would need host code to run and stays incomplete.
         for capability in &options.capabilities {
             let name = ctx.bytes(capability.name.as_bytes())?;
-            result
-                .incomplete
-                .push(ctx, Incomplete::Capability(name.clone()))?;
-            result.bind(ctx, name, Target::Value(Atom::Unknown.fact()))?;
+            match capability.template() {
+                Some(template) => result.input(ctx, name, template)?,
+                None => {
+                    result
+                        .incomplete
+                        .push(ctx, Incomplete::Capability(name.clone()))?;
+                    result.bind(ctx, name, Target::Value(Atom::Unknown.fact()))?;
+                }
+            }
         }
         for (name, value) in &options.globals {
             let name = ctx.bytes(name.as_bytes())?;
-            let index = result.values.data.len();
-            result.values.push(ctx, value.clone())?;
-            result.bind(ctx, name, Target::Deferred(index))?;
+            result.input(ctx, name, value)?;
         }
         Ok(result)
+    }
+
+    /// Binds a supplied value lazily; admission happens on first use through `Values`.
+    fn input(&mut self, ctx: &mut CallContext, name: Value, value: &Value) -> Result<()> {
+        let index = self.values.data.len();
+        self.values.push(ctx, value.clone())?;
+        self.bind(ctx, name, Target::Deferred(index))
     }
 
     /// Prepares loaded source metadata without constructing or executing a runtime environment.

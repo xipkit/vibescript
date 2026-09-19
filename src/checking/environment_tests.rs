@@ -437,6 +437,288 @@ fn opaque_factories_remain_pending_even_when_an_explicit_global_overrides_them()
 }
 
 #[test]
+fn value_templates_bind_as_deferred_inputs_and_keep_factories_incomplete() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let callback = calls.clone();
+    let validator = calls.clone();
+    let send = HostMethod::new("SMS.send", move |ctx, args, _| {
+        callback.fetch_add(1, Ordering::Relaxed);
+        ctx.bytes(args[0].as_bytes().unwrap())
+    })
+    .with_contract(
+        move |_, _, _| {
+            validator.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        },
+        |_, _| Ok(()),
+    )
+    .with_signature(signature(Some("string"), "string", false))
+    .unwrap();
+    let template = Value::object(vec![(b"send".to_vec(), send.value())]);
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    let script = engine.compile("def run; SMS.send(\"hi\"); end").unwrap();
+    let options = CallOptions {
+        capabilities: vec![
+            Capability::from_value("SMS", Value::int(1)),
+            Capability::from_value("SMS", template.clone()),
+            Capability::from_value("shadowed", template.clone()),
+        ],
+        globals: [("shadowed".into(), Value::int(7))].into(),
+        ..CallOptions::default()
+    };
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let environment = Environment::new(&mut ctx, &mut facts, &script, &options).unwrap();
+    assert!(environment.incomplete.data.is_empty());
+    let world = environment.world();
+    // Later grants replace earlier names and explicit globals replace grants.
+    assert_eq!(world.globals.len(), 2);
+    assert!(world.globals[0].0.as_bytes() == Some(b"SMS"));
+    assert!(matches!(
+        world.globals[0].1,
+        super::calls::Target::Deferred(1)
+    ));
+    assert!(matches!(
+        world.globals[1].1,
+        super::calls::Target::Deferred(3)
+    ));
+    assert_eq!(world.inputs[3].as_int(), Some(7));
+    let mut values = Values::new();
+    let bound = values.read(&mut ctx, &mut facts, &world, 1).unwrap();
+    assert!(!bound.incomplete);
+    let selected = facts
+        .selected_field(&mut ctx, bound.value, b"send")
+        .unwrap()
+        .unwrap()
+        .0;
+    assert!(matches!(
+        facts.node(selected),
+        Node::Callable {
+            target: Callable::Host(_),
+            ..
+        }
+    ));
+    assert!(values.host(&mut ctx, &world, 0).unwrap().is_some());
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    drop((values, environment));
+    witness(&script, &options, "hi", false);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    let count = calls.clone();
+    let mixed = CallOptions {
+        capabilities: vec![
+            Capability::from_value("SMS", template),
+            Capability::new("opaque", move |_| {
+                count.fetch_add(1, Ordering::Relaxed);
+                Ok(Value::nil())
+            }),
+        ],
+        ..CallOptions::default()
+    };
+    let environment = Environment::new(&mut ctx, &mut facts, &script, &mixed).unwrap();
+    assert_eq!(environment.incomplete.data.len(), 1);
+    assert!(matches!(
+        &environment.incomplete.data[0],
+        Incomplete::Capability(name) if name.as_bytes() == Some(b"opaque")
+    ));
+    let report = environment
+        .analyze(
+            &mut ctx,
+            &mut facts,
+            script.inner.code.program.names["run"],
+            &[],
+        )
+        .unwrap();
+    assert!(!report.incomplete.data.is_empty());
+    assert_eq!(report.contexts, 0);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    drop((report, environment, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+}
+
+#[test]
+fn value_templates_keep_expired_grants_revoked_without_running_validators() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let callback = calls.clone();
+    let validator = calls.clone();
+    let method = HostMethod::new("SMS.send", move |_, _, _| {
+        callback.fetch_add(1, Ordering::Relaxed);
+        Ok(Value::int(7))
+    })
+    .with_contract(
+        move |_, _, _| {
+            validator.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        },
+        |_, _| Ok(()),
+    )
+    .with_signature(signature(None, "int", false))
+    .unwrap();
+    let fresh = Value::object(vec![(b"send".to_vec(), method.value())]);
+    let grant = |template: Value| CallOptions {
+        capabilities: vec![Capability::from_value("SMS", template)],
+        ..CallOptions::default()
+    };
+    let producer = Engine::new().compile("def run; SMS; end").unwrap();
+    let expired = producer
+        .call("run", &[], grant(fresh.clone()))
+        .unwrap()
+        .value;
+    let script = Engine::new()
+        .compile("def run; begin; SMS.send(); rescue; 9; end; end")
+        .unwrap();
+    witness(&script, &grant(fresh), "7", false);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    let stale = grant(expired);
+    let mut ctx = CallContext::new(CallOptions::default());
+    let mut facts = Facts::new(&mut ctx).unwrap();
+    let environment = Environment::new(&mut ctx, &mut facts, &script, &stale).unwrap();
+    assert!(environment.incomplete.data.is_empty());
+    let report = environment
+        .analyze(
+            &mut ctx,
+            &mut facts,
+            script.inner.code.program.names["run"],
+            &[],
+        )
+        .unwrap();
+    assert!(report.issues.data.iter().any(|issue| matches!(
+        issue.issue.kind,
+        IssueKind::Call {
+            failure: Failure::HostGrant,
+            ..
+        }
+    )));
+    drop((report, environment, facts));
+    assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    witness(&script, &stale, "9", true);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+}
+
+fn template_script() -> (Script, CallOptions) {
+    let send = HostMethod::new("SMS.send", |_, _, _| panic!("checker ran a callback"))
+        .with_signature(signature(Some("array<Status>"), "Status", false))
+        .unwrap();
+    let mut engine = Engine::new();
+    engine.set_strict_effects(true);
+    let script = engine
+        .compile("enum Status; Draft; Sent; end; def run; SMS.send([:draft]).name; end")
+        .unwrap();
+    let template = Value::object(vec![
+        (b"send".to_vec(), send.value()),
+        (b"alias".to_vec(), send.value()),
+        (
+            b"limits".to_vec(),
+            Value::array(vec![Value::int(1), Value::bytes(vec![b'x'; 512])]),
+        ),
+    ]);
+    let options = CallOptions {
+        capabilities: vec![Capability::from_value("SMS", template)],
+        globals: (0..4)
+            .map(|index| (format!("root{index}"), Value::int(index)))
+            .collect(),
+        ..CallOptions::default()
+    };
+    (script, options)
+}
+
+#[test]
+fn value_template_preparation_and_analysis_obey_exact_and_sampled_quotas() {
+    let (script, options) = template_script();
+    let mut ctx = CallContext::new(CallOptions::default());
+    work(&mut ctx, &script, &options).unwrap();
+    let stats = ctx.stats();
+    assert_eq!(stats.retained_memory_bytes, 0);
+    for (memory, steps, expected) in [
+        (stats.peak_memory_bytes, stats.steps, None),
+        (
+            stats.peak_memory_bytes - 1,
+            stats.steps,
+            Some(ErrorKind::Memory),
+        ),
+        (
+            stats.peak_memory_bytes,
+            stats.steps - 1,
+            Some(ErrorKind::Steps),
+        ),
+    ] {
+        let mut ctx = CallContext::new(CallOptions {
+            limits: Limits {
+                memory_bytes: Some(memory),
+                steps: Some(steps),
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        });
+        assert_eq!(
+            work(&mut ctx, &script, &options)
+                .err()
+                .map(|error| error.kind),
+            expected
+        );
+        if let Some(kind) = expected {
+            assert_eq!(ctx.checkpoint().unwrap_err().kind, kind);
+        }
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+    for sample in 0..24 {
+        for memory in [false, true] {
+            let mut limits = Limits::default();
+            let expected = if memory {
+                limits.memory_bytes = Some(stats.peak_memory_bytes * sample / 24);
+                ErrorKind::Memory
+            } else {
+                limits.steps = Some(stats.steps * sample as u64 / 24);
+                ErrorKind::Steps
+            };
+            let mut ctx = CallContext::new(CallOptions {
+                limits,
+                ..CallOptions::default()
+            });
+            assert_eq!(
+                work(&mut ctx, &script, &options).unwrap_err().kind,
+                expected
+            );
+            assert_eq!(ctx.checkpoint().unwrap_err().kind, expected);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+}
+
+#[test]
+fn value_template_preparation_and_analysis_preserve_cancellation_and_deadlines() {
+    let (script, options) = template_script();
+    let function = script.inner.code.program.names["run"];
+    for prepared in [false, true] {
+        for deadline in [false, true] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let mut facts = Facts::new(&mut ctx).unwrap();
+            let environment = prepared
+                .then(|| Environment::new(&mut ctx, &mut facts, &script, &options).unwrap());
+            let expected = if deadline {
+                ctx.options.deadline = Some(std::time::Instant::now());
+                ErrorKind::Deadline
+            } else {
+                ctx.cancellation().cancel();
+                ErrorKind::Cancelled
+            };
+            let error = match environment {
+                Some(environment) => environment
+                    .analyze(&mut ctx, &mut facts, function, &[])
+                    .unwrap_err(),
+                None => Environment::new(&mut ctx, &mut facts, &script, &options)
+                    .err()
+                    .unwrap(),
+            };
+            assert_eq!(error.kind, expected);
+            assert_eq!(ctx.checkpoint().unwrap_err().kind, expected);
+            drop(facts);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+}
+
+#[test]
 fn initializers_are_analyzed_in_local_and_foreign_sources() {
     let mut engine = Engine::new();
     engine.register("mark", |_, _| panic!("initializer executed"));

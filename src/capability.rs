@@ -38,10 +38,12 @@ pub(crate) enum Registered {
 
 /// A host namespace granted explicitly to one script invocation.
 ///
-/// The factory runs once before script initialization, under the receiving call's
+/// A factory runs once before script initialization, under the receiving call's
 /// context. Return an object containing data and [`HostMethod`] values, or a
 /// method descriptor for a global callable. Cloning a capability shares its
-/// factory; mutable per-call state belongs inside the factory.
+/// factory; mutable per-call state belongs inside the factory. An immutable
+/// binding built once on the host side can be granted through
+/// [`Self::from_value`] instead, which also lets the static checker read it.
 ///
 /// ```
 /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Value};
@@ -63,24 +65,78 @@ pub(crate) enum Registered {
 #[derive(Clone)]
 pub struct Capability {
     pub(crate) name: String,
-    binder: Binder,
+    binding: Binding,
+}
+
+#[derive(Clone)]
+enum Binding {
+    Factory(Binder),
+    Value(Value),
 }
 
 impl Capability {
     /// Creates a named per-call binding factory. Later grants replace earlier names.
+    ///
+    /// The factory is opaque to static checking: reports for calls granted a
+    /// factory remain incomplete, because inspecting its binding would require
+    /// running host code. Use it when each invocation needs fresh callback state.
     pub fn new(
         name: impl Into<String>,
         bind: impl Fn(&mut CallContext) -> Result<Value> + Send + Sync + 'static,
     ) -> Self {
         Self {
             name: name.into(),
-            binder: Arc::new(bind),
+            binding: Binding::Factory(Arc::new(bind)),
+        }
+    }
+
+    /// Creates a named grant from an immutable host binding template.
+    ///
+    /// The template is usually an object containing [`HostMethod`] descriptors.
+    /// Every invocation imports this same value, so its data and published
+    /// signatures can be checked statically without executing any host code,
+    /// while each import still gives the methods that call's own fresh grant.
+    /// Callbacks that need per-call state belong in a [`Self::new`] factory. A
+    /// descriptor that was already returned from an earlier invocation keeps its
+    /// expired grant and cannot authorize another call through this template.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Capability, Engine, HostMethod, Signature, SignatureParam, Value};
+    /// let send = HostMethod::new("SMS.send", |ctx, _, _| ctx.bytes(b"queued"))
+    ///     .with_signature(Signature {
+    ///         params: vec![SignatureParam { name: "message".into(), ty: "string".into(), optional: false }],
+    ///         result: "string".into(),
+    ///         accepts_block: false,
+    ///     })?;
+    /// let sms = Capability::from_value("SMS", Value::object(vec![(b"send".to_vec(), send.value())]));
+    /// let options = CallOptions { capabilities: vec![sms], ..CallOptions::default() };
+    /// let script = Engine::new().compile("def run -> string; SMS.send(\"hello\"); end")?;
+    /// assert!(script.check_call("run", &[], &options)?.is_clean());
+    /// assert!(!Engine::new().compile("def run; SMS.send(1); end")?.check_call("run", &[], &options)?.is_clean());
+    /// assert_eq!(script.call("run", &[], options)?.value.as_bytes(), Some(b"queued".as_slice()));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    pub fn from_value(name: impl Into<String>, value: Value) -> Self {
+        Self {
+            name: name.into(),
+            binding: Binding::Value(value),
+        }
+    }
+
+    /// Exposes an immutable binding template to the checker; factories stay opaque.
+    pub(crate) fn template(&self) -> Option<&Value> {
+        match &self.binding {
+            Binding::Factory(_) => None,
+            Binding::Value(value) => Some(value),
         }
     }
 
     pub(crate) fn bind(&self, ctx: &mut CallContext) -> Result<Value> {
         ctx.checkpoint()?;
-        let value = (self.binder)(ctx);
+        let value = match &self.binding {
+            Binding::Factory(bind) => bind(ctx),
+            Binding::Value(value) => Ok(value.clone()),
+        };
         ctx.checkpoint()?;
         ctx.import(&value?)
     }

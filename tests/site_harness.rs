@@ -1,5 +1,5 @@
 use serde_json::{Value as Json, json};
-use vibescript::{CallOptions, Engine, ErrorKind, HostMethod, Value};
+use vibescript::{CallOptions, CheckedOutcome, Engine, ErrorKind, HostMethod, Value};
 
 #[path = "../examples/support/mod.rs"]
 mod support;
@@ -79,5 +79,37 @@ fn notification_previews_use_explicit_grants_and_validate_inputs() {
                     .is_err()
             );
         }
+    }
+}
+
+#[test]
+fn unchanged_notification_examples_run_through_checked_template_grants() {
+    for (name, source, expected) in [
+        (
+            "sms",
+            include_str!("site/showcase/notifications/sms.vibe"),
+            json!({"status":"preview", "to":"+12025550123", "body":"Order 1042 is on its way."}),
+        ),
+        (
+            "email",
+            include_str!("site/showcase/notifications/email.vibe"),
+            json!({"status":"preview", "to":"alex@example.com", "subject":"Welcome, Alex!", "body":"Hi Alex,\n\nYour account is ready. Thanks for joining us."}),
+        ),
+    ] {
+        let mut engine = Engine::new();
+        engine.set_strict_effects(true);
+        let script = engine.compile(source).unwrap();
+        let options = CallOptions {
+            capabilities: vec![support::notification(name).unwrap()],
+            ..CallOptions::default()
+        };
+        let report = script.check_call("run", &[], &options).unwrap();
+        assert!(report.is_clean(), "{name}: {report:?}");
+        let CheckedOutcome::Executed(output) = script.checked_call("run", &[], options).unwrap()
+        else {
+            panic!("{name}: checked notification preview was rejected");
+        };
+        let encoded = support::encode(&output.value, "json", CallOptions::default()).unwrap();
+        assert_eq!(serde_json::from_slice::<Json>(&encoded).unwrap(), expected);
     }
 }
