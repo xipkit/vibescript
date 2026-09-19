@@ -165,8 +165,21 @@ pub(super) trait Calls {
         &mut self,
         ctx: &mut CallContext,
         _: &mut Facts,
+        _: SourceId,
         _: usize,
         _: &Globals,
+    ) -> Result<Option<Fact>> {
+        ctx.checkpoint()?;
+        Ok(None)
+    }
+    /// Builds an abstract input's property domains in its defining source.
+    fn instance_fields(
+        &mut self,
+        ctx: &mut CallContext,
+        _: &mut Facts,
+        _: SourceId,
+        _: usize,
+        _: Option<Fact>,
     ) -> Result<Option<Fact>> {
         ctx.checkpoint()?;
         Ok(None)
@@ -1314,10 +1327,41 @@ impl Calls for Solver<'_, '_> {
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
+        source: SourceId,
         module: usize,
         globals: &Globals,
     ) -> Result<Option<Fact>> {
-        self.constructor_fields(ctx, facts, module, globals)
+        if source == self.source {
+            return self.constructor_fields(ctx, facts, module, globals);
+        }
+        let Some((index, handle)) = self.callee(ctx, facts, source)? else {
+            return Ok(None);
+        };
+        self.state
+            .adapter(index, &handle)
+            .constructor_fields(ctx, facts, module, globals)
+    }
+
+    fn instance_fields(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        source: SourceId,
+        module: usize,
+        initial: Option<Fact>,
+    ) -> Result<Option<Fact>> {
+        let Some((_, handle)) = self.callee(ctx, facts, source)? else {
+            return Ok(None);
+        };
+        let view = handle.view();
+        flow::general::Model {
+            initial,
+            program: view.world.program,
+            layouts: view.layouts,
+            contracts: view.world.contracts,
+        }
+        .fields(ctx, facts, module, super::facts::InstanceKind::Symbolic)
+        .map(Some)
     }
 
     fn initialize(

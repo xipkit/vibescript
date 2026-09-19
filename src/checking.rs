@@ -26,6 +26,8 @@ mod facts;
 mod file_binding_tests;
 mod file_bindings;
 mod flow;
+#[cfg(test)]
+mod foreign_input_tests;
 mod globals;
 mod graph;
 mod heaps;

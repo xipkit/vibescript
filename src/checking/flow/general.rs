@@ -1,92 +1,101 @@
 use super::*;
 use crate::checking::facts::{Field, InstanceKind, Node, NominalId};
 
-pub(super) struct Model<'a> {
+pub(in crate::checking) struct Model<'a> {
     pub initial: Option<Fact>,
     pub program: &'a Program,
     pub layouts: &'a Layouts,
     pub contracts: &'a [Fact],
 }
 
+impl Model<'_> {
+    /// Derives property domains from the declaring source and constructor summary.
+    pub(in crate::checking) fn fields(
+        self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        module: usize,
+        kind: InstanceKind,
+    ) -> Result<Fact> {
+        let Self {
+            initial,
+            program,
+            layouts,
+            contracts,
+        } = self;
+        let mut fields = Buffer::empty();
+        if kind != InstanceKind::Concrete {
+            for method in &program.namespaces[module].instance_methods {
+                ctx.charge(1)?;
+                let Some((name, _)) = &program.functions[method.function].accessor else {
+                    continue;
+                };
+                let Some(ty) =
+                    crate::checking::namespaces::property_type(ctx, program, module, name)?
+                else {
+                    continue;
+                };
+                let value = if layouts.named_annotation(ctx, ty)? {
+                    Atom::Unknown.fact()
+                } else {
+                    let value = facts.value_domain(ctx, contracts[ty])?;
+                    if let Some(initial) = initial {
+                        let selected =
+                            crate::checking::namespaces::field(ctx, facts, initial, name)?;
+                        let mut unknown = selected.incomplete;
+                        for i in 0..facts.arm_count(selected.value) {
+                            ctx.charge(1)?;
+                            unknown |= facts.arm(selected.value, i) == Atom::Unknown.fact();
+                        }
+                        if selected.missing {
+                            facts.nullable(ctx, value)?
+                        } else if unknown {
+                            facts.union(ctx, &[value, Atom::Unknown.fact()])?
+                        } else {
+                            value
+                        }
+                    } else {
+                        facts.nullable(ctx, value)?
+                    }
+                };
+                let name = ctx.bytes(name.as_bytes())?;
+                fields.push(
+                    ctx,
+                    Field {
+                        name,
+                        value,
+                        optional: false,
+                    },
+                )?;
+            }
+        }
+        facts.shape_fields(
+            ctx,
+            fields,
+            kind != InstanceKind::Concrete,
+            Atom::String.fact(),
+            crate::checking::facts::HashKind::Plain,
+        )
+    }
+}
+
 pub(super) fn allocate(
     ctx: &mut CallContext,
     facts: &mut Facts,
-    model: Model<'_>,
     state: &mut State,
-    module: usize,
+    root: usize,
+    class: Fact,
+    fields: Fact,
     kind: InstanceKind,
 ) -> Result<Option<Fact>> {
-    let Model {
-        initial,
-        program,
-        layouts,
-        contracts,
-    } = model;
-    let root = state.global_base + state.source_slots.namespace(module) + 2;
     let before = state.locals.get(ctx, root)?.value;
     let Some(mut heap) = crate::checking::heaps::entries(ctx, facts, before)? else {
         return Ok(None);
     };
     let slot = heap.data.len();
-    let mut fields = Buffer::empty();
-    if kind != InstanceKind::Concrete {
-        for method in &program.namespaces[module].instance_methods {
-            ctx.charge(1)?;
-            let Some((name, _)) = &program.functions[method.function].accessor else {
-                continue;
-            };
-            let Some(ty) = crate::checking::namespaces::property_type(ctx, program, module, name)?
-            else {
-                continue;
-            };
-            let value = if layouts.named_annotation(ctx, ty)? {
-                Atom::Unknown.fact()
-            } else {
-                let value = facts.value_domain(ctx, contracts[ty])?;
-                if let Some(initial) = initial {
-                    let selected = crate::checking::namespaces::field(ctx, facts, initial, name)?;
-                    let mut unknown = selected.incomplete;
-                    for i in 0..facts.arm_count(selected.value) {
-                        ctx.charge(1)?;
-                        unknown |= facts.arm(selected.value, i) == Atom::Unknown.fact();
-                    }
-                    if selected.missing {
-                        facts.nullable(ctx, value)?
-                    } else if unknown {
-                        facts.union(ctx, &[value, Atom::Unknown.fact()])?
-                    } else {
-                        value
-                    }
-                } else {
-                    facts.nullable(ctx, value)?
-                }
-            };
-            let name = ctx.bytes(name.as_bytes())?;
-            fields.push(
-                ctx,
-                Field {
-                    name,
-                    value,
-                    optional: false,
-                },
-            )?;
-        }
-    }
-    let fields = facts.shape_fields(
-        ctx,
-        fields,
-        kind != InstanceKind::Concrete,
-        Atom::String.fact(),
-        crate::checking::facts::HashKind::Plain,
-    )?;
     heap.push(ctx, fields)?;
     let next = facts.tuple(ctx, &heap.data)?;
     state.store(ctx, facts, root, next)?;
-    let class =
-        crate::checking::namespaces::value(ctx, facts, program, layouts.source_owner, module)?;
-    let Node::TypeValue(class) = *facts.node(class) else {
-        unreachable!()
-    };
     let value = facts.instance_kind(ctx, class, slot, kind)?;
     if kind != InstanceKind::Concrete {
         let before = state.locals.get(ctx, root + 1)?.value;
@@ -192,16 +201,19 @@ impl Walker<'_> {
             let value = match task {
                 Task::Visit(value, summary) => match self.facts.node(value) {
                     Node::Nominal {
-                        identity: NominalId::Binding(owner, index),
+                        identity: NominalId::Binding(..),
                         symbols: None,
                         ..
-                    } if *owner == self.layouts.source_owner => {
-                        let Kind::Namespace(namespace) = &self.program.declarations[*index].0
-                        else {
-                            values.push(self.ctx, value)?;
-                            continue;
+                    } => {
+                        let class = self.facts.type_value(self.ctx, value)?;
+                        let Some(namespace) = self.namespace(state, class)? else {
+                            self.incomplete(pc)?;
+                            return Ok(None);
                         };
-                        if namespace.definition.constructor.is_none() {
+                        if namespace.program().namespaces[namespace.index]
+                            .constructor
+                            .is_none()
+                        {
                             values.push(self.ctx, value)?;
                             continue;
                         }
@@ -220,24 +232,48 @@ impl Walker<'_> {
                             self.calls.receiver_fields(
                                 self.ctx,
                                 self.facts,
-                                namespace.definition.index,
+                                namespace.source,
+                                namespace.index,
                                 &globals,
                             )?
                         };
                         if initial == Some(Atom::Never.fact()) {
                             return Ok(None);
                         }
-                        let Some(value) = allocate(
-                            self.ctx,
-                            self.facts,
+                        let fields = if namespace.source == self.source {
                             Model {
                                 initial,
                                 program: self.program,
                                 layouts: self.layouts,
                                 contracts: self.contracts,
-                            },
+                            }
+                            .fields(
+                                self.ctx,
+                                self.facts,
+                                namespace.index,
+                                kind,
+                            )?
+                        } else {
+                            let Some(fields) = self.calls.instance_fields(
+                                self.ctx,
+                                self.facts,
+                                namespace.source,
+                                namespace.index,
+                                initial,
+                            )?
+                            else {
+                                self.incomplete(pc)?;
+                                return Ok(None);
+                            };
+                            fields
+                        };
+                        let Some(value) = allocate(
+                            self.ctx,
+                            self.facts,
                             state,
-                            namespace.definition.index,
+                            namespace.root + 2,
+                            value,
+                            fields,
                             kind,
                         )?
                         else {

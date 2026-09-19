@@ -31,7 +31,7 @@ mod collection_blocks;
 mod declarations;
 mod effects;
 mod files;
-mod general;
+pub(super) mod general;
 mod globals;
 mod handlers;
 mod host_blocks;
@@ -864,7 +864,7 @@ pub(super) fn analyze_body(
         let fields = if constructor {
             None
         } else {
-            calls.receiver_fields(ctx, facts, function.namespace.unwrap(), globals)?
+            calls.receiver_fields(ctx, facts, source, function.namespace.unwrap(), globals)?
         };
         if fields == Some(Atom::Never.fact()) {
             return Ok(report);
@@ -874,19 +874,20 @@ pub(super) fn analyze_body(
         } else {
             super::facts::InstanceKind::Symbolic
         };
-        let value = general::allocate(
-            ctx,
-            facts,
-            general::Model {
-                initial: fields,
-                program,
-                layouts,
-                contracts,
-            },
-            &mut initial,
-            function.namespace.unwrap(),
-            kind,
-        )?;
+        let module = function.namespace.unwrap();
+        let fields = general::Model {
+            initial: fields,
+            program,
+            layouts,
+            contracts,
+        }
+        .fields(ctx, facts, module, kind)?;
+        let class = super::namespaces::value(ctx, facts, program, layouts.source_owner, module)?;
+        let super::facts::Node::TypeValue(class) = *facts.node(class) else {
+            unreachable!()
+        };
+        let root = initial.global_base + initial.source_slots.namespace(module) + 2;
+        let value = general::allocate(ctx, facts, &mut initial, root, class, fields, kind)?;
         if value.is_none() {
             report.incomplete.push(ctx, 0)?;
             return Ok(report);

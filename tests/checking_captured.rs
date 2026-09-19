@@ -399,6 +399,50 @@ fn declaration_inputs_can_alias_a_captured_global_in_both_mutation_directions() 
 }
 
 #[test]
+fn foreign_general_inputs_keep_required_file_bindings_and_distinct_captures() {
+    let files = Files::new();
+    files.write("owned.vibe", "base=7;class Box;property n:int;def initialize;@n=base;end;def answer;@n=base;@n;end;end;def klass;Box;end;def make;Box.new;end");
+    let producer = files
+        .engine()
+        .compile("def pair;m=require(:owned);[m.klass(),m.make()];end")
+        .unwrap();
+    let a = producer
+        .call("pair", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let b = producer
+        .call("pair", &[], CallOptions::default())
+        .unwrap()
+        .value;
+    let a = a.as_array().unwrap();
+    let b = b.as_array().unwrap();
+    let options = CallOptions {
+        globals: [("A".into(), a[0].clone()), ("B".into(), b[0].clone())].into(),
+        ..Default::default()
+    };
+    let receiver = Engine::new()
+        .compile("def run(a:A,b:B)->int;a.n=7;b.n=9;if a==b;false;else;a.answer;end;end")
+        .unwrap();
+    assert_eq!(
+        receiver
+            .call("run", &[a[1].clone(), b[1].clone()], options.clone())
+            .unwrap()
+            .value
+            .as_int(),
+        Some(7)
+    );
+    for whole in [false, true] {
+        let report = if whole {
+            receiver.check(&options)
+        } else {
+            receiver.check_function("run", &options)
+        }
+        .unwrap();
+        assert!(report.is_clean(), "{report:?}");
+    }
+}
+
+#[test]
 fn foreign_property_type_lookup_initializes_a_deferred_namespace() {
     let producer = Engine::new()
         .compile("class Holder;property item:C?;end;def make;Holder.new;end")
