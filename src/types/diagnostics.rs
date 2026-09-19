@@ -351,6 +351,7 @@ mod tests {
         limits.extend([peak - 1, peak]);
         for limit in limits {
             let (mut ctx, value) = imported();
+            let previous_peak = ctx.stats().peak_memory_bytes;
             let retained = ctx.stats().retained_memory_bytes;
             ctx.options.limits.memory_bytes = Some(limit);
             let failure = error(&mut ctx, &value);
@@ -361,7 +362,7 @@ mod tests {
                 assert_eq!(failure.kind, ErrorKind::Type);
                 ctx.checkpoint().unwrap();
             }
-            assert!(ctx.stats().peak_memory_bytes <= limit);
+            assert!(ctx.stats().peak_memory_bytes <= limit.max(previous_peak));
             assert_eq!(ctx.stats().retained_memory_bytes, retained);
             drop(value);
             assert_eq!(ctx.stats().retained_memory_bytes, 0);

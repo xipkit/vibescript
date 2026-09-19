@@ -378,9 +378,9 @@ fn nested(depth: usize) -> Value {
 #[test]
 fn grouping_depth_guards_follow_callback_writes_before_the_next_iteration() {
     for (method, depth) in [
-        ("partition", 127),
-        ("group_by", 127),
-        ("group_by_stable", 126),
+        ("partition", crate::budget::MAX_VALUE_DEPTH - 1),
+        ("group_by", crate::budget::MAX_VALUE_DEPTH - 1),
+        ("group_by_stable", crate::budget::MAX_VALUE_DEPTH - 2),
     ] {
         let source = format!(
             "def run(xs:array<any>); x=[]; begin; xs.{method} {{x.push(7); :a}}; x.push(9); rescue LimitError; x; end; end"
@@ -395,7 +395,7 @@ fn grouping_depth_guards_follow_callback_writes_before_the_next_iteration() {
         assert_eq!(actual.to_string(), "[[7], 9]", "{source}");
     }
     let source = "def run(v:any); x=[]; begin; {a:7}.transform_values {x.push(7); v}; x.push(9); rescue LimitError; x; end; end";
-    let actual = inferred_runtime(source, &[nested(128)], false);
+    let actual = inferred_runtime(source, &[nested(crate::budget::MAX_VALUE_DEPTH)], false);
     assert_eq!(actual.to_string(), "[7]");
 }
 
@@ -409,21 +409,34 @@ fn adjacent_depth_guards_run_when_a_group_is_flushed() {
             let source = format!(
                 "def run(xs:array<any>); x=[]; begin; xs.{method} {{x.push(7); {condition}}}; x.push(9); rescue LimitError; x; end; end"
             );
-            let input = Value::array(vec![nested(127), Value::int(9), Value::int(11)]);
+            let input = Value::array(vec![
+                nested(crate::budget::MAX_VALUE_DEPTH - 1),
+                Value::int(9),
+                Value::int(11),
+            ]);
             let actual = inferred_runtime(&source, &[input], false);
             assert_eq!(actual.to_string(), expected, "{source}");
         }
         let source = format!(
             "def run(xs:array<any>); x=[]; begin; xs.{method} {{x.push(7); true}}; x.push(9); rescue LimitError; x; end; end"
         );
-        let actual = inferred_runtime(&source, &[Value::array(vec![nested(127)])], false);
+        let actual = inferred_runtime(
+            &source,
+            &[Value::array(vec![nested(
+                crate::budget::MAX_VALUE_DEPTH - 1,
+            )])],
+            false,
+        );
         assert_eq!(actual.to_string(), "[]", "{source}");
         let source = format!(
             "def run(xs:array<any>); x=[]; result=xs.{method} {{x.push(7); break 9}}; [x,result]; end"
         );
         let actual = inferred_runtime(
             &source,
-            &[Value::array(vec![nested(127), Value::int(9)])],
+            &[Value::array(vec![
+                nested(crate::budget::MAX_VALUE_DEPTH - 1),
+                Value::int(9),
+            ])],
             false,
         );
         assert_eq!(actual.to_string(), "[[7], 9]", "{source}");

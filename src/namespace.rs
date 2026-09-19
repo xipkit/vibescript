@@ -83,7 +83,7 @@ impl Namespace {
     pub fn import(ctx: &mut CallContext, value: &Arc<Self>) -> Result<Arc<Self>> {
         ctx.checkpoint()?;
         let environment = if let Some(environment) = &value.environment {
-            if ctx.namespace_depth >= crate::budget::MAX_VALUE_DEPTH {
+            if ctx.namespace_depth >= crate::budget::MAX_ENVIRONMENT_DEPTH {
                 return ctx.guard(
                     crate::ErrorKind::Recursion,
                     "namespace environment nesting too deep",

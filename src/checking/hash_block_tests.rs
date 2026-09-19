@@ -271,7 +271,7 @@ fn hash_callbacks_preserve_every_ordinary_error_class_and_retry() {
 #[test]
 fn conflict_result_depth_guards_follow_writes_and_precede_later_sources() {
     let mut value = Value::int(7);
-    for _ in 0..128 {
+    for _ in 0..crate::budget::MAX_VALUE_DEPTH {
         value = Value::array(vec![value]);
     }
     let result = inferred_runtime(
@@ -283,58 +283,76 @@ fn conflict_result_depth_guards_follow_writes_and_precede_later_sources() {
 }
 
 #[test]
-fn deep_frames_handle_the_full_value_depth_without_native_recursion() {
+fn deep_frames_preserve_results_and_analysis_limits_without_native_recursion() {
     use super::{arguments, calls, facts::Atom};
-    let source = "def run(input); input.deep_transform_keys {|k| k}; end";
-    let program = crate::bytecode::compile(source, Vec::new(), &()).unwrap();
-    let mut ctx = CallContext::new(CallOptions::default());
-    let mut facts = Facts::new(&mut ctx).unwrap();
-    let mut input = facts.integer(&mut ctx, 7).unwrap();
-    let mut value = Value::int(7);
-    for _ in 0..128 {
-        input = facts
-            .shape(&mut ctx, &[(b"key", input, false)], false)
+    for depth in [128, crate::budget::MAX_VALUE_DEPTH] {
+        let source = "def run(input); input.deep_transform_keys {|k| k}; end";
+        let program = crate::bytecode::compile(source, Vec::new(), &()).unwrap();
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut facts = Facts::new(&mut ctx).unwrap();
+        let mut input = facts.integer(&mut ctx, 7).unwrap();
+        let mut value = Value::int(7);
+        for _ in 0..depth {
+            input = facts
+                .shape(&mut ctx, &[(b"key", input, false)], false)
+                .unwrap();
+            value = Value::hash(vec![(b"key".to_vec(), value)]);
+        }
+        let inputs = [arguments::Input::Supplied(input)];
+        let report = calls::analyze(
+            &mut ctx,
+            &mut facts,
+            calls::World {
+                loader: None,
+                inputs: &[],
+                source_owner: 0,
+                program: &program,
+                contracts: &[],
+                hosts: &[],
+                globals: &[],
+            },
+            program.names["run"],
+            &inputs,
+        );
+        match &report {
+            Ok(report) => {
+                assert!(
+                    report.incomplete.data.is_empty() && report.issues.data.is_empty(),
+                    "{report:?}"
+                );
+                assert_eq!(report.returns, input);
+                assert_ne!(report.returns, Atom::Never.fact());
+            }
+            Err(error) => {
+                // Analysis retains more state per level than execution. At the full
+                // depth it may exhaust the normal budget, but never the native stack.
+                assert_eq!(depth, crate::budget::MAX_VALUE_DEPTH);
+                assert!(
+                    matches!(
+                        error.kind,
+                        crate::ErrorKind::Memory | crate::ErrorKind::Steps
+                    ),
+                    "{error}"
+                );
+                assert_eq!(ctx.checkpoint().unwrap_err().kind, error.kind);
+            }
+        }
+        let actual = crate::Engine::new()
+            .compile(source)
+            .unwrap()
+            .call("run", &[value], CallOptions::default())
             .unwrap();
-        value = Value::hash(vec![(b"key".to_vec(), value)]);
+        let mut cursor = &actual.value;
+        for _ in 0..depth {
+            let entries = cursor.as_hash().unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].0.as_bytes(), Some(&b"key"[..]));
+            cursor = &entries[0].1;
+        }
+        assert_eq!(cursor.as_int(), Some(7));
+        drop((report, facts));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
-    let inputs = [arguments::Input::Supplied(input)];
-    let report = calls::analyze(
-        &mut ctx,
-        &mut facts,
-        calls::World {
-            loader: None,
-            inputs: &[],
-            source_owner: 0,
-            program: &program,
-            contracts: &[],
-            hosts: &[],
-            globals: &[],
-        },
-        program.names["run"],
-        &inputs,
-    )
-    .unwrap();
-    assert!(
-        report.incomplete.data.is_empty() && report.issues.data.is_empty(),
-        "{report:?}"
-    );
-    assert_eq!(report.returns, input);
-    assert_ne!(report.returns, Atom::Never.fact());
-    let actual = crate::Engine::new()
-        .compile(source)
-        .unwrap()
-        .call("run", &[value], CallOptions::default())
-        .unwrap();
-    let mut cursor = &actual.value;
-    for _ in 0..128 {
-        let entries = cursor.as_hash().unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].0.as_bytes(), Some(&b"key"[..]));
-        cursor = &entries[0].1;
-    }
-    assert_eq!(cursor.as_int(), Some(7));
-    drop((report, facts));
-    assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
 #[test]

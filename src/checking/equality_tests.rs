@@ -198,6 +198,13 @@ fn structural_equality_keeps_abstract_values_and_hash_kinds_uncertain() {
     assert_eq!(ctx.stats().retained_memory_bytes, 0);
 }
 
+// Each independent solve receives the normal per-invocation budget; the facts
+// arena is shared only to avoid rebuilding the same 10,000-level fixtures.
+fn depth_equal(facts: &mut Facts, policy: Policy, a: Fact, b: Fact) -> Result<(Fact, bool)> {
+    let mut ctx = CallContext::new(CallOptions::default());
+    facts.policy_equal(&mut ctx, a, b, policy)
+}
+
 #[test]
 fn structural_equality_depth_guards_follow_array_order_and_memo_depth() {
     let mut ctx = CallContext::new(CallOptions::default());
@@ -208,11 +215,11 @@ fn structural_equality_depth_guards_follow_array_order_and_memo_depth() {
     for _ in 0..MAX_VALUE_DEPTH {
         deep = facts.tuple(&mut ctx, &[deep, deep]).unwrap();
     }
-    let (value, limit) = facts.value_equal(&mut ctx, deep, deep).unwrap();
+    let (value, limit) = depth_equal(&mut facts, Policy::Value, deep, deep).unwrap();
     assert!(!limit && matches!(facts.node(value), Node::Boolean(true)));
     let extra = facts.tuple(&mut ctx, &[deep]).unwrap();
     assert_eq!(
-        facts.value_equal(&mut ctx, extra, extra).unwrap(),
+        depth_equal(&mut facts, Policy::Value, extra, extra).unwrap(),
         (Atom::Never.fact(), true)
     );
     for (left, right, expected, limit) in [
@@ -221,7 +228,7 @@ fn structural_equality_depth_guards_follow_array_order_and_memo_depth() {
     ] {
         let a = facts.tuple(&mut ctx, &left).unwrap();
         let b = facts.tuple(&mut ctx, &right).unwrap();
-        let (value, guarded) = facts.value_equal(&mut ctx, a, b).unwrap();
+        let (value, guarded) = depth_equal(&mut facts, Policy::Value, a, b).unwrap();
         assert_eq!(guarded, limit);
         assert_eq!(
             match facts.node(value) {
@@ -240,14 +247,14 @@ fn structural_equality_depth_guards_follow_array_order_and_memo_depth() {
     let wrapped = facts.tuple(&mut ctx, &[shared]).unwrap();
     let both = facts.tuple(&mut ctx, &[shared, wrapped]).unwrap();
     assert_eq!(
-        facts.value_equal(&mut ctx, both, both).unwrap(),
+        depth_equal(&mut facts, Policy::Value, both, both).unwrap(),
         (Atom::Never.fact(), true)
     );
     for _ in 0..4000 {
         deep = facts.tuple(&mut ctx, &[deep, deep]).unwrap();
     }
     assert_eq!(
-        facts.value_equal(&mut ctx, deep, deep).unwrap(),
+        depth_equal(&mut facts, Policy::Value, deep, deep).unwrap(),
         (Atom::Never.fact(), true)
     );
     drop(facts);
@@ -645,13 +652,13 @@ fn helper_equality_depth_guards_follow_array_order_and_policy() {
         (value, limit)
     };
     for policy in [Policy::Strict, Policy::Identity] {
-        let result = facts.policy_equal(&mut ctx, deep, deep, policy).unwrap();
+        let result = depth_equal(&mut facts, policy, deep, deep).unwrap();
         assert_eq!(
             guarded(&facts, result),
             (Some(Some(true)), false),
             "{policy:?}"
         );
-        let result = facts.policy_equal(&mut ctx, extra, extra, policy).unwrap();
+        let result = depth_equal(&mut facts, policy, extra, extra).unwrap();
         assert_eq!(guarded(&facts, result), (None, true), "{policy:?}");
         for (left, right, expected) in [
             ([one, deep], [two, deep], (Some(Some(false)), false)),
@@ -659,7 +666,7 @@ fn helper_equality_depth_guards_follow_array_order_and_policy() {
         ] {
             let a = facts.tuple(&mut ctx, &left).unwrap();
             let b = facts.tuple(&mut ctx, &right).unwrap();
-            let result = facts.policy_equal(&mut ctx, a, b, policy).unwrap();
+            let result = depth_equal(&mut facts, policy, a, b).unwrap();
             assert_eq!(guarded(&facts, result), expected, "{policy:?}");
         }
     }
@@ -667,11 +674,9 @@ fn helper_equality_depth_guards_follow_array_order_and_policy() {
     // identity compares the numbers by value and then reaches the guarded element.
     let a = facts.tuple(&mut ctx, &[one, deep]).unwrap();
     let b = facts.tuple(&mut ctx, &[one_float, deep]).unwrap();
-    let result = facts.policy_equal(&mut ctx, a, b, Policy::Strict).unwrap();
+    let result = depth_equal(&mut facts, Policy::Strict, a, b).unwrap();
     assert_eq!(guarded(&facts, result), (Some(Some(false)), false));
-    let result = facts
-        .policy_equal(&mut ctx, a, b, Policy::Identity)
-        .unwrap();
+    let result = depth_equal(&mut facts, Policy::Identity, a, b).unwrap();
     assert_eq!(guarded(&facts, result), (None, true));
     // Set membership keeps walking the abstract graph without a cutoff.
     for _ in 0..4000 {
@@ -680,7 +685,7 @@ fn helper_equality_depth_guards_follow_array_order_and_policy() {
     let set = facts.set_equal(&mut ctx, deep, deep).unwrap();
     assert!(matches!(facts.node(set), Node::Boolean(true)));
     for policy in [Policy::Strict, Policy::Identity] {
-        let result = facts.policy_equal(&mut ctx, deep, deep, policy).unwrap();
+        let result = depth_equal(&mut facts, policy, deep, deep).unwrap();
         assert_eq!(guarded(&facts, result), (None, true), "{policy:?}");
     }
     drop(facts);

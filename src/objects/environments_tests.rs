@@ -398,7 +398,7 @@ fn deeply_nested_class_environments_fail_with_a_recoverable_depth_error() {
     let mut source = CallContext::new(CallOptions::default());
     let mut environment = new(&mut source, &template("Scope")).unwrap();
     let definition = template("Captured");
-    for _ in 0..MAX_VALUE_DEPTH + 8 {
+    for _ in 0..crate::budget::MAX_ENVIRONMENT_DEPTH + 8 {
         let class = bind(&mut source, &definition, &environment);
         environment = new(&mut source, &class).unwrap();
     }

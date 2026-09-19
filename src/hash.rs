@@ -86,6 +86,17 @@ pub(crate) struct Hash {
     pub depth: usize,
     pub object: bool,
     pub tag: Tag,
+    pub(crate) drop_parent: Option<Value>,
+}
+
+impl Drop for Hash {
+    fn drop(&mut self) {
+        // Tall hashes hand their entries to iterative destruction so that a
+        // chain of nested containers never unwinds through depth-proportional glue.
+        if self.depth > crate::value::destroy::SHALLOW && !self.buffer.data.is_empty() {
+            crate::value::destroy::pairs(std::mem::replace(&mut self.buffer, Buffer::empty()));
+        }
+    }
 }
 
 impl Hash {
@@ -97,22 +108,24 @@ impl Hash {
             depth: 1,
             object: false,
             tag: Tag::None,
+            drop_parent: None,
         }
     }
 
     pub fn untracked(data: Vec<(Value, Value)>, depth: usize) -> Arc<Self> {
-        Arc::new(Self {
-            buffer: Buffer::untracked(data),
-            depth,
-            ..Self::empty()
-        })
+        let mut hash = Self::empty();
+        hash.buffer = Buffer::untracked(data);
+        hash.depth = depth;
+        Arc::new(hash)
+    }
+
+    pub(crate) fn into_buffer(mut self) -> Buffer<(Value, Value)> {
+        std::mem::replace(&mut self.buffer, Buffer::empty())
     }
 
     pub fn from_entries(ctx: &mut CallContext, buffer: Buffer<(Value, Value)>) -> Result<Self> {
-        let mut hash = Self {
-            buffer,
-            ..Self::empty()
-        };
+        let mut hash = Self::empty();
+        hash.buffer = buffer;
         for (_, value) in &hash.buffer.data {
             ctx.charge(1)?;
             hash.depth = hash.depth.max(value.depth() + 1);
@@ -142,6 +155,7 @@ impl Hash {
                 depth: hash.depth,
                 object: hash.object,
                 tag: hash.tag,
+                drop_parent: None,
             }
             .into_arc(ctx)?;
         }
@@ -183,6 +197,21 @@ impl Hash {
     }
 
     pub fn insert(&mut self, ctx: &mut CallContext, key: Value, value: Value) -> Result<()> {
+        self.insert_with_limit(ctx, key, value, MAX_VALUE_DEPTH)
+    }
+
+    /// Stores a field without counting the internal field table as a value container.
+    pub fn insert_field(&mut self, ctx: &mut CallContext, key: Value, value: Value) -> Result<()> {
+        self.insert_with_limit(ctx, key, value, MAX_VALUE_DEPTH + 1)
+    }
+
+    fn insert_with_limit(
+        &mut self,
+        ctx: &mut CallContext,
+        key: Value,
+        value: Value,
+        limit: usize,
+    ) -> Result<()> {
         ctx.charge(1)?;
         let hash = if self.index.is_some() || self.buffer.data.len() >= INDEX_THRESHOLD - 1 {
             hash_key(ctx, key.require_bytes()?)?
@@ -205,7 +234,7 @@ impl Hash {
                 }
             }
         }
-        if depth > MAX_VALUE_DEPTH {
+        if depth > limit {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
         if let Some(i) = existing {

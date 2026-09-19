@@ -88,13 +88,13 @@ fn replacing_deepest_value_updates_depth() {
     script
         .call(
             "run",
-            &[input.clone(), Value::int(127)],
+            &[input.clone(), Value::int(9_999)],
             CallOptions::default(),
         )
         .unwrap();
     assert_eq!(
         script
-            .call("run", &[input, Value::int(128)], CallOptions::default())
+            .call("run", &[input, Value::int(10_000)], CallOptions::default())
             .unwrap_err()
             .kind,
         ErrorKind::Recursion
@@ -188,7 +188,7 @@ fn removing_deepest_values_releases_nesting_depth() {
     ] {
         let script = Engine::new()
             .compile(&format!(
-                "def run(h)\n{removal}\nfor i in 1..127\nh=[h]\nend\nh\nend"
+                "def run(h)\n{removal}\nfor i in 1..9999\nh=[h]\nend\nh\nend"
             ))
             .unwrap();
         script

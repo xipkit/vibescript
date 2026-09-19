@@ -1480,3 +1480,11 @@ Regression witnesses exercise every public checking scope, rejection before host
 The upstream corpus now pins all 39 canonical Go test programs alongside the nine previously selected examples. Native conformance tests mirror all 105 integration-driver scenarios: exact typed results, predicate bounds, runtime rejection categories, compile-only fixtures, the complete program walk and fifty repeated calls of the pi stress case. Every original file is copied unchanged and hash-pinned; the existing 46-case shared Go/Rust corpus remains separate. Default-limit scenarios retain the normal one-million-step budget; only the reference's explicit stress and walk scenarios use five million steps.
 
 This closes the canonical test-program coverage gap. The documented signature audit, remaining checker behavior, full current-head differential validation and native/browser platform work remain required before declaring the port complete. Performance passes remain deferred.
+
+### Documented JSON nesting depth
+
+JSON parsing and encoding now support the documented 10,000-container depth, including empty containers. Deep values retain that allowance through host imports, instance and module fields, rendering, comparisons and collection traversal. Internal field tables do not consume a container level. Entering a 10,001st container produces a recoverable limit error; function-environment and syntax limits remain unchanged.
+
+The affected walks use charged explicit frames, and destruction uses links reserved in container headers so it can release partial and shared values after cancellation or quota exhaustion. Tests cover default budgets, lower native stacks, concurrent final owners, field updates, cyclic instance references and interrupted cleanup. Captured-input analysis indexes shared containers by height to avoid rescanning every ancestor. Expensive static analysis can still reach the normal memory or work quota at a valid depth; [the depth contract](json-depth.md) distinguishes those resource limits from nesting rejection.
+
+The remaining checker behavior, documented signature audit and native/browser platform validation still prevent declaring the full port complete. The experimental WASI branch remains separate from the native implementation. Performance passes remain deferred.

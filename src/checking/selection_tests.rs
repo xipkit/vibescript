@@ -444,7 +444,7 @@ fn selection_value_copies_preserve_protection_and_native_depth_guards() {
         );
     }
     let mut value = Value::int(7);
-    for _ in 0..128 {
+    for _ in 0..crate::budget::MAX_VALUE_DEPTH {
         value = Value::array(vec![value]);
     }
     for (call, expected) in [

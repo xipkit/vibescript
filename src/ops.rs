@@ -2,6 +2,7 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
     bytecode::Method,
+    hash::Hash,
     json,
     scan::{self, Class},
     value::Kind,
@@ -274,92 +275,180 @@ pub(crate) fn eql(ctx: &mut CallContext, a: &Value, b: &Value, depth: usize) -> 
     equal_kinds(ctx, a, b, depth, true)
 }
 
-fn equal_kinds(
+/// One suspended container comparison. Frames only borrow the operands, so
+/// unwinding the walk never runs recursive drop glue.
+enum EqualFrame<'a> {
+    Array {
+        a: &'a [Value],
+        b: &'a [Value],
+        index: usize,
+    },
+    Hash {
+        a: &'a Hash,
+        b: &'a Hash,
+        index: usize,
+    },
+}
+
+enum EqualStep<'a> {
+    Same,
+    Different,
+    Enter(EqualFrame<'a>),
+}
+
+fn equal_kinds<'a>(
     ctx: &mut CallContext,
-    a: &Value,
-    b: &Value,
+    a: &'a Value,
+    b: &'a Value,
     depth: usize,
     strict: bool,
 ) -> Result<bool> {
+    let mut current = match equal_step(ctx, a, b, depth, strict)? {
+        EqualStep::Same => return Ok(true),
+        EqualStep::Different => return Ok(false),
+        EqualStep::Enter(frame) => frame,
+    };
+    // Suspended ancestors of `current`; charged per push, released on any exit.
+    let mut parents: Buffer<EqualFrame<'a>> = Buffer::empty();
+    loop {
+        let level = depth + parents.data.len() + 1;
+        let pair = match &mut current {
+            EqualFrame::Array { a, b, index } => {
+                let (a, b): (&'a [Value], &'a [Value]) = (*a, *b);
+                if *index == a.len() {
+                    None
+                } else {
+                    let i = *index;
+                    *index += 1;
+                    Some((&a[i], &b[i]))
+                }
+            }
+            EqualFrame::Hash { a, b, index } => {
+                let (a, b): (&'a Hash, &'a Hash) = (*a, *b);
+                if *index == a.buffer.data.len() {
+                    None
+                } else {
+                    let (key, value) = &a.buffer.data[*index];
+                    *index += 1;
+                    let Some(i) = b.find(ctx, key.require_bytes()?)? else {
+                        return Ok(false);
+                    };
+                    Some((value, &b.buffer.data[i].1))
+                }
+            }
+        };
+        let Some((x, y)) = pair else {
+            match parents.data.pop() {
+                Some(parent) => current = parent,
+                None => return Ok(true),
+            }
+            continue;
+        };
+        match equal_step(ctx, x, y, level, strict)? {
+            EqualStep::Same => {}
+            EqualStep::Different => return Ok(false),
+            EqualStep::Enter(frame) => {
+                let suspended = std::mem::replace(&mut current, frame);
+                parents.push(ctx, suspended)?;
+            }
+        }
+    }
+}
+
+fn equal_step<'a>(
+    ctx: &mut CallContext,
+    a: &'a Value,
+    b: &'a Value,
+    depth: usize,
+    strict: bool,
+) -> Result<EqualStep<'a>> {
     ctx.charge(1)?;
     if depth > MAX_VALUE_DEPTH {
         return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
     }
     if strict && a.type_name() != b.type_name() {
-        return Ok(false);
+        return Ok(EqualStep::Different);
     }
-    match (&a.0, &b.0) {
-        (Kind::Nil, Kind::Nil) => Ok(true),
-        (Kind::Regex(a), Kind::Regex(b)) => a.equal(ctx, b),
+    let same = match (&a.0, &b.0) {
+        (Kind::Nil, Kind::Nil) => true,
+        (Kind::Regex(a), Kind::Regex(b)) => a.equal(ctx, b)?,
         (Kind::Shape(a), Kind::Shape(b)) => {
-            json::bytes_equal(ctx, &a.definition.text, &b.definition.text)
+            json::bytes_equal(ctx, &a.definition.text, &b.definition.text)?
         }
-        (Kind::Instance(a), Kind::Instance(b)) => Ok(a.same(b)),
-        (Kind::Namespace(a), Kind::Namespace(b)) => Ok(a.same_binding(b)),
-        (Kind::Function(a), Kind::Function(b)) => Ok(a.same(b)),
-        (Kind::Host(a), Kind::Host(b)) => Ok(a.same(b)),
-        (Kind::Enum(a), Kind::Enum(b)) => Ok(std::sync::Arc::ptr_eq(&a.definition, &b.definition)),
-        (Kind::EnumMember(a), Kind::EnumMember(b)) => Ok(a.index == b.index
-            && std::sync::Arc::ptr_eq(&a.enumeration.definition, &b.enumeration.definition)),
-        (Kind::Money(a), Kind::Money(b)) => Ok(a == b),
-        (Kind::Duration(a), Kind::Duration(b)) => Ok(a == b),
+        (Kind::Instance(a), Kind::Instance(b)) => a.same(b),
+        (Kind::Namespace(a), Kind::Namespace(b)) => a.same_binding(b),
+        (Kind::Function(a), Kind::Function(b)) => a.same(b),
+        (Kind::Host(a), Kind::Host(b)) => a.same(b),
+        (Kind::Enum(a), Kind::Enum(b)) => std::sync::Arc::ptr_eq(&a.definition, &b.definition),
+        (Kind::EnumMember(a), Kind::EnumMember(b)) => {
+            a.index == b.index
+                && std::sync::Arc::ptr_eq(&a.enumeration.definition, &b.enumeration.definition)
+        }
+        (Kind::Money(a), Kind::Money(b)) => a == b,
+        (Kind::Duration(a), Kind::Duration(b)) => a == b,
         (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => {
-            Ok(crate::time::stamp(a) == crate::time::stamp(b))
+            crate::time::stamp(a) == crate::time::stamp(b)
         }
-        (Kind::Builtin(a), Kind::Builtin(b)) => Ok(a == b),
-        (Kind::Offset(a), Kind::Offset(b)) => Ok(std::sync::Arc::ptr_eq(a, b)),
-        (Kind::Bool(a), Kind::Bool(b)) => Ok(a == b),
-        (Kind::Int(a), Kind::Int(b)) => Ok(a == b),
-        (Kind::Big(_), Kind::Big(_)) => Ok(crate::integer::compare(ctx, a, b)? == Ordering::Equal),
+        (Kind::Builtin(a), Kind::Builtin(b)) => a == b,
+        (Kind::Offset(a), Kind::Offset(b)) => std::sync::Arc::ptr_eq(a, b),
+        (Kind::Bool(a), Kind::Bool(b)) => a == b,
+        (Kind::Int(a), Kind::Int(b)) => a == b,
+        (Kind::Big(_), Kind::Big(_)) => crate::integer::compare(ctx, a, b)? == Ordering::Equal,
         (Kind::Big(_), Kind::Float(f)) => {
-            Ok(crate::integer::compare_float(ctx, a, *f)? == Some(Ordering::Equal))
+            crate::integer::compare_float(ctx, a, *f)? == Some(Ordering::Equal)
         }
         (Kind::Float(f), Kind::Big(_)) => {
-            Ok(crate::integer::compare_float(ctx, b, *f)? == Some(Ordering::Equal))
+            crate::integer::compare_float(ctx, b, *f)? == Some(Ordering::Equal)
         }
         (Kind::Range(a), Kind::Range(b)) => {
-            Ok(a.start == b.start && a.end == b.end && a.exclusive == b.exclusive)
+            a.start == b.start && a.end == b.end && a.exclusive == b.exclusive
         }
         (Kind::Int(integer), Kind::Float(float)) | (Kind::Float(float), Kind::Int(integer)) => {
             // Casting the integer to float can round a neighboring integer to the
             // same value. Range-check the integral float before converting it.
-            Ok(float.is_finite()
+            float.is_finite()
                 && float.fract() == 0.0
                 && *float >= i64::MIN as f64
                 && *float < -(i64::MIN as f64)
-                && *integer == *float as i64)
+                && *integer == *float as i64
         }
-        (Kind::Float(a), Kind::Float(b)) => Ok(a == b),
+        (Kind::Float(a), Kind::Float(b)) => a == b,
         (Kind::Bytes(a), Kind::Bytes(b)) | (Kind::Symbol(a), Kind::Symbol(b)) => {
-            json::bytes_equal(ctx, &a.data, &b.data)
+            json::bytes_equal(ctx, &a.data, &b.data)?
         }
         (Kind::Array(a), Kind::Array(b)) => {
             if a.buffer.data.len() != b.buffer.data.len() {
-                return Ok(false);
+                false
+            } else if a.buffer.data.is_empty() {
+                true
+            } else {
+                return Ok(EqualStep::Enter(EqualFrame::Array {
+                    a: &a.buffer.data,
+                    b: &b.buffer.data,
+                    index: 0,
+                }));
             }
-            for (a, b) in a.buffer.data.iter().zip(&b.buffer.data) {
-                if !equal_kinds(ctx, a, b, depth + 1, strict)? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
         }
         (Kind::Hash(a), Kind::Hash(b)) => {
             if a.object != b.object || a.buffer.data.len() != b.buffer.data.len() {
-                return Ok(false);
+                false
+            } else if a.buffer.data.is_empty() {
+                true
+            } else {
+                return Ok(EqualStep::Enter(EqualFrame::Hash {
+                    a: a.as_ref(),
+                    b: b.as_ref(),
+                    index: 0,
+                }));
             }
-            for (k, v) in &a.buffer.data {
-                let Some(i) = b.find(ctx, k.require_bytes()?)? else {
-                    return Ok(false);
-                };
-                if !equal_kinds(ctx, v, &b.buffer.data[i].1, depth + 1, strict)? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
         }
-        _ => Ok(false),
-    }
+        _ => false,
+    };
+    Ok(if same {
+        EqualStep::Same
+    } else {
+        EqualStep::Different
+    })
 }
 
 pub(crate) fn index(ctx: &mut CallContext, value: &Value, index: &Value) -> Result<Value> {
@@ -821,33 +910,61 @@ fn join(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<Value> {
     };
     let array = value.as_array().ok_or_else(type_error)?;
     let mut out = Buffer::empty();
-    join_into(ctx, array, sep, &mut out, 0)?;
+    join_into(ctx, array, sep, &mut out)?;
     Value::from_bytes(ctx, out)
 }
 
-fn join_into(
+/// A suspended array level of a join or flatten walk; borrows the input only.
+struct Level<'a> {
+    values: &'a [Value],
+    index: usize,
+}
+
+fn join_into<'a>(
     ctx: &mut CallContext,
-    array: &[Value],
+    array: &'a [Value],
     sep: &[u8],
     out: &mut Buffer<u8>,
-    depth: usize,
 ) -> Result<()> {
-    if depth > MAX_VALUE_DEPTH {
-        return ctx.guard(ErrorKind::Recursion, "join nesting too deep");
-    }
-    for (i, v) in array.iter().enumerate() {
+    let mut current = Level {
+        values: array,
+        index: 0,
+    };
+    let mut parents: Buffer<Level<'a>> = Buffer::empty();
+    loop {
+        let i = current.index;
+        if i == current.values.len() {
+            match parents.data.pop() {
+                Some(parent) => current = parent,
+                None => return Ok(()),
+            }
+            continue;
+        }
+        current.index += 1;
         ctx.charge(1)?;
         if i > 0 {
             out.extend(ctx, sep)?;
         }
+        let values: &'a [Value] = current.values;
+        let v = &values[i];
         if let Some(nested) = v.as_array() {
-            join_into(ctx, nested, sep, out, depth + 1)?;
+            // A nested level sits one below its parent; the root is level 0.
+            if parents.data.len() + 1 > MAX_VALUE_DEPTH {
+                return ctx.guard(ErrorKind::Recursion, "join nesting too deep");
+            }
+            let suspended = std::mem::replace(
+                &mut current,
+                Level {
+                    values: nested,
+                    index: 0,
+                },
+            );
+            parents.push(ctx, suspended)?;
         } else {
             let v = to_string(ctx, v)?;
             out.extend(ctx, v.require_bytes()?)?;
         }
     }
-    Ok(())
 }
 
 pub(crate) fn to_string(ctx: &mut CallContext, value: &Value) -> Result<Value> {
@@ -896,5 +1013,348 @@ pub(crate) fn format_float(out: &mut json::Number, value: f64) {
         write!(out, "{mantissa}e{exponent:+03}").unwrap();
     } else {
         write!(out, "{value}").unwrap();
+    }
+}
+
+/// Helpers for deep-value tests in the collection walkers. Host values are
+/// built untracked, so heights beyond the construction cap are reachable.
+#[cfg(test)]
+pub(crate) mod testing {
+    use crate::{CallContext, CallOptions, Limits, Value};
+
+    /// Wraps `leaf` in `height` single-element arrays.
+    pub(crate) fn nested(height: usize, leaf: Value) -> Value {
+        let mut value = leaf;
+        for _ in 0..height {
+            value = Value::array(vec![value]);
+        }
+        value
+    }
+
+    /// Wraps `leaf` in `height` single-entry hashes keyed `k`.
+    pub(crate) fn nested_hash(height: usize, leaf: Value) -> Value {
+        let mut value = leaf;
+        for _ in 0..height {
+            value = Value::hash(vec![(b"k".to_vec(), value)]);
+        }
+        value
+    }
+
+    /// Builds `levels` layers of `[child, child]` over `leaf`, sharing each child.
+    pub(crate) fn shared(levels: usize, leaf: Value) -> Value {
+        let mut value = leaf;
+        for _ in 0..levels {
+            value = Value::array(vec![value.clone(), value]);
+        }
+        value
+    }
+
+    /// Runs `work` on a thread whose native stack is far too small for a
+    /// depth-proportional recursion over the tested values.
+    pub(crate) fn on_small_stack<T: Send + 'static>(
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> T {
+        std::thread::Builder::new()
+            .stack_size(256 << 10)
+            .spawn(work)
+            .unwrap()
+            .join()
+            .unwrap()
+    }
+
+    pub(crate) fn context(steps: Option<u64>, memory_bytes: Option<usize>) -> CallContext {
+        CallContext::new(CallOptions {
+            limits: Limits {
+                steps,
+                memory_bytes,
+                ..Limits::default()
+            },
+            ..CallOptions::default()
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::testing::{context, nested, nested_hash, on_small_stack, shared};
+    use super::*;
+    use crate::{CallOptions, ErrorClass};
+
+    fn ints(values: &[i64]) -> Value {
+        Value::array(values.iter().copied().map(Value::int).collect())
+    }
+
+    fn pairs(entries: &[(&str, Value)]) -> Value {
+        Value::hash(
+            entries
+                .iter()
+                .map(|(key, value)| (key.as_bytes().to_vec(), value.clone()))
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn nested_equality_visits_each_pair_once_and_stops_at_the_first_difference() {
+        let value = Value::array(vec![ints(&[1, 2]), ints(&[3])]);
+        for (other, expected, steps) in [
+            (Value::array(vec![ints(&[1, 2]), ints(&[3])]), true, 6),
+            (Value::array(vec![ints(&[1, 9]), ints(&[3])]), false, 4),
+            (Value::array(vec![ints(&[1, 2]), ints(&[3, 4])]), false, 5),
+            (Value::array(vec![ints(&[1, 2])]), false, 1),
+            (Value::array(vec![ints(&[1, 2]), Value::int(3)]), false, 5),
+        ] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            assert_eq!(equal(&mut ctx, &value, &other, 0).unwrap(), expected);
+            assert_eq!(ctx.stats().steps, steps, "{other}");
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn equality_policies_are_preserved_through_containers() {
+        let nan = Value::float(f64::NAN);
+        let mut ctx = CallContext::new(CallOptions::default());
+        let loose = Value::array(vec![ints(&[1])]);
+        let float = Value::array(vec![Value::array(vec![Value::float(1.0)])]);
+        assert!(equal(&mut ctx, &loose, &float, 0).unwrap());
+        assert!(!eql(&mut ctx, &loose, &float, 0).unwrap());
+        let symbol = Value::array(vec![Value::symbol("x")]);
+        let text = Value::array(vec![Value::bytes("x")]);
+        assert!(!equal(&mut ctx, &symbol, &text, 0).unwrap());
+        let hash = pairs(&[("a", ints(&[1])), ("b", Value::int(2))]);
+        let reordered = pairs(&[("b", Value::int(2)), ("a", ints(&[1]))]);
+        assert!(equal(&mut ctx, &hash, &reordered, 0).unwrap());
+        assert!(eql(&mut ctx, &hash, &reordered, 0).unwrap());
+        let object = Value::object(vec![
+            (b"a".to_vec(), ints(&[1])),
+            (b"b".to_vec(), Value::int(2)),
+        ]);
+        assert!(!equal(&mut ctx, &hash, &object, 0).unwrap());
+        let renamed = pairs(&[("a", ints(&[1])), ("c", Value::int(2))]);
+        assert!(!equal(&mut ctx, &hash, &renamed, 0).unwrap());
+        let coerced = pairs(&[
+            ("a", Value::array(vec![Value::float(1.0)])),
+            ("b", Value::int(2)),
+        ]);
+        assert!(equal(&mut ctx, &hash, &coerced, 0).unwrap());
+        assert!(!eql(&mut ctx, &hash, &coerced, 0).unwrap());
+        // Nested NaN stays unequal, even against the same storage.
+        let wrapped = Value::array(vec![Value::array(vec![nan.clone()])]);
+        assert!(!equal(&mut ctx, &wrapped, &wrapped, 0).unwrap());
+        assert!(!eql(&mut ctx, &wrapped, &wrapped.clone(), 0).unwrap());
+        let keyed = pairs(&[("n", nan)]);
+        assert!(!equal(&mut ctx, &keyed, &keyed, 0).unwrap());
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn nested_equality_has_exact_step_and_frame_memory_boundaries() {
+        let value = Value::array(vec![ints(&[1, 2]), Value::array(vec![ints(&[3])])]);
+        let other = Value::array(vec![ints(&[1, 2]), Value::array(vec![ints(&[3])])]);
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert!(equal(&mut ctx, &value, &other, 0).unwrap());
+        let steps = ctx.stats().steps;
+        let mut ctx = context(Some(steps), None);
+        assert!(equal(&mut ctx, &value, &other, 0).unwrap());
+        let mut ctx = context(Some(steps - 1), None);
+        let error = equal(&mut ctx, &value, &other, 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+
+        // The first suspended frame reserves one initial buffer growth.
+        let frames = 8 * size_of::<EqualFrame>();
+        let mut ctx = context(None, Some(frames));
+        assert!(equal(&mut ctx, &value, &other, 0).unwrap());
+        assert_eq!(ctx.stats().peak_memory_bytes, frames);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        let mut ctx = context(None, Some(frames - 1));
+        let error = equal(&mut ctx, &value, &other, 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(ctx.stats().peak_memory_bytes, 0);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+        // Flat operands never suspend a frame.
+        let mut ctx = context(None, Some(0));
+        assert!(equal(&mut ctx, &ints(&[1, 2, 3]), &ints(&[1, 2, 3]), 0).unwrap());
+        assert_eq!(ctx.stats().peak_memory_bytes, 0);
+    }
+
+    #[test]
+    fn nested_equality_observes_cancellation_and_deadlines_mid_walk() {
+        let value = Value::array(vec![ints(&[1, 2, 3, 4]), ints(&[5, 6, 7, 8])]);
+        let other = Value::array(vec![ints(&[1, 2, 3, 4]), ints(&[5, 6, 7, 8])]);
+        for kind in [ErrorKind::Cancelled, ErrorKind::Deadline] {
+            let mut ctx = CallContext::new(CallOptions::default());
+            ctx.charge(14).unwrap();
+            if kind == ErrorKind::Cancelled {
+                ctx.cancellation().cancel();
+            } else {
+                ctx.options.deadline = Some(std::time::Instant::now());
+            }
+            let error = equal(&mut ctx, &value, &other, 0).unwrap_err();
+            assert_eq!(error.kind, kind);
+            assert_eq!(ctx.stats().steps, 16);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        }
+    }
+
+    #[test]
+    fn shared_graph_equality_stops_at_the_step_quota_without_retaining_frames() {
+        let a = shared(40, Value::int(0));
+        let b = shared(40, Value::int(0));
+        let mut ctx = context(Some(10_000), None);
+        let error = equal(&mut ctx, &a, &b, 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+        drop(a);
+        drop(b);
+    }
+
+    #[test]
+    fn deep_equality_walks_to_the_value_limit_on_a_small_stack() {
+        let outcome = on_small_stack(|| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let arrays = (
+                nested(MAX_VALUE_DEPTH, Value::int(1)),
+                nested(MAX_VALUE_DEPTH, Value::int(1)),
+                nested(MAX_VALUE_DEPTH, Value::float(1.0)),
+                nested(MAX_VALUE_DEPTH, Value::int(2)),
+            );
+            let hashes = (
+                nested_hash(MAX_VALUE_DEPTH, Value::int(1)),
+                nested_hash(MAX_VALUE_DEPTH, Value::int(1)),
+            );
+            let within = (
+                equal(&mut ctx, &arrays.0, &arrays.1, 0),
+                eql(&mut ctx, &arrays.0, &arrays.1, 0),
+                equal(&mut ctx, &arrays.0, &arrays.2, 0),
+                eql(&mut ctx, &arrays.0, &arrays.2, 0),
+                equal(&mut ctx, &arrays.0, &arrays.3, 0),
+                equal(&mut ctx, &hashes.0, &hashes.1, 0),
+                eql(&mut ctx, &hashes.0, &hashes.1, 0),
+            );
+            let steps = ctx.stats().steps;
+            let beyond = (
+                nested(MAX_VALUE_DEPTH + 1, Value::int(1)),
+                nested(MAX_VALUE_DEPTH + 1, Value::int(1)),
+                nested_hash(MAX_VALUE_DEPTH + 1, Value::int(1)),
+                nested_hash(MAX_VALUE_DEPTH + 1, Value::int(1)),
+            );
+            let errors = (
+                equal(&mut ctx, &beyond.0, &beyond.1, 0),
+                eql(&mut ctx, &beyond.2, &beyond.3, 0),
+            );
+            let stats = ctx.stats();
+            for value in [
+                arrays.0, arrays.1, arrays.2, arrays.3, hashes.0, hashes.1, beyond.0, beyond.1,
+                beyond.2, beyond.3,
+            ] {
+                drop(value);
+            }
+            (within, steps, errors, stats)
+        });
+        let (within, steps, errors, stats) = outcome;
+        assert!(within.0.unwrap());
+        assert!(within.1.unwrap());
+        assert!(within.2.unwrap());
+        assert!(!within.3.unwrap());
+        assert!(!within.4.unwrap());
+        assert!(within.5.unwrap());
+        assert!(within.6.unwrap());
+        // Every array walk charges one step per level plus the leaf pair.
+        assert!(steps >= 5 * (MAX_VALUE_DEPTH as u64 + 1));
+        for error in [errors.0.unwrap_err(), errors.1.unwrap_err()] {
+            assert_eq!(error.kind, ErrorKind::Recursion);
+            assert_eq!(error.class(), Some(ErrorClass::Limit));
+            assert_eq!(error.message, "value nesting too deep");
+        }
+        assert_eq!(stats.retained_memory_bytes, 0);
+    }
+
+    fn joined(ctx: &mut CallContext, value: &Value, sep: &[u8]) -> Result<String> {
+        let mut out = Buffer::empty();
+        join_into(ctx, value.as_array().unwrap(), sep, &mut out)?;
+        Ok(String::from_utf8(out.data).unwrap())
+    }
+
+    #[test]
+    fn join_flattens_nested_arrays_with_separators_between_leaves() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let nested_values = Value::array(vec![
+            Value::array(vec![Value::int(1), ints(&[2])]),
+            Value::int(3),
+        ]);
+        assert_eq!(joined(&mut ctx, &nested_values, b"-").unwrap(), "1-2-3");
+        let leading = Value::array(vec![Value::array(vec![]), Value::int(1)]);
+        assert_eq!(joined(&mut ctx, &leading, b",").unwrap(), ",1");
+        let trailing = Value::array(vec![ints(&[1]), Value::array(vec![])]);
+        assert_eq!(joined(&mut ctx, &trailing, b",").unwrap(), "1,");
+        let mixed = Value::array(vec![
+            Value::bytes("a"),
+            Value::array(vec![Value::nil(), Value::boolean(true)]),
+            Value::float(1.5),
+        ]);
+        assert_eq!(joined(&mut ctx, &mixed, b"/").unwrap(), "a//true/1.5");
+        assert_eq!(joined(&mut ctx, &Value::array(vec![]), b"/").unwrap(), "");
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn join_has_exact_step_and_frame_memory_boundaries() {
+        let value = Value::array(vec![
+            Value::array(vec![Value::int(1), ints(&[2])]),
+            Value::int(3),
+        ]);
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert_eq!(joined(&mut ctx, &value, b"-").unwrap(), "1-2-3");
+        let steps = ctx.stats().steps;
+        let mut ctx = context(Some(steps), None);
+        assert_eq!(joined(&mut ctx, &value, b"-").unwrap(), "1-2-3");
+        let mut ctx = context(Some(steps - 1), None);
+        let error = joined(&mut ctx, &value, b"-").unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+
+        let empty_levels = Value::array(vec![Value::array(vec![Value::array(vec![])])]);
+        let frames = 8 * size_of::<Level>();
+        let mut ctx = context(None, Some(frames));
+        assert_eq!(joined(&mut ctx, &empty_levels, b"").unwrap(), "");
+        assert_eq!(ctx.stats().peak_memory_bytes, frames);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        let mut ctx = context(None, Some(frames - 1));
+        let error = joined(&mut ctx, &empty_levels, b"").unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(ctx.stats().peak_memory_bytes, 0);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+    }
+
+    #[test]
+    fn deep_join_walks_one_level_past_the_value_limit_on_a_small_stack() {
+        let outcome = on_small_stack(|| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let within = nested(MAX_VALUE_DEPTH + 1, Value::int(1));
+            let beyond = nested(MAX_VALUE_DEPTH + 2, Value::int(1));
+            let joined_within = joined(&mut ctx, &within, b",");
+            let steps = ctx.stats().steps;
+            let joined_beyond = joined(&mut ctx, &beyond, b",");
+            let stats = ctx.stats();
+            drop(within);
+            drop(beyond);
+            (joined_within, steps, joined_beyond, stats)
+        });
+        let (within, steps, beyond, stats) = outcome;
+        assert_eq!(within.unwrap(), "1");
+        // One step per array level, plus the leaf's string conversion.
+        assert!(steps > MAX_VALUE_DEPTH as u64);
+        let error = beyond.unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Recursion);
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        assert_eq!(error.message, "join nesting too deep");
+        assert_eq!(stats.retained_memory_bytes, 0);
     }
 }

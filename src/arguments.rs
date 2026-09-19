@@ -144,7 +144,7 @@ impl Arguments {
                 }
             }
             let hash = mem::replace(&mut self.keywords, Hash::empty());
-            let hash = ordered_hash(ctx, hash.buffer)?;
+            let hash = ordered_hash(ctx, hash.into_buffer())?;
             let value = Value::from_hash(ctx, hash)?;
             self.positional.push(ctx, value)?;
             break;

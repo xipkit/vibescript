@@ -171,7 +171,8 @@ impl Captures {
         let mut needed = Buffer::empty();
         let mut pending = Buffer::empty();
         let mut seen = Buffer::empty();
-        let mut containers: Buffer<(Option<usize>, Value)> = Buffer::empty();
+        let mut containers = Buffer::empty();
+        let mut heights = Buffer::empty();
         pending.push(ctx, Visit::Value(value.clone(), None))?;
         while let Some(visit) = pending.data.pop() {
             ctx.charge(1)?;
@@ -277,7 +278,7 @@ impl Captures {
                     )?;
                 }
                 Kind::Array(array) => {
-                    if seen_container(ctx, &mut containers, parent, &value)? {
+                    if seen_container(ctx, &mut containers, &mut heights, parent, &value)? {
                         continue;
                     }
                     for value in array.buffer.data.iter().rev() {
@@ -285,7 +286,7 @@ impl Captures {
                     }
                 }
                 Kind::Hash(hash) => {
-                    if seen_container(ctx, &mut containers, parent, &value)? {
+                    if seen_container(ctx, &mut containers, &mut heights, parent, &value)? {
                         continue;
                     }
                     for (key, value) in hash.buffer.data.iter().rev() {
@@ -333,12 +334,23 @@ impl Captures {
 
 fn seen_container(
     ctx: &mut CallContext,
-    containers: &mut Buffer<(Option<usize>, Value)>,
+    containers: &mut Buffer<(Option<usize>, Value, usize)>,
+    heights: &mut Buffer<usize>,
     parent: Option<usize>,
     value: &Value,
 ) -> Result<bool> {
-    for (previous_parent, previous) in &containers.data {
+    // A container cannot share storage with an ancestor of greater height.
+    // Index by height so deep inputs do not rescan every earlier ancestor.
+    let height = value.depth();
+    if heights.data.len() <= height {
+        ctx.charge((height + 1 - heights.data.len()) as u64)?;
+        heights.ensure(ctx, height + 1)?;
+        heights.data.resize(height + 1, usize::MAX);
+    }
+    let mut index = heights.data[height];
+    while index != usize::MAX {
         ctx.charge(1)?;
+        let (previous_parent, previous, next) = &containers.data[index];
         let same = match (&previous.0, &value.0) {
             (Kind::Array(a), Kind::Array(b)) => Arc::ptr_eq(a, b),
             (Kind::Hash(a), Kind::Hash(b)) => Arc::ptr_eq(a, b),
@@ -347,8 +359,11 @@ fn seen_container(
         if *previous_parent == parent && same {
             return Ok(true);
         }
+        index = *next;
     }
-    containers.push(ctx, (parent, value.clone()))?;
+    let index = containers.data.len();
+    containers.push(ctx, (parent, value.clone(), heights.data[height]))?;
+    heights.data[height] = index;
     Ok(false)
 }
 

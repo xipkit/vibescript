@@ -155,7 +155,7 @@ pub(super) fn data(
         let key = ctx.bytes(name)?;
         named.insert(ctx, key, values.data[index].clone())?;
     }
-    let named = crate::arguments::ordered_hash(ctx, named.buffer)?;
+    let named = crate::arguments::ordered_hash(ctx, named.into_buffer())?;
     let named = Value::from_hash(ctx, named)?;
     let mut captures = Buffer::with_capacity(ctx, groups)?;
     captures.extend(ctx, &values.data[1..])?;

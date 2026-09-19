@@ -88,7 +88,7 @@ fn witness(
 
 fn deep() -> Value {
     let mut input = Value::int(1);
-    for _ in 0..129 {
+    for _ in 0..=crate::budget::MAX_VALUE_DEPTH {
         input = Value::array(vec![input]);
     }
     input
@@ -219,7 +219,7 @@ fn strict_data_values_and_maximum_depth_shared_graphs_are_accepted() {
     engine.set_strict_effects(true);
     let script = engine.compile("def run;7;end").unwrap();
     let mut shared = Value::int(1);
-    for _ in 0..128 {
+    for _ in 0..crate::budget::MAX_VALUE_DEPTH {
         shared = Value::array(vec![shared.clone(), shared]);
     }
     for data in [

@@ -40,6 +40,24 @@ def function(body):
     return "def run(input)\n" + body + "\nend"
 
 
+def json_depth_cases():
+    cases = []
+    for shape in ["array", "hash", "mixed"]:
+        for depth, empty in [(128, False), (129, False), (9999, False), (10000, False), (10000, True), (10001, False)]:
+            levels = depth - int(empty)
+            opens = ["[" if shape == "array" or (shape == "mixed" and i % 2 == 0) else '{"k":' for i in range(levels)]
+            text = "".join(opens) + ("[]" if empty else "0") + "".join("]" if opener == "[" else "}" for opener in reversed(opens))
+            body = "JSON.stringify(JSON.parse(input)) == input" if depth <= 10000 else "begin; JSON.parse(input); false; rescue LimitError; true; end"
+            cases.append(dict(name=f"json_depth/{shape}/{depth}/{'empty' if empty else 'scalar'}", source=function(body), args=[text], expected=True, accounting=True))
+            if depth == 10000 and not empty:
+                for target, source in [
+                    ("instance", "class Box; property value; def initialize(@value); @flag=0; end; def touch; @flag+=1; end; end; def run(input); box=Box.new(JSON.parse(input)); box.touch; box.value=box.value; JSON.stringify(box.value)==input; end"),
+                    ("module", "module Box; def self.put(v); @@value=v; @@flag=1; end; def self.get; @@value; end; end; def run(input); Box.put(JSON.parse(input)); JSON.stringify(Box.get)==input; end"),
+                ]:
+                    cases.append(dict(name=f"json_depth/{shape}/{depth}/{target}", source=source, args=[text], expected=True, accounting=True))
+    return cases
+
+
 def benchmark_cases():
     cases = []
 
@@ -197,7 +215,7 @@ def conformance_cases():
                 cases[-1][field]=case[field]
         if case.get("function")=="__main__":
             cases[-1]["args"]=[]
-    return cases+upstream_cases()+site_cases()+encoding_cases()+[case for case in host_global_cases()+module_cases()+capability_cases()+block_cases()+signature_cases() if "policy" not in case]
+    return cases+upstream_cases()+site_cases()+encoding_cases()+json_depth_cases()+[case for case in host_global_cases()+module_cases()+capability_cases()+block_cases()+signature_cases() if "policy" not in case]
 
 
 if __name__ == "__main__":

@@ -440,7 +440,7 @@ fn mutating_callback_analysis_keeps_cancellation_and_deadlines_latched() {
 #[test]
 fn fill_depth_guards_run_after_writes_and_before_the_next_callback() {
     let mut value = Value::int(7);
-    for _ in 0..128 {
+    for _ in 0..crate::budget::MAX_VALUE_DEPTH {
         value = Value::array(vec![value]);
     }
     let result = inferred_runtime(

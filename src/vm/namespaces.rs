@@ -194,7 +194,7 @@ pub(super) fn state(
                 let key = ctx.bytes(name.as_bytes())?;
                 storage.namespaces.data[index]
                     .fields
-                    .insert(ctx, key, value)?;
+                    .insert_field(ctx, key, value)?;
             }
         }
     }
@@ -278,7 +278,7 @@ pub(super) fn set(
     }
     storage.namespaces.data[index]
         .fields
-        .insert(ctx, key, value)
+        .insert_field(ctx, key, value)
 }
 
 pub(super) fn address(
@@ -306,7 +306,7 @@ pub(super) fn address(
         let field = storage.namespaces.data[index].fields.buffer.data.len();
         storage.namespaces.data[index]
             .fields
-            .insert(ctx, key, Value::nil())?;
+            .insert_field(ctx, key, Value::nil())?;
         field
     } else {
         return Err(Error::new(ErrorKind::Name, "undefined class constant"));

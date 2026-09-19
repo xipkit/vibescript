@@ -664,7 +664,7 @@ fn counted_namespace(calls: &Arc<AtomicUsize>) -> Value {
 fn rejected_host_graphs_do_not_initialize_retained_sources() {
     let calls = Arc::new(AtomicUsize::new(0));
     let namespace = counted_namespace(&calls);
-    let deep = (0..130).fold(Value::nil(), |value, _| Value::array(vec![value]));
+    let deep = (0..10_001).fold(Value::nil(), |value, _| Value::array(vec![value]));
     let rejected = Value::array(vec![namespace.clone(), deep.clone()]);
     let accepted = namespace.clone();
     let count = calls.clone();

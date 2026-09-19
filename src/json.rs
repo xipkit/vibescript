@@ -1,20 +1,17 @@
-use crate::{
-    CallContext, Error, ErrorKind, Result, Value,
-    budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
-    hash::Hash,
-    scan::{self, Class},
-    value::Kind,
-};
+use crate::{CallContext, Error, ErrorKind, Result, Value, budget::CHUNK};
 use std::fmt::{self, Write};
+
+mod parser;
+mod writer;
 
 const MAX_PAYLOAD: usize = 1 << 20;
 
 pub(crate) fn parse(ctx: &mut CallContext, input: &[u8]) -> Result<Value> {
     ctx.checkpoint()?;
-    let mut p = Parser { ctx, input, pos: 0 };
-    let v = p.value(0)?;
+    let mut p = parser::Parser::new(ctx, input);
+    let v = p.value()?;
     p.space()?;
-    if p.pos != input.len() {
+    if !p.finished() {
         return p.err("trailing JSON data");
     }
     Ok(v)
@@ -26,293 +23,6 @@ pub(crate) fn parse_builtin(ctx: &mut CallContext, input: &[u8]) -> Result<Value
         return ctx.guard(ErrorKind::OutputLimit, "JSON input exceeds 1 MiB");
     }
     parse(ctx, input)
-}
-struct Parser<'a> {
-    ctx: &'a mut CallContext,
-    input: &'a [u8],
-    pos: usize,
-}
-impl Parser<'_> {
-    fn err<T>(&self, msg: &str) -> Result<T> {
-        Err(Error::new(
-            ErrorKind::Json,
-            format!("{msg} at byte {}", self.pos),
-        ))
-    }
-    fn space(&mut self) -> Result<()> {
-        while self
-            .input
-            .get(self.pos)
-            .is_some_and(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
-        {
-            let start = self.pos;
-            while self.pos < self.input.len()
-                && self.pos - start < CHUNK
-                && matches!(self.input[self.pos], b' ' | b'\n' | b'\r' | b'\t')
-            {
-                self.pos += 1;
-            }
-            self.ctx.work_bytes(self.pos - start)?;
-        }
-        Ok(())
-    }
-    fn take(&mut self, b: u8) -> bool {
-        if self.input.get(self.pos) == Some(&b) {
-            self.pos += 1;
-            true
-        } else {
-            false
-        }
-    }
-    fn value(&mut self, depth: usize) -> Result<Value> {
-        self.ctx.charge(1)?;
-        if depth > MAX_VALUE_DEPTH {
-            return self
-                .ctx
-                .guard(ErrorKind::Recursion, "JSON nesting too deep");
-        }
-        self.space()?;
-        match self.input.get(self.pos).copied() {
-            Some(b'"') => self.string(),
-            Some(b'[') => {
-                self.pos += 1;
-                self.space()?;
-                let mut out = Buffer::empty();
-                if !self.take(b']') {
-                    loop {
-                        let value = self.value(depth + 1)?;
-                        out.push(self.ctx, value)?;
-                        self.space()?;
-                        if self.take(b']') {
-                            break;
-                        }
-                        if !self.take(b',') {
-                            return self.err("expected comma or closing bracket");
-                        }
-                    }
-                }
-                Value::from_array(self.ctx, out)
-            }
-            Some(b'{') => {
-                self.pos += 1;
-                self.space()?;
-                let mut out = Hash::empty();
-                if !self.take(b'}') {
-                    loop {
-                        self.space()?;
-                        if self.input.get(self.pos) != Some(&b'"') {
-                            return self.err("expected JSON object key");
-                        }
-                        let key = self.string()?;
-                        self.space()?;
-                        if !self.take(b':') {
-                            return self.err("expected colon");
-                        }
-                        let value = self.value(depth + 1)?;
-                        out.insert(self.ctx, key, value)?;
-                        self.space()?;
-                        if self.take(b'}') {
-                            break;
-                        }
-                        if !self.take(b',') {
-                            return self.err("expected comma or closing brace");
-                        }
-                    }
-                }
-                Value::from_hash(self.ctx, out)
-            }
-            Some(b't') => {
-                self.literal(b"true")?;
-                Ok(Value::boolean(true))
-            }
-            Some(b'f') => {
-                self.literal(b"false")?;
-                Ok(Value::boolean(false))
-            }
-            Some(b'n') => {
-                self.literal(b"null")?;
-                Ok(Value::nil())
-            }
-            Some(b'-' | b'0'..=b'9') => self.number(),
-            _ => self.err("expected JSON value"),
-        }
-    }
-    fn literal(&mut self, literal: &[u8]) -> Result<()> {
-        if self.input[self.pos..].starts_with(literal) {
-            self.pos += literal.len();
-            Ok(())
-        } else {
-            self.err("invalid JSON literal")
-        }
-    }
-    fn string(&mut self) -> Result<Value> {
-        self.pos += 1;
-        let start = self.pos;
-        loop {
-            if self.pos >= self.input.len() {
-                return self.err("unterminated JSON string");
-            }
-            let end = self.input.len().min(self.pos + CHUNK);
-            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
-            if span.len > 0 {
-                self.ctx.charge(span.steps)?;
-                self.pos += span.len;
-                continue;
-            }
-            if self.input[self.pos] == b'"' {
-                let value = self.ctx.bytes(&self.input[start..self.pos])?;
-                self.pos += 1;
-                return Ok(value);
-            }
-            break;
-        }
-        let mut out = Buffer::with_capacity(self.ctx, self.pos - start)?;
-        out.extend(self.ctx, &self.input[start..self.pos])?;
-        loop {
-            if self.pos >= self.input.len() {
-                return self.err("unterminated JSON string");
-            }
-            let end = self.input.len().min(self.pos + CHUNK);
-            let span = scan::text_span(&self.input[self.pos..end], Class::JsonParse);
-            if span.len > 0 {
-                if span.runes != span.len {
-                    self.ctx.charge(span.steps)?;
-                }
-                out.extend(self.ctx, &self.input[self.pos..self.pos + span.len])?;
-                self.pos += span.len;
-                continue;
-            }
-            self.ctx.charge(1)?;
-            let b = self.input[self.pos];
-            self.pos += 1;
-            match b {
-                b'"' => return Value::from_bytes(self.ctx, out),
-                b'\\' => {
-                    let Some(&b) = self.input.get(self.pos) else {
-                        return self.err("incomplete JSON escape");
-                    };
-                    self.pos += 1;
-                    match b {
-                        b'"' | b'\\' | b'/' => out.push(self.ctx, b)?,
-                        b'b' => out.push(self.ctx, 8)?,
-                        b'f' => out.push(self.ctx, 12)?,
-                        b'n' => out.push(self.ctx, b'\n')?,
-                        b'r' => out.push(self.ctx, b'\r')?,
-                        b't' => out.push(self.ctx, b'\t')?,
-                        b'u' => {
-                            let high = self.hex()?;
-                            let cp = if (0xd800..=0xdbff).contains(&high) {
-                                if self.input[self.pos..].starts_with(b"\\u") {
-                                    let saved = self.pos;
-                                    self.pos += 2;
-                                    let low = self.hex()?;
-                                    if (0xdc00..=0xdfff).contains(&low) {
-                                        0x10000
-                                            + ((high as u32 - 0xd800) << 10)
-                                            + (low as u32 - 0xdc00)
-                                    } else {
-                                        self.pos = saved;
-                                        0xfffd
-                                    }
-                                } else {
-                                    0xfffd
-                                }
-                            } else if (0xdc00..=0xdfff).contains(&high) {
-                                0xfffd
-                            } else {
-                                high as u32
-                            };
-                            let ch = char::from_u32(cp).unwrap();
-                            let mut buf = [0; 4];
-                            out.extend(self.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
-                        }
-                        _ => return self.err("invalid JSON escape"),
-                    }
-                }
-                0..=31 => return self.err("unescaped control byte in JSON string"),
-                _ => {
-                    self.pos -= 1;
-                    let (ch, n, _) = scan::rune(&self.input[self.pos..]);
-                    self.pos += n;
-                    let mut buf = [0; 4];
-                    out.extend(self.ctx, ch.encode_utf8(&mut buf).as_bytes())?;
-                }
-            }
-        }
-    }
-    fn hex(&mut self) -> Result<u16> {
-        let mut n = 0;
-        for _ in 0..4 {
-            let Some(&b) = self.input.get(self.pos) else {
-                return self.err("incomplete Unicode escape");
-            };
-            let digit = match b {
-                b'0'..=b'9' => b - b'0',
-                b'a'..=b'f' => b - b'a' + 10,
-                b'A'..=b'F' => b - b'A' + 10,
-                _ => return self.err("invalid Unicode escape"),
-            };
-            n = (n << 4) | digit as u16;
-            self.pos += 1;
-        }
-        Ok(n)
-    }
-    fn number(&mut self) -> Result<Value> {
-        let start = self.pos;
-        self.take(b'-');
-        if !self.take(b'0') {
-            let digits = self.pos;
-            self.digits()?;
-            if digits == self.pos {
-                return self.err("invalid JSON number");
-            }
-        }
-        let mut float = false;
-        if self.take(b'.') {
-            float = true;
-            let digits = self.pos;
-            self.digits()?;
-            if digits == self.pos {
-                return self.err("invalid JSON fraction");
-            }
-        }
-        if self.take(b'e') || self.take(b'E') {
-            float = true;
-            if !self.take(b'+') {
-                self.take(b'-');
-            }
-            let digits = self.pos;
-            self.digits()?;
-            if digits == self.pos {
-                return self.err("invalid JSON exponent");
-            }
-        }
-        let text = std::str::from_utf8(&self.input[start..self.pos]).unwrap();
-        self.ctx.work_bytes(text.len())?;
-        if float {
-            let n = parse_float(self.ctx, text.as_bytes())?;
-            if !n.is_finite() {
-                return self.err("JSON number outside finite f64 range");
-            }
-            Ok(Value::float(n))
-        } else {
-            if let Ok(n) = text.parse::<i64>() {
-                Ok(Value::int(n))
-            } else {
-                crate::integer::parse_digits(self.ctx, text.as_bytes(), 10)
-            }
-        }
-    }
-    fn digits(&mut self) -> Result<()> {
-        let start = self.pos;
-        while self.input.get(self.pos).is_some_and(u8::is_ascii_digit) {
-            if (self.pos - start) % 64 == 0 {
-                self.ctx.charge(1)?;
-            }
-            self.pos += 1;
-        }
-        Ok(())
-    }
 }
 
 pub(crate) fn parse_float(ctx: &mut CallContext, input: &[u8]) -> Result<f64> {
@@ -424,224 +134,9 @@ fn stringify_with_limit(
     value: &Value,
     limit: Option<usize>,
 ) -> Result<Value> {
-    let mut out = Output {
-        buffer: Buffer::empty(),
-        limit,
-    };
-    write_value(ctx, value, &mut out, 0)?;
+    let mut out = writer::Output::new(limit);
+    writer::write_value(ctx, value, &mut out)?;
     Value::from_bytes(ctx, out.buffer)
-}
-
-struct Output {
-    buffer: Buffer<u8>,
-    limit: Option<usize>,
-}
-
-impl Output {
-    fn check(&self, ctx: &mut CallContext, length: usize) -> Result<()> {
-        if self.limit.is_some_and(|limit| length > limit) {
-            return ctx.guard(ErrorKind::OutputLimit, "JSON output exceeds 1 MiB");
-        }
-        Ok(())
-    }
-
-    fn ensure(&mut self, ctx: &mut CallContext, capacity: usize) -> Result<()> {
-        self.buffer
-            .ensure(ctx, capacity.min(self.limit.unwrap_or(usize::MAX)))
-    }
-
-    fn push(&mut self, ctx: &mut CallContext, byte: u8) -> Result<()> {
-        self.check(ctx, self.buffer.data.len() + 1)?;
-        if self.buffer.data.len() == self.buffer.data.capacity() {
-            self.ensure(ctx, self.buffer.data.capacity().max(4).saturating_mul(2))?;
-        }
-        self.buffer.data.push(byte);
-        Ok(())
-    }
-
-    fn extend(&mut self, ctx: &mut CallContext, bytes: &[u8]) -> Result<()> {
-        let length = self.buffer.data.len().saturating_add(bytes.len());
-        self.check(ctx, length)?;
-        if length > self.buffer.data.capacity() {
-            self.ensure(
-                ctx,
-                length.max(self.buffer.data.capacity().saturating_mul(2)),
-            )?;
-        }
-        self.buffer.extend(ctx, bytes)
-    }
-}
-fn write_value(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) -> Result<()> {
-    ctx.charge(1)?;
-    if depth > MAX_VALUE_DEPTH {
-        return ctx.guard(ErrorKind::Recursion, "JSON nesting too deep");
-    }
-    match &value.0 {
-        Kind::Regex(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a regex")),
-        Kind::Host(method) => return Err(method.value_error()),
-        Kind::Function(function) => return Err(function.value_error()),
-        Kind::Builtin(_) | Kind::Offset(_) => {
-            return Err(Error::new(ErrorKind::Json, "cannot encode a builtin"));
-        }
-        Kind::Instance(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an instance")),
-        Kind::Namespace(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a module")),
-        Kind::Shape(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a type literal")),
-        Kind::Enum(_) => return Err(Error::new(ErrorKind::Json, "cannot encode an enum type")),
-        Kind::EnumMember(m) => write_string(ctx, m.definition().symbol.as_bytes(), out)?,
-        Kind::Money(_) => return Err(Error::new(ErrorKind::Json, "cannot encode money")),
-        Kind::Duration(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a duration")),
-        Kind::Time(_) | Kind::Zoned(_) => {
-            return Err(Error::new(ErrorKind::Json, "cannot encode a time"));
-        }
-        Kind::Range(_) => return Err(Error::new(ErrorKind::Json, "cannot encode a range")),
-        Kind::Nil => out.extend(ctx, b"null")?,
-        Kind::Bool(v) => out.extend(ctx, if *v { b"true" } else { b"false" })?,
-        Kind::Int(n) => {
-            let mut text = Number::new();
-            write!(text, "{n}").unwrap();
-            out.extend(ctx, text.bytes())?;
-        }
-        Kind::Big(_) => {
-            let text = crate::integer::format(ctx, value, 10)?;
-            out.extend(ctx, &text.data)?;
-        }
-        Kind::Float(n) => {
-            if !n.is_finite() {
-                return Err(Error::new(
-                    ErrorKind::Json,
-                    "cannot encode a non-finite float",
-                ));
-            }
-            let mut text = Number::new();
-            if *n != 0.0 && !(1e-6..1e21).contains(&n.abs()) {
-                let mut scientific = Number::new();
-                write!(scientific, "{n:e}").unwrap();
-                let scientific = std::str::from_utf8(scientific.bytes()).unwrap();
-                let (mantissa, exponent) = scientific.split_once('e').unwrap();
-                let exponent: i32 = exponent.parse().unwrap();
-                write!(text, "{mantissa}e{exponent:+}").unwrap();
-            } else {
-                write!(text, "{n}").unwrap();
-            }
-            out.extend(ctx, text.bytes())?;
-        }
-        Kind::Bytes(h) | Kind::Symbol(h) => write_string(ctx, &h.data, out)?,
-        Kind::Array(h) => {
-            out.push(ctx, b'[')?;
-            for (i, v) in h.buffer.data.iter().enumerate() {
-                if i > 0 {
-                    out.push(ctx, b',')?;
-                }
-                write_value(ctx, v, out, depth + 1)?;
-            }
-            out.push(ctx, b']')?;
-        }
-        Kind::Hash(h) => {
-            out.push(ctx, b'{')?;
-            for (i, (k, v)) in h.buffer.data.iter().enumerate() {
-                if i > 0 {
-                    out.push(ctx, b',')?;
-                }
-                write_string(ctx, k.require_bytes()?, out)?;
-                out.push(ctx, b':')?;
-                write_value(ctx, v, out, depth + 1)?;
-            }
-            out.push(ctx, b'}')?;
-        }
-    }
-    Ok(())
-}
-fn write_string(ctx: &mut CallContext, input: &[u8], out: &mut Output) -> Result<()> {
-    out.check(
-        ctx,
-        out.buffer
-            .data
-            .len()
-            .saturating_add(input.len())
-            .saturating_add(2),
-    )?;
-    let Some(minimum) = out
-        .buffer
-        .data
-        .len()
-        .checked_add(input.len())
-        .and_then(|n| {
-            n.checked_add(
-                2 + if input.len() >= CHUNK {
-                    MAX_VALUE_DEPTH
-                } else {
-                    0
-                },
-            )
-        })
-    else {
-        return ctx.fail(ErrorKind::Memory, "JSON output size overflow");
-    };
-    if minimum > out.buffer.data.capacity() {
-        out.ensure(
-            ctx,
-            minimum.max(out.buffer.data.capacity().saturating_mul(2)),
-        )?;
-    }
-    out.push(ctx, b'"')?;
-    let mut i = 0;
-    while i < input.len() {
-        let span = scan::text_span(&input[i..input.len().min(i + CHUNK)], Class::JsonStringify);
-        if span.len > 0 {
-            if span.runes != span.len {
-                ctx.charge(span.steps)?;
-            }
-            out.extend(ctx, &input[i..i + span.len])?;
-            i += span.len;
-            continue;
-        }
-        ctx.charge(1)?;
-        let b = input[i];
-        i += 1;
-        if b.is_ascii() {
-            // Go reserves room for the longest escape before any ASCII escape.
-            out.check(ctx, out.buffer.data.len().saturating_add(6))?;
-        }
-        match b {
-            b'"' => out.extend(ctx, b"\\\"")?,
-            b'\\' => out.extend(ctx, b"\\\\")?,
-            b'\n' => out.extend(ctx, b"\\n")?,
-            b'\r' => out.extend(ctx, b"\\r")?,
-            b'\t' => out.extend(ctx, b"\\t")?,
-            8 => out.extend(ctx, b"\\b")?,
-            12 => out.extend(ctx, b"\\f")?,
-            0..=31 | b'<' | b'>' | b'&' => {
-                let hex = b"0123456789abcdef";
-                out.extend(
-                    ctx,
-                    &[
-                        b'\\',
-                        b'u',
-                        b'0',
-                        b'0',
-                        hex[(b >> 4) as usize],
-                        hex[(b & 15) as usize],
-                    ],
-                )?;
-            }
-            _ => {
-                i -= 1;
-                let (ch, n, valid) = scan::rune(&input[i..]);
-                i += n;
-                if ch == '\u{2028}' {
-                    out.extend(ctx, b"\\u2028")?;
-                } else if ch == '\u{2029}' {
-                    out.extend(ctx, b"\\u2029")?;
-                } else if !valid {
-                    out.extend(ctx, b"\\ufffd")?;
-                } else {
-                    out.extend(ctx, &input[i - n..i])?;
-                }
-            }
-        }
-    }
-    out.push(ctx, b'"')?;
-    Ok(())
 }
 
 pub(crate) struct Number {
@@ -709,5 +204,402 @@ mod limit_tests {
                 .as_bytes(),
             Some(b"null".as_slice())
         );
+    }
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+    use crate::{CallOptions, ErrorClass, budget::MAX_VALUE_DEPTH};
+    use std::time::Instant;
+
+    const DEEP_MESSAGE: &str = "JSON nesting too deep";
+
+    fn nested(open: &str, close: &str, depth: usize, innermost: &str) -> String {
+        format!("{}{innermost}{}", open.repeat(depth), close.repeat(depth))
+    }
+
+    /// Alternates arrays and single-key objects from the outside in.
+    fn mixed(depth: usize, innermost: &str) -> String {
+        let mut text = String::new();
+        for level in 0..depth {
+            text.push_str(if level % 2 == 0 { "[" } else { "{\"k\":" });
+        }
+        text.push_str(innermost);
+        for level in (0..depth).rev() {
+            text.push(if level % 2 == 0 { ']' } else { '}' });
+        }
+        text
+    }
+
+    /// Texts containing exactly `depth` containers, each in canonical output form.
+    fn texts(depth: usize) -> Vec<String> {
+        vec![
+            nested("[", "]", depth, "0"),
+            nested("[", "]", depth - 1, "[]"),
+            nested("{\"a\":", "}", depth, "true"),
+            nested("{\"a\":", "}", depth - 1, "{}"),
+            mixed(depth, "\"x\""),
+            mixed(depth - 1, "[]"),
+            mixed(depth - 1, "{}"),
+        ]
+    }
+
+    /// Host values containing exactly `depth` containers around `innermost`.
+    fn hosts(depth: usize, innermost: Value) -> Vec<Value> {
+        let mut arrays = innermost.clone();
+        let mut hashes = innermost.clone();
+        let mut alternating = innermost;
+        for level in 0..depth {
+            arrays = Value::array(vec![arrays]);
+            hashes = Value::hash(vec![(b"a".to_vec(), hashes)]);
+            alternating = if level % 2 == 0 {
+                Value::array(vec![alternating])
+            } else {
+                Value::hash(vec![(b"k".to_vec(), alternating)])
+            };
+        }
+        vec![arrays, hashes, alternating]
+    }
+
+    fn context() -> CallContext {
+        CallContext::new(CallOptions::default())
+    }
+
+    fn assert_deep_rejection(ctx: &mut CallContext, error: &Error) {
+        assert_eq!(error.kind, ErrorKind::Recursion);
+        assert_eq!(error.class(), Some(ErrorClass::Limit));
+        assert_eq!(error.message, DEEP_MESSAGE);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        // Nesting guards are recoverable; execution quotas latch instead.
+        assert!(!ctx.exhausted());
+        ctx.checkpoint().unwrap();
+    }
+
+    #[test]
+    fn parse_allows_exactly_the_maximum_depth_and_round_trips_it() {
+        for text in texts(MAX_VALUE_DEPTH) {
+            let mut ctx = context();
+            let value = parse(&mut ctx, text.as_bytes()).unwrap();
+            assert_eq!(value.depth(), MAX_VALUE_DEPTH, "{text}");
+            let encoded = stringify(&mut ctx, &value).unwrap();
+            assert_eq!(encoded.as_bytes(), Some(text.as_bytes()));
+            let again = parse(&mut ctx, encoded.as_bytes().unwrap()).unwrap();
+            assert_eq!(again.depth(), MAX_VALUE_DEPTH);
+            drop((value, encoded, again));
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn parse_rejects_the_next_container_at_entry_even_when_empty() {
+        for text in texts(MAX_VALUE_DEPTH + 1) {
+            let mut ctx = context();
+            let error = parse(&mut ctx, text.as_bytes()).unwrap_err();
+            assert_deep_rejection(&mut ctx, &error);
+        }
+        // The rejection happens before anything inside the container is read:
+        // malformed contents behind the opener are never reached, and the only
+        // work charged is the per-opener cost. Array openers cost one step;
+        // object openers also scan and copy a one-byte key.
+        for (opener, steps_per_level) in [("[", 1), ("{\"k\":", 3)] {
+            let expected_steps = steps_per_level * MAX_VALUE_DEPTH as u64 + 1;
+            let text = format!("{}?", opener.repeat(MAX_VALUE_DEPTH + 1));
+            let mut ctx = context();
+            let error = parse(&mut ctx, text.as_bytes()).unwrap_err();
+            assert_deep_rejection(&mut ctx, &error);
+            assert_eq!(ctx.stats().steps, expected_steps);
+            let text = format!("{}?", opener.repeat(MAX_VALUE_DEPTH));
+            let mut ctx = context();
+            let error = parse(&mut ctx, text.as_bytes()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Json);
+            assert_eq!(
+                error.message,
+                format!("expected JSON value at byte {}", text.len() - 1)
+            );
+            assert_eq!(ctx.stats().steps, expected_steps);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+
+    #[test]
+    fn stringify_allows_exactly_the_maximum_depth_and_rejects_the_next_at_entry() {
+        for host in hosts(MAX_VALUE_DEPTH, Value::int(0)) {
+            let mut ctx = context();
+            let encoded = stringify(&mut ctx, &host).unwrap();
+            let parsed = parse(&mut ctx, encoded.as_bytes().unwrap()).unwrap();
+            assert_eq!(parsed.depth(), MAX_VALUE_DEPTH);
+            let again = stringify(&mut ctx, &parsed).unwrap();
+            assert_eq!(again.as_bytes(), encoded.as_bytes());
+            drop((encoded, parsed, again));
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+        for innermost in [Value::int(0), Value::array(vec![]), Value::hash(vec![])] {
+            let extra = usize::from(innermost.depth() > 0);
+            for host in hosts(MAX_VALUE_DEPTH - extra, innermost.clone()) {
+                let mut ctx = context();
+                assert!(stringify(&mut ctx, &host).is_ok());
+            }
+            for host in hosts(MAX_VALUE_DEPTH + 1 - extra, innermost.clone()) {
+                let mut ctx = context();
+                let error = stringify(&mut ctx, &host).unwrap_err();
+                assert_deep_rejection(&mut ctx, &error);
+            }
+        }
+        // One step per container opener, and nothing after the rejected one.
+        let mut ctx = context();
+        let host = hosts(MAX_VALUE_DEPTH + 1, Value::bytes(vec![b'a'; CHUNK])).remove(0);
+        let error = stringify(&mut ctx, &host).unwrap_err();
+        assert_deep_rejection(&mut ctx, &error);
+        assert_eq!(ctx.stats().steps, MAX_VALUE_DEPTH as u64 + 1);
+    }
+
+    #[test]
+    fn malformed_input_after_a_complete_deep_sibling_is_recoverable() {
+        let deep = nested("[", "]", MAX_VALUE_DEPTH - 1, "1");
+        for (prefix, suffix, offset, message) in [
+            ("[", ",?]", 1, "expected JSON value"),
+            ("[", ",[", 2, "expected JSON value"),
+            ("[", "", 0, "expected comma or closing bracket"),
+            ("[", "]x", 1, "trailing JSON data"),
+            ("{\"a\":", ",\"b\":?}", 5, "expected JSON value"),
+            ("{\"a\":", ",1:2}", 1, "expected JSON object key"),
+            ("{\"a\":", ",\"b\" 2}", 5, "expected colon"),
+            ("{\"a\":", "", 0, "expected comma or closing brace"),
+        ] {
+            let text = format!("{prefix}{deep}{suffix}");
+            let mut ctx = context();
+            let error = parse(&mut ctx, text.as_bytes()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Json, "{text}");
+            assert_eq!(
+                error.message,
+                format!("{message} at byte {}", prefix.len() + deep.len() + offset)
+            );
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            // Input errors do not latch: the same context keeps working.
+            ctx.charge(1).unwrap();
+            let value = parse(&mut ctx, format!("[{deep}]").as_bytes()).unwrap();
+            assert_eq!(value.depth(), MAX_VALUE_DEPTH);
+            drop(value);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        }
+    }
+
+    fn assert_exact_quota_boundaries(label: &str, run: &dyn Fn(&mut CallContext) -> Result<Value>) {
+        let mut baseline = context();
+        let value = run(&mut baseline).unwrap();
+        let steps = baseline.stats().steps;
+        let peak = baseline.stats().peak_memory_bytes;
+        drop(value);
+        assert_eq!(baseline.stats().retained_memory_bytes, 0, "{label}");
+        assert!(steps > 0 && peak > 0, "{label}");
+
+        let stride = (steps / 64).max(1);
+        for limit in (0..steps).step_by(stride as usize).chain([steps - 1]) {
+            let mut ctx = context();
+            ctx.options.limits.steps = Some(limit);
+            let error = run(&mut ctx).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Steps, "{label} steps {limit}");
+            assert_eq!(
+                ctx.stats().retained_memory_bytes,
+                0,
+                "{label} steps {limit}"
+            );
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        }
+        let mut ctx = context();
+        ctx.options.limits.steps = Some(steps);
+        let value = run(&mut ctx).unwrap();
+        assert_eq!(ctx.stats().steps, steps, "{label}");
+        drop(value);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+
+        let stride = (peak / 64).max(1);
+        for limit in (0..peak).step_by(stride).chain([peak - 1]) {
+            let mut ctx = context();
+            ctx.options.limits.memory_bytes = Some(limit);
+            let error = run(&mut ctx).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Memory, "{label} memory {limit}");
+            assert_eq!(
+                ctx.stats().retained_memory_bytes,
+                0,
+                "{label} memory {limit}"
+            );
+            assert_eq!(ctx.checkpoint().unwrap_err(), error);
+        }
+        let mut ctx = context();
+        ctx.options.limits.memory_bytes = Some(peak);
+        let value = run(&mut ctx).unwrap();
+        assert_eq!(ctx.stats().peak_memory_bytes, peak, "{label}");
+        drop(value);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn deep_parse_quota_failures_release_partial_trees_and_frames() {
+        for text in texts(MAX_VALUE_DEPTH) {
+            assert_exact_quota_boundaries(&text, &|ctx| parse(ctx, text.as_bytes()));
+        }
+        // A completed deep sibling is released when a later element exhausts the quota.
+        let deep = nested("[", "]", MAX_VALUE_DEPTH - 2, "1");
+        let text = format!("[{deep},[{deep}]]");
+        assert_exact_quota_boundaries(&text, &|ctx| parse(ctx, text.as_bytes()));
+    }
+
+    #[test]
+    fn deep_stringify_quota_failures_release_partial_output_and_frames() {
+        for host in hosts(MAX_VALUE_DEPTH, Value::bytes(b"payload".to_vec())) {
+            assert_exact_quota_boundaries("stringify", &|ctx| stringify(ctx, &host));
+        }
+        let mut ctx = context();
+        let deep = hosts(MAX_VALUE_DEPTH - 2, Value::int(1)).remove(0);
+        let host = Value::array(vec![deep.clone(), Value::array(vec![deep])]);
+        let expected = stringify(&mut ctx, &host).unwrap();
+        assert_exact_quota_boundaries("siblings", &|ctx| stringify(ctx, &host));
+        let mut ctx = context();
+        assert_eq!(
+            parse(&mut ctx, expected.as_bytes().unwrap())
+                .unwrap()
+                .depth(),
+            MAX_VALUE_DEPTH
+        );
+    }
+
+    #[test]
+    fn cancellation_and_deadlines_are_observed_before_deep_codec_work() {
+        let text = nested("[", "]", MAX_VALUE_DEPTH, "0");
+        let host = hosts(MAX_VALUE_DEPTH, Value::int(0)).remove(0);
+        for deadline in [false, true] {
+            for encode in [false, true] {
+                let mut ctx = context();
+                if deadline {
+                    ctx.options.deadline = Some(Instant::now());
+                } else {
+                    ctx.cancellation().cancel();
+                }
+                let error = if encode {
+                    stringify(&mut ctx, &host)
+                } else {
+                    parse(&mut ctx, text.as_bytes())
+                }
+                .unwrap_err();
+                assert_eq!(
+                    error.kind,
+                    if deadline {
+                        ErrorKind::Deadline
+                    } else {
+                        ErrorKind::Cancelled
+                    }
+                );
+                assert_eq!(error.class(), None);
+                assert_eq!(ctx.stats().retained_memory_bytes, 0);
+                assert_eq!(ctx.checkpoint().unwrap_err(), error);
+            }
+        }
+    }
+
+    #[test]
+    fn long_strings_reserve_headroom_for_the_open_containers_only() {
+        let payload = vec![b'a'; (64 * MAX_VALUE_DEPTH).max(CHUNK)];
+        let mut ctx = context();
+        let root = stringify(&mut ctx, &Value::bytes(payload.clone())).unwrap();
+        let root_retained = ctx.stats().retained_memory_bytes;
+        drop(root);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        let host = hosts(MAX_VALUE_DEPTH, Value::bytes(payload.clone())).remove(0);
+        let mut ctx = context();
+        let nested = stringify(&mut ctx, &host).unwrap();
+        assert_eq!(
+            nested.as_bytes().unwrap().len(),
+            payload.len() + 2 + 2 * MAX_VALUE_DEPTH
+        );
+        // The closing brackets fit in the reserved headroom, so the output
+        // buffer never doubled after the string was written.
+        assert_eq!(
+            ctx.stats().retained_memory_bytes,
+            root_retained + 2 * MAX_VALUE_DEPTH
+        );
+        drop(nested);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn key_order_duplicates_escapes_and_numbers_are_unchanged() {
+        let mut ctx = context();
+        let value = parse(&mut ctx, br#"{"b":1,"a":[2,{"c":null}],"b":3}"#).unwrap();
+        let entries = value.as_hash().unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].0.as_bytes(), Some(b"b".as_slice()));
+        assert_eq!(entries[0].1.as_int(), Some(3));
+        assert_eq!(entries[1].0.as_bytes(), Some(b"a".as_slice()));
+        assert_eq!(
+            stringify(&mut ctx, &value).unwrap().as_bytes(),
+            Some(br#"{"b":3,"a":[2,{"c":null}]}"#.as_slice())
+        );
+
+        let parsed_text = parse(
+            &mut ctx,
+            br#"["\u0041\ud83d\ude00\udc00\ud83dx\n\/<>&\u2028"]"#,
+        )
+        .unwrap();
+        let text = parsed_text.as_array().unwrap()[0].clone();
+        let decoded = "A\u{1f600}\u{fffd}\u{fffd}x\n/<>&\u{2028}";
+        assert_eq!(text.as_bytes(), Some(decoded.as_bytes()));
+        // Valid replacement characters are emitted raw; only invalid bytes
+        // become \ufffd.
+        let encoded = "[\"A\u{1f600}\u{fffd}\u{fffd}x\\n/\\u003c\\u003e\\u0026\\u2028\"]";
+        assert_eq!(
+            stringify(&mut ctx, &Value::array(vec![text]))
+                .unwrap()
+                .as_bytes(),
+            Some(encoded.as_bytes())
+        );
+        assert_eq!(
+            stringify(&mut ctx, &Value::bytes(vec![0xff]))
+                .unwrap()
+                .as_bytes(),
+            Some(br#""\ufffd""#.as_slice())
+        );
+
+        let parsed_numbers = parse(&mut ctx, b"[-0.0,1.5e3,1e21,12345678901234567890,-7]").unwrap();
+        let numbers = parsed_numbers.as_array().unwrap();
+        assert!(
+            numbers[0]
+                .as_float()
+                .is_some_and(|n| n == 0.0 && n.is_sign_negative())
+        );
+        assert_eq!(numbers[1].as_float(), Some(1500.0));
+        assert_eq!(numbers[3].as_int(), None);
+        assert_eq!(numbers[4].as_int(), Some(-7));
+        assert_eq!(
+            stringify(&mut ctx, &Value::array(numbers.to_vec()))
+                .unwrap()
+                .as_bytes(),
+            Some(b"[-0,1500,1e+21,12345678901234567890,-7]".as_slice())
+        );
+        for (text, message) in [
+            ("[1e400]", "JSON number outside finite f64 range at byte 6"),
+            ("01", "trailing JSON data at byte 1"),
+            ("[1.]", "invalid JSON fraction at byte 3"),
+            ("[\"a", "unterminated JSON string at byte 3"),
+            ("[\"\\x\"]", "invalid JSON escape at byte 4"),
+            ("[tru]", "invalid JSON literal at byte 1"),
+            (
+                "[\"\u{1}\"]",
+                "unescaped control byte in JSON string at byte 3",
+            ),
+        ] {
+            let error = parse(&mut ctx, text.as_bytes()).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Json, "{text}");
+            assert_eq!(error.message, message, "{text}");
+        }
+        assert_eq!(
+            stringify(&mut ctx, &Value::array(vec![Value::float(f64::NAN)]))
+                .unwrap_err()
+                .message,
+            "cannot encode a non-finite float"
+        );
+        drop((value, parsed_text, parsed_numbers));
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
     }
 }

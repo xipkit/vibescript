@@ -405,9 +405,16 @@ fn array_method(
     }
 }
 
-fn flatten(
+/// A suspended array level of a flatten walk; borrows the input only.
+struct Level<'a> {
+    values: &'a [Value],
+    remaining: i64,
+    index: usize,
+}
+
+fn flatten<'a>(
     ctx: &mut CallContext,
-    values: &[Value],
+    values: &'a [Value],
     remaining: i64,
     depth: usize,
     out: &mut Buffer<Value>,
@@ -415,21 +422,208 @@ fn flatten(
     if depth > MAX_VALUE_DEPTH {
         return ctx.guard(ErrorKind::Recursion, "flatten nesting too deep");
     }
-    for v in values {
+    let mut current = Level {
+        values,
+        remaining,
+        index: 0,
+    };
+    let mut parents: Buffer<Level<'a>> = Buffer::empty();
+    loop {
+        let i = current.index;
+        if i == current.values.len() {
+            match parents.data.pop() {
+                Some(parent) => current = parent,
+                None => return Ok(()),
+            }
+            continue;
+        }
+        current.index += 1;
         ctx.charge(1)?;
-        if remaining != 0 {
+        let values: &'a [Value] = current.values;
+        let v = &values[i];
+        if current.remaining != 0 {
             if let Some(nested) = v.as_array() {
-                flatten(
-                    ctx,
-                    nested,
-                    if remaining < 0 { -1 } else { remaining - 1 },
-                    depth + 1,
-                    out,
-                )?;
+                // A nested level sits one below its parent; the root is `depth`.
+                if depth + parents.data.len() + 1 > MAX_VALUE_DEPTH {
+                    return ctx.guard(ErrorKind::Recursion, "flatten nesting too deep");
+                }
+                let remaining = if current.remaining < 0 {
+                    -1
+                } else {
+                    current.remaining - 1
+                };
+                let suspended = std::mem::replace(
+                    &mut current,
+                    Level {
+                        values: nested,
+                        remaining,
+                        index: 0,
+                    },
+                );
+                parents.push(ctx, suspended)?;
                 continue;
             }
         }
         out.push(ctx, v.clone())?;
     }
-    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        CallOptions, ErrorClass,
+        ops::testing::{context, nested, on_small_stack},
+    };
+
+    fn ints(values: &[i64]) -> Value {
+        Value::array(values.iter().copied().map(Value::int).collect())
+    }
+
+    fn flattened(ctx: &mut CallContext, value: &Value, args: &[Value]) -> Result<String> {
+        method(ctx, Method::Flatten, value.clone(), args).map(|value| value.to_string())
+    }
+
+    #[test]
+    fn flatten_depth_forms_preserve_their_outputs() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let array = Value::array(vec![
+            Value::int(1),
+            Value::array(vec![
+                Value::int(2),
+                Value::array(vec![Value::int(3), ints(&[4])]),
+            ]),
+        ]);
+        for (args, expected) in [
+            (vec![], "[1, 2, 3, 4]"),
+            (vec![Value::nil()], "[1, 2, 3, 4]"),
+            (vec![Value::int(-1)], "[1, 2, 3, 4]"),
+            (vec![Value::int(0)], "[1, [2, [3, [4]]]]"),
+            (vec![Value::int(1)], "[1, 2, [3, [4]]]"),
+            (vec![Value::int(2)], "[1, 2, 3, [4]]"),
+        ] {
+            assert_eq!(flattened(&mut ctx, &array, &args).unwrap(), expected);
+        }
+        let hash = Value::hash(vec![(
+            b"a".to_vec(),
+            Value::array(vec![Value::int(1), ints(&[2])]),
+        )]);
+        for (args, expected) in [
+            (vec![], "[a, [1, [2]]]"),
+            (vec![Value::int(1)], "[a, [1, [2]]]"),
+            (vec![Value::int(2)], "[a, 1, [2]]"),
+            (vec![Value::int(3)], "[a, 1, 2]"),
+            (vec![Value::int(-1)], "[a, 1, 2]"),
+            (vec![Value::int(0)], "[[a, [1, [2]]]]"),
+        ] {
+            assert_eq!(flattened(&mut ctx, &hash, &args).unwrap(), expected);
+        }
+        let too_many = [Value::int(1), Value::int(2)];
+        assert_eq!(
+            flattened(&mut ctx, &array, &too_many).unwrap_err().kind,
+            ErrorKind::Argument
+        );
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn flatten_has_exact_step_and_frame_memory_boundaries() {
+        let array = Value::array(vec![
+            Value::int(1),
+            Value::array(vec![Value::int(2), ints(&[3])]),
+        ]);
+        let walk = |ctx: &mut CallContext| {
+            let mut out = Buffer::empty();
+            flatten(ctx, array.as_array().unwrap(), -1, 0, &mut out).map(|_| out.data.len())
+        };
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert_eq!(walk(&mut ctx).unwrap(), 3);
+        let steps = ctx.stats().steps;
+        let mut ctx = context(Some(steps), None);
+        assert_eq!(walk(&mut ctx).unwrap(), 3);
+        let mut ctx = context(Some(steps - 1), None);
+        let error = walk(&mut ctx).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+
+        let empty_levels = Value::array(vec![Value::array(vec![Value::array(vec![])])]);
+        let walk = |ctx: &mut CallContext| {
+            let mut out = Buffer::empty();
+            flatten(ctx, empty_levels.as_array().unwrap(), -1, 0, &mut out).map(|_| out.data.len())
+        };
+        let frames = 8 * size_of::<Level>();
+        let mut ctx = context(None, Some(frames));
+        assert_eq!(walk(&mut ctx).unwrap(), 0);
+        assert_eq!(ctx.stats().peak_memory_bytes, frames);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        let mut ctx = context(None, Some(frames - 1));
+        let error = walk(&mut ctx).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(ctx.stats().peak_memory_bytes, 0);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+        // A depth of zero copies elements without suspending any level.
+        let mut ctx = context(None, Some(0));
+        let mut out = Buffer::untracked(Vec::with_capacity(4));
+        flatten(&mut ctx, empty_levels.as_array().unwrap(), 0, 0, &mut out).unwrap();
+        assert_eq!(out.data.len(), 1);
+        assert_eq!(ctx.stats().peak_memory_bytes, 0);
+    }
+
+    #[test]
+    fn deep_flatten_walks_one_level_past_the_value_limit_on_a_small_stack() {
+        let outcome = on_small_stack(|| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let within = nested(MAX_VALUE_DEPTH + 1, Value::int(1));
+            let beyond = nested(MAX_VALUE_DEPTH + 2, Value::int(1));
+            let mut out = Buffer::empty();
+            let full = flatten(&mut ctx, within.as_array().unwrap(), -1, 0, &mut out)
+                .map(|_| out.data.iter().map(|v| v.as_int()).collect::<Vec<_>>());
+            drop(out);
+            let mut out = Buffer::empty();
+            let failed = flatten(&mut ctx, beyond.as_array().unwrap(), -1, 0, &mut out);
+            drop(out);
+            // Bounded depth never reaches the deep levels, so height is irrelevant.
+            let mut out = Buffer::empty();
+            let bounded = flatten(&mut ctx, beyond.as_array().unwrap(), 1, 0, &mut out)
+                .map(|_| out.data.iter().map(Value::depth).collect::<Vec<_>>());
+            for value in out.data.drain(..) {
+                drop(value);
+            }
+            drop(out);
+            let hash = Value::hash(vec![(
+                b"k".to_vec(),
+                nested(MAX_VALUE_DEPTH, Value::int(1)),
+            )]);
+            let hash_full = method(&mut ctx, Method::Flatten, hash.clone(), &[Value::int(-1)])
+                .map(|value| value.to_string());
+            let too_deep = Value::hash(vec![(
+                b"k".to_vec(),
+                nested(MAX_VALUE_DEPTH + 1, Value::int(1)),
+            )]);
+            let hash_failed = method(
+                &mut ctx,
+                Method::Flatten,
+                too_deep.clone(),
+                &[Value::int(-1)],
+            )
+            .map(|value| value.to_string());
+            let stats = ctx.stats();
+            for value in [within, beyond, hash, too_deep] {
+                drop(value);
+            }
+            (full, failed, bounded, hash_full, hash_failed, stats)
+        });
+        let (full, failed, bounded, hash_full, hash_failed, stats) = outcome;
+        assert_eq!(full.unwrap(), [Some(1)]);
+        for error in [failed.unwrap_err(), hash_failed.unwrap_err()] {
+            assert_eq!(error.kind, ErrorKind::Recursion);
+            assert_eq!(error.class(), Some(ErrorClass::Limit));
+            assert_eq!(error.message, "flatten nesting too deep");
+        }
+        assert_eq!(bounded.unwrap(), [MAX_VALUE_DEPTH]);
+        assert_eq!(hash_full.unwrap(), "[k, 1]");
+        assert_eq!(stats.retained_memory_bytes, 0);
+    }
 }

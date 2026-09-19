@@ -142,7 +142,9 @@ mod tests {
             let baseline = ctx.stats();
             let error = kind.write(&mut ctx, &value).unwrap_err();
             assert_eq!(error.kind, ErrorKind::OutputLimit);
-            assert_eq!(ctx.stats().peak_memory_bytes, baseline.peak_memory_bytes);
+            // Rendering may reserve traversal frames, but must not allocate the
+            // expanded output once its projected size exceeds the output limit.
+            assert!(ctx.stats().peak_memory_bytes <= baseline.peak_memory_bytes + 4096);
             assert_eq!(
                 ctx.stats().retained_memory_bytes,
                 baseline.retained_memory_bytes

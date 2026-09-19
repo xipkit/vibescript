@@ -6,14 +6,44 @@ use crate::{
 };
 use std::{collections::HashMap, fmt, mem::size_of, sync::Arc};
 
+#[cfg(test)]
+mod depth_tests;
+pub(crate) mod destroy;
+mod import;
+mod render;
+
+/// An element type whose nested containers can be destroyed without deep recursion.
+///
+/// `Heap` is only instantiated with [`Value`]; the bound lets its `Drop` stay generic
+/// while sites elsewhere keep naming `Heap::<Value>` for size accounting.
+pub(crate) trait Element: Sized {
+    /// Destroys a buffer stolen from a heap taller than `destroy::SHALLOW`.
+    fn destroy(buffer: Buffer<Self>);
+}
+
+impl Element for Value {
+    fn destroy(buffer: Buffer<Self>) {
+        destroy::values(buffer);
+    }
+}
+
 #[derive(Debug)]
-pub(crate) struct Heap<T> {
+pub(crate) struct Heap<T: Element> {
     pub buffer: Buffer<T>,
     header: Option<Charge>,
     depth: usize,
+    drop_parent: Option<Value>,
 }
 
-impl<T> Heap<T> {
+impl<T: Element> Drop for Heap<T> {
+    fn drop(&mut self) {
+        if self.depth > destroy::SHALLOW && !self.buffer.data.is_empty() {
+            T::destroy(std::mem::replace(&mut self.buffer, Buffer::empty()));
+        }
+    }
+}
+
+impl<T: Element> Heap<T> {
     pub(crate) fn header_bytes() -> usize {
         size_of::<Self>() + 2 * size_of::<usize>()
     }
@@ -27,6 +57,7 @@ impl<T> Heap<T> {
             buffer,
             header,
             depth,
+            drop_parent: None,
         }))
     }
     fn untracked(data: Vec<T>, depth: usize) -> Arc<Self> {
@@ -34,11 +65,12 @@ impl<T> Heap<T> {
             buffer: Buffer::untracked(data),
             header: None,
             depth,
+            drop_parent: None,
         })
     }
 }
 
-impl<T: Clone> Heap<T> {
+impl<T: Element + Clone> Heap<T> {
     fn make_mut<'a>(
         ctx: &mut CallContext,
         heap: &'a mut Arc<Self>,
@@ -131,8 +163,14 @@ pub(crate) enum Kind {
 }
 
 /// An immutable Vibescript value. Clones share storage; script updates preserve each clone's value.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Value(pub(crate) Kind);
+
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        render::debug(self, f)
+    }
+}
 
 impl Default for Value {
     fn default() -> Self {
@@ -582,173 +620,22 @@ impl CallContext {
     }
 
     /// Imports a host value, sharing immutable bytes and charging retained storage to this call.
+    ///
+    /// Containers are copied iteratively; the traversal frames are charged to this call and
+    /// released together with any partial result when the import fails.
     pub fn import(&mut self, value: &Value) -> Result<Value> {
-        self.import_depth(value, 0, false)
+        self.import_value(value, false)
     }
 
     /// Imports source-heap references rooted in temporarily allocated containers.
     pub(crate) fn import_rooted(&mut self, value: &Value) -> Result<Value> {
-        self.import_depth(value, 0, true)
-    }
-
-    fn import_depth(&mut self, value: &Value, depth: usize, rooted: bool) -> Result<Value> {
-        self.charge(1)?;
-        if depth > MAX_VALUE_DEPTH {
-            return self.guard(ErrorKind::Recursion, "value nesting too deep");
-        }
-        match &value.0 {
-            Kind::Host(method) => Ok(Value(Kind::Host(crate::capability::BoundMethod::import(
-                self, method,
-            )?))),
-            Kind::Instance(instance) => crate::objects::import(self, instance)
-                .map(|instance| Value(Kind::Instance(instance))),
-            Kind::Function(function) => Ok(Value(Kind::Function(
-                crate::exports::Function::import(self, function)?,
-            ))),
-            Kind::Namespace(namespace) => Ok(Value(Kind::Namespace(
-                crate::namespace::Namespace::import(self, namespace)?,
-            ))),
-            Kind::Offset(offset) => Ok(Value(Kind::Offset(crate::regex::matches::Offset::import(
-                self, offset,
-            )?))),
-            Kind::Regex(regex) => Ok(Value(Kind::Regex(crate::regex::value::Regex::import(
-                self, regex,
-            )?))),
-            Kind::Shape(shape) => Ok(Value(Kind::Shape(crate::shapes::Shape::import(
-                self, shape,
-            )?))),
-            Kind::Enum(e) => Ok(Value(Kind::Enum(crate::enums::Enumeration::import(
-                self, e,
-            )?))),
-            Kind::EnumMember(m) => Ok(Value(Kind::EnumMember(crate::enums::Member::import(
-                self, m,
-            )?))),
-            Kind::Zoned(time) => Ok(Value(Kind::Zoned(crate::time::Zoned::import(self, time)?))),
-            Kind::Big(n) => Ok(Value(Kind::Big(crate::integer::Big::import(self, n)?))),
-            Kind::Range(r) => Ok(Value(Kind::Range(Range::import(self, r)?))),
-            Kind::Bytes(h) | Kind::Symbol(h) => {
-                let bytes = Bytes::import(self, h)?;
-                Ok(Value(if matches!(value.0, Kind::Symbol(_)) {
-                    Kind::Symbol(bytes)
-                } else {
-                    Kind::Bytes(bytes)
-                }))
-            }
-            Kind::Array(h) => {
-                if !rooted && self.owns(&h.header) {
-                    return Ok(value.clone());
-                }
-                let mut buf = Buffer::with_capacity(self, h.buffer.data.len())?;
-                for v in &h.buffer.data {
-                    let v = self.import_depth(v, depth + 1, rooted)?;
-                    buf.data.push(v);
-                }
-                Value::from_array(self, buf)
-            }
-            Kind::Hash(h) => {
-                if !rooted && self.owns(&h.header) {
-                    return Ok(value.clone());
-                }
-                let mut buf = Buffer::with_capacity(self, h.buffer.data.len())?;
-                for (k, v) in &h.buffer.data {
-                    let k = self.import_depth(k, depth + 1, rooted)?;
-                    let v = self.import_depth(v, depth + 1, rooted)?;
-                    buf.data.push((k, v));
-                }
-                let mut hash = Hash::from_entries(self, buf)?;
-                hash.object = h.object;
-                hash.tag = h.tag;
-                Value::from_hash(self, hash)
-            }
-            _ => Ok(value.clone()),
-        }
+        self.import_value(value, true)
     }
 }
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.0 {
-            Kind::Host(method) => write!(f, "<builtin {}>", method.name()),
-            Kind::Regex(regex) => {
-                let text = regex
-                    .text(&mut crate::integer::unlimited_context())
-                    .map_err(|_| fmt::Error)?;
-                f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
-            }
-            Kind::Shape(shape) => write!(
-                f,
-                "<Shape {}>",
-                String::from_utf8_lossy(&shape.definition.text)
-            ),
-            Kind::Hash(hash) if hash.tag.protected() => {
-                let value = hash
-                    .buffer
-                    .data
-                    .iter()
-                    .find(|(key, _)| key.as_bytes() == Some(b"to_s"))
-                    .unwrap();
-                write!(f, "{}", value.1)
-            }
-            Kind::Hash(hash) if hash.object => f.write_str("<object>"),
-            Kind::Nil => f.write_str("nil"),
-            Kind::Money(money) => write!(f, "{money}"),
-            Kind::Duration(seconds) => write!(f, "{seconds}s"),
-            Kind::Time(_) | Kind::Zoned(_) => {
-                let mut ctx = crate::integer::unlimited_context();
-                let text = crate::time::text(&mut ctx, self, None).map_err(|_| fmt::Error)?;
-                f.write_str(std::str::from_utf8(text.as_bytes().unwrap()).map_err(|_| fmt::Error)?)
-            }
-            Kind::Instance(instance) => {
-                write!(f, "<{} instance>", instance.class().definition.name)
-            }
-            Kind::Namespace(namespace) => write!(f, "<Class {}>", namespace.definition.name),
-            Kind::Function(function) => write!(
-                f,
-                "<function {}>",
-                function.code.program.functions[function.index].name
-            ),
-            Kind::Builtin(builtin) => write!(f, "<builtin {}>", builtin.name()),
-            Kind::Offset(offset) => write!(f, "<builtin {}>", offset.name()),
-            Kind::Enum(e) => write!(f, "<Enum {}>", e.definition.name),
-            Kind::EnumMember(m) => write!(
-                f,
-                "{}::{}",
-                m.enumeration.definition.name,
-                m.definition().name
-            ),
-            Kind::Bool(b) => write!(f, "{b}"),
-            Kind::Int(n) => write!(f, "{n}"),
-            Kind::Big(_) => {
-                let mut ctx = crate::integer::unlimited_context();
-                let text = crate::integer::format(&mut ctx, self, 10).map_err(|_| fmt::Error)?;
-                f.write_str(std::str::from_utf8(&text.data).map_err(|_| fmt::Error)?)
-            }
-            Kind::Float(n) => write!(f, "{n}"),
-            Kind::Range(r) => write!(f, "{r}"),
-            Kind::Bytes(h) | Kind::Symbol(h) => {
-                write!(f, "{}", String::from_utf8_lossy(&h.data))
-            }
-            Kind::Array(h) => {
-                f.write_str("[")?;
-                for (i, v) in h.buffer.data.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{v}")?;
-                }
-                f.write_str("]")
-            }
-            Kind::Hash(h) => {
-                f.write_str("{")?;
-                for (i, (k, v)) in h.buffer.data.iter().enumerate() {
-                    if i > 0 {
-                        f.write_str(", ")?;
-                    }
-                    write!(f, "{k}: {v}")?;
-                }
-                f.write_str("}")
-            }
-        }
+        render::display(self, f)
     }
 }
 

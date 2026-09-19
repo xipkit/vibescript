@@ -602,7 +602,7 @@ fn global_type_overrides_and_depth_guards_cannot_be_bypassed() {
         ErrorKind::Type
     );
     let mut deep = Value::int(1);
-    for _ in 0..130 {
+    for _ in 0..10_001 {
         deep = Value::array(vec![deep]);
     }
     let mut engine = Engine::new();
@@ -659,7 +659,7 @@ fn strict_data_globals_accept_shared_subgraphs_without_exponential_scans() {
         shared = Value::array(vec![shared]);
     }
     let mut nested = shared.clone();
-    for _ in 0..60 {
+    for _ in 0..9_921 {
         nested = Value::array(vec![nested]);
     }
     let opts = options(&[("a", shared), ("b", nested)]);

@@ -161,7 +161,7 @@ fn deep_shared_graph_expansion_observes_the_work_limit() {
 #[test]
 fn adjacent_group_depth_is_rejected_before_another_callback() {
     let mut deep = Value::int(0);
-    for _ in 0..127 {
+    for _ in 0..9_999 {
         deep = Value::array(vec![deep]);
     }
     let input = Value::array(vec![deep, Value::int(1), Value::int(2)]);
@@ -186,7 +186,7 @@ fn adjacent_group_depth_is_rejected_before_another_callback() {
 #[test]
 fn nested_key_walks_use_accounted_frames_without_consuming_script_recursion() {
     let mut input = Value::int(7);
-    for _ in 0..128 {
+    for _ in 0..10_000 {
         input = Value::hash(vec![(b"key".to_vec(), input)]);
     }
     let result = Engine::new()
@@ -298,7 +298,7 @@ fn cancellation_in_collection_blocks_stops_later_effects() {
 #[test]
 fn hash_flatten_preserves_valid_depth_without_constructing_temporary_pairs() {
     let mut nested = Value::int(7);
-    for _ in 0..127 {
+    for _ in 0..9_999 {
         nested = Value::array(vec![nested]);
     }
     let input = Value::hash(vec![(b"key".to_vec(), nested)]);

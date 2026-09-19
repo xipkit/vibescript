@@ -156,7 +156,7 @@ fn abandoned_mutations_release_addresses_and_staged_results() {
 #[test]
 fn excessive_fill_depth_stops_before_another_callback() {
     let mut value = Value::int(1);
-    for _ in 0..128 {
+    for _ in 0..10_000 {
         value = Value::array(vec![value]);
     }
     let calls = Arc::new(AtomicUsize::new(0));

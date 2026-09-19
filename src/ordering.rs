@@ -20,6 +20,30 @@ struct Compare {
     next: usize,
 }
 
+/// One suspended array comparison; borrows the operands only, so unwinding
+/// the walk never runs recursive drop glue.
+struct Frame<'a> {
+    left: usize,
+    right: usize,
+    a: &'a [Value],
+    b: &'a [Value],
+    index: usize,
+    order: Option<Ordering>,
+}
+
+impl Frame<'_> {
+    /// Records a decisive element result and skips the remaining elements.
+    fn finish(&mut self, order: Option<Ordering>) {
+        self.order = order;
+        self.index = self.a.len().min(self.b.len());
+    }
+}
+
+enum Step<'a> {
+    Done(Option<Ordering>),
+    Enter(Frame<'a>),
+}
+
 impl Compare {
     fn new() -> Self {
         Self {
@@ -107,66 +131,116 @@ impl Compare {
         Ok(())
     }
 
-    fn order(
+    fn order<'a>(
         &mut self,
         ctx: &mut CallContext,
-        a: &Value,
-        b: &Value,
+        a: &'a Value,
+        b: &'a Value,
         depth: usize,
     ) -> Result<Option<Ordering>> {
+        let mut current = match self.step(ctx, a, b, depth)? {
+            Step::Done(order) => return Ok(order),
+            Step::Enter(frame) => frame,
+        };
+        // Suspended ancestors of `current`; charged per push, released on any exit.
+        let mut parents: Buffer<Frame<'a>> = Buffer::empty();
+        loop {
+            let i = current.index;
+            if i < current.a.len().min(current.b.len()) {
+                current.index += 1;
+                let (a, b): (&'a [Value], &'a [Value]) = (current.a, current.b);
+                match self.step(ctx, &a[i], &b[i], depth + parents.data.len() + 1)? {
+                    Step::Done(cmp) => {
+                        if cmp != Some(Ordering::Equal) {
+                            current.finish(cmp);
+                        }
+                    }
+                    Step::Enter(frame) => {
+                        let suspended = std::mem::replace(&mut current, frame);
+                        parents.push(ctx, suspended)?;
+                    }
+                }
+                continue;
+            }
+            let order = current.order;
+            let memo = Memo {
+                left: current.left,
+                right: current.right,
+                order,
+            };
+            // Completed pairs bound repeated traversal of shared immutable arrays.
+            // Operands must remain alive until clear; key extrema clear before each comparison.
+            self.remember(ctx, memo)?;
+            match parents.data.pop() {
+                Some(parent) => {
+                    current = parent;
+                    if order != Some(Ordering::Equal) {
+                        current.finish(order);
+                    }
+                }
+                None => return Ok(order),
+            }
+        }
+    }
+
+    /// Compares one pair without descending; array pairs that need element
+    /// comparison return a frame positioned at their first element.
+    fn step<'a>(
+        &mut self,
+        ctx: &mut CallContext,
+        a: &'a Value,
+        b: &'a Value,
+        depth: usize,
+    ) -> Result<Step<'a>> {
         ctx.charge(1)?;
         if depth > MAX_VALUE_DEPTH {
             return ctx.guard(ErrorKind::Recursion, "value nesting too deep");
         }
-        match (&a.0, &b.0) {
+        let order = match (&a.0, &b.0) {
             (Kind::Array(a), Kind::Array(b)) => {
                 if Arc::ptr_eq(a, b) {
-                    return Ok(Some(Ordering::Equal));
+                    return Ok(Step::Done(Some(Ordering::Equal)));
                 }
                 if a.buffer.data.is_empty() || b.buffer.data.is_empty() {
-                    return Ok(Some(a.buffer.data.len().cmp(&b.buffer.data.len())));
+                    return Ok(Step::Done(Some(
+                        a.buffer.data.len().cmp(&b.buffer.data.len()),
+                    )));
                 }
                 let left = Arc::as_ptr(a) as usize;
                 let right = Arc::as_ptr(b) as usize;
                 if !self.buckets.data.is_empty() {
                     let entry = self.buckets.data[self.bucket(left, right)];
                     if entry != 0 {
-                        return Ok(self.memo.data[entry - 1].order);
+                        return Ok(Step::Done(self.memo.data[entry - 1].order));
                     }
                 }
-                let a = &a.buffer.data;
-                let b = &b.buffer.data;
-                let mut order = Some(a.len().cmp(&b.len()));
-                for (a, b) in a.iter().zip(b) {
-                    let cmp = self.order(ctx, a, b, depth + 1)?;
-                    if cmp != Some(Ordering::Equal) {
-                        order = cmp;
-                        break;
-                    }
-                }
-                let memo = Memo { left, right, order };
-                // Completed pairs bound repeated traversal of shared immutable arrays.
-                // Operands must remain alive until clear; key extrema clear before each comparison.
-                self.remember(ctx, memo)?;
-                Ok(order)
+                return Ok(Step::Enter(Frame {
+                    left,
+                    right,
+                    a: &a.buffer.data,
+                    b: &b.buffer.data,
+                    index: 0,
+                    order: Some(a.buffer.data.len().cmp(&b.buffer.data.len())),
+                }));
             }
-            (Kind::Nil, Kind::Nil) => Ok(Some(Ordering::Equal)),
-            (Kind::Money(a), Kind::Money(b)) => Ok(a.order(*b)),
-            (Kind::Duration(a), Kind::Duration(b)) => Ok(Some(crate::duration::order(*a, *b))),
-            (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Ok(Some(
+            (Kind::Nil, Kind::Nil) => Some(Ordering::Equal),
+            (Kind::Money(a), Kind::Money(b)) => a.order(*b),
+            (Kind::Duration(a), Kind::Duration(b)) => Some(crate::duration::order(*a, *b)),
+            (Kind::Time(_) | Kind::Zoned(_), Kind::Time(_) | Kind::Zoned(_)) => Some(
                 crate::time::stamp(a)
                     .unwrap()
                     .order(crate::time::stamp(b).unwrap()),
-            )),
-            (Kind::Bool(a), Kind::Bool(b)) => Ok(Some(a.cmp(b))),
+            ),
+            (Kind::Bool(a), Kind::Bool(b)) => Some(a.cmp(b)),
             (
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
                 Kind::Int(_) | Kind::Big(_) | Kind::Float(_),
             )
             | (Kind::Bytes(_), Kind::Bytes(_))
-            | (Kind::Symbol(_), Kind::Symbol(_)) => ops::compare(ctx, a, b),
-            _ => Ok(None),
-        }
+            | (Kind::Symbol(_), Kind::Symbol(_)) => ops::compare(ctx, a, b)?,
+            _ => None,
+        };
+        Ok(Step::Done(order))
     }
 
     fn required(&mut self, ctx: &mut CallContext, a: &Value, b: &Value) -> Result<Ordering> {
@@ -399,7 +473,10 @@ impl Driver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::CallOptions;
+    use crate::{
+        CallOptions,
+        ops::testing::{context, nested, on_small_stack, shared},
+    };
 
     #[test]
     fn comparison_cache_survives_collisions_eviction_and_reset() {
@@ -474,5 +551,208 @@ mod tests {
             counters[0], counters[1],
             "quota counters must not depend on heap addresses"
         );
+    }
+
+    fn ints(values: &[i64]) -> Value {
+        Value::array(values.iter().copied().map(Value::int).collect())
+    }
+
+    #[test]
+    fn lexicographic_walk_exits_early_and_memoizes_completed_pairs() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let mut compare = Compare::new();
+        let a = Value::array(vec![ints(&[1, 2]), ints(&[9])]);
+        let b = Value::array(vec![ints(&[1, 3]), ints(&[0])]);
+        assert_eq!(
+            compare.order(&mut ctx, &a, &b, 0).unwrap(),
+            Some(Ordering::Less)
+        );
+        // The decisive inner pair and the outer pair are remembered even on early exit.
+        assert_eq!(compare.memo.data.len(), 2);
+        let early = ctx.stats().steps;
+        assert_eq!(
+            compare.order(&mut ctx, &b, &a, 0).unwrap(),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(compare.memo.data.len(), 4);
+        let mut ctx = CallContext::new(CallOptions::default());
+        let same = Value::array(vec![ints(&[1, 2]), ints(&[9])]);
+        assert_eq!(
+            Compare::new().order(&mut ctx, &a, &same, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        // The early exit never visited the second pair of elements.
+        assert!(ctx.stats().steps > early);
+        let prefix = Value::array(vec![ints(&[1])]);
+        let longer = Value::array(vec![ints(&[1, 2])]);
+        assert_eq!(
+            Compare::new().order(&mut ctx, &prefix, &longer, 0).unwrap(),
+            Some(Ordering::Less)
+        );
+        let shorter_outer = Value::array(vec![ints(&[1, 2])]);
+        let longer_outer = Value::array(vec![ints(&[1, 2]), ints(&[0])]);
+        assert_eq!(
+            Compare::new()
+                .order(&mut ctx, &shorter_outer, &longer_outer, 0)
+                .unwrap(),
+            Some(Ordering::Less)
+        );
+        let mixed = Value::array(vec![Value::array(vec![Value::bytes("a")])]);
+        let mut compare = Compare::new();
+        assert_eq!(compare.order(&mut ctx, &prefix, &mixed, 0).unwrap(), None);
+        let steps = ctx.stats().steps;
+        // A remembered unordered pair costs only its lookup step.
+        assert_eq!(compare.order(&mut ctx, &prefix, &mixed, 0).unwrap(), None);
+        assert_eq!(ctx.stats().steps, steps + 1);
+        let nan = Value::array(vec![Value::array(vec![Value::float(f64::NAN)])]);
+        assert_eq!(
+            Compare::new().order(&mut ctx, &nan, &nan, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            Compare::new()
+                .order(&mut ctx, &nan, &nan.as_array().unwrap()[0], 0)
+                .unwrap(),
+            None
+        );
+        drop(compare);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn nested_ordering_has_exact_step_and_memory_boundaries() {
+        let a = Value::array(vec![ints(&[1, 2]), Value::array(vec![ints(&[3])])]);
+        let b = Value::array(vec![ints(&[1, 2]), Value::array(vec![ints(&[3])])]);
+        let mut ctx = CallContext::new(CallOptions::default());
+        assert_eq!(
+            Compare::new().order(&mut ctx, &a, &b, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        let steps = ctx.stats().steps;
+        let mut ctx = context(Some(steps), None);
+        assert_eq!(
+            Compare::new().order(&mut ctx, &a, &b, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        let mut ctx = context(Some(steps - 1), None);
+        let mut compare = Compare::new();
+        let error = compare.order(&mut ctx, &a, &b, 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        drop(compare);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(0).unwrap_err(), error);
+
+        let outer = Value::array(vec![ints(&[1])]);
+        let other = Value::array(vec![ints(&[1])]);
+        let frames = 8 * size_of::<Frame>();
+        let memo = 16 * size_of::<usize>() + 8 * size_of::<Memo>();
+        let mut ctx = context(None, Some(frames + memo));
+        let mut compare = Compare::new();
+        assert_eq!(
+            compare.order(&mut ctx, &outer, &other, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(ctx.stats().peak_memory_bytes, frames + memo);
+        drop(compare);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        for limit in [frames + memo - 1, frames - 1] {
+            let mut ctx = context(None, Some(limit));
+            let mut compare = Compare::new();
+            let error = compare.order(&mut ctx, &outer, &other, 0).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Memory);
+            if limit < frames {
+                assert_eq!(ctx.stats().peak_memory_bytes, 0);
+            }
+            drop(compare);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert_eq!(ctx.charge(0).unwrap_err(), error);
+        }
+        // Flat operands never suspend a frame; only the memo is stored.
+        let mut ctx = context(None, Some(memo));
+        assert_eq!(
+            Compare::new()
+                .order(&mut ctx, &ints(&[1, 2]), &ints(&[1, 3]), 0)
+                .unwrap(),
+            Some(Ordering::Less)
+        );
+        assert_eq!(ctx.stats().peak_memory_bytes, memo);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+    }
+
+    #[test]
+    fn nested_ordering_observes_cancellation_mid_walk() {
+        let a = Value::array(vec![ints(&[1, 2, 3, 4]), ints(&[5, 6, 7, 8])]);
+        let b = Value::array(vec![ints(&[1, 2, 3, 4]), ints(&[5, 6, 7, 8])]);
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.charge(14).unwrap();
+        ctx.cancellation().cancel();
+        let mut compare = Compare::new();
+        let error = compare.order(&mut ctx, &a, &b, 0).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Cancelled);
+        assert_eq!(ctx.stats().steps, 16);
+        assert!(compare.memo.data.is_empty());
+        drop(compare);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.checkpoint().unwrap_err(), error);
+    }
+
+    #[test]
+    fn shared_graph_ordering_completes_through_the_memo() {
+        let levels = MAX_VALUE_DEPTH - 1;
+        let a = shared(levels, Value::int(0));
+        let b = shared(levels, Value::int(0));
+        let c = shared(levels, Value::int(1));
+        let mut ctx = context(None, None);
+        let mut compare = Compare::new();
+        assert_eq!(
+            compare.order(&mut ctx, &a, &b, 0).unwrap(),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            compare.order(&mut ctx, &a, &c, 0).unwrap(),
+            Some(Ordering::Less)
+        );
+        assert!(ctx.stats().steps <= 16 * levels as u64);
+        drop(compare);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        for value in [a, b, c] {
+            drop(value);
+        }
+    }
+
+    #[test]
+    fn deep_ordering_walks_to_the_value_limit_on_a_small_stack() {
+        let outcome = on_small_stack(|| {
+            let mut ctx = CallContext::new(CallOptions::default());
+            let values = (
+                nested(MAX_VALUE_DEPTH, Value::int(1)),
+                nested(MAX_VALUE_DEPTH, Value::int(1)),
+                nested(MAX_VALUE_DEPTH, Value::int(2)),
+                nested(MAX_VALUE_DEPTH + 1, Value::int(1)),
+                nested(MAX_VALUE_DEPTH + 1, Value::int(1)),
+            );
+            let mut compare = Compare::new();
+            let within = (
+                compare.order(&mut ctx, &values.0, &values.1, 0),
+                compare.order(&mut ctx, &values.0, &values.2, 0),
+                compare.order(&mut ctx, &values.2, &values.0, 0),
+            );
+            let beyond = compare.order(&mut ctx, &values.3, &values.4, 0);
+            drop(compare);
+            let stats = ctx.stats();
+            for value in [values.0, values.1, values.2, values.3, values.4] {
+                drop(value);
+            }
+            (within, beyond, stats)
+        });
+        let (within, beyond, stats) = outcome;
+        assert_eq!(within.0.unwrap(), Some(Ordering::Equal));
+        assert_eq!(within.1.unwrap(), Some(Ordering::Less));
+        assert_eq!(within.2.unwrap(), Some(Ordering::Greater));
+        let error = beyond.unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Recursion);
+        assert_eq!(error.class(), Some(crate::ErrorClass::Limit));
+        assert_eq!(error.message, "value nesting too deep");
+        assert_eq!(stats.retained_memory_bytes, 0);
     }
 }

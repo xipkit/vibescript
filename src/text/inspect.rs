@@ -1,3 +1,4 @@
+use super::traversal::{Entries, Frame, Stack};
 use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, MAX_VALUE_DEPTH},
@@ -42,12 +43,12 @@ pub(crate) fn call(
 
 fn inspect(ctx: &mut CallContext, value: &Value) -> Result<Value> {
     let mut projection = Output::Size(0);
-    render(ctx, value, &mut projection, 0)?;
+    render(ctx, value, &mut projection)?;
     let Output::Size(length) = projection else {
         unreachable!()
     };
     let mut output = Output::Bytes(Buffer::with_capacity(ctx, length)?);
-    render(ctx, value, &mut output, 0)?;
+    render(ctx, value, &mut output)?;
     let Output::Bytes(buffer) = output else {
         unreachable!()
     };
@@ -111,7 +112,7 @@ pub(crate) fn output(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
         length: 0,
         limit,
     };
-    render(ctx, value, &mut output, 0)?;
+    render(ctx, value, &mut output)?;
     let Output::Bounded { length, .. } = output else {
         unreachable!()
     };
@@ -120,7 +121,7 @@ pub(crate) fn output(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
         length: 0,
         limit,
     };
-    render(ctx, value, &mut output, 0)?;
+    render(ctx, value, &mut output)?;
     let Output::Bounded {
         bytes: Some(mut bytes),
         ..
@@ -132,11 +133,75 @@ pub(crate) fn output(ctx: &mut CallContext, value: &Value, limit: usize) -> Resu
     Ok(bytes)
 }
 
-fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) -> Result<()> {
-    ctx.charge(1)?;
-    if depth > MAX_VALUE_DEPTH {
-        return ctx.guard(ErrorKind::Recursion, "inspect nesting too deep");
+fn render(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
+    walk(ctx, value, out, MAX_VALUE_DEPTH)
+}
+
+/// Sorted field positions for an object hash, owned by its frame while it is open.
+type Order = Option<Buffer<usize>>;
+
+/// Inspects `value` with one charged frame per open container.
+///
+/// Every value costs one step before its depth is checked; a value nested below
+/// more than `limit` containers is refused, matching the former recursive guard.
+/// Object field ordering is computed when a writing pass opens the hash and is
+/// released with its frame, so it is charged for exactly its useful lifetime.
+fn walk(ctx: &mut CallContext, value: &Value, out: &mut Output, limit: usize) -> Result<()> {
+    let mut stack: Stack<'_, Order> = Stack::new();
+    let mut pending = Some(value);
+    loop {
+        if let Some(value) = pending.take() {
+            ctx.charge(1)?;
+            if stack.depth() > limit {
+                return ctx.guard(ErrorKind::Recursion, "inspect nesting too deep");
+            }
+            match &value.0 {
+                Kind::Array(array) => {
+                    out.append(ctx, b"[")?;
+                    stack.push(ctx, Frame::new(Entries::Array(&array.buffer.data), None))?;
+                }
+                Kind::Hash(hash) => {
+                    out.append(ctx, b"{")?;
+                    let order = if hash.object && !out.sizing() {
+                        Some(object_order(ctx, hash)?)
+                    } else {
+                        None
+                    };
+                    stack.push(ctx, Frame::new(Entries::Hash(&hash.buffer.data), order))?;
+                }
+                _ => leaf(ctx, value, out)?,
+            }
+            continue;
+        }
+        let Some(frame) = stack.top() else {
+            return Ok(());
+        };
+        match frame.next() {
+            Some(position) => {
+                if position > 0 {
+                    out.append(ctx, b", ")?;
+                }
+                let index = frame
+                    .extra
+                    .as_ref()
+                    .map_or(position, |order| order.data[position]);
+                let (key, value) = frame.entries.get(index);
+                if let Some(key) = key {
+                    label(ctx, key.require_bytes()?, out)?;
+                    out.append(ctx, b": ")?;
+                }
+                pending = Some(value);
+            }
+            None => {
+                let closing = frame.entries.closing();
+                stack.pop();
+                out.append(ctx, closing)?;
+            }
+        }
     }
+}
+
+fn leaf(ctx: &mut CallContext, value: &Value, out: &mut Output) -> Result<()> {
     let mut scalar = json::Number::new();
     match &value.0 {
         Kind::Bytes(bytes) => return quoted(ctx, &bytes.data, out),
@@ -148,35 +213,7 @@ fn render(ctx: &mut CallContext, value: &Value, out: &mut Output, depth: usize) 
         Kind::Nil => return out.append(ctx, b"nil"),
         Kind::Function(function) => return Err(function.value_error()),
         Kind::Host(_) | Kind::Builtin(_) | Kind::Offset(_) => return out.append(ctx, b"<builtin>"),
-        Kind::Array(array) => {
-            out.append(ctx, b"[")?;
-            for (index, element) in array.buffer.data.iter().enumerate() {
-                if index > 0 {
-                    out.append(ctx, b", ")?;
-                }
-                render(ctx, element, out, depth + 1)?;
-            }
-            return out.append(ctx, b"]");
-        }
-        Kind::Hash(hash) => {
-            out.append(ctx, b"{")?;
-            let order = if hash.object && !out.sizing() {
-                object_order(ctx, hash)?
-            } else {
-                Buffer::empty()
-            };
-            for position in 0..hash.buffer.data.len() {
-                if position > 0 {
-                    out.append(ctx, b", ")?;
-                }
-                let index = order.data.get(position).copied().unwrap_or(position);
-                let (key, value) = &hash.buffer.data[index];
-                label(ctx, key.require_bytes()?, out)?;
-                out.append(ctx, b": ")?;
-                render(ctx, value, out, depth + 1)?;
-            }
-            return out.append(ctx, b"}");
-        }
+        Kind::Array(_) | Kind::Hash(_) => unreachable!("containers are walked by frame"),
         Kind::Shape(shape) => {
             out.append(ctx, b"<Shape ")?;
             out.append(ctx, &shape.definition.text)?;
@@ -307,6 +344,7 @@ fn quoted(ctx: &mut CallContext, bytes: &[u8], out: &mut Output) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::traversal::support::{self, nested_arrays, nested_hashes, on_small_stack};
     use super::*;
     use crate::CallOptions;
 
@@ -334,12 +372,18 @@ mod tests {
         let integer = Value::parse_integer(&"f".repeat(8192), 16).unwrap();
         let value = ctx.array(&[integer]).unwrap();
         let baseline = ctx.stats();
-        ctx.options.limits.memory_bytes = Some(baseline.retained_memory_bytes + 128);
+        assert_eq!(baseline.peak_memory_bytes, baseline.retained_memory_bytes);
+        let scratch = support::peak::<Order>(1);
+        ctx.options.limits.memory_bytes = Some(baseline.retained_memory_bytes + scratch + 128);
         assert_eq!(
             inspect(&mut ctx, &value).unwrap_err().kind,
             ErrorKind::Memory
         );
-        assert_eq!(ctx.stats().peak_memory_bytes, baseline.peak_memory_bytes);
+        // The root frame fits; the reserved decimal size is refused before conversion.
+        assert_eq!(
+            ctx.stats().peak_memory_bytes,
+            baseline.retained_memory_bytes + scratch
+        );
         assert!(ctx.stats().steps - baseline.steps < 10);
     }
 
@@ -351,12 +395,22 @@ mod tests {
             value = ctx.array(&[value.clone(), value]).unwrap();
         }
         let baseline = ctx.stats();
+        assert_eq!(baseline.peak_memory_bytes, baseline.retained_memory_bytes);
         ctx.options.limits.memory_bytes = Some(baseline.retained_memory_bytes + 4096);
         assert_eq!(
             inspect(&mut ctx, &value).unwrap_err().kind,
             ErrorKind::Memory
         );
-        assert_eq!(ctx.stats().peak_memory_bytes, baseline.peak_memory_bytes);
+        // The projection descends all 28 levels before its size exceeds the quota,
+        // so the only memory touched is the charged frame stack.
+        assert_eq!(
+            ctx.stats().peak_memory_bytes,
+            baseline.retained_memory_bytes + support::peak::<Order>(28)
+        );
+        assert_eq!(
+            ctx.stats().retained_memory_bytes,
+            baseline.retained_memory_bytes
+        );
         assert!(ctx.stats().steps - baseline.steps < 10000);
     }
 
@@ -381,11 +435,152 @@ mod tests {
         assert_eq!(result.require_bytes().unwrap(), expected.as_bytes());
         drop(result);
         let baseline = ctx.stats().retained_memory_bytes;
-        ctx.options.limits.memory_bytes = Some(baseline + expected.len());
+        // Room for the projected string and the root frame, but not the field order.
+        ctx.options.limits.memory_bytes =
+            Some(baseline + expected.len() + support::peak::<Order>(1));
         assert_eq!(
             inspect(&mut ctx, &object).unwrap_err().kind,
             ErrorKind::Memory
         );
         assert_eq!(ctx.stats().retained_memory_bytes, baseline);
+    }
+
+    fn size(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<usize> {
+        let mut projection = Output::Size(0);
+        walk(ctx, value, &mut projection, limit)?;
+        let Output::Size(length) = projection else {
+            unreachable!()
+        };
+        Ok(length)
+    }
+
+    fn write(ctx: &mut CallContext, value: &Value, limit: usize) -> Result<Vec<u8>> {
+        let length = size(ctx, value, limit)?;
+        let mut output = Output::Bytes(Buffer::with_capacity(ctx, length)?);
+        walk(ctx, value, &mut output, limit)?;
+        let Output::Bytes(buffer) = output else {
+            unreachable!()
+        };
+        Ok(buffer.data)
+    }
+
+    #[test]
+    fn ten_thousand_levels_inspect_on_a_small_native_stack() {
+        on_small_stack(|| {
+            const DEPTH: usize = 10_000;
+            let mut ctx = CallContext::new(CallOptions::default());
+            let shallow = nested_arrays(1, Value::nil());
+            size(&mut ctx, &shallow, DEPTH).unwrap();
+            let baseline = ctx.stats();
+            let deep = nested_arrays(DEPTH, Value::nil());
+            let length = size(&mut ctx, &deep, DEPTH).unwrap();
+            assert_eq!(length, 2 * DEPTH + 3);
+            // Sizing charges one step per value and nothing for projected delimiters.
+            assert_eq!(ctx.stats().steps - 2 * baseline.steps, (DEPTH - 1) as u64);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            let text = write(&mut ctx, &deep, DEPTH).unwrap();
+            assert_eq!(text.len(), length);
+            assert_eq!(
+                text,
+                format!("{}nil{}", "[".repeat(DEPTH), "]".repeat(DEPTH)).as_bytes()
+            );
+            drop(text);
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+            assert!(ctx.stats().peak_memory_bytes < 4 << 20);
+
+            let deeper = nested_hashes(DEPTH + 1, Value::nil());
+            let error = size(&mut ctx, &deeper, DEPTH).unwrap_err();
+            assert_eq!(error.kind, ErrorKind::Recursion);
+            assert_eq!(error.message, "inspect nesting too deep");
+            assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        });
+    }
+
+    #[test]
+    fn depth_guard_keeps_the_former_recursive_boundary() {
+        let mut ctx = CallContext::new(CallOptions::default());
+        let value = nested_arrays(MAX_VALUE_DEPTH, Value::nil());
+        let text = inspect(&mut ctx, &value).unwrap();
+        assert_eq!(text.require_bytes().unwrap().len(), 2 * MAX_VALUE_DEPTH + 3);
+        drop(text);
+        let value = nested_arrays(MAX_VALUE_DEPTH + 1, Value::nil());
+        assert_eq!(
+            inspect(&mut ctx, &value).unwrap_err().kind,
+            ErrorKind::Recursion
+        );
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(
+            output(&mut ctx, &value, 1 << 20).unwrap_err().kind,
+            ErrorKind::Recursion
+        );
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        ctx.charge(1).unwrap();
+    }
+
+    #[test]
+    fn nested_object_orders_are_held_per_frame_and_released_together() {
+        let inner = Value::object(vec![
+            (b"y".to_vec(), Value::int(1)),
+            (b"x".to_vec(), Value::array(vec![Value::symbol(b"s")])),
+        ]);
+        let value = Value::object(vec![
+            (b"z".to_vec(), inner),
+            (
+                b"a".to_vec(),
+                Value::hash(vec![(b"q".to_vec(), Value::nil())]),
+            ),
+        ]);
+        let mut ctx = CallContext::new(CallOptions::default());
+        let text = inspect(&mut ctx, &value).unwrap();
+        assert_eq!(
+            text.require_bytes().unwrap(),
+            b"{a: {q: nil}, z: {x: [:s], y: 1}}"
+        );
+        assert_eq!(
+            ctx.stats().retained_memory_bytes,
+            crate::value::Bytes::header_bytes() + text.require_bytes().unwrap().len()
+        );
+        drop(text);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        // The writing pass holds the output, the frames and the live field orders
+        // together, so its peak exceeds the frame-only sizing pass.
+        let peak = ctx.stats().peak_memory_bytes;
+        assert!(peak > support::peak::<Order>(3));
+
+        // Refusing the peak allocation fails inside the writing pass while a field
+        // order is still owned by an open frame; everything must be released.
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.options.limits.memory_bytes = Some(peak - 1);
+        let error = inspect(&mut ctx, &value).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(1).unwrap_err(), error);
+    }
+
+    #[test]
+    fn exhaustion_inside_inspect_releases_frames_and_stays_latched() {
+        let value = nested_arrays(64, Value::nil());
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.options.limits.steps = Some(40);
+        let error = output(&mut ctx, &value, 1 << 20).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Steps);
+        assert_eq!(ctx.stats().steps, 41);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(1).unwrap_err(), error);
+
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.charge(1).unwrap();
+        ctx.cancellation().cancel();
+        let error = inspect(&mut ctx, &value).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Cancelled);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.checkpoint().unwrap_err(), error);
+
+        let mut ctx = CallContext::new(CallOptions::default());
+        ctx.options.limits.memory_bytes = Some(support::bytes::<Order>(8));
+        let error = inspect(&mut ctx, &value).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::Memory);
+        assert_eq!(ctx.stats().retained_memory_bytes, 0);
+        assert_eq!(ctx.charge(1).unwrap_err(), error);
     }
 }

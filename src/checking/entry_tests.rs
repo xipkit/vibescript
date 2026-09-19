@@ -116,7 +116,7 @@ fn rejected(
 
 fn deep() -> Value {
     let mut result = Value::int(1);
-    for _ in 0..129 {
+    for _ in 0..=crate::budget::MAX_VALUE_DEPTH {
         result = Value::array(vec![result]);
     }
     result

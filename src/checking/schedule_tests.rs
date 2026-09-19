@@ -385,7 +385,7 @@ fn scheduled_copies_keep_protection_and_construction_guards() {
         witness(source, false, true);
     }
     let mut value = Value::int(7);
-    for _ in 0..127 {
+    for _ in 0..crate::budget::MAX_VALUE_DEPTH - 1 {
         value = Value::array(vec![value]);
     }
     let input = Value::array(vec![value]);

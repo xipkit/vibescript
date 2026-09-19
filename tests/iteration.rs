@@ -188,7 +188,7 @@ fn nested_builtin_blocks_use_the_vm_recursion_limit() {
 #[test]
 fn an_unrepresentable_output_stops_before_the_next_block() {
     let mut value = Value::int(1);
-    for _ in 0..128 {
+    for _ in 0..10_000 {
         value = Value::array(vec![value]);
     }
     let calls = Arc::new(AtomicUsize::new(0));
@@ -210,7 +210,7 @@ fn an_unrepresentable_output_stops_before_the_next_block() {
 #[test]
 fn flat_map_checks_unflattened_hash_results_before_the_next_block() {
     let mut value = Value::int(1);
-    for _ in 0..127 {
+    for _ in 0..9_999 {
         value = Value::array(vec![value]);
     }
     let value = Value::hash(vec![(b"deep".to_vec(), value)]);
@@ -233,9 +233,9 @@ fn flat_map_checks_unflattened_hash_results_before_the_next_block() {
 #[test]
 fn grouping_checks_every_result_wrapper_before_another_block() {
     for (method, depth) in [
-        ("partition", 127),
-        ("group_by", 127),
-        ("group_by_stable", 126),
+        ("partition", 9_999),
+        ("group_by", 9_999),
+        ("group_by_stable", 9_998),
     ] {
         let mut value = Value::int(1);
         for _ in 0..depth {

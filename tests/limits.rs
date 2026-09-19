@@ -245,13 +245,13 @@ fn imported_host_arrays_and_deep_constructed_values_are_bounded() {
         ErrorKind::Memory
     );
     let script = Engine::new()
-        .compile("x = []\ni = 0\nwhile i < 200\n x = [x]\n i += 1\nend")
+        .compile("x = []\ni = 0\nwhile i < 10001\n x = [x]\n i += 1\nend")
         .unwrap();
     assert_eq!(
         script.run(CallOptions::default()).unwrap_err().kind,
         ErrorKind::Recursion
     );
-    let raw = format!("{}0{}", "[".repeat(200), "]".repeat(200));
+    let raw = format!("{}0{}", "[".repeat(10_001), "]".repeat(10_001));
     assert_eq!(
         parse_json(raw.as_bytes(), CallOptions::default())
             .unwrap_err()
@@ -288,10 +288,19 @@ fn array_mutation_keeps_depth_limits_accurate() {
         .run(CallOptions::default())
         .unwrap();
     assert_eq!(result.value.as_int(), Some(1));
-    let error = engine
-        .compile("a=[]\ni=0\nwhile i<200\n a << a\n i+=1\nend")
-        .unwrap()
-        .run(CallOptions::default())
+    let mut value = Value::int(0);
+    for _ in 0..9_999 {
+        value = Value::array(vec![value]);
+    }
+    let script = engine
+        .compile("def once(a); a << a; end; def twice(a); a << a; a << a; end")
+        .unwrap();
+    let accepted = script
+        .call("once", std::slice::from_ref(&value), CallOptions::default())
+        .unwrap();
+    assert_eq!(accepted.value.as_array().unwrap().len(), 2);
+    let error = script
+        .call("twice", &[value], CallOptions::default())
         .unwrap_err();
     assert_eq!(error.kind, ErrorKind::Recursion);
 }

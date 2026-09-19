@@ -10,7 +10,8 @@ use std::{
 };
 
 pub(crate) const CHUNK: usize = 4096;
-pub(crate) const MAX_VALUE_DEPTH: usize = 128;
+pub(crate) const MAX_VALUE_DEPTH: usize = 10_000;
+pub(crate) const MAX_ENVIRONMENT_DEPTH: usize = 128;
 
 /// Execution limits. `None` disables the corresponding step or memory quota.
 #[derive(Clone, Debug)]
@@ -522,7 +523,11 @@ mod limit_tests {
             json::parse_builtin(&mut ctx, b"7").unwrap().as_int(),
             Some(7)
         );
-        let deep = format!("{}0{}", "[".repeat(129), "]".repeat(129));
+        let deep = format!(
+            "{}0{}",
+            "[".repeat(MAX_VALUE_DEPTH + 1),
+            "]".repeat(MAX_VALUE_DEPTH + 1)
+        );
         let error = json::parse_builtin(&mut ctx, deep.as_bytes()).unwrap_err();
         assert_eq!(error.class(), Some(ErrorClass::Limit));
         assert_eq!(ctx.stats().retained_memory_bytes, 0);

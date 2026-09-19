@@ -24,6 +24,87 @@ struct Data {
     imports: Buffer<(u64, Arc<Identity>)>,
     allocations: usize,
     pending: Buffer<usize>,
+    /// Container frames for garbage-collection marking. Capacity is reserved
+    /// when fields are written so marking never allocates, including during
+    /// cleanup after the budget is exhausted.
+    scratch: Buffer<(Value, usize)>,
+}
+
+/// Lazily copied elements of one container being mapped between handle kinds.
+enum Mapped {
+    Array(Buffer<Value>),
+    Hash(Buffer<(Value, Value)>),
+}
+
+struct MapFrame<'a> {
+    source: &'a Value,
+    position: usize,
+    mapped: Option<Mapped>,
+}
+
+impl<'a> MapFrame<'a> {
+    fn new(source: &'a Value) -> Self {
+        Self {
+            source,
+            position: 0,
+            mapped: None,
+        }
+    }
+
+    fn child(&self) -> Option<&'a Value> {
+        let source: &'a Value = self.source;
+        match &source.0 {
+            Kind::Array(array) => array.buffer.data.get(self.position),
+            Kind::Hash(hash) => hash.buffer.data.get(self.position).map(|(_, value)| value),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Replaces one element, copying the source container on first use.
+    fn assign(&mut self, ctx: &mut CallContext, index: usize, value: Value) -> Result<()> {
+        match &self.source.0 {
+            Kind::Array(array) => {
+                if self.mapped.is_none() {
+                    let mut buffer = Buffer::with_capacity(ctx, array.buffer.data.len())?;
+                    buffer.extend(ctx, &array.buffer.data)?;
+                    self.mapped = Some(Mapped::Array(buffer));
+                }
+                let Some(Mapped::Array(buffer)) = &mut self.mapped else {
+                    unreachable!()
+                };
+                buffer.data[index] = value;
+            }
+            Kind::Hash(hash) => {
+                if self.mapped.is_none() {
+                    let mut buffer = Buffer::with_capacity(ctx, hash.buffer.data.len())?;
+                    buffer.extend(ctx, &hash.buffer.data)?;
+                    self.mapped = Some(Mapped::Hash(buffer));
+                }
+                let Some(Mapped::Hash(buffer)) = &mut self.mapped else {
+                    unreachable!()
+                };
+                buffer.data[index].1 = value;
+            }
+            _ => unreachable!(),
+        }
+        Ok(())
+    }
+
+    fn finish(self, ctx: &mut CallContext) -> Result<Option<Value>> {
+        match (&self.source.0, self.mapped) {
+            (_, None) => Ok(None),
+            (Kind::Array(_), Some(Mapped::Array(buffer))) => {
+                Value::from_array(ctx, buffer).map(Some)
+            }
+            (Kind::Hash(hash), Some(Mapped::Hash(buffer))) => {
+                let mut mapped = Hash::from_entries(ctx, buffer)?;
+                mapped.object = hash.object;
+                mapped.tag = hash.tag;
+                Value::from_hash(ctx, mapped).map(Some)
+            }
+            _ => unreachable!(),
+        }
+    }
 }
 
 struct Entry {
@@ -142,6 +223,7 @@ fn local(ctx: &mut CallContext) -> Result<Arc<Heap>> {
             imports: Buffer::empty(),
             allocations: 0,
             pending: Buffer::empty(),
+            scratch: Buffer::empty(),
         }),
         _header: header,
     });
@@ -300,18 +382,56 @@ impl Data {
             .transpose()
     }
 
+    /// Converts instance references inside a field value between internal and
+    /// external handles. Containers are copied only along paths that change;
+    /// the walk keeps its frames in a metered buffer sized from the cached
+    /// height and never recurses natively. Only value containers count toward depth.
     fn map(
         &mut self,
         ctx: &mut CallContext,
         heap: &Arc<Heap>,
         value: &Value,
         internal: bool,
-        depth: usize,
     ) -> Result<Option<Value>> {
         ctx.charge(1)?;
-        if depth > MAX_VALUE_DEPTH {
-            return ctx.guard(ErrorKind::Recursion, "instance field nesting too deep");
+        nesting(ctx, value.depth())?;
+        if !matches!(value.0, Kind::Array(_) | Kind::Hash(_)) {
+            return self.leaf(ctx, heap, value, internal);
         }
+        let mut frames = Buffer::with_capacity(ctx, value.depth().min(MAX_VALUE_DEPTH))?;
+        frames.push(ctx, MapFrame::new(value))?;
+        loop {
+            let frame = frames.data.last_mut().unwrap();
+            let Some(child) = frame.child() else {
+                let finished = frames.data.pop().unwrap();
+                let mapped = finished.finish(ctx)?;
+                let Some(parent) = frames.data.last_mut() else {
+                    return Ok(mapped);
+                };
+                if let Some(mapped) = mapped {
+                    let index = parent.position - 1;
+                    parent.assign(ctx, index, mapped)?;
+                }
+                continue;
+            };
+            let index = frame.position;
+            frame.position += 1;
+            ctx.charge(1)?;
+            if matches!(child.0, Kind::Array(_) | Kind::Hash(_)) {
+                frames.push(ctx, MapFrame::new(child))?;
+            } else if let Some(mapped) = self.leaf(ctx, heap, child, internal)? {
+                frames.data.last_mut().unwrap().assign(ctx, index, mapped)?;
+            }
+        }
+    }
+
+    fn leaf(
+        &self,
+        ctx: &mut CallContext,
+        heap: &Arc<Heap>,
+        value: &Value,
+        internal: bool,
+    ) -> Result<Option<Value>> {
         match &value.0 {
             Kind::Function(function) => self
                 .instance(ctx, heap, &function.environment, internal)?
@@ -326,46 +446,24 @@ impl Data {
             Kind::Namespace(namespace) => self
                 .namespace(ctx, heap, namespace, internal)
                 .map(|value| value.map(|value| Value(Kind::Namespace(value)))),
-            Kind::Array(array) => {
-                let mut mapped: Option<Buffer<Value>> = None;
-                for (i, value) in array.buffer.data.iter().enumerate() {
-                    if let Some(value) = self.map(ctx, heap, value, internal, depth + 1)? {
-                        if mapped.is_none() {
-                            let mut buffer = Buffer::with_capacity(ctx, array.buffer.data.len())?;
-                            buffer.extend(ctx, &array.buffer.data)?;
-                            mapped = Some(buffer);
-                        }
-                        mapped.as_mut().unwrap().data[i] = value;
-                    }
-                }
-                mapped
-                    .map(|buffer| Value::from_array(ctx, buffer))
-                    .transpose()
-            }
-            Kind::Hash(hash) => {
-                let mut mapped: Option<Buffer<(Value, Value)>> = None;
-                for (i, (_, value)) in hash.buffer.data.iter().enumerate() {
-                    if let Some(value) = self.map(ctx, heap, value, internal, depth + 1)? {
-                        if mapped.is_none() {
-                            let mut buffer = Buffer::with_capacity(ctx, hash.buffer.data.len())?;
-                            buffer.extend(ctx, &hash.buffer.data)?;
-                            mapped = Some(buffer);
-                        }
-                        mapped.as_mut().unwrap().data[i].1 = value;
-                    }
-                }
-                mapped
-                    .map(|buffer| {
-                        let mut mapped = Hash::from_entries(ctx, buffer)?;
-                        mapped.object = hash.object;
-                        mapped.tag = hash.tag;
-                        Value::from_hash(ctx, mapped)
-                    })
-                    .transpose()
-            }
             _ => Ok(None),
         }
     }
+
+    /// Reserves marking frames for a field value before it is stored.
+    fn reserve_scratch(&mut self, ctx: &mut CallContext, depth: usize) -> Result<()> {
+        if depth > self.scratch.data.capacity() {
+            self.scratch.ensure(ctx, depth.max(8).next_power_of_two())?;
+        }
+        Ok(())
+    }
+}
+
+fn nesting(ctx: &mut CallContext, depth: usize) -> Result<()> {
+    if depth > MAX_VALUE_DEPTH {
+        return ctx.guard(ErrorKind::Recursion, "instance field nesting too deep");
+    }
+    Ok(())
 }
 
 pub(crate) fn field(
@@ -380,9 +478,7 @@ pub(crate) fn field(
         return Ok(None);
     };
     let value = fields.buffer.data[index].1.clone();
-    Ok(Some(
-        data.map(ctx, &heap, &value, false, 1)?.unwrap_or(value),
-    ))
+    Ok(Some(data.map(ctx, &heap, &value, false)?.unwrap_or(value)))
 }
 
 pub(crate) fn children(
@@ -415,7 +511,7 @@ pub(crate) fn bindings(
     values.extend(ctx, &fields.buffer.data)?;
     for (_, value) in &mut values.data {
         ctx.charge(1)?;
-        if let Some(mapped) = data.map(ctx, &heap, value, false, 1)? {
+        if let Some(mapped) = data.map(ctx, &heap, value, false)? {
             *value = mapped;
         }
     }
@@ -432,10 +528,11 @@ pub(crate) fn set(
     let value = ctx.import(value)?;
     let key = ctx.bytes(name.as_bytes())?;
     let mut data = heap.data.lock().unwrap();
-    let value = data.map(ctx, &heap, &value, true, 1)?.unwrap_or(value);
+    let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
+    data.reserve_scratch(ctx, value.depth())?;
     data.entries.data[instance.identity.slot.load(Ordering::Relaxed)]
         .fields
-        .insert(ctx, key, value)
+        .insert_field(ctx, key, value)
 }
 
 pub(crate) fn address(
@@ -459,13 +556,13 @@ pub(crate) fn address(
         let field = data.entries.data[object].fields.buffer.data.len();
         data.entries.data[object]
             .fields
-            .insert(ctx, key, Value::nil())?;
+            .insert_field(ctx, key, Value::nil())?;
         field
     };
     let value = data.entries.data[object].fields.buffer.data[field]
         .1
         .clone();
-    let value = data.map(ctx, &heap, &value, false, 1)?.unwrap_or(value);
+    let value = data.map(ctx, &heap, &value, false)?.unwrap_or(value);
     Ok(crate::address::Address::object(
         instance.clone(),
         field,
@@ -507,10 +604,11 @@ pub(crate) fn set_slot(
     let heap = instance.writable_heap(ctx)?;
     let value = ctx.import(&value)?;
     let mut data = heap.data.lock().unwrap();
-    let value = data.map(ctx, &heap, &value, true, 1)?.unwrap_or(value);
+    let value = data.map(ctx, &heap, &value, true)?.unwrap_or(value);
+    data.reserve_scratch(ctx, value.depth())?;
     let fields = &mut data.entries.data[instance.identity.slot.load(Ordering::Relaxed)].fields;
     let name = fields.buffer.data[field].0.clone();
-    fields.insert(ctx, name, value)
+    fields.insert_field(ctx, name, value)
 }
 
 fn import_root(ctx: &mut CallContext, instance: &Arc<Instance>) -> Result<Arc<Instance>> {
@@ -596,9 +694,12 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
     if let Some(heap) = ctx.objects.take() {
         if Arc::strong_count(&heap) != 1 {
             let mut data = heap.data.lock().unwrap();
-            let _ = reclaim(&mut data, &mut || Ok(()));
+            let depth = reclaim(&mut data, &mut || Ok(())).ok();
             data.imports = Buffer::empty();
             data.pending = Buffer::empty();
+            if depth == Some(0) {
+                data.scratch = Buffer::empty();
+            }
             prune_classes(&mut data);
             let limit = ctx.options.limits.memory_bytes;
             data.classes.shrink_after_failure(limit);
@@ -610,7 +711,10 @@ pub(crate) fn cleanup(ctx: &mut CallContext) {
 
 fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> {
     let mut data = heap.data.lock().unwrap();
-    reclaim(&mut data, &mut || ctx.charge(1))?;
+    let depth = reclaim(&mut data, &mut || ctx.charge(1))?;
+    if depth == 0 {
+        data.scratch = Buffer::empty();
+    }
     let mut slot = 0;
     while slot < data.classes.data.len() {
         ctx.charge(1)?;
@@ -637,6 +741,11 @@ fn collect(ctx: &mut CallContext, heap: &Arc<Heap>, shrink: bool) -> Result<()> 
         data.classes.shrink(ctx)?;
         data.entries.shrink(ctx)?;
         data.pending.shrink(ctx)?;
+        // Retained instances can still be imported or collected after finish.
+        // Their field traversal must remain possible after budget exhaustion.
+        if data.entries.data.is_empty() {
+            data.scratch = Buffer::empty();
+        }
     }
     Ok(())
 }
@@ -657,8 +766,10 @@ fn prune_classes(data: &mut Data) {
     }
 }
 
-fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<()> {
+fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<usize> {
+    let mut depth = 0;
     data.pending.data.clear();
+    data.scratch.data.clear();
     for (slot, entry) in data.entries.data.iter().enumerate() {
         tick()?;
         let rooted = entry.internal.identity.roots.load(Ordering::Relaxed) != 0;
@@ -677,7 +788,8 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<()>
             mark_instance(environment, &mut data.pending.data);
         }
         for (_, value) in &data.entries.data[slot].fields.buffer.data {
-            mark_references(value, &mut data.pending.data, tick, 1)?;
+            depth = depth.max(value.depth());
+            mark_references(value, &mut data.pending.data, &mut data.scratch.data, tick)?;
         }
     }
     let mut slot = 0;
@@ -706,7 +818,7 @@ fn reclaim(data: &mut Data, tick: &mut impl FnMut() -> Result<()>) -> Result<()>
         .data
         .retain(|(_, to)| to.slot.load(Ordering::Relaxed) != usize::MAX);
     data.allocations = 0;
-    Ok(())
+    Ok(depth)
 }
 
 fn mark_instance(instance: &Arc<Instance>, pending: &mut Vec<usize>) {
@@ -716,12 +828,64 @@ fn mark_instance(instance: &Arc<Instance>, pending: &mut Vec<usize>) {
     }
 }
 
+/// Marks every instance reachable from one field value. Container frames use
+/// the heap's pre-reserved scratch so marking allocates nothing, which keeps
+/// it usable during cleanup after the budget is exhausted.
 fn mark_references(
+    value: &Value,
+    pending: &mut Vec<usize>,
+    scratch: &mut Vec<(Value, usize)>,
+    tick: &mut impl FnMut() -> Result<()>,
+) -> Result<()> {
+    debug_assert!(scratch.is_empty());
+    let result = mark_walk(value, pending, scratch, tick);
+    scratch.clear();
+    result
+}
+
+fn mark_walk(
+    value: &Value,
+    pending: &mut Vec<usize>,
+    scratch: &mut Vec<(Value, usize)>,
+    tick: &mut impl FnMut() -> Result<()>,
+) -> Result<()> {
+    if !mark_value(value, pending, tick, 0)? {
+        return Ok(());
+    }
+    push_scratch(scratch, value.clone())?;
+    loop {
+        let depth = scratch.len();
+        let Some((container, position)) = scratch.last_mut() else {
+            return Ok(());
+        };
+        let child = match &container.0 {
+            Kind::Array(array) => array.buffer.data.get(*position),
+            Kind::Hash(hash) => hash.buffer.data.get(*position).map(|(_, value)| value),
+            _ => unreachable!(),
+        };
+        let Some(child) = child else {
+            scratch.pop();
+            continue;
+        };
+        *position += 1;
+        let next = if mark_value(child, pending, tick, depth)? {
+            Some(child.clone())
+        } else {
+            None
+        };
+        if let Some(next) = next {
+            push_scratch(scratch, next)?;
+        }
+    }
+}
+
+/// Marks one value and reports whether it is a container to descend into.
+fn mark_value(
     value: &Value,
     pending: &mut Vec<usize>,
     tick: &mut impl FnMut() -> Result<()>,
     depth: usize,
-) -> Result<()> {
+) -> Result<bool> {
     tick()?;
     if depth > MAX_VALUE_DEPTH {
         return Err(Error::limit(
@@ -738,18 +902,22 @@ fn mark_references(
                 mark_instance(environment, pending);
             }
         }
-        Kind::Array(array) => {
-            for value in &array.buffer.data {
-                mark_references(value, pending, tick, depth + 1)?;
-            }
-        }
-        Kind::Hash(hash) => {
-            for (_, value) in &hash.buffer.data {
-                mark_references(value, pending, tick, depth + 1)?;
-            }
-        }
+        Kind::Array(_) | Kind::Hash(_) => return Ok(true),
         _ => (),
     }
+    Ok(false)
+}
+
+fn push_scratch(scratch: &mut Vec<(Value, usize)>, value: Value) -> Result<()> {
+    // Field writes reserve one frame per nesting level, so this never allocates.
+    debug_assert!(scratch.len() < scratch.capacity());
+    if scratch.len() == scratch.capacity() {
+        return Err(Error::limit(
+            ErrorKind::Recursion,
+            "instance field nesting too deep",
+        ));
+    }
+    scratch.push((value, 0));
     Ok(())
 }
 
