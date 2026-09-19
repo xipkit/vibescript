@@ -1,0 +1,49 @@
+# Enum integration fixture
+
+enum Status
+  Draft
+  Published
+  Archived
+end
+
+enum ReviewState
+  Draft
+  Approved
+end
+
+def member -> Status
+  Status::Draft
+end
+
+def publish(status: Status) -> Status
+  status
+end
+
+def block_names(values) -> array
+  values.map do |status: Status|
+    status.name
+  end
+end
+
+def facts -> hash
+  draft = Status::Draft
+
+  {
+    same: draft == Status::Draft,
+    symbol_same: draft == :draft,
+    cross_enum_same: draft == ReviewState::Draft,
+    name: draft.name,
+    symbol: draft.symbol,
+    render: "status={{value}}".template({ value: draft }),
+    payload: JSON.stringify({ status: draft })
+  }
+end
+
+def run
+  {
+    member_name: member().name,
+    published_name: publish(:published).name,
+    names: block_names([:draft, Status::Published]),
+    facts: facts()
+  }
+end

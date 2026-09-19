@@ -1,0 +1,29 @@
+class Account
+  property owner: string
+  getter balance: int
+  setter note: string
+
+  def initialize(owner)
+    @owner = owner
+    @balance = 0
+    @note = ""
+  end
+
+  def deposit(amount)
+    @balance = @balance + amount
+    @balance
+  end
+
+  def annotate(text)
+    self.note = text
+    @note
+  end
+end
+
+def run
+  a = Account.new("ada")
+  a.owner = "Ada Lovelace"
+  deposited = a.deposit(100)
+  note = a.annotate("primary")
+  { owner: a.owner, balance: deposited, note: note }
+end

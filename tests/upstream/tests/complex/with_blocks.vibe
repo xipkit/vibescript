@@ -1,0 +1,52 @@
+class Collection
+  def initialize(items)
+    @items = items
+  end
+
+  def each
+    @items.each do |item|
+      yield(item)
+    end
+  end
+
+  def map_items
+    result = []
+    @items.each do |item|
+      result = result.push(yield(item))
+    end
+    result
+  end
+
+  def find
+    result = nil
+    done = false
+    @items.each do |item|
+      if done == false
+        if yield(item)
+          result = item
+          done = true
+        end
+      end
+    end
+    result
+  end
+end
+
+def run
+  coll = Collection.new([1, 2, 3, 4, 5])
+
+  sum = 0
+  coll.each do |x|
+    sum = sum + x
+  end
+
+  doubled = coll.map_items do |x|
+    x * 2
+  end
+
+  first_even = coll.find do |x|
+    x % 2 == 0
+  end
+
+  { sum: sum, doubled: doubled, first_even: first_even }
+end

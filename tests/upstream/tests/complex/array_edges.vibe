@@ -1,0 +1,59 @@
+def run
+  empty = []
+  single = [42]
+  multi = [1, 2, 3, 4, 5]
+
+  empty_first = empty.first
+  empty_last = empty.last
+  empty_first_n = empty.first(3)
+  empty_last_n = empty.last(3)
+  empty_size = empty.size
+
+  single_first = single.first
+  single_last = single.last
+
+  first_more = multi.first(100)
+  first_zero = multi.first(0)
+  last_more = multi.last(100)
+  last_zero = multi.last(0)
+
+  nested = [[1, 2], [3, [4, 5]]]
+  flat_one = nested.flatten(1)
+  flat_all = nested.flatten
+
+  with_nils = [1, nil, 2, nil, 3]
+  compacted = with_nils.compact
+
+  uniq_arr = [1, 2, 2, 3, 3, 3].uniq
+
+  joined = multi.join("-")
+  empty_joined = empty.join(",")
+
+  summed = multi.sum
+  empty_sum = empty.sum
+
+  pushed = [1, 2].push(3)
+
+  {
+    empty_first: empty_first,
+    empty_last: empty_last,
+    empty_first_n: empty_first_n,
+    empty_last_n: empty_last_n,
+    empty_size: empty_size,
+    single_first: single_first,
+    single_last: single_last,
+    first_more: first_more,
+    first_zero: first_zero,
+    last_more: last_more,
+    last_zero: last_zero,
+    flat_one: flat_one,
+    flat_all: flat_all,
+    compacted: compacted,
+    uniq_arr: uniq_arr,
+    joined: joined,
+    empty_joined: empty_joined,
+    summed: summed,
+    empty_sum: empty_sum,
+    pushed: pushed
+  }
+end

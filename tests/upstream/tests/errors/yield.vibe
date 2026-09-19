@@ -1,0 +1,22 @@
+def yield_without_block
+  yield(42)
+end
+
+def yield_in_nested
+  [1].each do |x|
+    yield(x)
+  end
+end
+
+def double_yield
+  yield(1)
+  yield(2)
+end
+
+def run
+  count = 0
+  double_yield do |x|
+    count = count + x
+  end
+  { count: count }
+end

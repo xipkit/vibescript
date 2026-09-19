@@ -1,0 +1,39 @@
+def call_with_three
+  yield(1, 2, 3)
+end
+
+def nested_sum(arr)
+  total = 0
+  arr.each do |x|
+    arr.each do |y|
+      total = total + yield(x, y)
+    end
+  end
+  total
+end
+
+def yield_one
+  yield(7)
+end
+
+def run
+  captured = []
+  call_with_three do |a, b|
+    captured = [a, b]
+    a + b
+  end
+
+  nested = nested_sum([1, 2, 3]) do |x, y|
+    x * y
+  end
+
+  defaulted = yield_one do |a, b|
+    if b == nil
+      a
+    else
+      a + b
+    end
+  end
+
+  { captured: captured, nested: nested, defaulted: defaulted }
+end

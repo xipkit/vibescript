@@ -1,0 +1,31 @@
+def requires_one(x)
+  x
+end
+
+def requires_two(a, b)
+  a + b
+end
+
+def with_default(x, y = 10)
+  x + y
+end
+
+def with_typed_keyword(name: string, score: int = 0)
+  name
+end
+
+def too_few_args
+  requires_two(1)
+end
+
+def too_many_args
+  requires_one(1, 2)
+end
+
+def run
+  a = with_default(5)
+  b = with_default(5, 20)
+  c = with_typed_keyword(name: "test")
+  d = with_typed_keyword(name: "test", score: 42)
+  { a: a, b: b, c: c, d: d }
+end

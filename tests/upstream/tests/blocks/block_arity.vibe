@@ -1,0 +1,19 @@
+def yield_one
+  yield(9)
+end
+
+def yield_many
+  yield(1, 2, 3)
+end
+
+def run
+  extra = yield_many do |a|
+    [a]
+  end
+
+  missing = yield_one do |a, b, c|
+    [a, b, c]
+  end
+
+  { extra: extra, missing: missing }
+end

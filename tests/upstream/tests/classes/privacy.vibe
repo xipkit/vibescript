@@ -1,0 +1,25 @@
+class Helper
+  private def secret
+    42
+  end
+
+  def call_internal
+    secret
+  end
+
+  def attempt(other)
+    other.secret
+  end
+end
+
+def run
+  a = Helper.new
+  {
+    internal: a.call_internal
+  }
+end
+
+def violate
+  a = Helper.new
+  a.attempt(Helper.new)
+end

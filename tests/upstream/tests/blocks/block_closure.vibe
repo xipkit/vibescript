@@ -1,0 +1,14 @@
+def run
+  total = 0
+  nums = [1, 2, 3]
+  nums.each do |n|
+    total = total + n
+  end
+
+  shadow = 5
+  mapped = [10].map do |shadow|
+    shadow + total
+  end
+
+  { total: total, shadow: shadow, mapped: mapped[0] }
+end

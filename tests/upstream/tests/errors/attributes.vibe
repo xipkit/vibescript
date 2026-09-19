@@ -1,0 +1,11 @@
+class ReadOnly
+  getter val
+  def initialize
+    @val = 1
+  end
+end
+
+def set_readonly
+  r = ReadOnly.new
+  r.val = 2
+end

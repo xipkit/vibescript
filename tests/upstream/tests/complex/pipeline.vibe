@@ -1,0 +1,41 @@
+# Simple pipeline with transforms
+
+def normalize_scores(records)
+  records.map do |r|
+    score = r[:score]
+    if score > 100
+      score = 100
+    end
+    { name: r[:name], score: score }
+  end
+end
+
+def filter_min(records, min: int)
+  records.select do |r|
+    r[:score] >= min
+  end
+end
+
+def sorted(records)
+  records
+end
+
+def top_n(records, n: int)
+  normalized = normalize_scores(records)
+  filtered = filter_min(normalized, min: 50)
+  ordered = sorted(filtered)
+  ordered.first(n)
+end
+
+def run
+  records = [
+    { name: "a", score: 120 },
+    { name: "b", score: 80 },
+    { name: "c", score: 40 }
+  ]
+  {
+    normalized: normalize_scores(records),
+    filtered: filter_min(records, min: 50),
+    top: top_n(records, 2)
+  }
+end

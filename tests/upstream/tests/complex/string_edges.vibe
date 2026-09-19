@@ -1,0 +1,38 @@
+def run
+  empty = ""
+  single = "x"
+  multi = "hello world"
+
+  empty_size = empty.size
+  empty_upper = empty.upcase
+  empty_lower = empty.downcase
+  empty_trim = empty.strip
+  empty_split = empty.split(" ")
+
+  with_spaces = "  hello  world  "
+  trimmed = with_spaces.strip
+
+  split_by_space = multi.split(" ")
+  split_by_dash = "foo-bar-baz".split("-")
+
+  first_char = multi[0]
+  last_char = multi[10]
+
+  upper = "hello".upcase
+  lower = "HELLO".downcase
+
+  {
+    empty_size: empty_size,
+    empty_upper: empty_upper,
+    empty_lower: empty_lower,
+    empty_trim: empty_trim,
+    empty_split: empty_split,
+    trimmed: trimmed,
+    split_space: split_by_space,
+    split_dash: split_by_dash,
+    first_char: first_char,
+    last_char: last_char,
+    upper: upper,
+    lower: lower
+  }
+end

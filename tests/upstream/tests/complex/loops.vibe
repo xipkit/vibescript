@@ -1,0 +1,38 @@
+# Loop patterns
+
+def sum_matrix(matrix)
+  total = 0
+  for row in matrix
+    for cell in row
+      total = total + cell
+    end
+  end
+  total
+end
+
+def flatten_once(values)
+  out = []
+  for arr in values
+    for v in arr
+      out = out + [v]
+    end
+  end
+  out
+end
+
+def countdown(from: int) -> array
+  out = []
+  for i in from..0
+    out = out + [i]
+  end
+  out
+end
+
+def run
+  matrix = [[1, 2], [3, 4]]
+  {
+    sum: sum_matrix(matrix),
+    flat: flatten_once(matrix),
+    countdown: countdown(3)
+  }
+end

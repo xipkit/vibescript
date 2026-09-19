@@ -1,0 +1,16 @@
+def run
+  single = [7].reduce do |acc, x|
+    acc + x
+  end
+
+  items = [
+    { key: "one", val: 1 },
+    { key: "two", val: 2 }
+  ]
+  hash = items.reduce({}) do |acc, h|
+    acc[h[:key]] = h[:val] * 2
+    acc
+  end
+
+  { single: single, hash: hash }
+end

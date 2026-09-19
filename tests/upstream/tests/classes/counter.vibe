@@ -1,0 +1,20 @@
+class Counter
+  @@instances = 0
+
+  def initialize
+    @@instances = @@instances + 1
+  end
+
+  def self.instances
+    @@instances
+  end
+end
+
+def run
+  before = Counter.instances
+  Counter.new
+  Counter.new
+  Counter.new
+  after = Counter.instances
+  { before: before, after: after }
+end

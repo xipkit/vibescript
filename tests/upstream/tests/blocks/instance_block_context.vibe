@@ -1,0 +1,22 @@
+class Counter
+  def initialize
+    @count = 0
+  end
+
+  def bump_all(vals)
+    vals.each do |v|
+      @count = @count + v
+    end
+    @count
+  end
+
+  def count
+    @count
+  end
+end
+
+def run
+  c = Counter.new
+  total = c.bump_all([1, 2, 3, 4])
+  { total: total, count: c.count }
+end

@@ -1,0 +1,17 @@
+# Collections, sizing, and indexing fixture
+
+def first_initial(name)
+  name.split(" ")[0][0]
+end
+
+def sizes(arr)
+  { arr: arr.size, str: "hello".size }
+end
+
+def run
+  names = ["Ada Lovelace", "Grace Hopper"]
+  {
+    initial: first_initial(names[0]),
+    sizes: sizes(names)
+  }
+end

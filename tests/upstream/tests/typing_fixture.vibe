@@ -1,0 +1,21 @@
+# Typing and keyword arguments fixture
+
+def maybe_add(a: int?, b: int = 1) -> int?
+  if a == nil
+    nil
+  else
+    a + b
+  end
+end
+
+def keyword_demo(name: string, score: int = 0) -> string
+  name + "-" + score
+end
+
+def run
+  {
+    add_nil: maybe_add(nil),
+    add_val: maybe_add(5, b: 2),
+    kw: keyword_demo(score: 7, name: "alex")
+  }
+end

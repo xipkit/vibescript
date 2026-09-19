@@ -1,0 +1,69 @@
+class Counter
+  def initialize(start)
+    @count = start
+  end
+
+  def value
+    @count
+  end
+
+  def increment
+    @count = @count + 1
+  end
+
+  private def secret
+    42
+  end
+end
+
+class ReadOnly
+  getter name
+
+  def initialize(name)
+    @name = name
+  end
+end
+
+class WriteOnly
+  setter value
+
+  def initialize
+    @value = 0
+  end
+
+  def get_internal
+    @value
+  end
+end
+
+def undefined_method
+  c = Counter.new(0)
+  c.nonexistent
+end
+
+def private_method_external
+  c = Counter.new(0)
+  c.secret
+end
+
+def write_to_readonly
+  r = ReadOnly.new("test")
+  r.name = "changed"
+end
+
+def wrong_init_args
+  Counter.new
+end
+
+def run
+  c = Counter.new(5)
+  c.increment
+  c.increment
+
+  r = ReadOnly.new("hello")
+
+  w = WriteOnly.new
+  w.value = 99
+
+  { counter: c.value, readonly: r.name, writeonly: w.get_internal }
+end

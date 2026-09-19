@@ -1,0 +1,14 @@
+class Point
+  property x, y
+
+  def initialize(@x, @y)
+  end
+end
+
+def run
+  p = Point.new(2, 3)
+  before = { x: p.x, y: p.y }
+  p.x = 9
+  after = { x: p.x, y: p.y }
+  { before: before, after: after }
+end

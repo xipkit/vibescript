@@ -1,0 +1,29 @@
+def twice
+  yield
+  yield
+end
+
+def with_value(val)
+  yield(val)
+end
+
+def transform(a, b)
+  yield(a) + yield(b)
+end
+
+def run
+  count = 0
+  twice do
+    count = count + 1
+  end
+
+  doubled = with_value(21) do |x|
+    x * 2
+  end
+
+  sum = transform(3, 4) do |n|
+    n * 10
+  end
+
+  { count: count, doubled: doubled, sum: sum }
+end

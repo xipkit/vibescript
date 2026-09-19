@@ -1,0 +1,17 @@
+class Mathy
+  def self.twice(n)
+    n * 2
+  end
+
+  def call_twice(n)
+    self.class.twice(n)
+  end
+end
+
+def run
+  m = Mathy.new
+  {
+    class_call: Mathy.twice(5),
+    instance_call: m.call_twice(7)
+  }
+end

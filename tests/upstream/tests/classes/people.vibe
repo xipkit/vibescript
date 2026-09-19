@@ -1,0 +1,31 @@
+class Person
+  property name
+  getter age
+
+  def initialize(name)
+    @name = name
+    @age = 0
+  end
+
+  def birthday
+    @age = @age + 1
+  end
+
+  private def secret
+    "shh"
+  end
+
+  def reveal
+    secret
+  end
+end
+
+def run
+  john = Person.new("John")
+  john.birthday
+  {
+    name: john.name,
+    age: john.age,
+    reveal: john.reveal
+  }
+end

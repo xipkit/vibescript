@@ -1,0 +1,39 @@
+# Duration-heavy helpers
+
+def window_start(days_back)
+  days_back.days.ago(Time.now)
+end
+
+def window_end(hours_forward)
+  hours_forward.hours.after(Time.now)
+end
+
+def span_seconds(start, finish)
+  (finish - start).floor
+end
+
+def readable_window(days_back, hours_forward)
+  start = window_start(days_back)
+  finish = window_end(hours_forward)
+  start_str = start.format("2006-01-02 15:04:05")
+  finish_str = finish.format("2006-01-02 15:04:05")
+  start_str + " -> " + finish_str
+end
+
+def shift_series(timestamps, delta)
+  timestamps.map do |ts|
+    delta.after(Time.at(ts)).format("2006-01-02T15:04:05Z")
+  end
+end
+
+def run
+  start = Time.at(0)
+  finish = 90.minutes.after(start)
+  delta = Duration.build(finish - start)
+  {
+    shifted: shift_series([0, 1800], 1800.seconds),
+    span: span_seconds(start, finish),
+    iso: delta.iso8601,
+    readable: readable_window(1, 2)
+  }
+end

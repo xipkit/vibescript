@@ -42,6 +42,158 @@
     {
       "path": "tests/complex/operators.vibe",
       "sha256": "3739bbfffa47ea21da906ee1c79f9cb83a8e2d71912fdb2670bb8e5b38969d83"
+    },
+    {
+      "path": "tests/blocks/block_arity.vibe",
+      "sha256": "32f57e254bc98faf21dbf778d7c28fa917c1c8ecdfeb14938963363e6be3190a"
+    },
+    {
+      "path": "tests/blocks/block_closure.vibe",
+      "sha256": "71fc3bb90a8c84fac9f66e7810a758cfea84653cfb966ec01933c9ff2545d8c6"
+    },
+    {
+      "path": "tests/blocks/block_error_propagation.vibe",
+      "sha256": "d4d47c4e949f8216368777e29a0c751529a3e80edbf907cb288e7da77e97a026"
+    },
+    {
+      "path": "tests/blocks/error_cases.vibe",
+      "sha256": "742326eacf00af579a9e4b1fedf800995c2b909e0b75cc40550963dbb86d2de4"
+    },
+    {
+      "path": "tests/blocks/instance_block_context.vibe",
+      "sha256": "41363697881b2603d0613e08c74b1ace22acd1f39e688262d3fae30666caa7a5"
+    },
+    {
+      "path": "tests/blocks/reduce_single.vibe",
+      "sha256": "39a6ad92d7dc9748831eac6fcdb302386fc51eddb39f36bdbfcef78210ff5688"
+    },
+    {
+      "path": "tests/classes/counter.vibe",
+      "sha256": "5680ee7ba39210b727d2fcedb1b0109d5112fcf8522239dca832163039890564"
+    },
+    {
+      "path": "tests/classes/people.vibe",
+      "sha256": "f6ebf000c1d2c092bdd9b2ee4f18320e0c80cd72bad60de46b27c0e03ab83259"
+    },
+    {
+      "path": "tests/classes/point.vibe",
+      "sha256": "23619f275d23641bfc768a1cc70c34001759ccf6c300212016783ba07f618832"
+    },
+    {
+      "path": "tests/classes/privacy.vibe",
+      "sha256": "6c1d2cfec5f784ae48448d26b0d12875d66590c43da7c51b9364246b2b7c30d7"
+    },
+    {
+      "path": "tests/classes/self_calls.vibe",
+      "sha256": "9db67e34710450d142268b1c15ec453d04e7921a5b2e59cc3ed125e14a8ee723"
+    },
+    {
+      "path": "tests/classes/setter.vibe",
+      "sha256": "57e5cc0c88314c568b38f782524965608b4586cf3201147177e44f3bc3f02333"
+    },
+    {
+      "path": "tests/classes/typed_property.vibe",
+      "sha256": "f7b3a65a034713479428b3aa0c10866a00f8cf78f43ae281c5c88241d93703f6"
+    },
+    {
+      "path": "tests/collections_fixture.vibe",
+      "sha256": "2ea33837ba8566d8126ad86bec1dda5b32db43cac0eb3459ea37e47877a90a69"
+    },
+    {
+      "path": "tests/complex/advanced_blocks.vibe",
+      "sha256": "3f03b3ce037a2059190ba89f4ae2372ccc55ccfb9efe2361e4f7df22ee4ade34"
+    },
+    {
+      "path": "tests/complex/analytics.vibe",
+      "sha256": "665b1d02a6dcef2a29ca92e15512df21a1581c5bdd6cb4930e65d1b7c59e3970"
+    },
+    {
+      "path": "tests/complex/array_edges.vibe",
+      "sha256": "9d9785596a9039db246738ab9a3d3d6ad2ac00656d22b595772bb8aad4a485e5"
+    },
+    {
+      "path": "tests/complex/chudnovsky.vibe",
+      "sha256": "9fec689fa3669762b1555243774ae62bf1d1d4d905b3156febc079be73a6aa61"
+    },
+    {
+      "path": "tests/complex/durations.vibe",
+      "sha256": "708ec73cb63d2becfbd27273e67315ffa77de756facbd5b5a70661150955dcc3"
+    },
+    {
+      "path": "tests/complex/finance.vibe",
+      "sha256": "7ee015ce951b206ac154362f809b925d613b65e8433a1212a30a6a4a999910b9"
+    },
+    {
+      "path": "tests/complex/hash_edges.vibe",
+      "sha256": "876c7240d74537b440667c0ff957ffc4cd8cbb99b1667002e6a08d4e5cd05872"
+    },
+    {
+      "path": "tests/complex/loops.vibe",
+      "sha256": "2145dfcaaaee85e12d600bf3fcd258a50663bfb7e7087ce65dfc23247ce294b7"
+    },
+    {
+      "path": "tests/complex/massive.vibe",
+      "sha256": "b23470161debc27db2e7961a08c868ce0a1951037f9fa682c3d4006ea7f3df38"
+    },
+    {
+      "path": "tests/complex/pipeline.vibe",
+      "sha256": "dea6163c6e90f5fc3e4a6d804a499ef1323881ccd0f1818c9d37993c0553f5ac"
+    },
+    {
+      "path": "tests/complex/string_edges.vibe",
+      "sha256": "b47194f0069b62975addd08507bedb1844190a0b6132a6a12877d185bf100cd9"
+    },
+    {
+      "path": "tests/complex/strings.vibe",
+      "sha256": "921939f0906068c6c0d41a5c9aea8a87e095906be3bcb018e695fe78dec40ee1"
+    },
+    {
+      "path": "tests/complex/typed.vibe",
+      "sha256": "fc6e249a382887f06ccb109adab0b319232856c3f3874ada44598189f2208a27"
+    },
+    {
+      "path": "tests/complex/with_blocks.vibe",
+      "sha256": "39b89cd51ad9faebe53c1faf740624cb8fbce7fdd02c535683df0a43e47d35dd"
+    },
+    {
+      "path": "tests/complex/yield_basics.vibe",
+      "sha256": "178bd9a8ad64cec64cf0e71e92d754b7f34d21561a2921ea7d925aeb1316a2d0"
+    },
+    {
+      "path": "tests/enums_fixture.vibe",
+      "sha256": "a69aba47412781556497a788e40bdb4ce381c2be9505b1ca669742ad118cbbd1"
+    },
+    {
+      "path": "tests/errors/arguments.vibe",
+      "sha256": "165a276a2ba9237d8cb791a22bc794685512b8f00a607284559b2df33a04e224"
+    },
+    {
+      "path": "tests/errors/attributes.vibe",
+      "sha256": "f96c47e8daab8177e01ecc2ea997937df82979256eee7e7c0578ed58326d2592"
+    },
+    {
+      "path": "tests/errors/classes.vibe",
+      "sha256": "250a02580ab167e24653a65a58fa21dc3b47be476622ef4593cb1038d47df20a"
+    },
+    {
+      "path": "tests/errors/runtime.vibe",
+      "sha256": "c1a7f3fd47eb6bd9c6c981dbf910ed78b9e5d0bf1b808092210319904d88c908"
+    },
+    {
+      "path": "tests/errors/types.vibe",
+      "sha256": "2e627e358d4d25b3283e59cb6e44b4ec56043a88ed309cb295afcf87d2be8607"
+    },
+    {
+      "path": "tests/errors/yield.vibe",
+      "sha256": "4f4a7a952480f8f32f9bcb8be7e104757f2a5671b36e95da196268ecdb49b2eb"
+    },
+    {
+      "path": "tests/runtime_stress.vibe",
+      "sha256": "d34af6904a22af4ee85baf632de818dbde17a1bcfc3d4ecea8e556a3c1071079"
+    },
+    {
+      "path": "tests/typing_fixture.vibe",
+      "sha256": "2fcc1413bc78a3ec1a6932da0e82381a3182b840617241758ddba7a551b20613"
     }
   ]
 }
