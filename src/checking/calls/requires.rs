@@ -299,7 +299,10 @@ impl Solver<'_, '_> {
         globals.store(ctx, facts, slot, loading)?;
         let (world, handle) = self.state.worlds.get(ctx, source)?;
         let mut context = Context::plain();
-        context.kind = Kind::Entry { general: false };
+        context.kind = Kind::Entry {
+            general: false,
+            admit: false,
+        };
         context.globals = globals;
         let mut adapter = self.state.adapter(world, &handle);
         let job = adapter.request(ctx, facts, 0, &[], current_error, &context)?;

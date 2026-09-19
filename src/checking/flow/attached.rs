@@ -16,11 +16,44 @@ impl Walker<'_> {
         };
         let mut binding = state.locals.get(self.ctx, slot)?;
         if binding.missing {
-            let loaded = self.calls.load_root(self.ctx, self.facts, root)?;
+            let globals = state.global_call(self.ctx)?;
+            let current_error = state.current_error(self.ctx, self.current_error)?;
+            let loaded =
+                self.calls
+                    .admit_root(self.ctx, self.facts, root, current_error, &globals)?;
             self.emit_error(state, pc, loaded.throws)?;
             if loaded.incomplete {
                 self.incomplete(pc)?;
                 return Ok(false);
+            }
+            if !loaded.exits.data.is_empty() {
+                let mut normal: Option<State> = None;
+                for exit in loaded.exits.data {
+                    let mut next = state.snapshot(self.ctx)?;
+                    next.apply_globals(self.ctx, self.facts, &exit.globals)?;
+                    match exit.completion {
+                        blocks::Completion::Value => {
+                            if let Some(normal) = &mut normal {
+                                if !normal.compatible(self.ctx, &next)? {
+                                    self.incomplete(pc)?;
+                                    return Ok(false);
+                                }
+                                normal.join(self.ctx, self.facts, &next, false, self.program)?;
+                            } else {
+                                normal = Some(next);
+                            }
+                        }
+                        blocks::Completion::Error(class) => {
+                            self.emit_error(&next, pc, handlers::bit(class))?
+                        }
+                        blocks::Completion::Escape => self.callback_escape(next, pc, exit.value)?,
+                        _ => unreachable!(),
+                    }
+                }
+                let Some(normal) = normal else {
+                    return Ok(false);
+                };
+                *state = normal;
             }
             let value = self.facts.union(self.ctx, &[binding.value, loaded.value])?;
             if value == Atom::Never.fact() {

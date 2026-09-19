@@ -13,6 +13,7 @@ pub(super) enum Selection {
     Call(Target),
     Field(Fact, bool),
     Rejected,
+    Failed,
     Incomplete,
 }
 
@@ -202,6 +203,9 @@ impl Walker<'_> {
         let Some(module) = self.namespace(state, receiver)? else {
             return Ok(Selection::Incomplete);
         };
+        if self.namespace_failed(state, module.source)? {
+            return Ok(Selection::Failed);
+        }
         let definition = &module.program().namespaces[module.index];
         let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
         if scope {
@@ -349,6 +353,10 @@ impl Walker<'_> {
                     self.value_target(value)?
                 }
                 Selection::Incomplete => Target::Unsupported,
+                Selection::Failed => {
+                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    return Ok(None);
+                }
                 Selection::Rejected => {
                     self.namespace_error(state, pc, receiver, name, &Arguments::new())?;
                     return Ok(None);
@@ -408,6 +416,10 @@ impl Walker<'_> {
                 self.set_call_target(state, pc, value)
             }
             Selection::Incomplete => self.incomplete(pc).map(Some),
+            Selection::Failed => {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                Ok(Some([None, None]))
+            }
             Selection::Rejected => {
                 self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
                 Ok(Some([None, None]))
@@ -458,6 +470,10 @@ impl Walker<'_> {
                 }
             }
             Selection::Incomplete => self.incomplete(pc).map(Some),
+            Selection::Failed => {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                Ok(Some([None, None]))
+            }
             Selection::Rejected => {
                 self.namespace_error(state, pc, receiver, site.name, &args)?;
                 Ok(Some([None, None]))

@@ -61,13 +61,10 @@ impl Walker<'_> {
     }
 
     fn instance_fields(&mut self, state: &State, receiver: Fact) -> Result<Option<Fact>> {
-        let Node::Instance { slot, .. } = *self.facts.node(receiver) else {
+        let Some((root, slot)) = self.instance_slot(state, receiver)? else {
             return Ok(None);
         };
-        let Some(module) = self.namespace(state, receiver)? else {
-            return Ok(None);
-        };
-        let heap = state.locals.get(self.ctx, module.root + 2)?.value;
+        let heap = state.locals.get(self.ctx, root)?.value;
         let key = self.facts.integer(self.ctx, slot as i64)?;
         let fields = crate::checking::heaps::read(self.ctx, self.facts, heap, key)?;
         Ok((!fields.unsupported).then_some(fields.value))
@@ -117,21 +114,36 @@ impl Walker<'_> {
     }
 
     fn instance_root(&mut self, state: &State, receiver: Fact) -> Result<Option<Address>> {
-        let Node::Instance { slot, .. } = *self.facts.node(receiver) else {
-            return Ok(None);
-        };
-        let Some(module) = self.namespace(state, receiver)? else {
+        let Some((root, slot)) = self.instance_slot(state, receiver)? else {
             return Ok(None);
         };
         if self.instance_fields(state, receiver)?.is_none() {
             return Ok(None);
         }
-        let root = module.root + 2;
         let heap = state.locals.get(self.ctx, root)?.value;
         let mut address = Address::new(Some(root), heap);
         let key = self.facts.integer(self.ctx, slot as i64)?;
         address.instance_index(self.ctx, self.facts, key)?;
         Ok(Some(address))
+    }
+
+    pub(in super::super) fn instance_slot(
+        &mut self,
+        state: &State,
+        receiver: Fact,
+    ) -> Result<Option<(usize, usize)>> {
+        let Node::Instance { slot, kind, .. } = *self.facts.node(receiver) else {
+            return Ok(None);
+        };
+        if kind == crate::checking::facts::InstanceKind::Captured {
+            return Ok(state
+                .global_layout
+                .captured(slot)
+                .map(|root| (state.global_base + root, 0)));
+        }
+        Ok(self
+            .namespace(state, receiver)?
+            .map(|module| (module.root + 2, slot)))
     }
 
     pub(in super::super) fn instance_read(
@@ -299,7 +311,7 @@ impl Walker<'_> {
         let Some((receiver, key)) = address.instance else {
             return Ok(Some(updated));
         };
-        let Node::Instance { slot, .. } = *self.facts.node(receiver) else {
+        let Some((_, slot)) = self.instance_slot(state, receiver)? else {
             unreachable!()
         };
         let Node::String(name) = self.facts.node(key) else {

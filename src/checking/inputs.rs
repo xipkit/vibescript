@@ -6,11 +6,14 @@ use super::{
 use crate::{CallContext, Result, Value, budget::Buffer, value::Kind};
 use std::sync::Arc;
 
+pub(super) mod captured;
+
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Loaded {
     pub value: Fact,
     pub incomplete: bool,
     pub throws: u8,
+    pub captured: Option<usize>,
 }
 
 impl Loaded {
@@ -19,12 +22,14 @@ impl Loaded {
             value: Atom::Never.fact(),
             incomplete: true,
             throws: 0,
+            captured: None,
         }
     }
 }
 
 pub(super) struct Values {
     pub writers: Option<[bool; 2]>,
+    pub captured: captured::Captures,
     sources: Buffer<Source>,
 }
 
@@ -44,6 +49,7 @@ impl Values {
     pub fn new() -> Self {
         Self {
             writers: None,
+            captured: captured::Captures::new(),
             sources: Buffer::empty(),
         }
     }
@@ -127,11 +133,12 @@ impl Values {
             ctx.charge((index + 1 - loaded.data.len()) as u64)?;
             loaded.data.resize(index + 1, None);
         }
-        let value = match self.argument(ctx, facts, world, source) {
-            Ok(value) => Loaded {
+        let value = match self.admit(ctx, facts, world, source) {
+            Ok((value, captured)) => Loaded {
                 value: value.value,
                 incomplete: value.incomplete,
                 throws: 0,
+                captured,
             },
             Err(error) => {
                 ctx.checkpoint()?;
@@ -142,6 +149,7 @@ impl Values {
                     value: Atom::Never.fact(),
                     incomplete: false,
                     throws: 1 << class as u8,
+                    captured: None,
                 }
             }
         };
@@ -157,8 +165,21 @@ impl Values {
         world: &World<'_>,
         value: &Value,
     ) -> Result<admission::Admitted> {
-        let mut nominal = false;
-        let mut value = admission::value(ctx, facts, value, |ctx, facts, value| {
+        let (value, batch) = self.admit(ctx, facts, world, value)?;
+        if let Some(batch) = batch {
+            self.captured.eager(ctx, batch)?;
+        }
+        Ok(value)
+    }
+
+    fn describe(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        world: &World<'_>,
+        value: &Value,
+    ) -> Result<admission::Admitted> {
+        admission::value(ctx, facts, value, |ctx, facts, value| {
             Ok(Some(match &value.0 {
                 Kind::Host(method) => {
                     let home = self.source(ctx, world)?;
@@ -197,24 +218,17 @@ impl Values {
                     facts.callable(ctx, owner, Callable::Function(function.index))?
                 }
                 Kind::Namespace(namespace) => {
-                    nominal = true;
                     let Some(value) = Self::nominal(ctx, facts, namespace)? else {
                         return Ok(None);
                     };
                     facts.type_value(ctx, value)?
                 }
                 Kind::Instance(instance) => {
-                    nominal = true;
-                    let Some(value) = Self::nominal(ctx, facts, instance.class())? else {
-                        return Ok(None);
-                    };
-                    value
+                    return self.captured.value(ctx, facts, instance);
                 }
                 _ => return Ok(None),
             }))
-        })?;
-        value.incomplete |= nominal;
-        Ok(value)
+        })
     }
 
     fn nominal(

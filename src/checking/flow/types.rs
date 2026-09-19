@@ -26,29 +26,38 @@ impl Walker<'_> {
         if source == self.source {
             return self.prepared_contract(state, pc, ty, false);
         }
-        let globals = state.global_call(self.ctx)?;
-        let annotation = self
-            .calls
-            .annotation(self.ctx, self.facts, source, ty, &globals)?;
-        self.emit_error(state, pc, annotation.throws)?;
-        match annotation.resolution {
-            Resolution::Known(value) => Ok((value != Atom::Never.fact()).then_some(value)),
-            failure @ (Resolution::Missing | Resolution::Ambiguous) => {
-                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
-                self.issue(
-                    pc,
-                    IssueKind::TypeFactBinding {
-                        expected: annotation.expected,
-                        ambiguous: failure == Resolution::Ambiguous,
-                    },
-                )?;
-                Ok(None)
+        loop {
+            let globals = state.global_call(self.ctx)?;
+            let annotation = self
+                .calls
+                .annotation(self.ctx, self.facts, source, ty, &globals)?;
+            self.emit_error(state, pc, annotation.throws)?;
+            match annotation.resolution {
+                Resolution::Known(value) => {
+                    return Ok((value != Atom::Never.fact()).then_some(value));
+                }
+                failure @ (Resolution::Missing | Resolution::Ambiguous) => {
+                    self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                    self.issue(
+                        pc,
+                        IssueKind::TypeFactBinding {
+                            expected: annotation.expected,
+                            ambiguous: failure == Resolution::Ambiguous,
+                        },
+                    )?;
+                    return Ok(None);
+                }
+                Resolution::Dynamic => {
+                    self.incomplete(pc)?;
+                    return Ok(None);
+                }
+                Resolution::Pending(root) => {
+                    let slot = state.global_base + state.source_slots.roots.data[root];
+                    if !self.import_root(state, pc, slot)? {
+                        return Ok(None);
+                    }
+                }
             }
-            Resolution::Dynamic => {
-                self.incomplete(pc)?;
-                Ok(None)
-            }
-            Resolution::Pending(_) => unreachable!("source annotations resolve pending roots"),
         }
     }
 

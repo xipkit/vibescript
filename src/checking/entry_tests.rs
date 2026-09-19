@@ -1,7 +1,7 @@
 use super::{
     calls::Analysis,
     entry::{self, Call, Check},
-    facts::Atom,
+    facts::{Atom, Node},
     flow::IssueKind,
     normalization_tests::observed,
     relation::Relation,
@@ -607,7 +607,11 @@ fn required_function_arguments_stay_attached_to_their_module() {
         &CallOptions::default(),
     )
     .unwrap();
-    assert!(!checked.analysis.incomplete.data.is_empty());
+    assert!(checked.analysis.incomplete.data.is_empty(), "{checked:?}");
+    assert!(matches!(
+        checked.facts.node(checked.analysis.returns),
+        Node::Integer(7)
+    ));
     assert!(checked.analysis.issues.data.is_empty());
     assert_eq!(
         script
@@ -776,7 +780,7 @@ fn function_lookup_and_strict_validation_precede_argument_imports() {
 }
 
 #[test]
-fn unmodeled_preludes_and_nominal_arguments_remain_explicit() {
+fn opaque_factories_remain_explicit_while_nominal_arguments_are_analyzed() {
     let effects = Arc::new(AtomicUsize::new(0));
     let count = effects.clone();
     let mut engine = Engine::new();
@@ -821,7 +825,7 @@ fn unmodeled_preludes_and_nominal_arguments_remain_explicit() {
     drop(checked);
     let instance = value("class C;end;C.new");
     let checked = check(&mut ctx, &script, &[instance], &[], &CallOptions::default()).unwrap();
-    assert!(!checked.analysis.incomplete.data.is_empty());
+    assert!(checked.analysis.incomplete.data.is_empty(), "{checked:?}");
     assert_eq!(effects.load(Ordering::Relaxed), 0);
     drop(checked);
     assert_eq!(ctx.stats().retained_memory_bytes, 0);

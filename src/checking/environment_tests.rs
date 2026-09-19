@@ -437,7 +437,7 @@ fn opaque_factories_remain_pending_even_when_an_explicit_global_overrides_them()
 }
 
 #[test]
-fn initializers_are_analyzed_but_foreign_nominal_state_remains_incomplete() {
+fn initializers_are_analyzed_in_local_and_foreign_sources() {
     let mut engine = Engine::new();
     engine.register("mark", |_, _| panic!("initializer executed"));
     let script = engine
@@ -473,7 +473,7 @@ fn initializers_are_analyzed_but_foreign_nominal_state_remains_incomplete() {
             &[],
         )
         .unwrap();
-    assert!(!report.incomplete.data.is_empty());
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
     engine.set_strict_effects(true);
     let strict = engine.compile("def run; 7; end").unwrap();
     let globals = CallOptions {
@@ -542,7 +542,7 @@ fn admitted_classes_and_instances_share_source_declaration_identities() {
             panic!("missing root: {root}");
         };
         let admitted = values.read(&mut ctx, &mut facts, &world, *index).unwrap();
-        assert!(admitted.incomplete);
+        assert!(!admitted.incomplete);
         let actual = admitted.value;
         let actual = if is_type {
             let Node::TypeValue(value) = facts.node(actual) else {
@@ -550,7 +550,10 @@ fn admitted_classes_and_instances_share_source_declaration_identities() {
             };
             *value
         } else {
-            actual
+            let Node::Instance { class, .. } = facts.node(actual) else {
+                panic!("expected instance: {root}")
+            };
+            *class
         };
         assert_eq!(actual, expected, "{root}");
     }
@@ -645,7 +648,7 @@ fn source_owners_distinguish_code_and_captured_scopes_without_retaining_heaps() 
 }
 
 #[test]
-fn captured_functions_keep_distinct_owners_and_cannot_resolve_as_local_functions() {
+fn captured_functions_keep_distinct_owners_and_resolve_in_their_source() {
     let script = Engine::new()
         .compile("def helper; 99; end; def run; foreign.helper(); end")
         .unwrap();
@@ -709,7 +712,8 @@ fn captured_functions_keep_distinct_owners_and_cannot_resolve_as_local_functions
             &[],
         )
         .unwrap();
-    assert!(!report.incomplete.data.is_empty());
+    assert!(report.incomplete.data.is_empty(), "{report:?}");
+    assert!(matches!(facts.node(report.returns), Node::Integer(7)));
 }
 
 fn accounting_script() -> (Script, CallOptions) {

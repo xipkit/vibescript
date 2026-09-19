@@ -503,7 +503,7 @@ impl Facts {
                 None
             } else if a == b {
                 Some(true)
-            } else if *ak == InstanceKind::Concrete && *bk == InstanceKind::Concrete {
+            } else if ak.concrete() && bk.concrete() {
                 Some(false)
             } else {
                 None

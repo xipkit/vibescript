@@ -37,45 +37,27 @@ impl Solver<'_, '_> {
         if !self.layouts.named_annotation(ctx, ty)? {
             return Ok(result);
         }
-        let mut resolved = Buffer::empty();
-        loop {
-            let environment = self.host_environment(ctx, facts, globals, &resolved.data)?;
-            let mut failure = None;
-            let value = facts.annotation(ctx, &self.world.program.types[ty], |ctx, name| {
-                if failure.is_some() {
-                    return Ok(None);
-                }
-                match environment.bindings.resolve(
-                    ctx,
-                    &environment.scopes[..environment.count],
-                    name,
-                    false,
-                )? {
-                    Resolution::Known(value) => Ok(Some(value)),
-                    resolution => {
-                        failure = Some(resolution);
-                        Ok(None)
-                    }
-                }
-            })?;
-            let Some(Resolution::Pending(root)) = failure else {
-                result.resolution = failure.unwrap_or(Resolution::Known(value));
-                return Ok(result);
-            };
-            let loaded = self.load_root(ctx, facts, root)?;
-            result.throws |= loaded.throws;
-            if loaded.incomplete {
-                result.resolution = Resolution::Dynamic;
-                return Ok(result);
+        let environment = self.host_environment(ctx, facts, globals)?;
+        let mut failure = None;
+        let value = facts.annotation(ctx, &self.world.program.types[ty], |ctx, name| {
+            if failure.is_some() {
+                return Ok(None);
             }
-            let slot = globals.layout.source(ctx, self.source)?.roots.data[root];
-            let value = facts.union(ctx, &[globals.values.data[slot], loaded.value])?;
-            if value == Atom::Never.fact() {
-                result.resolution = Resolution::Known(value);
-                return Ok(result);
+            match environment.bindings.resolve(
+                ctx,
+                &environment.scopes[..environment.count],
+                name,
+                false,
+            )? {
+                Resolution::Known(value) => Ok(Some(value)),
+                resolution => {
+                    failure = Some(resolution);
+                    Ok(None)
+                }
             }
-            resolved.push(ctx, (root, value))?;
-        }
+        })?;
+        result.resolution = failure.unwrap_or(Resolution::Known(value));
+        Ok(result)
     }
 
     fn host_environment(
@@ -83,7 +65,6 @@ impl Solver<'_, '_> {
         ctx: &mut CallContext,
         facts: &mut Facts,
         globals: &Globals,
-        resolved: &[(usize, Fact)],
     ) -> Result<Environment> {
         let mut bindings = Bindings::new();
         let slots = globals.layout.source(ctx, self.source)?;
@@ -93,11 +74,7 @@ impl Solver<'_, '_> {
         for (index, root) in roots.data.iter().enumerate() {
             ctx.charge(1)?;
             let slot = slots.roots.data[index];
-            ctx.charge(resolved.len() as u64)?;
-            let binding = if let Some((_, value)) = resolved.iter().find(|(root, _)| *root == index)
-            {
-                bindings.current(ctx, facts, *value)?
-            } else if globals.missing.data[slot] {
+            let binding = if globals.missing.data[slot] {
                 crate::checking::type_bindings::Binding::Pending(index)
             } else {
                 bindings.current(ctx, facts, globals.values.data[slot])?
@@ -371,43 +348,29 @@ impl Solver<'_, '_> {
         expected: Fact,
         outcome: &mut Outcome,
     ) -> Result<Option<Fact>> {
-        let mut resolved = Buffer::empty();
-        loop {
-            let environment = if facts.unresolved(expected) {
-                Some(self.host_environment(ctx, facts, globals, &resolved.data)?)
-            } else {
-                None
-            };
-            let host = self
-                .state
-                .values
-                .host(ctx, &target.world, target.index)?
-                .unwrap();
-            match host.contract(
-                ctx,
-                facts,
-                environment.as_ref(),
-                parameter,
-                expected,
-                outcome,
-            )? {
-                Contract::Known(fact) => return Ok(Some(fact)),
-                Contract::Rejected => return Ok(None),
-                Contract::Pending(root) => {
-                    let loaded = self.load_root(ctx, facts, root)?;
-                    outcome.throws |= loaded.throws;
-                    if loaded.incomplete {
-                        outcome.incomplete = true;
-                        return Ok(None);
-                    }
-                    let slot = globals.layout.source(ctx, self.source)?.roots.data[root];
-                    let before = globals.values.data[slot];
-                    let value = facts.union(ctx, &[before, loaded.value])?;
-                    if value == Atom::Never.fact() {
-                        return Ok(None);
-                    }
-                    resolved.push(ctx, (root, value))?;
-                }
+        let environment = if facts.unresolved(expected) {
+            Some(self.host_environment(ctx, facts, globals)?)
+        } else {
+            None
+        };
+        let host = self
+            .state
+            .values
+            .host(ctx, &target.world, target.index)?
+            .unwrap();
+        match host.contract(
+            ctx,
+            facts,
+            environment.as_ref(),
+            parameter,
+            expected,
+            outcome,
+        )? {
+            Contract::Known(fact) => Ok(Some(fact)),
+            Contract::Rejected => Ok(None),
+            Contract::Pending(root) => {
+                outcome.pending = Some(root);
+                Ok(None)
             }
         }
     }

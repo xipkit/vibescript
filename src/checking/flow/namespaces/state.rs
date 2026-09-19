@@ -98,8 +98,12 @@ impl Walker<'_> {
             }
             return Ok(Some([None, None]));
         }
-        if self.namespace(state, receiver)?.is_none() {
+        let Some(module) = self.namespace(state, receiver)? else {
             return self.incomplete(pc).map(Some);
+        };
+        if self.namespace_failed(state, module.source)? {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            return Ok(Some([None, None]));
         }
         let mut address = Address::new(None, receiver);
         address.member = Some(site.name);
@@ -119,6 +123,10 @@ impl Walker<'_> {
                 Ok(None)
             }
             Selection::Incomplete => self.incomplete(pc).map(Some),
+            Selection::Failed => {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                Ok(Some([None, None]))
+            }
             Selection::Rejected => {
                 self.namespace_error(state, pc, receiver, site.name, &Arguments::new())?;
                 Ok(Some([None, None]))
@@ -146,6 +154,10 @@ impl Walker<'_> {
             return self.incomplete(pc).map(Some);
         };
         let field = &self.program.members[name];
+        if self.namespace_failed(state, module.source)? {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            return Ok(Some([None, None]));
+        }
         let instance = matches!(self.facts.node(receiver), Node::Instance { .. });
         let definition = &module.program().namespaces[module.index];
         let methods = if instance {
@@ -481,6 +493,10 @@ impl Walker<'_> {
         let Some(module) = self.namespace(state, receiver)? else {
             return self.incomplete(pc).map(Some);
         };
+        if self.namespace_failed(state, module.source)? {
+            self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+            return Ok(Some([None, None]));
+        }
         let field = self.namespace_fields(state, module.root, name)?;
         if field.incomplete {
             return self.incomplete(pc).map(Some);

@@ -89,6 +89,7 @@ impl Globals {
                 .step_by(super::namespaces::WIDTH)
                 .map(|root| root + 1)
                 .chain(source.import)
+                .chain(source.activation)
             {
                 ctx.charge(1)?;
                 let initial = layout.initial(flag).value;

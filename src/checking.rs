@@ -8,6 +8,8 @@ mod arguments;
 mod blocks;
 mod builtins;
 mod calls;
+#[cfg(test)]
+mod captured_tests;
 mod cases;
 mod collections;
 mod entry;

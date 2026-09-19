@@ -36,6 +36,19 @@ impl Namespace<'_> {
 }
 
 impl<'a> Walker<'a> {
+    pub(in crate::checking::flow) fn namespace_failed(
+        &mut self,
+        state: &State,
+        source: SourceId,
+    ) -> Result<bool> {
+        let slots = state.global_layout.source(self.ctx, source)?;
+        let Some(flag) = slots.activation else {
+            return Ok(false);
+        };
+        let status = state.locals.get(self.ctx, state.global_base + flag)?.value;
+        Ok(matches!(self.facts.node(status), Node::Boolean(false)))
+    }
+
     /// Keeps declaration metadata and storage tied to the same prepared source.
     pub(in crate::checking::flow) fn namespace(
         &mut self,

@@ -106,6 +106,78 @@ enum Task {
 }
 
 impl Walker<'_> {
+    /// Propagates possible aliases between concrete host objects and declaration inputs.
+    pub(super) fn alias_captures(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        address: &Address,
+        updated: Fact,
+    ) -> Result<bool> {
+        let Some((receiver, key)) = address.object else {
+            return Ok(true);
+        };
+        let Node::Instance { kind, class, .. } = *self.facts.node(receiver) else {
+            unreachable!()
+        };
+        if kind == InstanceKind::Concrete {
+            return Ok(true);
+        }
+        let Some((_, slot)) = self.instance_slot(state, receiver)? else {
+            return Ok(true);
+        };
+        let index = self.facts.integer(self.ctx, slot as i64)?;
+        let fields = crate::checking::heaps::read(self.ctx, self.facts, updated, index)?;
+        let changed = self
+            .facts
+            .collection_index(self.ctx, fields.value, &[key])?;
+        if fields.unsupported || changed.unsupported {
+            self.incomplete(pc)?;
+            return Ok(false);
+        }
+        let mut aliases = Buffer::empty();
+        if kind == InstanceKind::Captured {
+            if let Some(module) = self.namespace(state, receiver)? {
+                let descriptors = state.locals.get(self.ctx, module.root + 3)?.value;
+                for index in 0..self.facts.arm_count(descriptors) {
+                    self.ctx.charge(1)?;
+                    let descriptor = self.facts.arm(descriptors, index);
+                    if let Node::Instance { slot, kind, .. } = *self.facts.node(descriptor) {
+                        if !kind.concrete() {
+                            aliases.push(self.ctx, (module.root + 2, slot))?;
+                        }
+                    }
+                }
+            }
+        } else {
+            for &(descriptor, root) in state.global_layout.captured_objects() {
+                self.ctx.charge(1)?;
+                if matches!(*self.facts.node(descriptor), Node::Instance { class: other, .. } if other == class)
+                {
+                    aliases.push(self.ctx, (state.global_base + root, 0))?;
+                }
+            }
+        }
+        for (root, slot) in aliases.data {
+            let heap = state.locals.get(self.ctx, root)?.value;
+            let index = self.facts.integer(self.ctx, slot as i64)?;
+            let before = crate::checking::heaps::read(self.ctx, self.facts, heap, index)?;
+            let after = self
+                .facts
+                .collection_write(self.ctx, before.value, key, changed.value)?;
+            let fields = self
+                .facts
+                .union(self.ctx, &[before.value, after.receiver])?;
+            let updated = self.facts.collection_write(self.ctx, heap, index, fields)?;
+            if before.unsupported || after.unsupported || updated.unsupported {
+                self.incomplete(pc)?;
+                return Ok(false);
+            }
+            self.store(state, pc, root, Operand::new(updated.receiver))?;
+        }
+        Ok(true)
+    }
+
     pub(super) fn general_value(
         &mut self,
         state: &mut State,
@@ -268,9 +340,12 @@ impl Walker<'_> {
         let Node::Instance { slot, kind, .. } = *self.facts.node(receiver) else {
             unreachable!()
         };
+        if kind.concrete() {
+            return Ok(Some((updated, None)));
+        }
         let root = address.root.unwrap();
         let aliases = state.locals.get(self.ctx, root + 1)?.value;
-        if aliases == Atom::Never.fact() || kind == InstanceKind::Concrete {
+        if aliases == Atom::Never.fact() {
             return Ok(Some((updated, None)));
         }
         let mut descriptors = Buffer::empty();

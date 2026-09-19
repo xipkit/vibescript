@@ -5,7 +5,7 @@ use crate::checking::pending::Pending;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Kind {
-    Entry { general: bool },
+    Entry { general: bool, admit: bool },
     General,
     Plain,
     Initializing,

@@ -1188,9 +1188,31 @@ impl Walker<'_> {
                 builtins::protected::invoke(self.ctx, self.facts, value, &args)?
             }
             _ => {
-                let globals = state.global_call(self.ctx)?;
-                self.calls
-                    .invoke(self.ctx, self.facts, target, args, current_error, &globals)?
+                let mut args = Some(args);
+                loop {
+                    let input = if matches!(target, Target::Host(_)) {
+                        args.as_ref().unwrap().snapshot(self.ctx)?
+                    } else {
+                        args.take().unwrap()
+                    };
+                    let globals = state.global_call(self.ctx)?;
+                    let result = self.calls.invoke(
+                        self.ctx,
+                        self.facts,
+                        target,
+                        input,
+                        current_error,
+                        &globals,
+                    )?;
+                    let Some(root) = result.pending else {
+                        break result;
+                    };
+                    self.call_effects(state, pc, target, &result)?;
+                    let slot = state.global_base + state.source_slots.roots.data[root];
+                    if !self.import_root(state, pc, slot)? {
+                        return Ok(Some([None, None]));
+                    }
+                }
             }
         };
         self.call_effects(state, pc, target, &result)?;
@@ -1417,6 +1439,9 @@ impl Walker<'_> {
         let Some(mut updated) = self.guard_instance(state, pc, address, result.value)? else {
             return Ok(Some([None, None]));
         };
+        if !self.alias_captures(state, pc, address, updated)? {
+            return Ok(Some([None, None]));
+        }
         let Some((aliased, alias_address)) = self.alias_instances(state, pc, address, updated)?
         else {
             return Ok(Some([None, None]));

@@ -65,6 +65,7 @@ fn outcome(value: Fact) -> Outcome {
         throws: 0,
         failures: Buffer::empty(),
         incomplete: false,
+        pending: None,
     }
 }
 

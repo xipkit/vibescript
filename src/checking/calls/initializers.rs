@@ -80,7 +80,7 @@ impl Solver<'_, '_> {
         initial: &Context,
         current_error: u16,
     ) -> Result<Report> {
-        let Kind::Entry { general } = initial.kind else {
+        let Kind::Entry { general, admit } = initial.kind else {
             unreachable!()
         };
         let globals = &initial.globals;
@@ -95,52 +95,24 @@ impl Solver<'_, '_> {
         let mut alternatives = Buffer::empty();
         let globals = globals.snapshot(ctx)?;
         alternatives.push(ctx, globals)?;
-        for module in 0..self.world.program.namespaces.len() {
-            ctx.charge(1)?;
-            let Some(body) = self.world.program.namespaces[module].body else {
-                continue;
-            };
-            let mut normal = Buffer::empty();
-            for globals in alternatives.data {
-                ctx.charge(1)?;
-                let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
-                let initialized = globals.values.data[flag];
-                let yes = facts.filter(ctx, initialized, Test::Truth, true)?;
-                let no = facts.filter(ctx, initialized, Test::Truth, false)?;
-                if no == Atom::Never.fact() {
-                    globals.join_into(ctx, facts, &mut normal)?;
-                    continue;
-                }
-                if yes != Atom::Never.fact() {
-                    let mut skipped = globals.snapshot(ctx)?;
-                    skipped.values.data[flag] = yes;
-                    skipped.join_into(ctx, facts, &mut normal)?;
-                }
-                let mut context = Context::plain();
-                context.globals = globals;
-                context.globals.values.data[flag] = no;
-                let index = self.request(ctx, facts, body, &[], current_error, &context)?;
-                self.depend(ctx, index)?;
-                report.throws |= self.state.jobs.data[index].throws;
-                if let Some(result) = &self.state.jobs.data[index].report {
-                    for exit in &result.block_exits.data {
-                        ctx.charge(1)?;
-                        if exit.completion == blocks::Completion::Value {
-                            let mut globals = exit.globals.snapshot(ctx)?;
-                            globals.inherit_writes(ctx, &context.globals)?;
-                            globals.join_into(ctx, facts, &mut normal)?;
-                        } else {
-                            let mut exit = exit.snapshot(ctx)?;
-                            exit.globals.inherit_writes(ctx, &context.globals)?;
-                            report.block_exits.push(ctx, exit)?;
-                        }
-                    }
-                }
-            }
-            if normal.data.is_empty() {
-                return Ok(report);
-            }
-            alternatives = normal;
+        if admit {
+            let mut sources = Buffer::empty();
+            sources.extend(ctx, &self.state.values.captured.entry.data)?;
+            alternatives = self.activate_captures(
+                ctx,
+                facts,
+                &sources.data,
+                alternatives,
+                current_error,
+                &mut report,
+            )?;
+        }
+        if function != 0 || self.world.program.file {
+            alternatives =
+                self.initialize_namespaces(ctx, facts, alternatives, current_error, &mut report)?;
+        }
+        if alternatives.data.is_empty() {
+            return Ok(report);
         }
         // Runtime initializes namespaces before binding the entry's argument shape.
         let failures = &self.state.worlds.entries.data[self.world_index]
@@ -189,5 +161,63 @@ impl Solver<'_, '_> {
             }
         }
         Ok(report)
+    }
+
+    pub(super) fn initialize_namespaces(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        mut alternatives: Buffer<Globals>,
+        current_error: u16,
+        report: &mut Report,
+    ) -> Result<Buffer<Globals>> {
+        for module in 0..self.world.program.namespaces.len() {
+            ctx.charge(1)?;
+            let Some(body) = self.world.program.namespaces[module].body else {
+                continue;
+            };
+            let mut normal = Buffer::empty();
+            for globals in alternatives.data {
+                ctx.charge(1)?;
+                let flag = globals.layout.source(ctx, self.source)?.namespace(module) + 1;
+                let initialized = globals.values.data[flag];
+                let yes = facts.filter(ctx, initialized, Test::Truth, true)?;
+                let no = facts.filter(ctx, initialized, Test::Truth, false)?;
+                if no == Atom::Never.fact() {
+                    globals.join_into(ctx, facts, &mut normal)?;
+                    continue;
+                }
+                if yes != Atom::Never.fact() {
+                    let mut skipped = globals.snapshot(ctx)?;
+                    skipped.values.data[flag] = yes;
+                    skipped.join_into(ctx, facts, &mut normal)?;
+                }
+                let mut context = Context::plain();
+                context.globals = globals;
+                context.globals.values.data[flag] = no;
+                let index = self.request(ctx, facts, body, &[], current_error, &context)?;
+                self.depend(ctx, index)?;
+                report.throws |= self.state.jobs.data[index].throws;
+                if let Some(result) = &self.state.jobs.data[index].report {
+                    for exit in &result.block_exits.data {
+                        ctx.charge(1)?;
+                        if exit.completion == blocks::Completion::Value {
+                            let mut globals = exit.globals.snapshot(ctx)?;
+                            globals.inherit_writes(ctx, &context.globals)?;
+                            globals.join_into(ctx, facts, &mut normal)?;
+                        } else {
+                            let mut exit = exit.snapshot(ctx)?;
+                            exit.globals.inherit_writes(ctx, &context.globals)?;
+                            report.block_exits.push(ctx, exit)?;
+                        }
+                    }
+                }
+            }
+            if normal.data.is_empty() {
+                return Ok(normal);
+            }
+            alternatives = normal;
+        }
+        Ok(alternatives)
     }
 }

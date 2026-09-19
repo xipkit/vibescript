@@ -5,7 +5,7 @@ use blocks::{Closure, Completion};
 impl Walker<'_> {
     pub(super) fn host_block(
         &mut self,
-        state: &State,
+        state: &mut State,
         pc: usize,
         index: CallableId,
         mut args: Arguments,
@@ -17,14 +17,24 @@ impl Walker<'_> {
         if !admitted {
             return Ok(());
         }
-        let globals = state.global_call(self.ctx)?;
-        let guard = self.calls.host_boundary(
-            self.ctx,
-            self.facts,
-            index,
-            HostBoundary::Arguments(&args),
-            &globals,
-        )?;
+        let guard = loop {
+            let globals = state.global_call(self.ctx)?;
+            let guard = self.calls.host_boundary(
+                self.ctx,
+                self.facts,
+                index,
+                HostBoundary::Arguments(&args),
+                &globals,
+            )?;
+            let Some(root) = guard.pending else {
+                break guard;
+            };
+            self.call_effects(state, pc, target, &guard)?;
+            let slot = state.global_base + state.source_slots.roots.data[root];
+            if !self.import_root(state, pc, slot)? {
+                return Ok(());
+            }
+        };
         self.call_effects(state, pc, target, &guard)?;
         if guard.incomplete {
             self.incomplete(pc)?;
@@ -158,22 +168,32 @@ impl Walker<'_> {
         index: CallableId,
         value: Option<Fact>,
     ) -> Result<()> {
-        let globals = state.global_call(self.ctx)?;
-        let result = self.calls.host_boundary(
-            self.ctx,
-            self.facts,
-            index,
-            HostBoundary::Result(value),
-            &globals,
-        )?;
-        self.call_effects(state, pc, Target::Host(index), &result)?;
+        let mut state = state.snapshot(self.ctx)?;
+        let result = loop {
+            let globals = state.global_call(self.ctx)?;
+            let result = self.calls.host_boundary(
+                self.ctx,
+                self.facts,
+                index,
+                HostBoundary::Result(value),
+                &globals,
+            )?;
+            let Some(root) = result.pending else {
+                break result;
+            };
+            self.call_effects(&state, pc, Target::Host(index), &result)?;
+            let slot = state.global_base + state.source_slots.roots.data[root];
+            if !self.import_root(&mut state, pc, slot)? {
+                return Ok(());
+            }
+        };
+        self.call_effects(&state, pc, Target::Host(index), &result)?;
         if result.incomplete {
             self.incomplete(pc)?;
         }
         if result.value != Atom::Never.fact() {
-            let mut next = state.snapshot(self.ctx)?;
-            next.stack.push(self.ctx, Operand::new(result.value))?;
-            self.native_continue(pc, next)?;
+            state.stack.push(self.ctx, Operand::new(result.value))?;
+            self.native_continue(pc, state)?;
         }
         Ok(())
     }

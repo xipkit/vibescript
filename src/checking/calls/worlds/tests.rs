@@ -79,7 +79,10 @@ fn interleaved_files_keep_private_writes_namespaces_and_builtin_indexes() {
         let (index, handle) = state.worlds.get(&mut ctx, source).unwrap();
         let mut solver = state.adapter(index, &handle);
         let mut context = Context::plain();
-        context.kind = Kind::Entry { general: false };
+        context.kind = Kind::Entry {
+            general: false,
+            admit: false,
+        };
         let entry = solver
             .request(&mut ctx, &mut facts, 0, &[], flow::NO_ERROR, &context)
             .unwrap();
@@ -573,7 +576,10 @@ fn deferred_entry_failures_do_not_leak_between_sources() {
         &mut state,
         a,
         &bound.inputs.data,
-        Kind::Entry { general: false },
+        Kind::Entry {
+            general: false,
+            admit: false,
+        },
     )
     .unwrap();
     let second = request_kind(
@@ -582,7 +588,10 @@ fn deferred_entry_failures_do_not_leak_between_sources() {
         &mut state,
         b,
         0,
-        Kind::Entry { general: false },
+        Kind::Entry {
+            general: false,
+            admit: false,
+        },
     )
     .unwrap();
     state.solve(&mut ctx, &mut facts).unwrap();

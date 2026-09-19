@@ -74,8 +74,15 @@ impl From<bool> for HashKind {
 pub(super) enum InstanceKind {
     // Created during this analysis; cannot alias an unknown incoming object.
     Concrete,
+    Captured,
     Symbolic,
     Summary,
+}
+
+impl InstanceKind {
+    pub fn concrete(self) -> bool {
+        matches!(self, Self::Concrete | Self::Captured)
+    }
 }
 
 #[derive(Debug)]
@@ -351,7 +358,7 @@ impl Facts {
             | Node::Regex(_)
             | Node::Enumeration { .. }
             | Node::EnumMember { index: Some(_), .. } => true,
-            Node::Instance { kind, .. } => *kind == InstanceKind::Concrete,
+            Node::Instance { kind, .. } => kind.concrete(),
             Node::Tuple(values) => {
                 ctx.charge(values.data.len() as u64)?;
                 values.data.iter().all(|&value| self.singleton(value))

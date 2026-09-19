@@ -504,7 +504,7 @@ fn conditional_file_builtins_keep_present_and_absent_paths() {
 }
 
 #[test]
-fn missing_required_files_are_diagnosed_and_captured_foreign_sources_remain_incomplete() {
+fn missing_required_files_are_diagnosed_and_captured_foreign_bindings_are_analyzed() {
     let script = file(&Engine::new(), "require('dependency')");
     let report = script
         .check_call("__main__", &[], &CallOptions::default())
@@ -528,7 +528,7 @@ fn missing_required_files_are_diagnosed_and_captured_foreign_sources_remain_inco
     };
     assert_eq!(script.run(options.clone()).unwrap().value.as_int(), Some(7));
     let report = script.check_call("__main__", &[], &options).unwrap();
-    assert!(!report.incomplete.is_empty(), "{report:?}");
+    assert!(report.is_clean(), "{report:?}");
 }
 
 #[test]

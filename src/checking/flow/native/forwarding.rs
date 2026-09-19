@@ -9,6 +9,7 @@ enum Resolution {
     Field(Fact),
     Property,
     Missing,
+    Failed,
     Incomplete,
 }
 
@@ -53,6 +54,7 @@ impl Walker<'_> {
                     Resolution::Field(value)
                 }
                 Selection::Rejected => Resolution::Missing,
+                Selection::Failed => Resolution::Failed,
                 Selection::Incomplete => Resolution::Incomplete,
             };
             output.push(self.ctx, resolution)?;
@@ -352,6 +354,10 @@ impl Walker<'_> {
                     }
                     Resolution::Incomplete => {
                         self.incomplete(pc)?;
+                        continue;
+                    }
+                    Resolution::Failed => {
+                        self.emit_error(&next, pc, handlers::bit(ErrorClass::Runtime))?;
                         continue;
                     }
                     Resolution::Missing => {

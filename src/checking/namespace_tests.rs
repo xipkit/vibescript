@@ -406,7 +406,7 @@ fn checks_never_execute_method_bodies_or_host_callbacks() {
 }
 
 #[test]
-fn source_queries_are_modeled_while_foreign_namespaces_remain_incomplete() {
+fn source_queries_and_foreign_namespaces_are_analyzed() {
     run("module M;end;def run;M.respond_to?(:missing);end", "false");
     let foreign = Engine::new()
         .compile("module M;def self.answer;7;end;end;M")
@@ -416,11 +416,10 @@ fn source_queries_are_modeled_while_foreign_namespaces_remain_incomplete() {
         .value;
     let script = Engine::new().compile("def run(m);m.answer;end").unwrap();
     assert!(
-        !script
+        script
             .check_call("run", &[foreign], &CallOptions::default())
             .unwrap()
-            .incomplete
-            .is_empty()
+            .is_clean()
     );
 }
 

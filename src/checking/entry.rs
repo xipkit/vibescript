@@ -87,9 +87,14 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
         }
         args.positional.push(ctx, value.value)?;
     }
+    let mut positional_sources = Buffer::empty();
+    if !call.keywords.is_empty() {
+        positional_sources.extend(ctx, &values.captured.entry.data)?;
+    }
+    let mut keyword_sources = Buffer::empty();
     for (name, value) in call.keywords {
         let name = facts.symbol(ctx, name.as_bytes())?;
-        let value = values.argument(ctx, &mut facts, &world, value)?;
+        let (value, batch) = values.admit(ctx, &mut facts, &world, value)?;
         if value.incomplete {
             return unfinished(
                 ctx,
@@ -101,7 +106,30 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
         if facts.escapes(value.value) {
             return detached(ctx, facts, function, value.value);
         }
+        if let Some(batch) = batch {
+            values.captured.eager(ctx, batch)?;
+        }
+        ctx.charge(keyword_sources.data.len() as u64)?;
+        if let Some((_, previous)) = keyword_sources
+            .data
+            .iter_mut()
+            .find(|(key, _)| *key == name)
+        {
+            *previous = batch;
+        } else {
+            keyword_sources.push(ctx, (name, batch))?;
+        }
         args.keyword(ctx, name, value.value)?;
+    }
+    if keyword_sources.data.len() != call.keywords.len() && values.captured.scoped(ctx)? {
+        // Scoped admission walks the retained argument graph. Replaced keyword values
+        // were validated above, but only the final values initialize their sources.
+        values.captured.entry = positional_sources;
+        for (_, batch) in keyword_sources.data {
+            if let Some(batch) = batch {
+                values.captured.eager(ctx, batch)?;
+            }
+        }
     }
     let bound = args.bind_host(ctx, &mut facts, &program.functions[function].params)?;
     ctx.charge(program.namespaces.len() as u64)?;
@@ -110,7 +138,7 @@ pub(super) fn check(ctx: &mut CallContext, call: Call<'_>) -> Result<Check> {
             .namespaces
             .iter()
             .any(|namespace| namespace.body.is_some());
-    if !initializers && !bound.failures.data.is_empty() {
+    if !initializers && values.captured.entry.data.is_empty() && !bound.failures.data.is_empty() {
         let mut analysis = empty(Atom::Never.fact(), 1 << ErrorClass::Argument as u8);
         for &failure in &bound.failures.data {
             ctx.charge(1)?;

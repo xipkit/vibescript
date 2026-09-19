@@ -14,6 +14,7 @@ use std::{
     sync::Arc,
 };
 
+mod captured;
 mod context;
 mod dispatch;
 mod hosts;
@@ -74,6 +75,7 @@ pub(super) struct Outcome {
     pub throws: u8,
     pub failures: Buffer<Failure>,
     pub incomplete: bool,
+    pub pending: Option<usize>,
     pub exits: Buffer<blocks::Exit>,
 }
 
@@ -90,6 +92,7 @@ impl Outcome {
             throws: 0,
             failures: Buffer::empty(),
             incomplete: false,
+            pending: None,
             exits: Buffer::empty(),
         }
     }
@@ -198,6 +201,23 @@ pub(super) trait Calls {
         ctx.checkpoint()?;
         Ok(super::inputs::Loaded::unavailable())
     }
+    /// Admits a deferred root and follows any captured source initialization.
+    fn admit_root(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        root: usize,
+        _: u16,
+        _: &Globals,
+    ) -> Result<Outcome> {
+        let loaded = self.load_root(ctx, facts, root)?;
+        Ok(Outcome {
+            value: loaded.value,
+            throws: loaded.throws,
+            incomplete: loaded.incomplete,
+            ..Outcome::empty()
+        })
+    }
     /// Reports whether the selected host implementation may invoke its block.
     fn host_uses_block(&mut self, ctx: &mut CallContext, _: CallableId) -> Result<bool> {
         ctx.checkpoint()?;
@@ -296,6 +316,7 @@ impl Calls for Unavailable {
             failures: Buffer::empty(),
             incomplete: true,
             exits: Buffer::empty(),
+            pending: None,
         })
     }
 }
@@ -745,12 +766,22 @@ fn analyze_entry(
             .iter()
             .any(|namespace| namespace.body.is_some())
     {
-        context.kind = Kind::Entry { general };
+        context.kind = Kind::Entry {
+            general,
+            admit: false,
+        };
     } else if general {
         context.kind = Kind::General;
     }
-    let layout = solver.prepare(ctx, facts)?;
-    context.globals = Globals::initial(ctx, &layout)?;
+    solver.prepare(ctx, facts)?;
+    solver.prepare_captures(ctx, facts)?;
+    if !solver.state.values.captured.entry.data.is_empty() {
+        context.kind = Kind::Entry {
+            general,
+            admit: true,
+        };
+    }
+    context.globals = Globals::initial(ctx, &solver.state.storage.layout)?;
     let entry = solver.request(ctx, facts, function, inputs, flow::NO_ERROR, &context)?;
     solver.solve(ctx, facts)?;
     let result = Analysis {
@@ -1319,7 +1350,9 @@ impl Calls for Solver<'_, '_> {
         let Some((_, Target::Deferred(input))) = world.globals.get(index) else {
             return Ok(super::inputs::Loaded::unavailable());
         };
-        self.state.values.read(ctx, facts, &world, *input)
+        let loaded = self.state.values.read(ctx, facts, &world, *input)?;
+        self.prepare_captures(ctx, facts)?;
+        Ok(loaded)
     }
 
     fn host_uses_block(&mut self, ctx: &mut CallContext, index: CallableId) -> Result<bool> {
@@ -1331,6 +1364,17 @@ impl Calls for Solver<'_, '_> {
             .values
             .host(ctx, &handle.view().world, index.index)?
             .is_some_and(|host| host.blocks == HostBlocks::Possible))
+    }
+
+    fn admit_root(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        root: usize,
+        current_error: u16,
+        globals: &Globals,
+    ) -> Result<Outcome> {
+        self.materialize_root(ctx, facts, root, current_error, globals)
     }
 
     fn host_boundary(
@@ -1523,10 +1567,26 @@ impl Calls for Solver<'_, '_> {
             throws: 0,
             failures: Buffer::empty(),
             incomplete: false,
+            pending: None,
             exits: Buffer::empty(),
         };
         if !args.admit(ctx, facts, &mut outcome.failures)? {
             return Ok(outcome);
+        }
+        if let Some(source) = target.source() {
+            if let Some(flag) = globals
+                .layout
+                .find(ctx, source)?
+                .and_then(|source| source.activation)
+            {
+                if matches!(
+                    facts.node(globals.values.data[flag]),
+                    super::facts::Node::Boolean(false)
+                ) {
+                    outcome.throws |= 1 << crate::ErrorClass::Runtime as u8;
+                    return Ok(outcome);
+                }
+            }
         }
         if let Some(source) = target.source().filter(|&source| source != self.source) {
             if !matches!(target, Target::Host(_)) {
