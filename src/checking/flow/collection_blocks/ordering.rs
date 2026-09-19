@@ -48,6 +48,15 @@ impl Walker<'_> {
         for i in 0..self.facts.arm_count(receiver) {
             self.ctx.charge(1)?;
             let source = self.facts.arm(receiver, i);
+            if matches!(method, Min | Max)
+                && matches!(
+                    self.facts.node(source),
+                    Node::Range(..) | Node::Atom(Atom::Range)
+                )
+            {
+                self.range_extreme(state, pc, source, site, &args, method)?;
+                continue;
+            }
             match self.facts.node(source) {
                 Node::Atom(Atom::Never) => continue,
                 Node::Atom(Atom::Unknown | Atom::Any)
@@ -157,6 +166,53 @@ impl Walker<'_> {
             }
         }
         Ok(())
+    }
+
+    fn range_extreme(
+        &mut self,
+        state: &State,
+        pc: usize,
+        receiver: Fact,
+        site: MemberSite,
+        args: &Arguments,
+        method: Method,
+    ) -> Result<()> {
+        if site.scope
+            || !args.positional.data.is_empty()
+            || !args.keywords.data.is_empty()
+            || args.block.is_some()
+        {
+            return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);
+        }
+        let result = match *self.facts.node(receiver) {
+            Node::Range(Some(start), Some(end), exclusive) => {
+                if exclusive && start == end {
+                    Atom::Nil.fact()
+                } else {
+                    let last = if exclusive {
+                        if start > end { end + 1 } else { end - 1 }
+                    } else {
+                        end
+                    };
+                    let value = if method == Method::Min {
+                        start.min(last)
+                    } else {
+                        start.max(last)
+                    };
+                    self.facts.integer(self.ctx, value)?
+                }
+            }
+            Node::Range(..) => {
+                return self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime);
+            }
+            _ => {
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                self.facts
+                    .union(self.ctx, &[Atom::Int.fact(), Atom::Nil.fact()])?
+            }
+        };
+        let next = state.snapshot(self.ctx)?;
+        self.collection_terminal(next, pc, result)
     }
 
     pub(super) fn ordered_result(

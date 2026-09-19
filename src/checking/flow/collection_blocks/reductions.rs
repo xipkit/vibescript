@@ -78,8 +78,23 @@ impl Walker<'_> {
             || (kind == Receiver::Range && matches!(method, Find | Count) && count != 0)
             || (rejects_keywords && !args.keywords.data.is_empty())
             || (matches!(method, Index | Rindex) && block.is_none() && count == 0)
+            || (kind == Receiver::Range && method == Sum && block.is_some())
         {
             self.collection_error(state, pc, receiver, site, args, ErrorClass::Runtime)?;
+            return Ok(None);
+        }
+        if kind == Receiver::Range
+            && method == Sum
+            && count == 1
+            && !self.collection_parameter(
+                state,
+                pc,
+                receiver,
+                site,
+                args,
+                (args.positional.data[0], Atom::Int.fact()),
+            )?
+        {
             return Ok(None);
         }
         let mut offset = Offset::None;

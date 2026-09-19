@@ -1,6 +1,41 @@
 use super::{MethodKind, argument};
 use crate::{CallContext, ErrorKind, Result, Value, value::Kind};
 
+pub(super) fn aggregate(
+    name: &str,
+    method: MethodKind,
+    args: &[Value],
+    keywords: bool,
+    block: bool,
+) -> Result<()> {
+    let sum = method == MethodKind::Sum;
+    if args.len() > usize::from(sum) {
+        return Err(argument(&format!(
+            "range.{name} {}",
+            if sum {
+                "expects at most one argument"
+            } else {
+                "does not take arguments"
+            }
+        )));
+    }
+    if keywords {
+        return Err(argument(&format!(
+            "range.{name} does not take keyword arguments"
+        )));
+    }
+    if block {
+        return Err(argument(&format!(
+            "range.{name} does not {} a block",
+            if sum { "take" } else { "accept" }
+        )));
+    }
+    if sum && args.first().is_some_and(|value| !value.is_integer()) {
+        return Err(argument("range.sum expects an integer initial value"));
+    }
+    Ok(())
+}
+
 pub(super) fn check(
     ctx: &mut CallContext,
     name: &str,

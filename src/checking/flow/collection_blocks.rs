@@ -328,7 +328,10 @@ impl Walker<'_> {
                         | TransformValues
                 ),
                 Receiver::Range => {
-                    matches!(method, Each | Map | Select | Reject | Find | Reduce | Count)
+                    matches!(
+                        method,
+                        Each | Map | Select | Reject | Find | Reduce | Count | Sum
+                    )
                 }
             };
             if !supported {

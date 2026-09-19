@@ -54,6 +54,8 @@ enum MethodKind {
     GrepV,
     Uniq,
     Sum,
+    Min,
+    Max,
     Times,
     Upto,
     Downto,
@@ -109,6 +111,8 @@ impl MethodKind {
             "grep_v" => Self::GrepV,
             "uniq" => Self::Uniq,
             "sum" => Self::Sum,
+            "min" => Self::Min,
+            "max" => Self::Max,
             "times" => Self::Times,
             "upto" => Self::Upto,
             "downto" => Self::Downto,
@@ -309,7 +313,7 @@ pub(crate) fn start(
         )
         .map(|state| state.map(Iteration::Text));
     }
-    if ordering::method(name) {
+    if ordering::method(name) && !matches!(receiver.0, Kind::Range(_)) {
         return ordering::Driver::new(ctx, name, receiver, args, block_arity.is_some())
             .map(|state| state.map(Iteration::Order));
     }
@@ -369,7 +373,7 @@ pub(crate) fn start(
             ),
             Kind::Range(_) => matches!(
                 method,
-                Each | Map | Select | Reject | Find | Reduce | Count | Step
+                Each | Map | Select | Reject | Find | Reduce | Count | Step | Sum | Min | Max
             ),
             Kind::Int(_) | Kind::Big(_) => matches!(method, Times | Upto | Downto | Step),
             _ => false,
@@ -385,6 +389,10 @@ pub(crate) fn start(
         }
     }
     let has_block = block_arity.is_some();
+    let is_range = matches!(receiver.0, Kind::Range(_));
+    if is_range && matches!(method, Sum | Min | Max) {
+        bounds::aggregate(name, method, args, keywords, has_block)?;
+    }
     if !has_block
         && matches!(
             method,
@@ -393,11 +401,10 @@ pub(crate) fn start(
     {
         return Ok(None);
     }
-    if !has_block && method == Sum && args.is_empty() {
+    if !has_block && method == Sum && args.is_empty() && !is_range {
         return Ok(None);
     }
     let is_hash = matches!(receiver.0, Kind::Hash(_));
-    let is_range = matches!(receiver.0, Kind::Range(_));
     let is_int = matches!(receiver.0, Kind::Int(_) | Kind::Big(_));
     let rejects_keywords = universal
         || is_range
@@ -518,7 +525,7 @@ pub(crate) fn start(
     }
     let optional = matches!(
         method,
-        Count | Any | All | NoneMatch | One | Tally | Grep | GrepV | Sum | FetchValues
+        Count | Any | All | NoneMatch | One | Tally | Grep | GrepV | Sum | Min | Max | FetchValues
     ) || (method == Reduce && state.operation.is_some());
     if !has_block && !optional {
         return Err(argument(&format!("{name} requires a block")));
@@ -975,6 +982,23 @@ impl Loop {
                 }
                 self.accumulator = Some(ops::binary(ctx, "+", previous, value)?);
             }
+            Min | Max => {
+                let next = value.require_int()?;
+                let replace = match &self.accumulator {
+                    None => true,
+                    Some(best) => {
+                        let best = best.require_int()?;
+                        if self.method == Min {
+                            next < best
+                        } else {
+                            next > best
+                        }
+                    }
+                };
+                if replace {
+                    self.accumulator = Some(value);
+                }
+            }
         }
         Ok(false)
     }
@@ -999,7 +1023,7 @@ impl Loop {
             Tap | Each | EachIndex | EachKey | EachValue | ReverseEach | Times | Upto | Downto
             | Step => Ok(self.receiver.clone()),
             EachSlice | EachCons | Cycle => Ok(Value::nil()),
-            YieldSelf | Fetch | Reduce | Find | Index | Rindex | Sum | Delete => {
+            YieldSelf | Fetch | Reduce | Find | Index | Rindex | Sum | Min | Max | Delete => {
                 Ok(self.accumulator.take().unwrap_or_default())
             }
             DeleteIf | KeepIf | Fill => {
