@@ -1,11 +1,20 @@
-//! Optional Tokio hosting for CPU-bound script calls. Host callbacks remain synchronous.
+//! Optional Tokio hosting for metered script calls and async host capabilities.
 
 use crate::{CallOptions, CancellationToken, Error, ErrorKind, Outcome, Result, Script, Value};
 use std::{
+    future::{Future, poll_fn},
+    panic::{AssertUnwindSafe, catch_unwind},
+    pin::{Pin, pin},
     sync::Arc,
+    task::Poll,
     time::{Duration, Instant},
 };
-use tokio::sync::Semaphore;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
+pub use crate::vm::asynchronous::AsyncHostCall;
+
+/// A host future that may borrow its scoped handle and arguments until it completes.
+pub type HostFuture<'a> = Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>>;
 
 /// Limits concurrent script workers on the embedding application's Tokio runtime.
 #[derive(Clone)]
@@ -26,10 +35,13 @@ impl Runner {
     pub fn available_slots(&self) -> usize {
         self.slots.available_permits()
     }
-    /// Runs a call on a bounded blocking worker. Dropping the future requests cancellation.
+    /// Runs script work on bounded workers and awaits native host futures without a worker.
     ///
-    /// The worker holds its permit until it actually exits, including when a trusted host
-    /// callback is slow to observe cancellation. Queued calls poll cancellation every 5 ms.
+    /// Dropping the future requests cancellation. A synchronous host callback keeps
+    /// its worker reservation until it returns, including during nested async block
+    /// calls. Cancellation, deadlines and latched quotas interrupt async host waits.
+    /// Trusted callbacks must keep individual future polls bounded and cooperate
+    /// with cancellation while doing synchronous work.
     pub async fn call(
         &self,
         script: Script,
@@ -50,32 +62,65 @@ impl Runner {
         mut options: CallOptions,
     ) -> Result<Outcome> {
         options.cancellation = options.cancellation.child_token();
-        let guard = CancelOnDrop(options.cancellation.clone());
-        let acquire = self.slots.clone().acquire_owned();
-        tokio::pin!(acquire);
-        let permit = loop {
-            if options.cancellation.is_cancelled() {
-                return Err(Error::new(ErrorKind::Cancelled, "execution cancelled"));
+        let _guard = CancelOnDrop(options.cancellation.clone());
+        let mut future = pin!(crate::vm::asynchronous::call(
+            self.slots.clone(),
+            script,
+            name,
+            args,
+            keywords,
+            options,
+        ));
+        let result =
+            poll_fn(
+                |cx| match catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(cx))) {
+                    Ok(Poll::Ready(result)) => Poll::Ready(Ok(result)),
+                    Ok(Poll::Pending) => Poll::Pending,
+                    Err(panic) => Poll::Ready(Err(panic)),
+                },
+            )
+            .await;
+        match result {
+            Ok(result) => result,
+            Err(panic) => {
+                let message = panic
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| panic.downcast_ref::<&str>().copied())
+                    .unwrap_or("host callback panic");
+                Err(Error::new(
+                    ErrorKind::Host,
+                    format!("script worker failed: {message}"),
+                ))
             }
-            if options.deadline.is_some_and(|d| Instant::now() >= d) {
-                return Err(Error::new(
-                    ErrorKind::Deadline,
-                    "execution deadline exceeded",
-                ));
-            }
-            tokio::select! {permit=&mut acquire=>break permit.map_err(|_|Error::new(ErrorKind::Host,"worker pool closed"))?,_=tokio::time::sleep(Duration::from_millis(5))=>{}}
-        };
-        let job = tokio::task::spawn_blocking(move || {
-            let _permit = permit;
-            script.call_with_keywords(&name, &args, &keywords, options)
-        });
-        let result = job
-            .await
-            .map_err(|e| Error::new(ErrorKind::Host, format!("script worker failed: {e}")))?;
-        drop(guard);
-        result
+        }
     }
 }
+
+pub(crate) async fn acquire(
+    slots: Arc<Semaphore>,
+    cancellation: &CancellationToken,
+    deadline: Option<Instant>,
+) -> Result<OwnedSemaphorePermit> {
+    let acquire = slots.acquire_owned();
+    tokio::pin!(acquire);
+    loop {
+        if cancellation.is_cancelled() {
+            return Err(Error::new(ErrorKind::Cancelled, "execution cancelled"));
+        }
+        if deadline.is_some_and(|d| Instant::now() >= d) {
+            return Err(Error::new(
+                ErrorKind::Deadline,
+                "execution deadline exceeded",
+            ));
+        }
+        tokio::select! {
+            permit = &mut acquire => return permit.map_err(|_| Error::new(ErrorKind::Host, "worker pool closed")),
+            _ = tokio::time::sleep(Duration::from_millis(5)) => (),
+        }
+    }
+}
+
 struct CancelOnDrop(CancellationToken);
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {

@@ -1,6 +1,10 @@
-use crate::{CallContext, Error, ErrorKind, Result, Value};
+use crate::{CallContext, Result, Value};
 
-type Block<'a> = dyn FnMut(&mut CallContext, &[Value]) -> Result<Value> + 'a;
+pub(crate) trait Backend {
+    fn context(&mut self) -> &mut CallContext;
+    fn block_given(&self) -> bool;
+    fn call_block(&mut self, args: &[Value]) -> Result<Value>;
+}
 
 /// A synchronous host method's scoped access to its attached script block.
 ///
@@ -29,23 +33,22 @@ type Block<'a> = dyn FnMut(&mut CallContext, &[Value]) -> Result<Value> + 'a;
 /// });
 /// ```
 pub struct HostCall<'a> {
-    context: &'a mut CallContext,
-    block: Option<&'a mut Block<'a>>,
+    backend: &'a mut dyn Backend,
 }
 
 impl<'a> HostCall<'a> {
-    pub(crate) fn new(context: &'a mut CallContext, block: Option<&'a mut Block<'a>>) -> Self {
-        Self { context, block }
+    pub(crate) fn new(backend: &'a mut dyn Backend) -> Self {
+        Self { backend }
     }
 
     /// Returns the receiving invocation's accounting and cancellation context.
     pub fn context(&mut self) -> &mut CallContext {
-        self.context
+        self.backend.context()
     }
 
     /// Reports whether the script attached a block to this method call.
     pub fn block_given(&self) -> bool {
-        self.block.is_some()
+        self.backend.block_given()
     }
 
     /// Runs the attached block synchronously with isolated, accounted arguments.
@@ -56,11 +59,7 @@ impl<'a> HostCall<'a> {
     /// calls cannot run script code after such a transfer. Cancellation and
     /// exhausted step or memory quotas also remain latched.
     pub fn call_block(&mut self, args: &[Value]) -> Result<Value> {
-        self.context.checkpoint()?;
-        let block = self
-            .block
-            .as_mut()
-            .ok_or_else(|| Error::new(ErrorKind::Argument, "block required"))?;
-        block(self.context, args)
+        self.backend.context().checkpoint()?;
+        self.backend.call_block(args)
     }
 }

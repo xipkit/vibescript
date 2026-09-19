@@ -74,7 +74,7 @@ The explicitly selected control-flow policy preserves a pending `break` or `retu
 
 ## Published signatures
 
-`HostMethod::with_signature` declares positional parameters with `SignatureParam { name, ty, optional }`, a result type, and whether a block is accepted. Type strings use the script annotation grammar, including unions, nullable values, typed containers, shapes, enums and classes. Empty strings leave slots unconstrained. Malformed types and required parameters after optional ones fail when the descriptor is created. `signature()` exposes immutable metadata for host tooling; the gradual script checker remains unfinished.
+`HostMethod::with_signature` declares positional parameters with `SignatureParam { name, ty, optional }`, a result type, and whether a block is accepted. Type strings use the script annotation grammar, including unions, nullable values, typed containers, shapes, enums and classes. Empty strings leave slots unconstrained. Malformed types and required parameters after optional ones fail when the descriptor is created. `signature()` exposes immutable metadata for host tooling and the gradual script checker.
 
 The runtime validates arity, keyword rejection, block presence and parameter types before entering the callback. Missing optional arguments stay omitted. Normalization follows script type rules, including symbols becoming enum members inside containers, without mutating the original argument. Custom argument validators see the original values; the callback receives normalized values. Imported results pass signature normalization before custom return validation. A block `break` is a method result and must satisfy its declared type; a nonlocal `return` belongs to its defining script function.
 
@@ -82,4 +82,34 @@ Named types resolve in the active source, including required-file defaults and f
 
 Use `Engine::register_method(name, method)` to register a descriptor, including its signature, validators and optional block driver, for subsequently compiled scripts. Earlier scripts keep their registration snapshot. Descriptors can also be supplied through `Capability` or ordinary call globals; strict effects still require the explicit capability channel for executable globals.
 
-Native async methods, gradual static checking, and a live mutable capability-object publication API remain unfinished. The optional Tokio runner remains available for bounded execution of synchronous callbacks. This milestone does not complete the language port.
+## Async methods
+
+With the `tokio` feature, `HostMethod::new_async` accepts a callback returning `asynchronous::HostFuture`. Its scoped `AsyncHostCall` and arguments may be borrowed across awaits. Use `context()?` for accounting and cancellation, `block_given()` to inspect block presence, and `call_block(Vec<Value>).await` to invoke the attached block with isolated arguments. Rust prevents overlapping block calls and handles that outlive the callback. Methods keep their ordinary signatures, validators, per-call grants and attachment restrictions. Static checking reads their published contracts without constructing or polling host futures.
+
+```rust
+use vibescript::{CallOptions, Engine, HostMethod, asynchronous::Runner};
+
+let mut engine = Engine::new();
+engine.register_method("visit", HostMethod::new_async("visit", |call, args, _| {
+    Box::pin(async move {
+        tokio::task::yield_now().await;
+        call.context()?.charge(1)?;
+        call.call_block(args.to_vec()).await
+    })
+}));
+let script = engine.compile("def run;visit(20){|n|n+1};end")?;
+let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
+let result = runtime.block_on(async {
+    Runner::new(1)?.call(script, "run".into(), vec![], CallOptions::default()).await
+})?;
+assert_eq!(result.value.as_int(), Some(21));
+# Ok::<(), vibescript::Error>(())
+```
+
+`Runner` executes script and synchronous host work on bounded blocking workers. A native async wait releases its worker so another invocation can run. A synchronous host callback that invokes an async block still occupies its existing worker and keeps its reservation until it returns. Nested script work uses that same thread, including with a single-thread blocking pool. No additional Tokio runtime is created. Calling an async method through `Script::call` produces a catchable host error requiring `Runner`.
+
+Cancellation, deadlines and latched quota failures interrupt pending host futures. Host code must keep each future poll bounded and cooperate during synchronous work. A block's `break` and nonlocal `return` remain pending if the host ignores their control-flow error. Async or worker panics unwind the invocation and become host errors at the runner boundary. Dropping an invocation releases unreachable cycles without executing script cleanup effects; retained values stay valid and charged.
+
+Dropping an unpolled block future has no effect. Dropping a polled block future cancels and retires the invocation, even if the host returns a successful value afterward. `context()` reports an error while its state remains on a retiring worker, and the engine recovers that worker before finishing the callback. Engine-owned suspended state, block arguments and bridge storage count against memory limits. Arbitrary allocations and captures made by trusted host code remain host-owned.
+
+Remaining static analysis and full language/platform conformance work are tracked in [the language port](language-port.md). This milestone does not complete the port.

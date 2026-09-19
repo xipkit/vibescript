@@ -106,6 +106,8 @@ pub struct Stats {
 pub(crate) struct Memory {
     used: AtomicUsize,
     peak: AtomicUsize,
+    #[cfg(feature = "tokio")]
+    pub(crate) interrupted: AtomicBool,
 }
 
 #[derive(Debug)]
@@ -281,6 +283,8 @@ impl CallContext {
         ) && self.exhausted.is_none()
         {
             self.exhausted = Some(err.clone());
+            #[cfg(feature = "tokio")]
+            self.memory.interrupted.store(true, Ordering::Release);
         }
         Err(self.exhausted.clone().unwrap_or(err))
     }

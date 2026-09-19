@@ -13,6 +13,10 @@ use crate::{
 };
 use std::sync::Arc;
 
+#[cfg(feature = "tokio")]
+pub(crate) mod asynchronous;
+#[cfg(all(test, feature = "tokio"))]
+mod asynchronous_tests;
 mod call_targets;
 mod capabilities;
 mod dispatch;

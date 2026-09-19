@@ -11,11 +11,23 @@ type ReturnContract = Arc<dyn Fn(&mut CallContext, &Value) -> Result<()> + Send 
 type BlockCallback = Arc<
     dyn Fn(&mut crate::HostCall<'_>, &[Value], &[(Value, Value)]) -> Result<Value> + Send + Sync,
 >;
+#[cfg(feature = "tokio")]
+type AsyncCallback = Arc<
+    dyn for<'a> Fn(
+            &'a mut crate::asynchronous::AsyncHostCall,
+            &'a [Value],
+            &'a [(Value, Value)],
+        ) -> crate::asynchronous::HostFuture<'a>
+        + Send
+        + Sync,
+>;
 
 #[derive(Clone)]
 enum Callback {
     Plain(crate::HostCallback),
     Block(BlockCallback),
+    #[cfg(feature = "tokio")]
+    Async(AsyncCallback),
 }
 
 #[derive(Clone)]
@@ -82,7 +94,7 @@ impl fmt::Debug for Capability {
     }
 }
 
-/// A synchronous host method with optional argument and return validation.
+/// A host method with optional argument and return validation.
 ///
 /// Methods accept positional and keyword arguments. They cannot be detached into
 /// script values. Block-capable methods use [`Self::new_with_block`]. Callbacks and validators
@@ -128,6 +140,55 @@ impl HostMethod {
             definition: Arc::new(Definition {
                 name: name.into(),
                 callback: Callback::Block(Arc::new(callback)),
+                arguments: None,
+                result: None,
+                signature: None,
+            }),
+        }
+    }
+
+    /// Creates an async method hosted by [`crate::asynchronous::Runner`].
+    ///
+    /// The future may borrow its scoped handle and arguments across waits. Use
+    /// the handle's `call_block` to run an attached block on a bounded worker.
+    /// Script-owned values and block storage remain accounted while suspended.
+    /// The host must account its own work and keep each future poll bounded.
+    /// A synchronous script call reports a catchable host error at this method.
+    ///
+    /// ```
+    /// use vibescript::{CallOptions, Engine, HostMethod, asynchronous::Runner};
+    /// let mut engine = Engine::new();
+    /// engine.register_method("visit", HostMethod::new_async("visit", |call, args, _| {
+    ///     Box::pin(async move {
+    ///         tokio::task::yield_now().await;
+    ///         call.context()?.charge(1)?;
+    ///         call.call_block(args.to_vec()).await
+    ///     })
+    /// }));
+    /// let script = engine.compile("def run;visit(20){|n|n+1};end")?;
+    /// let runtime = tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap();
+    /// let result = runtime.block_on(async {
+    ///     Runner::new(1)?.call(script, "run".into(), vec![], CallOptions::default()).await
+    /// })?;
+    /// assert_eq!(result.value.as_int(), Some(21));
+    /// # Ok::<(), vibescript::Error>(())
+    /// ```
+    #[cfg(feature = "tokio")]
+    pub fn new_async(
+        name: impl Into<String>,
+        callback: impl for<'a> Fn(
+            &'a mut crate::asynchronous::AsyncHostCall,
+            &'a [Value],
+            &'a [(Value, Value)],
+        ) -> crate::asynchronous::HostFuture<'a>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self {
+            definition: Arc::new(Definition {
+                name: name.into(),
+                callback: Callback::Async(Arc::new(callback)),
                 arguments: None,
                 result: None,
                 signature: None,
@@ -202,7 +263,7 @@ impl HostMethod {
 
     /// Reports whether this method can invoke an attached script block.
     pub(crate) fn supports_block(&self) -> bool {
-        matches!(self.definition.callback, Callback::Block(_))
+        self.definition.supports_block()
     }
 
     /// Creates a host-owned descriptor for a capability binding or object.
@@ -233,6 +294,17 @@ pub(crate) struct Definition {
     arguments: Option<ArgumentContract>,
     result: Option<ReturnContract>,
     signature: Option<Arc<crate::signature::Compiled>>,
+}
+
+impl Definition {
+    fn supports_block(&self) -> bool {
+        match self.callback {
+            Callback::Plain(_) => false,
+            Callback::Block(_) => true,
+            #[cfg(feature = "tokio")]
+            Callback::Async(_) => true,
+        }
+    }
 }
 
 impl fmt::Debug for Definition {
@@ -323,7 +395,7 @@ impl BoundMethod {
     }
 
     pub fn supports_block(&self) -> bool {
-        matches!(self.definition.callback, Callback::Block(_))
+        self.definition.supports_block()
     }
 
     pub fn needs_frame(&self) -> bool {
@@ -348,9 +420,32 @@ impl BoundMethod {
         let result = match &self.definition.callback {
             Callback::Plain(callback) => callback(call.context(), args, keywords),
             Callback::Block(callback) => callback(call, args, keywords),
+            #[cfg(feature = "tokio")]
+            Callback::Async(_) => Err(Error::new(
+                ErrorKind::Host,
+                format!("{} requires asynchronous::Runner", self.name()),
+            )),
         };
         call.context().checkpoint()?;
         result
+    }
+
+    #[cfg(feature = "tokio")]
+    pub fn is_async(&self) -> bool {
+        matches!(self.definition.callback, Callback::Async(_))
+    }
+
+    #[cfg(feature = "tokio")]
+    pub fn invoke_async<'a>(
+        &'a self,
+        call: &'a mut crate::asynchronous::AsyncHostCall,
+        args: &'a [Value],
+        keywords: &'a [(Value, Value)],
+    ) -> crate::asynchronous::HostFuture<'a> {
+        let Callback::Async(callback) = &self.definition.callback else {
+            unreachable!()
+        };
+        callback(call, args, keywords)
     }
 
     pub fn begin(

@@ -1,45 +1,128 @@
 use super::*;
 
+pub(super) struct HostRequest {
+    pub current: usize,
+    pub args: Arguments,
+    pub method: Arc<crate::capability::BoundMethod>,
+    program: Arc<Program>,
+}
+
+pub(super) struct HostControl {
+    pub block: Option<Block>,
+    pending: Option<Control>,
+}
+
+impl HostControl {
+    pub fn new(request: &HostRequest) -> Self {
+        Self {
+            block: request.args.block,
+            pending: None,
+        }
+    }
+
+    pub fn block(&self, ctx: &mut CallContext) -> Result<Block> {
+        ctx.checkpoint()?;
+        if self.pending.is_some() {
+            return Err(transferred());
+        }
+        self.block
+            .ok_or_else(|| Error::new(ErrorKind::Argument, "block required"))
+    }
+
+    pub fn completed(&mut self, result: Result<Exit>) -> Result<Value> {
+        match result? {
+            Exit::Value(value) => Ok(value),
+            Exit::Control(control) => {
+                self.pending = Some(control);
+                Err(transferred())
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct BlockBoundary {
+    pub floor: usize,
+    handlers: usize,
+}
+
+struct Borrowed<'a> {
+    context: &'a mut CallContext,
+    run: &'a mut Run,
+    control: HostControl,
+}
+
+impl crate::host_call::Backend for Borrowed<'_> {
+    fn context(&mut self) -> &mut CallContext {
+        self.context
+    }
+
+    fn block_given(&self) -> bool {
+        self.control.block.is_some()
+    }
+
+    fn call_block(&mut self, args: &[Value]) -> Result<Value> {
+        let block = self.control.block(self.context)?;
+        let result = self.run.block(self.context, block, args);
+        self.control.completed(result)
+    }
+}
+
 impl Run {
     pub(super) fn host(&mut self, ctx: &mut CallContext) -> Result<Event> {
+        let request = self.prepare_host(ctx)?;
+        let mut backend = Borrowed {
+            context: ctx,
+            run: self,
+            control: HostControl::new(&request),
+        };
+        let result = request.method.invoke(
+            &mut crate::HostCall::new(&mut backend),
+            &request.args.positional.data,
+            &request.args.keywords.buffer.data,
+        );
+        let control = backend.control;
+        self.finish_host(ctx, request, control, result)
+    }
+
+    pub(super) fn prepare_host(&mut self, ctx: &mut CallContext) -> Result<HostRequest> {
         let current = self.frames.data.len() - 1;
         let mut args = self.frames.data[current].arguments.data.pop().unwrap();
         let Some(crate::arguments::Target::Capability(method)) = args.target.take() else {
             unreachable!()
         };
-        let block = args.block;
         method.begin(
             ctx,
             &args.positional.data,
             &args.keywords.buffer.data,
-            block.is_some(),
+            args.block.is_some(),
         )?;
         let program = self.frames.data[current].program.clone();
         self.host_arguments(ctx, &program, &method, &mut args)?;
-        let mut pending = None;
-        let mut invoke = |ctx: &mut CallContext, values: &[Value]| {
-            ctx.checkpoint()?;
-            if pending.is_some() {
-                return Err(transferred());
-            }
-            match self.block(ctx, block.unwrap(), values)? {
-                Exit::Value(value) => Ok(value),
-                Exit::Control(control) => {
-                    pending = Some(control);
-                    Err(transferred())
-                }
-            }
-        };
-        let mut call = crate::HostCall::new(ctx, block.map(|_| &mut invoke as _));
-        let result = method.invoke(&mut call, &args.positional.data, &args.keywords.buffer.data);
+        Ok(HostRequest {
+            current,
+            args,
+            method,
+            program,
+        })
+    }
+
+    pub(super) fn finish_host(
+        &mut self,
+        ctx: &mut CallContext,
+        request: HostRequest,
+        control: HostControl,
+        result: Result<Value>,
+    ) -> Result<Event> {
         ctx.checkpoint()?;
-        let value = match pending {
+        let current = request.current;
+        let value = match control.pending {
             Some(Control::Return { target, value, .. }) if target == current => value,
             Some(control) => return Ok(Event::Control(control)),
             None => result?,
         };
-        let value = self.host_result(ctx, &program, &method, value)?;
-        let value = method.finish(ctx, value)?;
+        let value = self.host_result(ctx, &request.program, &request.method, value)?;
+        let value = request.method.finish(ctx, value)?;
         programs::imported(ctx, &mut self.storage, &value)?;
         Ok(Event::Control(Control::Return {
             target: current,
@@ -48,29 +131,54 @@ impl Run {
         }))
     }
 
+    pub(super) fn block_boundary(&self) -> BlockBoundary {
+        BlockBoundary {
+            floor: self.frames.data.len(),
+            handlers: self.storage.handlers.data.len(),
+        }
+    }
+
+    pub(super) fn start_block(
+        &mut self,
+        ctx: &mut CallContext,
+        block: Block,
+        values: &[Value],
+    ) -> Result<Buffer<Value>> {
+        let mut args = Buffer::with_capacity(ctx, values.len())?;
+        for value in values {
+            let value = ctx.import(value)?;
+            crate::exports::check(ctx, &value)?;
+            args.data.push(value);
+        }
+        enter_block(
+            ctx,
+            &mut self.frames,
+            &mut self.storage,
+            block,
+            &args.data,
+            self.stack.data.len(),
+        )?;
+        for value in &args.data {
+            programs::imported(ctx, &mut self.storage, value)?;
+        }
+        Ok(args)
+    }
+
     fn block(&mut self, ctx: &mut CallContext, block: Block, values: &[Value]) -> Result<Exit> {
-        let floor = self.frames.data.len();
-        let handlers = self.storage.handlers.data.len();
+        let boundary = self.block_boundary();
         let result = (|| {
-            let mut args = Buffer::with_capacity(ctx, values.len())?;
-            for value in values {
-                let value = ctx.import(value)?;
-                crate::exports::check(ctx, &value)?;
-                args.data.push(value);
-            }
-            enter_block(
-                ctx,
-                &mut self.frames,
-                &mut self.storage,
-                block,
-                &args.data,
-                self.stack.data.len(),
-            )?;
-            for value in &args.data {
-                programs::imported(ctx, &mut self.storage, value)?;
-            }
-            self.until(ctx, Some(floor))
+            let _args = self.start_block(ctx, block, values)?;
+            self.until(ctx, Some(boundary.floor))
         })();
+        self.finish_block(ctx, boundary, result)
+    }
+
+    pub(super) fn finish_block(
+        &mut self,
+        ctx: &mut CallContext,
+        boundary: BlockBoundary,
+        result: Result<Exit>,
+    ) -> Result<Exit> {
         let result = (|| match result {
             Err(error) if !ctx.exhausted() => {
                 let error = handlers::SavedError::new(
@@ -89,9 +197,14 @@ impl Run {
             }
             result => result,
         })();
-        self.storage.handlers.data.truncate(handlers);
-        if self.frames.data.len() > floor {
-            unwind(&mut self.frames, &mut self.storage, &mut self.stack, floor);
+        self.storage.handlers.data.truncate(boundary.handlers);
+        if self.frames.data.len() > boundary.floor {
+            unwind(
+                &mut self.frames,
+                &mut self.storage,
+                &mut self.stack,
+                boundary.floor,
+            );
         }
         result
     }
