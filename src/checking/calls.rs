@@ -15,6 +15,7 @@ use std::{
 };
 
 mod context;
+mod dispatch;
 mod hosts;
 mod initializers;
 #[cfg(test)]
@@ -22,6 +23,7 @@ mod source_tests;
 mod whole;
 mod worlds;
 use context::{Context, Kind};
+use hosts::HostTarget;
 pub(super) use whole::analyze as analyze_whole;
 use worlds::{Handle, Registry};
 
@@ -158,10 +160,20 @@ pub(super) trait Calls {
         ctx.checkpoint()?;
         Ok(Buffer::empty())
     }
-    /// Resolves a bound method only in the world that owns its declaration.
+    /// Resolves a bound method through the prepared world that owns its declaration.
     fn attached(&mut self, ctx: &mut CallContext, _: usize, _: Callable) -> Result<Target> {
         ctx.checkpoint()?;
         Ok(Target::Unsupported)
+    }
+    /// Reads the defining declaration before deciding whether a bare read can auto-call it.
+    fn function_arity(&mut self, ctx: &mut CallContext, _: CallableId) -> Result<Option<usize>> {
+        ctx.checkpoint()?;
+        Ok(None)
+    }
+    /// Finds a receiving script declaration after an imported file's private bindings.
+    fn receiving_binding(&mut self, ctx: &mut CallContext, _: &str) -> Result<Target> {
+        ctx.checkpoint()?;
+        Ok(Target::Undefined)
     }
     /// Records host bindings that may replace source type declarations.
     fn type_bindings(
@@ -697,7 +709,21 @@ impl Solver<'_, '_> {
         if self.state.storage.layout.find(ctx, self.source)?.is_some() {
             return Ok(self.state.storage.layout.clone());
         }
-        let roots = self.roots(ctx, facts)?;
+        self.prepare_receiving(ctx, facts, None)
+    }
+
+    fn prepare_receiving(
+        &mut self,
+        ctx: &mut CallContext,
+        facts: &mut Facts,
+        receiving: Option<SourceId>,
+    ) -> Result<super::globals::layout::Layout> {
+        let roots = if let Some(receiving) = receiving {
+            let (index, handle) = self.state.worlds.get(ctx, receiving)?;
+            self.state.adapter(index, &handle).roots(ctx, facts)?
+        } else {
+            self.roots(ctx, facts)?
+        };
         self.state.storage.prepare(
             ctx,
             facts,
@@ -707,7 +733,7 @@ impl Solver<'_, '_> {
                 program: self.world.program,
                 files: &self.layouts.files,
                 roots: &roots.data,
-                receiving: None,
+                receiving,
             },
         )
     }
@@ -1162,20 +1188,23 @@ impl Calls for Solver<'_, '_> {
         facts: &mut Facts,
         index: usize,
     ) -> Result<super::inputs::Loaded> {
-        let Some((_, Target::Deferred(input))) = self.world.globals.get(index) else {
+        let handle = self.root_handle(ctx)?;
+        let world = handle.view().world;
+        let Some((_, Target::Deferred(input))) = world.globals.get(index) else {
             return Ok(super::inputs::Loaded::unavailable());
         };
-        self.state.values.read(ctx, facts, &self.world, *input)
+        self.state.values.read(ctx, facts, &world, *input)
     }
 
     fn host_uses_block(&mut self, ctx: &mut CallContext, index: CallableId) -> Result<bool> {
-        ctx.charge(1)?;
-        Ok(index.source == self.source
-            && self
-                .state
-                .values
-                .host(ctx, &self.world, index.index)?
-                .is_some_and(|host| host.blocks == HostBlocks::Possible))
+        let Some((_, handle)) = self.state.worlds.find(ctx, index.source)? else {
+            return Ok(false);
+        };
+        Ok(self
+            .state
+            .values
+            .host(ctx, &handle.view().world, index.index)?
+            .is_some_and(|host| host.blocks == HostBlocks::Possible))
     }
 
     fn host_boundary(
@@ -1188,16 +1217,20 @@ impl Calls for Solver<'_, '_> {
     ) -> Result<Outcome> {
         ctx.checkpoint()?;
         let mut outcome = Outcome::empty();
-        if index.source != self.source {
+        let Some((_, handle)) = self.state.worlds.find(ctx, index.source)? else {
             outcome.incomplete = true;
             return Ok(outcome);
-        }
+        };
+        let host = HostTarget {
+            world: handle.view().world,
+            index: index.index,
+        };
         match boundary {
             HostBoundary::Arguments(args) => {
-                self.host_arguments(ctx, facts, index.index, args, globals, &mut outcome)?
+                self.host_arguments(ctx, facts, host, args, globals, &mut outcome)?
             }
             HostBoundary::Result(value) => {
-                self.host_result(ctx, facts, index.index, value, globals, &mut outcome)?
+                self.host_result(ctx, facts, host, value, globals, &mut outcome)?
             }
         }
         Ok(outcome)
@@ -1205,22 +1238,25 @@ impl Calls for Solver<'_, '_> {
 
     fn roots(&mut self, ctx: &mut CallContext, facts: &mut Facts) -> Result<Buffer<Root>> {
         let mut roots = Buffer::empty();
-        for (name, target) in self.world.globals {
+        let handle = self.root_handle(ctx)?;
+        for (name, target) in handle.view().world.globals {
             ctx.charge(1)?;
             let value = match *target {
                 Target::Value(value) => Some(value),
                 Target::Deferred(_) => Some(Atom::Never.fact()),
                 Target::Builtin(builtin) => Some(facts.builtin(ctx, builtin)?),
-                Target::Host(index) if index.source == self.source => Some(facts.callable(
-                    ctx,
-                    self.world.source_owner,
-                    Callable::Host(index.index),
-                )?),
-                Target::Function(index) if index.source == self.source => Some(facts.callable(
-                    ctx,
-                    self.world.source_owner,
-                    Callable::Function(index.index),
-                )?),
+                Target::Host(index) | Target::Function(index) => {
+                    if let Some((_, handle)) = self.state.worlds.find(ctx, index.source)? {
+                        let callable = if matches!(target, Target::Host(_)) {
+                            Callable::Host(index.index)
+                        } else {
+                            Callable::Function(index.index)
+                        };
+                        Some(facts.callable(ctx, handle.view().world.source_owner, callable)?)
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
             };
             if let Some(value) = value {
@@ -1242,21 +1278,18 @@ impl Calls for Solver<'_, '_> {
         owner: usize,
         target: Callable,
     ) -> Result<Target> {
-        ctx.charge(1)?;
-        Ok(if owner != self.world.source_owner {
-            Target::Unsupported
-        } else {
-            match target {
-                Callable::Host(index)
-                    if self.state.values.host(ctx, &self.world, index)?.is_some() =>
-                {
-                    Target::Host(self.source.callable(index))
-                }
-                Callable::Function(index) if index < self.world.program.functions.len() => {
-                    Target::Function(self.source.callable(index))
-                }
-                _ => Target::Unsupported,
+        let Some(handle) = self.state.worlds.owner(ctx, owner)? else {
+            return Ok(Target::Unsupported);
+        };
+        let view = handle.view();
+        Ok(match target {
+            Callable::Host(index) if self.state.values.host(ctx, &view.world, index)?.is_some() => {
+                Target::Host(view.source.callable(index))
             }
+            Callable::Function(index) if index < view.world.program.functions.len() => {
+                Target::Function(view.source.callable(index))
+            }
+            _ => Target::Unsupported,
         })
     }
     fn type_bindings(
@@ -1266,7 +1299,9 @@ impl Calls for Solver<'_, '_> {
         scope: super::type_bindings::Scope,
     ) -> Result<bool> {
         ctx.checkpoint()?;
-        for (name, _) in self.world.globals {
+        let handle = self.root_handle(ctx)?;
+        let globals = handle.view().world.globals;
+        for (name, _) in globals {
             bindings.insert(
                 ctx,
                 scope,
@@ -1274,10 +1309,28 @@ impl Calls for Solver<'_, '_> {
                 super::type_bindings::Binding::Unknown,
             )?;
         }
-        Ok(!self.world.globals.is_empty())
+        Ok(!globals.is_empty())
+    }
+    fn function_arity(
+        &mut self,
+        ctx: &mut CallContext,
+        function: CallableId,
+    ) -> Result<Option<usize>> {
+        let Some((_, handle)) = self.state.worlds.find(ctx, function.source)? else {
+            return Ok(None);
+        };
+        ctx.charge(1)?;
+        Ok(handle
+            .view()
+            .world
+            .program
+            .functions
+            .get(function.index)
+            .map(|body| body.params.len()))
     }
     fn global(&mut self, ctx: &mut CallContext, name: &str) -> Result<bool> {
-        for (key, _) in self.world.globals {
+        let handle = self.root_handle(ctx)?;
+        for (key, _) in handle.view().world.globals {
             let key = key.as_bytes().unwrap();
             ctx.work_bytes(key.len().max(name.len()))?;
             if key == name.as_bytes() {
@@ -1286,26 +1339,34 @@ impl Calls for Solver<'_, '_> {
         }
         Ok(false)
     }
+    fn receiving_binding(&mut self, ctx: &mut CallContext, name: &str) -> Result<Target> {
+        let handle = self.root_handle(ctx)?;
+        let root = handle.view();
+        if self.world.program.file && root.source != self.source {
+            root.world.declared_target(ctx, root.source, name)
+        } else {
+            Ok(Target::Undefined)
+        }
+    }
     fn resolve(&mut self, ctx: &mut CallContext, name: &str) -> Result<Target> {
-        for (key, target) in self.world.globals {
+        let receiving = self.root_handle(ctx)?;
+        let root = receiving.view();
+        for (key, target) in root.world.globals {
             let key = key.as_bytes().unwrap();
             ctx.work_bytes(key.len().max(name.len()))?;
             if key == name.as_bytes() {
                 return Ok(*target);
             }
         }
-        ctx.work_bytes(name.len())?;
         let program = self.world.program;
-        if program.declaration_names.contains_key(name) {
-            return Ok(Target::NonCallable);
+        let target = self.world.declared_target(ctx, self.source, name)?;
+        if target != Target::Undefined {
+            return Ok(target);
         }
-        if let Some(&index) = program.names.get(name) {
-            return Ok(Target::Function(self.source.callable(index)));
-        }
-        for (index, host) in program.hosts.iter().enumerate() {
-            ctx.work_bytes(host.len().max(name.len()))?;
-            if host == name {
-                return Ok(Target::Host(self.source.callable(index)));
+        if program.file && root.source != self.source {
+            let target = root.world.declared_target(ctx, root.source, name)?;
+            if target != Target::Undefined {
+                return Ok(target);
             }
         }
         for (global, value) in &program.globals {
@@ -1341,118 +1402,23 @@ impl Calls for Solver<'_, '_> {
         if !args.admit(ctx, facts, &mut outcome.failures)? {
             return Ok(outcome);
         }
-        if target.source().is_some_and(|source| source != self.source) {
-            outcome.incomplete = true;
-            return Ok(outcome);
-        }
-        if let Target::Helper { receiver, name, .. } = target {
-            let site = crate::bytecode::CallSite {
-                name: usize::MAX,
-                method: None,
-                auto: false,
-                scope: false,
-                parenthesized: true,
-            };
-            return Ok(
-                super::builtins::member(ctx, facts, receiver, site, name, &args)?
-                    .expect("known instance helper"),
-            );
-        }
-        if args.block.is_some()
-            && !matches!(
-                target,
-                Target::Function(_)
-                    | Target::Method { .. }
-                    | Target::Block(_)
-                    | Target::Host(_)
-                    | Target::Undefined
-                    | Target::NonCallable
-            )
-        {
-            outcome.incomplete = true;
-            return Ok(outcome);
-        }
-        match target {
-            Target::Builtin(builtin) => return super::builtins::invoke(ctx, facts, builtin, &args),
-            Target::Offset(value) => {
-                return super::builtins::protected::invoke(ctx, facts, value, &args);
-            }
-            Target::Function(function)
-            | Target::Block(function)
-            | Target::Method { function, .. } => {
-                let function = function.index;
-                let mut context = args
-                    .block
-                    .as_ref()
-                    .map(|b| Context::receiving(ctx, b))
-                    .transpose()?
-                    .unwrap_or_else(Context::plain);
-                context.globals = globals.snapshot(ctx)?;
-                if let Target::Method {
-                    receiver,
-                    constructor,
-                    ..
-                } = target
-                {
-                    context.receiver = Some(receiver);
-                    context.constructor = constructor;
-                }
-                let inputs = if matches!(target, Target::Block(_)) {
-                    context.scope = context.block_scope;
-                    context.receiver = context.block_receiver;
-                    context.ambient = context.block_ambient;
-                    context.kind = Kind::Invoked {
-                        given: args.block.as_ref().unwrap().given,
-                    };
-                    context.arguments = args.positional;
-                    Buffer::empty()
-                } else {
-                    let bound =
-                        args.bind(ctx, facts, &self.world.program.functions[function].params)?;
-                    if !bound.failures.data.is_empty() {
-                        outcome.failures.extend(ctx, &bound.failures.data)?;
-                        return Ok(outcome);
-                    }
-                    bound.inputs
-                };
-                let source = facts.source_id(ctx, self.world.source_owner)?;
-                if (!context.inherited.data.is_empty()
-                    || !globals.pending.addresses.data.is_empty())
-                    && self.requested(function)
-                    && self
-                        .ancestor(ctx, Ancestor::Expanding(source, function, &context))?
-                        .is_some()
-                {
+        if let Some(source) = target.source().filter(|&source| source != self.source) {
+            if !matches!(target, Target::Host(_)) {
+                let Some((index, handle)) = self.callee(ctx, facts, source)? else {
                     outcome.incomplete = true;
                     return Ok(outcome);
-                }
-                let index =
-                    self.request(ctx, facts, function, &inputs.data, current_error, &context)?;
-                self.depend(ctx, index)?;
-                outcome.value = self.state.jobs.data[index].returns;
-                if context.kind == Kind::Plain && globals.values.data.is_empty() {
-                    outcome.throws = self.state.jobs.data[index].throws;
-                } else if let Some(report) = &self.state.jobs.data[index].report {
-                    for exit in &report.block_exits.data {
-                        let exit = exit.snapshot(ctx)?;
-                        outcome.exits.push(ctx, exit)?;
-                    }
-                }
+                };
+                return self.state.adapter(index, &handle).invoke_local(
+                    ctx,
+                    facts,
+                    target,
+                    args,
+                    current_error,
+                    globals,
+                    outcome,
+                );
             }
-            Target::Host(index) => {
-                self.host_call(ctx, facts, index.index, &args, globals, &mut outcome)?;
-            }
-            Target::Dynamic => {
-                outcome.value = Atom::Unknown.fact();
-                outcome.throws = u8::MAX;
-            }
-            Target::Unsupported
-            | Target::Value(_)
-            | Target::Deferred(_)
-            | Target::Helper { .. } => outcome.incomplete = true,
-            Target::NonCallable => outcome.failures.push(ctx, Failure::NonCallable)?,
-            Target::Undefined => outcome.failures.push(ctx, Failure::Undefined)?,
         }
-        Ok(outcome)
+        self.invoke_local(ctx, facts, target, args, current_error, globals, outcome)
     }
 }

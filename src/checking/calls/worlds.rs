@@ -129,17 +129,37 @@ impl<'a> Registry<'a> {
 
     /// Clones a source handle without borrowing the registry during body analysis.
     pub fn get(&self, ctx: &mut CallContext, source: SourceId) -> Result<(usize, Handle<'a>)> {
+        self.find(ctx, source)?.ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::Runtime, "checker source is not prepared")
+        })
+    }
+
+    /// Leaves undiscovered sources explicit instead of selecting a same-index body.
+    pub fn find(
+        &self,
+        ctx: &mut CallContext,
+        source: SourceId,
+    ) -> Result<Option<(usize, Handle<'a>)>> {
         ctx.checkpoint()?;
         for (index, entry) in self.entries.data.iter().enumerate() {
             ctx.charge(1)?;
             if entry.handle.view().source == source {
-                return Ok((index, entry.handle.clone()));
+                return Ok(Some((index, entry.handle.clone())));
             }
         }
-        Err(crate::Error::new(
-            crate::ErrorKind::Runtime,
-            "checker source is not prepared",
-        ))
+        Ok(None)
+    }
+
+    /// Resolves nominal identity without conflating it with source registration order.
+    pub fn owner(&self, ctx: &mut CallContext, owner: usize) -> Result<Option<Handle<'a>>> {
+        ctx.checkpoint()?;
+        for entry in &self.entries.data {
+            ctx.charge(1)?;
+            if entry.handle.view().world.source_owner == owner {
+                return Ok(Some(entry.handle.clone()));
+            }
+        }
+        Ok(None)
     }
 }
 

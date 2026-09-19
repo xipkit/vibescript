@@ -12,10 +12,19 @@ impl Solver<'_, '_> {
     ) -> Result<Outcome> {
         ctx.checkpoint()?;
         if body.function.source != self.source {
-            return Ok(Outcome {
-                incomplete: true,
-                ..Outcome::empty()
-            });
+            let Some((index, handle)) = self.callee(ctx, facts, body.function.source)? else {
+                return Ok(Outcome {
+                    incomplete: true,
+                    ..Outcome::empty()
+                });
+            };
+            return self.state.adapter(index, &handle).initialize_body(
+                ctx,
+                facts,
+                body,
+                current_error,
+                globals,
+            );
         }
         let mut context = Context::receiving(ctx, body)?;
         context.kind = Kind::Initializing;

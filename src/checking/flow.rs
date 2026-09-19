@@ -1080,9 +1080,6 @@ impl Walker<'_> {
         mut target: Target,
         mut args: Arguments,
     ) -> Result<Option<Edges>> {
-        if target.source().is_some_and(|source| source != self.source) {
-            return self.incomplete(pc).map(Some);
-        }
         if let Target::Builtin(
             builtin @ (crate::builtin::Builtin::Output(_) | crate::builtin::Builtin::Format(_)),
         ) = target
@@ -1107,6 +1104,9 @@ impl Walker<'_> {
             constructor: true,
         } = target
         {
+            if function.source != self.source {
+                return self.incomplete(pc).map(Some);
+            }
             let module = self.program.functions[function.index].namespace.unwrap();
             let Some(instance) = self.construct(state, pc, receiver)? else {
                 return Ok(Some([None, None]));
@@ -1829,6 +1829,19 @@ impl Walker<'_> {
                     );
                 }
                 Op::Global(index) | Op::GlobalReceiver(index, _) => {
+                    if self.program.file {
+                        let name = self.program.globals[index].0.name();
+                        if self.file_binding(&state, name)?.is_none()
+                            && !self.calls.global(self.ctx, name)?
+                        {
+                            if let Some(readable) = self.read_receiving(&mut state, pc, name)? {
+                                if !readable {
+                                    return Ok([None, None]);
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     let Some(index) = self.global_index(&state, index)? else {
                         return self.incomplete(pc);
                     };
@@ -1922,7 +1935,7 @@ impl Walker<'_> {
                     }
                 }
                 Op::Unbound(name) => {
-                    if self.function.namespace.is_some() {
+                    if self.function.namespace.is_some() || self.program.file {
                         if !self.read_fallback(&mut state, pc, name)? {
                             return Ok([None, None]);
                         }
@@ -2737,7 +2750,7 @@ impl Walker<'_> {
                     if self.calls.global(self.ctx, name)? {
                         return self.incomplete(pc);
                     }
-                    if !self.read_function(&mut state, pc, function)? {
+                    if !self.read_function(&mut state, pc, self.source.callable(function))? {
                         return Ok([None, None]);
                     }
                 }

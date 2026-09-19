@@ -1,6 +1,12 @@
 use super::*;
 use crate::checking::type_bindings::{Bindings, Resolution, Scope};
 
+#[derive(Clone, Copy)]
+pub(super) struct HostTarget<'a> {
+    pub world: World<'a>,
+    pub index: usize,
+}
+
 enum Contract {
     Known(Fact),
     Rejected,
@@ -116,12 +122,12 @@ impl Solver<'_, '_> {
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        index: usize,
+        target: HostTarget<'_>,
         args: &Arguments,
         globals: &Globals,
         outcome: &mut Outcome,
     ) -> Result<()> {
-        self.host_arguments(ctx, facts, index, args, globals, outcome)?;
+        self.host_arguments(ctx, facts, target, args, globals, outcome)?;
         if outcome.incomplete || outcome.value == Atom::Never.fact() {
             return Ok(());
         }
@@ -130,20 +136,20 @@ impl Solver<'_, '_> {
             outcome.incomplete = true;
             return Ok(());
         }
-        self.host_result(ctx, facts, index, None, globals, outcome)
+        self.host_result(ctx, facts, target, None, globals, outcome)
     }
 
     pub(super) fn host_arguments(
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        index: usize,
+        target: HostTarget<'_>,
         args: &Arguments,
         globals: &Globals,
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.state.values.host(ctx, &self.world, index)? else {
+        let Some(host) = self.state.values.host(ctx, &target.world, target.index)? else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -183,7 +189,7 @@ impl Solver<'_, '_> {
             let expected = self
                 .state
                 .values
-                .host(ctx, &self.world, index)?
+                .host(ctx, &target.world, target.index)?
                 .unwrap()
                 .params
                 .data[parameter];
@@ -192,7 +198,7 @@ impl Solver<'_, '_> {
             let Some(expected) = self.host_contract(
                 ctx,
                 facts,
-                index,
+                target,
                 globals,
                 Some(parameter),
                 expected,
@@ -223,13 +229,13 @@ impl Solver<'_, '_> {
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        index: usize,
+        target: HostTarget<'_>,
         actual: Option<Fact>,
         globals: &Globals,
         outcome: &mut Outcome,
     ) -> Result<()> {
         ctx.checkpoint()?;
-        let Some(host) = self.state.values.host(ctx, &self.world, index)? else {
+        let Some(host) = self.state.values.host(ctx, &target.world, target.index)? else {
             outcome.incomplete = true;
             return Ok(());
         };
@@ -244,7 +250,7 @@ impl Solver<'_, '_> {
             outcome.throws = u8::MAX;
         }
         if let Some(result) =
-            self.host_contract(ctx, facts, index, globals, None, expected, outcome)?
+            self.host_contract(ctx, facts, target, globals, None, expected, outcome)?
         {
             outcome.value = if let Some(actual) = actual {
                 let relation = facts.relation(ctx, actual, result)?;
@@ -280,7 +286,7 @@ impl Solver<'_, '_> {
         &mut self,
         ctx: &mut CallContext,
         facts: &mut Facts,
-        index: usize,
+        target: HostTarget<'_>,
         globals: &Globals,
         parameter: Option<usize>,
         expected: Fact,
@@ -293,7 +299,11 @@ impl Solver<'_, '_> {
             } else {
                 None
             };
-            let host = self.state.values.host(ctx, &self.world, index)?.unwrap();
+            let host = self
+                .state
+                .values
+                .host(ctx, &target.world, target.index)?
+                .unwrap();
             match host.contract(
                 ctx,
                 facts,

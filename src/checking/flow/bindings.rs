@@ -72,10 +72,18 @@ impl Walker<'_> {
         &mut self,
         state: &mut State,
         pc: usize,
-        function: usize,
+        function: CallableId,
     ) -> Result<bool> {
-        let target = Target::Function(self.source.callable(function));
-        if !self.program.functions[function].params.is_empty() {
+        let target = Target::Function(function);
+        let parameters = if function.source == self.source {
+            self.program.functions[function.index].params.len()
+        } else if let Some(parameters) = self.calls.function_arity(self.ctx, function)? {
+            parameters
+        } else {
+            self.incomplete(pc)?;
+            return Ok(false);
+        };
+        if parameters != 0 {
             self.issue(pc, IssueKind::DetachedValue(target))?;
             self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
             return Ok(false);
@@ -126,7 +134,7 @@ impl Walker<'_> {
             return Ok(true);
         }
         if let Some(&function) = self.program.names.get(name) {
-            return self.read_function(state, pc, function);
+            return self.read_function(state, pc, self.source.callable(function));
         }
         for (index, host) in self.program.hosts.iter().enumerate() {
             self.ctx.work_bytes(host.len().max(name.len()))?;
@@ -138,6 +146,9 @@ impl Walker<'_> {
                 self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
                 return Ok(false);
             }
+        }
+        if let Some(readable) = self.read_receiving(state, pc, name)? {
+            return Ok(readable);
         }
         for (index, (global, _)) in self.program.globals.iter().enumerate() {
             self.ctx.work_bytes(global.name().len().max(name.len()))?;
@@ -173,6 +184,30 @@ impl Walker<'_> {
         )?;
         self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
         Ok(false)
+    }
+
+    pub(super) fn read_receiving(
+        &mut self,
+        state: &mut State,
+        pc: usize,
+        name: &str,
+    ) -> Result<Option<bool>> {
+        if !self.program.file {
+            return Ok(None);
+        }
+        match self.calls.receiving_binding(self.ctx, name)? {
+            Target::Function(function) => self.read_function(state, pc, function).map(Some),
+            target @ Target::Host(_) => {
+                self.issue(pc, IssueKind::DetachedValue(target))?;
+                self.emit_error(state, pc, handlers::bit(ErrorClass::Runtime))?;
+                Ok(Some(false))
+            }
+            Target::Undefined => Ok(None),
+            _ => {
+                self.incomplete(pc)?;
+                Ok(Some(false))
+            }
+        }
     }
 
     pub(super) fn load_optional(

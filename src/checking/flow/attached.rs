@@ -195,11 +195,7 @@ impl Walker<'_> {
                         self.incomplete(pc)?;
                         return Ok(false);
                     };
-                    if function.source != self.source {
-                        self.incomplete(pc)?;
-                        return Ok(false);
-                    }
-                    self.read_function(&mut next, pc, function.index)?
+                    self.read_function(&mut next, pc, function)?
                 }
                 _ => self.read_value(&mut next, pc, arm, origin)?,
             };

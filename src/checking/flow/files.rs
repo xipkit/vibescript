@@ -125,7 +125,8 @@ impl<'a> Walker<'a> {
         self.ctx.work_bytes(name.len())?;
         Ok(self.file_declared_target(name)?.is_some()
             || crate::builtin::Global::parse(name).is_some()
-            || self.calls.global(self.ctx, name)?)
+            || self.calls.global(self.ctx, name)?
+            || self.calls.receiving_binding(self.ctx, name)? != Target::Undefined)
     }
 
     fn file_local(&mut self, state: &State, slot: usize) -> Result<bool> {
@@ -282,18 +283,24 @@ impl<'a> Walker<'a> {
         } else {
             None
         };
-        let Some(slot) = slot else {
+        let start = self.extra.data.len();
+        let readable = if let Some(slot) = slot {
+            let value = state.locals.get(self.ctx, slot)?.value;
+            if address {
+                state
+                    .addresses
+                    .push(self.ctx, Address::new(Some(slot), value))?;
+                return Ok([Some((next, state)), None]);
+            }
+            self.read_value(&mut state, pc, value, Some(slot))?
+        } else if !address && self.file_declared_target(name)?.is_none() {
+            let Some(readable) = self.read_receiving(&mut state, pc, name)? else {
+                return Ok([Some((pc + 1, state)), None]);
+            };
+            readable
+        } else {
             return Ok([Some((pc + 1, state)), None]);
         };
-        let value = state.locals.get(self.ctx, slot)?.value;
-        if address {
-            state
-                .addresses
-                .push(self.ctx, Address::new(Some(slot), value))?;
-            return Ok([Some((next, state)), None]);
-        }
-        let start = self.extra.data.len();
-        let readable = self.read_value(&mut state, pc, value, Some(slot))?;
         for (target, _) in &mut self.extra.data[start..] {
             self.ctx.charge(1)?;
             if *target == pc + 1 {
