@@ -11,21 +11,24 @@ impl Parser<'_> {
         let value = self.line_expr(0)?;
         let message = if self.tokens[self.pos].line == self.previous()?.end_line && self.take_p(',')
         {
-            Some(Box::new(self.line_expr(0)?))
+            Some(Boxed::new(self.work, self.line_expr(0)?)?)
         } else {
             None
         };
-        Ok(Statement::Raise(Some(Box::new(value)), message))
+        Ok(Statement::Raise(
+            Some(Boxed::new(self.work, value)?),
+            message,
+        ))
     }
 
-    pub(super) fn rescue_tail(&mut self, body: Vec<Stmt>, function: bool) -> Result<Try> {
+    pub(super) fn rescue_tail(&mut self, body: Buffer<Stmt>, function: bool) -> Result<Try> {
         self.work.charge(1)?;
-        let mut rescues = Vec::new();
+        let mut rescues = Buffer::new();
         while self.word("rescue") {
             let token = &self.tokens[self.pos - 1];
             let offset = token.offset as u32;
             let line = token.line;
-            let mut classes = vec![crate::ErrorClass::Standard];
+            let mut classes = Buffer::from_array(self.work, [crate::ErrorClass::Standard])?;
             let mut binding = None;
             if self.tokens[self.pos].line == line {
                 if matches!(self.token(), Token::Word(w) if !reserved(w))
@@ -36,10 +39,8 @@ impl Parser<'_> {
                     if grouped {
                         self.expect_p(')')?;
                     }
-                    classes.clear();
-                    error_classes(&ty, &mut classes).map_err(|_| {
-                        Error::syntax(offset as usize, "invalid rescue exception type")
-                    })?;
+                    classes.truncate(0);
+                    error_classes(&ty, &mut classes, self.work, offset as usize)?;
                 }
                 if self.tokens[self.pos].line == line && self.token() == &Token::Op("=>") {
                     self.bump()?;
@@ -73,12 +74,15 @@ impl Parser<'_> {
             if binding.as_deref() == Some("it") {
                 self.declared_it = declared_it;
             }
-            rescues.push(Rescue {
-                classes,
-                binding,
-                body: rescue_body,
-                offset,
-            });
+            rescues.push(
+                self.work,
+                Rescue {
+                    classes,
+                    binding,
+                    body: rescue_body,
+                    offset,
+                },
+            )?;
         }
         let alternate = if self.word("else") {
             if rescues.is_empty() {
@@ -86,12 +90,12 @@ impl Parser<'_> {
             }
             self.block(&["ensure", "end"])?
         } else {
-            Vec::new()
+            Buffer::new()
         };
         let ensure = if self.word("ensure") {
             self.block(&["end"])?
         } else {
-            Vec::new()
+            Buffer::new()
         };
         if (function || !rescues.is_empty())
             && rescues.iter().all(|r| r.body.is_empty())
@@ -116,35 +120,46 @@ impl Parser<'_> {
         let fallback = self.line_expr(0)?;
         let attempt = Try {
             modifier: true,
-            body: vec![Statement::Expr(body).at(offset)],
-            rescues: vec![Rescue {
-                classes: vec![crate::ErrorClass::Standard],
-                binding: None,
-                body: vec![Statement::Expr(fallback).at(rescue_offset)],
-                offset: rescue_offset,
-            }],
-            alternate: Vec::new(),
-            ensure: Vec::new(),
+            body: Buffer::from_array(self.work, [Statement::Expr(body).at(offset)])?,
+            rescues: Buffer::from_array(
+                self.work,
+                [Rescue {
+                    classes: Buffer::from_array(self.work, [crate::ErrorClass::Standard])?,
+                    binding: None,
+                    body: Buffer::from_array(
+                        self.work,
+                        [Statement::Expr(fallback).at(rescue_offset)],
+                    )?,
+                    offset: rescue_offset,
+                }],
+            )?,
+            alternate: Buffer::new(),
+            ensure: Buffer::new(),
         };
         let depth = attempt.depth();
-        self.make_at(Node::Try(Box::new(attempt)), depth, offset)
+        self.make_at(Node::Try(Boxed::new(self.work, attempt)?), depth, offset)
     }
 }
 
 fn error_classes(
     ty: &crate::types::Type,
-    out: &mut Vec<crate::ErrorClass>,
-) -> std::result::Result<(), ()> {
+    out: &mut Buffer<crate::ErrorClass>,
+    work: &dyn crate::compilation::Work,
+    offset: usize,
+) -> Result<()> {
+    work.charge(1)?;
+    let invalid = || Error::syntax(offset, "invalid rescue exception type");
     match &ty.kind {
         crate::types::TypeKind::Named => {
-            out.push(crate::ErrorClass::from_name(&ty.name).ok_or(())?)
+            let class = crate::ErrorClass::from_name(&ty.name).ok_or_else(invalid)?;
+            out.push(work, class)?;
         }
         crate::types::TypeKind::Union(options) => {
             for ty in options {
-                error_classes(ty, out)?;
+                error_classes(ty, out, work, offset)?;
             }
         }
-        _ => return Err(()),
+        _ => return Err(invalid()),
     }
     Ok(())
 }

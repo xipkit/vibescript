@@ -121,6 +121,7 @@ fn compilation_limits_cover_parsing_and_code_generation() {
             };
             let baseline = Interrupt::new(usize::MAX, false);
             run(&baseline).unwrap_or_else(|error| panic!("{source}: {error}"));
+            assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
             let steps = baseline.context.borrow().stats().steps;
             let mut options = CallOptions::default();
             options.limits.steps = Some(steps);
@@ -136,6 +137,7 @@ fn compilation_limits_cover_parsing_and_code_generation() {
                     "bytecode={bytecode}, limit={limit}: {source}"
                 );
                 assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Steps);
+                assert_eq!(context.stats().retained_memory_bytes, 0);
             }
             let visits = baseline.visits.get();
             for at in [0, 1, visits / 4, visits / 2, visits - 1] {
@@ -150,6 +152,10 @@ fn compilation_limits_cover_parsing_and_code_generation() {
                     assert_eq!(error.kind, kind, "bytecode={bytecode}, at={at}: {source}");
                     assert_eq!(interrupted.checkpoint().unwrap_err().kind, kind);
                     assert_eq!(interrupted.visits.get(), at + 1);
+                    assert_eq!(
+                        interrupted.context.borrow().stats().retained_memory_bytes,
+                        0
+                    );
                 }
             }
         }
@@ -167,10 +173,15 @@ fn malformed_speculation_preserves_termination() {
         let run = |work: &dyn Work| crate::bytecode::compile_file(&source, Vec::new(), work);
         let baseline = Interrupt::new(usize::MAX, false);
         assert_eq!(run(&baseline).unwrap_err().kind, ErrorKind::Syntax);
+        assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
         for at in [1, baseline.visits.get() / 2, baseline.visits.get() - 1] {
             let interrupted = Interrupt::new(at, false);
             assert_eq!(run(&interrupted).unwrap_err().kind, ErrorKind::Cancelled);
             assert_eq!(interrupted.visits.get(), at + 1);
+            assert_eq!(
+                interrupted.context.borrow().stats().retained_memory_bytes,
+                0
+            );
         }
     }
 }
@@ -272,5 +283,42 @@ fn owned_literal_payloads_obey_limits_and_outlive_the_token_stream() {
             }
             assert_eq!(context.stats().retained_memory_bytes, 0);
         }
+    }
+}
+
+#[test]
+fn owned_syntax_containers_outlive_the_parser() {
+    let mut context = CallContext::new(CallOptions::default());
+    let memory = std::sync::Arc::downgrade(&context.identity());
+    let mut parsed = crate::syntax::parse(
+        "def first(n=1);[n+2,n*3][0];end;def second;[4,5];end",
+        &Meter(RefCell::new(&mut context)),
+    )
+    .unwrap();
+    let before = context.stats().retained_memory_bytes;
+    let first = parsed.functions.remove(1);
+    drop(parsed);
+    let retained = context.stats().retained_memory_bytes;
+    assert!(retained > 0 && retained < before);
+    drop(context);
+    assert!(memory.upgrade().is_some());
+    drop(first);
+    assert!(memory.upgrade().is_none());
+}
+
+#[test]
+fn alias_compilation_preserves_supported_tree_depth() {
+    for depth in [1, 32, 63] {
+        let source = format!(
+            "class Box;def original;{}1{};end;alias copied original;end;Box.new.copied",
+            "[".repeat(depth),
+            "]".repeat(depth),
+        );
+        let mut context = CallContext::new(CallOptions::default());
+        let code =
+            crate::bytecode::compile(&source, Vec::new(), &Meter(RefCell::new(&mut context)))
+                .unwrap();
+        assert_eq!(context.stats().retained_memory_bytes, 0);
+        drop(code);
     }
 }

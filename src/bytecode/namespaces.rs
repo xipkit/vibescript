@@ -6,7 +6,7 @@ impl Program {
         &mut self,
         module: Module,
         qualifier: &str,
-        functions: &mut Vec<syntax::Definition>,
+        functions: &mut crate::compilation::Buffer<syntax::Definition>,
         contexts: &mut Vec<(Option<usize>, bool, bool)>,
         work: &dyn crate::compilation::Work,
     ) -> Result<usize> {
@@ -43,7 +43,7 @@ impl Program {
             let short = method.name.clone();
             method.name = format!("{name}.{}", method.name);
             let function = functions.len();
-            functions.push(method);
+            functions.push(work, method)?;
             contexts.push((Some(index), false, false));
             if let Some(previous) = methods.iter_mut().find(|m| m.name == short) {
                 previous.function = function;
@@ -63,7 +63,7 @@ impl Program {
             let short = method.name.clone();
             method.name = format!("{name}#{}", method.name);
             let function = functions.len();
-            functions.push(method);
+            functions.push(work, method)?;
             contexts.push((Some(index), false, true));
             if let Some(previous) = instance_methods.iter_mut().find(|m| m.name == short) {
                 previous.function = function;
@@ -80,15 +80,18 @@ impl Program {
             None
         } else {
             let function = functions.len();
-            functions.push(syntax::Definition {
-                private: true,
-                offset: module.offset,
-                accessor: None,
-                name: format!("{name}::<body>"),
-                params: Vec::new(),
-                body: module.body,
-                return_type: None,
-            });
+            functions.push(
+                work,
+                syntax::Definition {
+                    private: true,
+                    offset: module.offset,
+                    accessor: None,
+                    name: format!("{name}::<body>"),
+                    params: crate::compilation::Buffer::new(),
+                    body: module.body,
+                    return_type: None,
+                },
+            )?;
             contexts.push((Some(index), true, false));
             Some(function)
         };
@@ -97,15 +100,18 @@ impl Program {
                 Some((method.function, true))
             } else {
                 let function = functions.len();
-                functions.push(syntax::Definition {
-                    private: true,
-                    offset: module.offset,
-                    accessor: None,
-                    name: format!("{name}#<initialize>"),
-                    params: Vec::new(),
-                    body: Vec::new(),
-                    return_type: None,
-                });
+                functions.push(
+                    work,
+                    syntax::Definition {
+                        private: true,
+                        offset: module.offset,
+                        accessor: None,
+                        name: format!("{name}#<initialize>"),
+                        params: crate::compilation::Buffer::new(),
+                        body: crate::compilation::Buffer::new(),
+                        return_type: None,
+                    },
+                )?;
                 contexts.push((Some(index), false, true));
                 Some((function, false))
             }

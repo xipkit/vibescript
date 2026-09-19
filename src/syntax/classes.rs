@@ -2,7 +2,7 @@ use super::{
     Definition, Expr, Node, ParamKind, Parameter, Parser, Statement, Token, keyword,
     modules::{Module, Visibility},
 };
-use crate::Result;
+use crate::{Result, compilation::Buffer};
 use std::collections::HashSet;
 
 impl Parser<'_> {
@@ -22,11 +22,11 @@ impl Parser<'_> {
         let mut class = Module {
             offset,
             is_class: true,
-            instance_methods: Vec::new(),
+            instance_methods: Buffer::new(),
             name,
-            methods: Vec::new(),
-            body: Vec::new(),
-            modules: Vec::new(),
+            methods: Buffer::new(),
+            body: Buffer::new(),
+            modules: Buffer::new(),
             directives: HashSet::new(),
         };
         let mut visibility = Visibility::Public;
@@ -94,7 +94,7 @@ impl Parser<'_> {
                 } else {
                     &mut class.instance_methods
                 };
-                methods.push((definition, method_visibility));
+                methods.push(self.work, (definition, method_visibility))?;
             } else if matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "property" | "getter" | "setter"))
             {
                 let Token::Word(kind) = self.bump()? else {
@@ -128,7 +128,7 @@ impl Parser<'_> {
                 return self
                     .err("include and extend are not supported; call shared module functions");
             } else {
-                class.body.push(self.statement()?);
+                class.body.push(self.work, self.statement()?)?;
             }
             self.lines()?;
         }
@@ -235,12 +235,13 @@ impl Parser<'_> {
         else {
             return self.err("alias target method is not defined on class");
         };
-        super::work::definition(self.work, target)?;
-        let mut definition = target.clone();
+        let mut definition = super::work::definition(self.work, target)?;
         self.work.checkpoint()?;
         let visibility = *visibility;
         definition.name = new;
-        class.instance_methods.push((definition, visibility));
+        class
+            .instance_methods
+            .push(self.work, (definition, visibility))?;
         Ok(())
     }
 
@@ -263,52 +264,63 @@ impl Parser<'_> {
                 None
             };
             if kind != "setter" {
-                class.instance_methods.push((
-                    Definition {
-                        private: false,
-                        offset,
-                        accessor: Some((name.clone(), false)),
-                        name: name.clone(),
-                        params: Vec::new(),
-                        body: vec![
-                            Statement::Return(Some(Expr {
-                                offset,
-                                node: Node::Var(format!("@{name}")),
-                                depth: 1,
-                            }))
-                            .at(offset),
-                        ],
-                        return_type: ty.clone(),
-                    },
-                    visibility,
-                ));
+                class.instance_methods.push(
+                    self.work,
+                    (
+                        Definition {
+                            private: false,
+                            offset,
+                            accessor: Some((name.clone(), false)),
+                            name: name.clone(),
+                            params: Buffer::new(),
+                            body: Buffer::from_array(
+                                self.work,
+                                [Statement::Return(Some(Expr {
+                                    offset,
+                                    node: Node::Var(format!("@{name}")),
+                                    depth: 1,
+                                }))
+                                .at(offset)],
+                            )?,
+                            return_type: ty.clone(),
+                        },
+                        visibility,
+                    ),
+                )?;
             }
             if kind != "getter" {
-                class.instance_methods.push((
-                    Definition {
-                        private: false,
-                        offset,
-                        accessor: Some((name.clone(), true)),
-                        name: format!("{name}="),
-                        params: vec![Parameter {
-                            ivar: Some(name.clone()),
-                            name: "value".into(),
-                            kind: ParamKind::Positional,
-                            default: None,
-                            ty,
-                        }],
-                        body: vec![
-                            Statement::Return(Some(Expr {
-                                offset,
-                                node: Node::Var(format!("@{name}")),
-                                depth: 1,
-                            }))
-                            .at(offset),
-                        ],
-                        return_type: None,
-                    },
-                    visibility,
-                ));
+                class.instance_methods.push(
+                    self.work,
+                    (
+                        Definition {
+                            private: false,
+                            offset,
+                            accessor: Some((name.clone(), true)),
+                            name: format!("{name}="),
+                            params: Buffer::from_array(
+                                self.work,
+                                [Parameter {
+                                    ivar: Some(name.clone()),
+                                    name: "value".into(),
+                                    kind: ParamKind::Positional,
+                                    default: None,
+                                    ty,
+                                }],
+                            )?,
+                            body: Buffer::from_array(
+                                self.work,
+                                [Statement::Return(Some(Expr {
+                                    offset,
+                                    node: Node::Var(format!("@{name}")),
+                                    depth: 1,
+                                }))
+                                .at(offset)],
+                            )?,
+                            return_type: None,
+                        },
+                        visibility,
+                    ),
+                )?;
             }
             if !self.take_p(',') {
                 break;

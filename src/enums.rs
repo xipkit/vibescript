@@ -37,11 +37,16 @@ pub(crate) struct Member {
     header: Option<Charge>,
 }
 
-pub(crate) fn compile(
+pub(crate) fn compile<I>(
     name: String,
-    members: Vec<String>,
+    members: I,
     work: &dyn crate::compilation::Work,
-) -> Result<Value> {
+) -> Result<Value>
+where
+    I: IntoIterator<Item = String>,
+    I::IntoIter: ExactSizeIterator,
+{
+    let members = members.into_iter();
     work.bytes(name.len())?;
     let lower: String = name.chars().map(|c| crate::casing::map(c, false)).collect();
     if name.ends_with('?')

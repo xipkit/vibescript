@@ -112,22 +112,25 @@ impl fmt::Debug for Text {
     }
 }
 
-pub(crate) struct Boxed<T> {
-    data: Box<T>,
+// Keep accounting metadata beside the value, off recursive parser stack frames.
+struct Allocation<T> {
+    value: T,
     _charge: Option<Charge>,
 }
 
+pub(crate) struct Boxed<T>(Box<Allocation<T>>);
+
 impl<T> Boxed<T> {
     pub fn new(work: &dyn Work, value: T) -> Result<Self> {
-        let charge = work.reserve(size_of::<T>())?;
-        Ok(Self {
-            data: Box::new(value),
+        let charge = work.reserve(size_of::<Allocation<T>>())?;
+        Ok(Self(Box::new(Allocation {
+            value,
             _charge: charge,
-        })
+        })))
     }
 
     pub fn into_inner(self) -> T {
-        *self.data
+        self.0.value
     }
 }
 
@@ -135,19 +138,25 @@ impl<T> Deref for Boxed<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        &self.data
+        &self.0.value
+    }
+}
+
+impl<T> AsRef<T> for Boxed<T> {
+    fn as_ref(&self) -> &T {
+        &self.0.value
     }
 }
 
 impl<T: PartialEq> PartialEq for Boxed<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
+        self.0.value == other.0.value
     }
 }
 
 impl<T: fmt::Debug> fmt::Debug for Boxed<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.data.fmt(formatter)
+        self.0.value.fmt(formatter)
     }
 }
 

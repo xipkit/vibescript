@@ -34,6 +34,25 @@ impl<T> Buffer<T> {
         (self.data, self.charge)
     }
 
+    pub fn as_slice(&self) -> &[T] {
+        &self.data
+    }
+
+    pub fn from_array<const N: usize>(work: &dyn Work, values: [T; N]) -> Result<Self> {
+        let mut result = Self::with_capacity(work, N)?;
+        for value in values {
+            result.push(work, value)?;
+        }
+        Ok(result)
+    }
+
+    pub fn insert(&mut self, work: &dyn Work, index: usize, value: T) -> Result<()> {
+        work.bytes(std::mem::size_of_val(&self.data[index..]))?;
+        self.push(work, value)?;
+        self.data[index..].rotate_right(1);
+        Ok(())
+    }
+
     fn ensure(&mut self, work: &dyn Work, capacity: usize) -> Result<()> {
         work.checkpoint()?;
         if capacity <= self.data.capacity() {
@@ -162,6 +181,30 @@ impl<T: fmt::Debug> fmt::Debug for Buffer<T> {
 impl<T: PartialEq> PartialEq for Buffer<T> {
     fn eq(&self, other: &Self) -> bool {
         self.data == other.data
+    }
+}
+
+impl<T: PartialEq> Buffer<T> {
+    pub fn dedup(&mut self) {
+        self.data.dedup();
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Buffer<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut Buffer<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.data.iter_mut()
     }
 }
 

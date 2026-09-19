@@ -1,6 +1,7 @@
 use super::{Expr, Node, Parser, Token, keyword};
 use crate::{
     Result,
+    compilation::{Boxed, Buffer},
     types::{Field, Scalar, Type, TypeKind},
 };
 
@@ -30,15 +31,14 @@ impl Parser<'_> {
         {
             return Ok(None);
         }
-        let mut names = Vec::new();
+        let mut names = Buffer::new();
         let fallback = if end == start + 1 {
             if let Token::Word(name) = &self.tokens[start].token {
-                names.push(name.as_str().to_owned());
-                Some(Box::new(self.make_at(
-                    Node::Var(name.as_str().to_owned()),
-                    1,
-                    offset,
-                )?))
+                names.push(self.work, name.as_str().to_owned())?;
+                Some(Boxed::new(
+                    self.work,
+                    self.make_at(Node::Var(name.as_str().to_owned()), 1, offset)?,
+                )?)
             } else {
                 None
             }
@@ -47,7 +47,7 @@ impl Parser<'_> {
         };
         self.pos = end;
         Ok(Some(self.make_at(
-            Node::Shape(Box::new(ty), fallback, names),
+            Node::Shape(Boxed::new(self.work, ty)?, fallback, names),
             1,
             offset,
         )?))
@@ -89,7 +89,7 @@ impl Parser<'_> {
             self.groups,
             self.line_exprs,
             self.command_depth,
-            self.ternaries.clone(),
+            self.ternaries.copy_with(self.work, |n| Ok(*n))?,
             self.command_group,
             self.loop_condition,
             self.declared_it,
@@ -99,14 +99,18 @@ impl Parser<'_> {
                 let Some(ty) = candidate else {
                     return Ok(fallback);
                 };
-                let mut names = Vec::new();
+                let mut names = Buffer::new();
                 self.work.ty(&ty)?;
-                literal_names(&ty, &mut names);
+                literal_names(&ty, &mut names, self.work)?;
                 names.sort();
                 names.dedup();
                 let depth = fallback.depth;
                 self.make(
-                    Node::Shape(Box::new(ty), Some(Box::new(fallback)), names),
+                    Node::Shape(
+                        Boxed::new(self.work, ty)?,
+                        Some(Boxed::new(self.work, fallback)?),
+                        names,
+                    ),
                     depth,
                 )
             }
@@ -127,7 +131,10 @@ impl Parser<'_> {
                     return Err(error);
                 };
                 self.pos = end;
-                self.make(Node::Shape(Box::new(ty), None, Vec::new()), 1)
+                self.make(
+                    Node::Shape(Boxed::new(self.work, ty)?, None, Buffer::new()),
+                    1,
+                )
             }
         }
     }
@@ -451,29 +458,34 @@ fn builtin_leaves(ty: &Type) -> bool {
     }
 }
 
-fn literal_names(ty: &Type, names: &mut Vec<String>) {
+fn literal_names(
+    ty: &Type,
+    names: &mut Buffer<String>,
+    work: &dyn crate::compilation::Work,
+) -> Result<()> {
     match &ty.kind {
         TypeKind::Shape(fields, _) => {
             for field in fields {
-                literal_names(&field.ty, names);
+                literal_names(&field.ty, names, work)?;
             }
         }
         TypeKind::Union(options) => {
             for option in options {
-                literal_names(option, names);
+                literal_names(option, names, work)?;
             }
         }
         TypeKind::Scalar(Scalar::Nil) => (),
         _ => {
-            names.push(ty.name.clone());
+            names.push(work, ty.name.clone())?;
             match &ty.kind {
-                TypeKind::Array(Some(element)) => literal_names(element, names),
+                TypeKind::Array(Some(element)) => literal_names(element, names, work)?,
                 TypeKind::Hash(Some(pair)) => {
-                    literal_names(&pair.0, names);
-                    literal_names(&pair.1, names);
+                    literal_names(&pair.0, names, work)?;
+                    literal_names(&pair.1, names, work)?;
                 }
                 _ => (),
             }
         }
     }
+    Ok(())
 }

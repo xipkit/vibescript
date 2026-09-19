@@ -69,7 +69,7 @@ impl Compiler<'_> {
             }
             self.offset = saved_offset;
             spec.rescues.push(RescueSpec {
-                classes: clause.classes.clone(),
+                classes: clause.classes.to_vec(),
                 binding,
                 locals,
                 start,

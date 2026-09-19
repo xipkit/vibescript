@@ -1,5 +1,8 @@
 use super::{Definition, Parser, Stmt, Token, keyword};
-use crate::Result;
+use crate::{
+    Result,
+    compilation::{Boxed, Buffer},
+};
 use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -10,15 +13,15 @@ pub(crate) enum Visibility {
     Protected,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Module {
     pub offset: u32,
     pub is_class: bool,
-    pub instance_methods: Vec<(Definition, Visibility)>,
+    pub instance_methods: Buffer<(Definition, Visibility)>,
     pub name: String,
-    pub methods: Vec<(Definition, Visibility)>,
-    pub body: Vec<Stmt>,
-    pub modules: Vec<Module>,
+    pub methods: Buffer<(Definition, Visibility)>,
+    pub body: Buffer<Stmt>,
+    pub modules: Buffer<Module>,
     pub directives: HashSet<String>,
 }
 
@@ -65,14 +68,15 @@ impl Parser<'_> {
         let body = if matches!(self.token(), Token::Word(w) if w != "end") {
             let attempt = self.rescue_tail(body, true)?;
             let depth = attempt.depth();
-            vec![
-                super::Statement::Expr(self.make_at(
-                    super::Node::Try(Box::new(attempt)),
+            Buffer::from_array(
+                self.work,
+                [super::Statement::Expr(self.make_at(
+                    super::Node::Try(Boxed::new(self.work, attempt)?),
                     depth,
                     offset,
                 )?)
-                .at(offset),
-            ]
+                .at(offset)],
+            )?
         } else {
             self.expect_word("end")?;
             body
@@ -104,11 +108,11 @@ impl Parser<'_> {
         let mut module = Module {
             offset,
             is_class: false,
-            instance_methods: Vec::new(),
+            instance_methods: Buffer::new(),
             name,
-            methods: Vec::new(),
-            body: Vec::new(),
-            modules: Vec::new(),
+            methods: Buffer::new(),
+            body: Buffer::new(),
+            modules: Buffer::new(),
             directives: HashSet::new(),
         };
         let mut visibility = Visibility::Public;
@@ -157,7 +161,7 @@ impl Parser<'_> {
                 method_visibility = level;
             }
             if self.module_ahead() {
-                module.modules.push(self.module()?);
+                module.modules.push(self.work, self.module()?)?;
             } else if self.word("def") {
                 let offset = self.previous()?.offset as u32;
                 self.expect_word("self")?;
@@ -171,12 +175,14 @@ impl Parser<'_> {
                     name.push('=');
                 }
                 let definition = self.definition_with_constants(name, true, offset)?;
-                module.methods.push((definition, method_visibility));
+                module
+                    .methods
+                    .push(self.work, (definition, method_visibility))?;
             } else if matches!(self.token(), Token::Word(w) if matches!(w.as_str(), "class" | "enum" | "property" | "getter" | "setter" | "alias" | "include" | "extend"))
             {
                 return self.err("modules declare methods with def self.name and do not support classes, enums, accessors, aliases, or mixins");
             } else {
-                module.body.push(self.statement()?);
+                module.body.push(self.work, self.statement()?)?;
             }
             self.lines()?;
         }

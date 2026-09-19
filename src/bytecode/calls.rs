@@ -121,7 +121,7 @@ impl Compiler<'_> {
                 self.work.ty(ty)?;
                 self.work.names(names)?;
                 let index = self.program.type_guards.len();
-                self.program.type_guards.push(names.clone());
+                self.program.type_guards.push(names.to_vec());
                 let guard = self.emit(Op::TypeShadowed(index, 0));
                 self.constant(crate::shapes::compile((**ty).clone()));
                 self.emit(Op::CallValue);

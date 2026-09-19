@@ -1,6 +1,6 @@
 use crate::{
     Error, Result, Value,
-    compilation::{Bytes, Text},
+    compilation::{Boxed, Buffer, Bytes, Text},
 };
 use std::collections::HashSet;
 
@@ -18,40 +18,44 @@ use tokens::Tokens;
 const MAX_DEPTH: usize = 128;
 pub(crate) const MAX_SOURCE: usize = 8 << 20;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Expr {
     pub node: Node,
     depth: u32,
     pub offset: u32,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum Node {
-    Try(Box<Try>),
+    Try(Boxed<Try>),
     Regex(Bytes, u8),
-    Shape(Box<crate::types::Type>, Option<Box<Expr>>, Vec<String>),
+    Shape(
+        Boxed<crate::types::Type>,
+        Option<Boxed<Expr>>,
+        Buffer<String>,
+    ),
     Integer(u64),
     BigInteger(Text, u32),
     Literal(Value),
-    Template(Vec<Expr>, bool),
+    Template(Buffer<Expr>, bool),
     Var(String),
-    Array(Vec<Expr>),
-    Hash(Vec<(Bytes, Expr)>),
-    Unary(&'static str, Box<Expr>),
-    Binary(&'static str, Box<Expr>, Box<Expr>),
-    Range(Option<Box<Expr>>, Option<Box<Expr>>, bool),
-    Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
-    Case(Option<Box<Expr>>, Vec<When>, Option<Box<Expr>>),
-    Loop(Box<Stmt>),
-    Call(String, Vec<Argument>, CallForm),
-    ComputedCall(Box<Expr>, Vec<Argument>),
-    BlockCall(Box<Expr>, Block),
-    Yield(Vec<Expr>),
-    Member(Box<Expr>, String),
-    SafeMember(Box<Expr>, String),
-    Scope(Box<Expr>, String, Option<Vec<Argument>>),
-    Method(Box<Expr>, String, Vec<Argument>, CallForm),
-    SafeMethod(Box<Expr>, String, Vec<Argument>, CallForm),
-    Index(Box<Expr>, Vec<Expr>),
+    Array(Buffer<Expr>),
+    Hash(Buffer<(Bytes, Expr)>),
+    Unary(&'static str, Boxed<Expr>),
+    Binary(&'static str, Boxed<Expr>, Boxed<Expr>),
+    Range(Option<Boxed<Expr>>, Option<Boxed<Expr>>, bool),
+    Conditional(Boxed<Expr>, Boxed<Expr>, Boxed<Expr>),
+    Case(Option<Boxed<Expr>>, Buffer<When>, Option<Boxed<Expr>>),
+    Loop(Boxed<Stmt>),
+    Call(String, Buffer<Argument>, CallForm),
+    ComputedCall(Boxed<Expr>, Buffer<Argument>),
+    BlockCall(Boxed<Expr>, Block),
+    Yield(Buffer<Expr>),
+    Member(Boxed<Expr>, String),
+    SafeMember(Boxed<Expr>, String),
+    Scope(Boxed<Expr>, String, Option<Buffer<Argument>>),
+    Method(Boxed<Expr>, String, Buffer<Argument>, CallForm),
+    SafeMethod(Boxed<Expr>, String, Buffer<Argument>, CallForm),
+    Index(Boxed<Expr>, Buffer<Expr>),
 }
 impl Expr {
     fn safe_assignment_target(&self) -> bool {
@@ -86,19 +90,19 @@ enum Suffix {
     Ternary(u32),
     Binary(&'static str, u8, u32),
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Try {
     pub modifier: bool,
-    pub body: Vec<Stmt>,
-    pub rescues: Vec<Rescue>,
-    pub alternate: Vec<Stmt>,
-    pub ensure: Vec<Stmt>,
+    pub body: Buffer<Stmt>,
+    pub rescues: Buffer<Rescue>,
+    pub alternate: Buffer<Stmt>,
+    pub ensure: Buffer<Stmt>,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Rescue {
-    pub classes: Vec<crate::ErrorClass>,
+    pub classes: Buffer<crate::ErrorClass>,
     pub binding: Option<String>,
-    pub body: Vec<Stmt>,
+    pub body: Buffer<Stmt>,
     pub offset: u32,
 }
 impl Try {
@@ -114,10 +118,10 @@ impl Try {
             .unwrap_or(0)
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Block {
-    pub params: Vec<Target>,
-    pub body: Vec<Stmt>,
+    pub params: Buffer<Target>,
+    pub body: Buffer<Stmt>,
     pub implicit: bool,
     pub infer_it: bool,
 }
@@ -128,7 +132,7 @@ pub(crate) enum ParamKind {
     Rest,
     KeywordRest,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Parameter {
     pub ivar: Option<String>,
     pub name: String,
@@ -136,28 +140,28 @@ pub(crate) struct Parameter {
     pub default: Option<Expr>,
     pub ty: Option<crate::types::Type>,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum ArgumentKind {
     Positional,
     Splat,
     Keyword(String),
     KeywordSplat,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Argument {
     pub kind: ArgumentKind,
     pub value: Expr,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct When {
-    pub values: Vec<(Expr, bool)>,
+    pub values: Buffer<(Expr, bool)>,
     pub result: Expr,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum Target {
     Value(Expr),
-    Tuple(Vec<(Option<Target>, bool)>),
-    Typed(Box<Target>, crate::types::Type),
+    Tuple(Buffer<(Option<Target>, bool)>),
+    Typed(Boxed<Target>, crate::types::Type),
 }
 impl Target {
     pub fn offset(&self) -> Option<u32> {
@@ -193,22 +197,22 @@ impl Target {
         }
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Stmt {
     pub node: Statement,
     pub offset: u32,
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum Statement {
-    Raise(Option<Box<Expr>>, Option<Box<Expr>>),
+    Raise(Option<Boxed<Expr>>, Option<Boxed<Expr>>),
     Retry,
     Module(String),
     UnboundClass(String),
     Expr(Expr),
     Assign(Target, &'static str, Expr),
-    If(Expr, Vec<Stmt>, Vec<Stmt>),
-    While(Expr, Vec<Stmt>),
-    For(Target, Expr, Vec<Stmt>),
+    If(Expr, Buffer<Stmt>, Buffer<Stmt>),
+    While(Expr, Buffer<Stmt>),
+    For(Target, Expr, Buffer<Stmt>),
     Return(Option<Expr>),
     Break(Option<Expr>),
     Next(Option<Expr>),
@@ -240,21 +244,21 @@ impl Stmt {
         }
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct Definition {
     pub offset: u32,
     pub private: bool,
     pub accessor: Option<(String, bool)>,
     pub name: String,
-    pub params: Vec<Parameter>,
-    pub body: Vec<Stmt>,
+    pub params: Buffer<Parameter>,
+    pub body: Buffer<Stmt>,
     pub return_type: Option<crate::types::Type>,
 }
 
 pub(crate) struct Declarations {
-    pub functions: Vec<Definition>,
-    pub enums: Vec<(String, Vec<String>)>,
-    pub modules: Vec<modules::Module>,
+    pub functions: Buffer<Definition>,
+    pub enums: Buffer<(String, Buffer<String>)>,
+    pub modules: Buffer<modules::Module>,
 }
 
 fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result<Parser<'a>> {
@@ -268,7 +272,7 @@ fn parser<'a>(source: &'a str, work: &'a dyn crate::compilation::Work) -> Result
         groups: 0,
         line_exprs: 0,
         command_depth: 0,
-        ternaries: Vec::new(),
+        ternaries: Buffer::new(),
         command_group: 0,
         loop_condition: None,
         locals: HashSet::new(),
@@ -289,21 +293,21 @@ pub(crate) fn parse_type(source: &str) -> Result<crate::types::Type> {
 
 pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result<Declarations> {
     let mut p = parser(source, work)?;
-    let mut defs = Vec::new();
-    let mut enums = Vec::new();
-    let mut modules = Vec::new();
-    let mut top = Vec::new();
+    let mut defs = Buffer::new();
+    let mut enums = Buffer::new();
+    let mut modules = Buffer::new();
+    let mut top = Buffer::new();
     p.lines()?;
     while !matches!(p.token(), Token::Eof) {
         let offset = p.tokens[p.pos].offset as u32;
         if p.word("class") {
             let class = p.class()?;
-            top.push(Statement::Module(class.name.clone()).at(offset));
-            modules.push(class);
+            top.push(work, Statement::Module(class.name.clone()).at(offset))?;
+            modules.push(work, class)?;
         } else if p.module_ahead() {
             let module = p.module()?;
-            top.push(Statement::Module(module.name.clone()).at(offset));
-            modules.push(module);
+            top.push(work, Statement::Module(module.name.clone()).at(offset))?;
+            modules.push(work, module)?;
         } else if matches!(p.token(), Token::Word(word) if matches!(word.as_str(), "def" | "private" | "export"))
         {
             let private = p.word("private");
@@ -321,11 +325,11 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
             }
             let mut definition = p.definition(name, offset)?;
             definition.private = private;
-            defs.push(definition);
+            defs.push(work, definition)?;
         } else if p.word("enum") {
             p.line_breaks()?;
             let name = p.enum_name()?;
-            let mut members = Vec::new();
+            let mut members = Buffer::new();
             let mut seen = HashSet::new();
             p.lines()?;
             while !matches!(p.token(), Token::Eof)
@@ -339,31 +343,32 @@ pub(crate) fn parse(source: &str, work: &dyn crate::compilation::Work) -> Result
                 if !seen.insert(member.clone()) {
                     return p.err("duplicate enum member");
                 }
-                members.push(member);
+                members.push(work, member)?;
                 p.lines()?;
             }
             if members.is_empty() {
                 return p.err("enum must define at least one member");
             }
             p.expect_word("end")?;
-            enums.push((name, members));
+            enums.push(work, (name, members))?;
         } else {
-            top.push(p.statement()?);
+            top.push(work, p.statement()?)?;
         }
         p.lines()?;
     }
     defs.insert(
+        work,
         0,
         Definition {
             offset: 0,
             private: true,
             accessor: None,
             name: "__main__".into(),
-            params: Vec::new(),
+            params: Buffer::new(),
             body: top,
             return_type: None,
         },
-    );
+    )?;
     Ok(Declarations {
         functions: defs,
         enums,
@@ -381,7 +386,7 @@ struct Parser<'a> {
     groups: usize,
     line_exprs: usize,
     command_depth: usize,
-    ternaries: Vec<usize>,
+    ternaries: Buffer<usize>,
     command_group: usize,
     loop_condition: Option<usize>,
     locals: HashSet<String>,
@@ -389,9 +394,9 @@ struct Parser<'a> {
     type_structural_error: bool,
 }
 impl<'a> Parser<'a> {
-    fn parameters(&mut self, parenthesized: bool) -> Result<Vec<Parameter>> {
+    fn parameters(&mut self, parenthesized: bool) -> Result<Buffer<Parameter>> {
         self.work.charge(1)?;
-        let mut params = Vec::new();
+        let mut params = Buffer::new();
         let mut rest = false;
         let mut keywords = false;
         let mut keyword_rest = false;
@@ -530,13 +535,16 @@ impl<'a> Parser<'a> {
             }
             self.locals.insert(name.clone());
             self.declared_it |= name == "it";
-            params.push(Parameter {
-                ivar: instance.then(|| name.clone()),
-                name,
-                kind,
-                default,
-                ty,
-            });
+            params.push(
+                self.work,
+                Parameter {
+                    ivar: instance.then(|| name.clone()),
+                    name,
+                    kind,
+                    default,
+                    ty,
+                },
+            )?;
             if parenthesized {
                 self.lines()?;
                 if self.take_p(')') {
@@ -674,10 +682,10 @@ impl<'a> Parser<'a> {
         }
         Ok(())
     }
-    fn block(&mut self, stop: &[&str]) -> Result<Vec<Stmt>> {
+    fn block(&mut self, stop: &[&str]) -> Result<Buffer<Stmt>> {
         self.work.charge(1)?;
         self.enter()?;
-        let mut body = Vec::new();
+        let mut body = Buffer::new();
         self.lines()?;
         while !matches!(self.token(),Token::Word(w) if stop.contains(&w.as_str()))
             && !(self.token() == &Token::P('}') && stop.contains(&"}"))
@@ -685,7 +693,7 @@ impl<'a> Parser<'a> {
             if matches!(self.token(), Token::Eof) {
                 return self.err("unexpected end of source");
             }
-            body.push(self.statement()?);
+            body.push(self.work, self.statement()?)?;
             self.lines()?;
         }
         self.depth -= 1;
@@ -722,9 +730,13 @@ impl<'a> Parser<'a> {
             condition = self.negate(condition)?;
         }
         Ok(if matches!(modifier.as_str(), "while" | "until") {
-            Statement::While(condition, vec![stmt.at(offset)])
+            Statement::While(condition, Buffer::from_array(self.work, [stmt.at(offset)])?)
         } else {
-            Statement::If(condition, vec![stmt.at(offset)], Vec::new())
+            Statement::If(
+                condition,
+                Buffer::from_array(self.work, [stmt.at(offset)])?,
+                Buffer::new(),
+            )
         })
     }
     fn plain_statement(&mut self) -> Result<Statement> {
@@ -807,12 +819,12 @@ impl<'a> Parser<'a> {
         self.lines()?;
         let first = self.line_expr(0)?;
         let rhs = if matches!(target, Target::Tuple(_)) && self.take_p(',') {
-            let mut items = vec![first];
+            let mut items = Buffer::from_array(self.work, [first])?;
             loop {
                 if self.at_end() || self.token() == &Token::EndLine {
                     break;
                 }
-                items.push(self.line_expr(0)?);
+                items.push(self.work, self.line_expr(0)?)?;
                 if !self.take_p(',') {
                     break;
                 }
@@ -830,12 +842,12 @@ impl<'a> Parser<'a> {
         if self.token() != &Token::P(',') || self.tokens[self.pos].line != self.previous()?.line {
             return Ok(first);
         }
-        let mut items = vec![first];
+        let mut items = Buffer::from_array(self.work, [first])?;
         while self.token() == &Token::P(',') && self.tokens[self.pos].line == self.previous()?.line
         {
             self.bump()?;
             self.line_breaks()?;
-            items.push(self.line_expr(0)?);
+            items.push(self.work, self.line_expr(0)?)?;
         }
         let depth = 1 + items.iter().map(|e| e.depth).max().unwrap_or(0);
         self.make(Node::Array(items), depth)
@@ -844,7 +856,11 @@ impl<'a> Parser<'a> {
         self.work.charge(1)?;
         let depth = expr.depth + 1;
         let offset = expr.offset;
-        self.make_at(Node::Unary("!", Box::new(expr)), depth, offset)
+        self.make_at(
+            Node::Unary("!", Boxed::new(self.work, expr)?),
+            depth,
+            offset,
+        )
     }
     fn while_stmt(&mut self, until: bool) -> Result<Statement> {
         self.work.charge(1)?;
@@ -878,7 +894,7 @@ impl<'a> Parser<'a> {
     fn target(&mut self, first_expression: bool, typed: bool) -> Result<Target> {
         self.work.charge(1)?;
         self.enter()?;
-        let mut parts = Vec::new();
+        let mut parts = Buffer::new();
         let mut tuple = false;
         let mut has_rest = false;
         loop {
@@ -912,7 +928,7 @@ impl<'a> Parser<'a> {
                     self.expect_p(close)?;
                     Some(match inner {
                         Target::Tuple(_) => inner,
-                        _ => Target::Tuple(vec![(Some(inner), false)]),
+                        _ => Target::Tuple(Buffer::from_array(self.work, [(Some(inner), false)])?),
                     })
                 } else {
                     Some(if typed && matches!(self.token(), Token::Word(_)) {
@@ -933,9 +949,12 @@ impl<'a> Parser<'a> {
                 if rest && !ty.captures(false) {
                     return self.err("rest target annotation must accept an array");
                 }
-                value = Some(Target::Typed(Box::new(value.take().unwrap()), ty));
+                value = Some(Target::Typed(
+                    Boxed::new(self.work, value.take().unwrap())?,
+                    ty,
+                ));
             }
-            parts.push((value, rest));
+            parts.push(self.work, (value, rest))?;
             if !self.take_p(',') {
                 break;
             }
@@ -1025,7 +1044,7 @@ impl<'a> Parser<'a> {
                 return self.err("unless does not support elsif");
             }
             let offset = self.previous()?.offset as u32;
-            vec![self.if_stmt(false)?.at(offset)]
+            Buffer::from_array(self.work, [self.if_stmt(false)?.at(offset)])?
         } else if self.word("else") {
             self.lines()?;
             let no = self.block(&["end"])?;
@@ -1033,7 +1052,7 @@ impl<'a> Parser<'a> {
             no
         } else {
             self.expect_word("end")?;
-            Vec::new()
+            Buffer::new()
         };
         self.depth -= 1;
         Ok(Statement::If(cond, yes, no))
@@ -1067,7 +1086,11 @@ impl<'a> Parser<'a> {
         let depth = 1 + cond.depth.max(yes.depth).max(no.depth);
         self.depth -= 1;
         self.make(
-            Node::Conditional(Box::new(cond), Box::new(yes), Box::new(no)),
+            Node::Conditional(
+                Boxed::new(self.work, cond)?,
+                Boxed::new(self.work, yes)?,
+                Boxed::new(self.work, no)?,
+            ),
             depth,
         )
     }
@@ -1077,18 +1100,18 @@ impl<'a> Parser<'a> {
         let target = if matches!(self.token(), Token::Word(w) if w=="when") {
             None
         } else {
-            Some(Box::new(self.line_expr(0)?))
+            Some(Boxed::new(self.work, self.line_expr(0)?)?)
         };
         self.lines()?;
-        let mut clauses = Vec::new();
+        let mut clauses = Buffer::new();
         while self.word("when") {
-            let mut values = Vec::new();
+            let mut values = Buffer::new();
             loop {
                 let splat = self.token() == &Token::Op("*");
                 if splat {
                     self.bump()?;
                 }
-                values.push((self.line_expr(0)?, splat));
+                values.push(self.work, (self.line_expr(0)?, splat))?;
                 if !self.take_p(',') {
                     break;
                 }
@@ -1097,7 +1120,7 @@ impl<'a> Parser<'a> {
             self.word("then");
             self.lines()?;
             let result = self.expr(0)?;
-            clauses.push(When { values, result });
+            clauses.push(self.work, When { values, result })?;
             self.lines()?;
         }
         if clauses.is_empty() {
@@ -1105,7 +1128,7 @@ impl<'a> Parser<'a> {
         }
         let alternate = if self.word("else") {
             self.lines()?;
-            Some(Box::new(self.expr(0)?))
+            Some(Boxed::new(self.work, self.expr(0)?)?)
         } else {
             None
         };
@@ -1214,7 +1237,10 @@ impl<'a> Parser<'a> {
         }
         let end = self.expr(8)?;
         let depth = end.depth + 1;
-        self.make(Node::Range(None, Some(Box::new(end)), op == "..."), depth)
+        self.make(
+            Node::Range(None, Some(Boxed::new(self.work, end)?), op == "..."),
+            depth,
+        )
     }
     fn word_expression(&mut self, w: String, offset: u32) -> Result<Expr> {
         self.work.charge(1)?;
@@ -1235,7 +1261,7 @@ impl<'a> Parser<'a> {
         let body = self.block(&["rescue", "else", "ensure", "end"])?;
         let attempt = self.rescue_tail(body, false)?;
         let depth = attempt.depth();
-        self.make(Node::Try(Box::new(attempt)), depth)
+        self.make(Node::Try(Boxed::new(self.work, attempt)?), depth)
     }
     fn loop_expression(&mut self, word: &str, offset: u32) -> Result<Expr> {
         let stmt = if word == "for" {
@@ -1245,7 +1271,7 @@ impl<'a> Parser<'a> {
         };
         let stmt = stmt.at(offset);
         let depth = stmt.depth();
-        self.make(Node::Loop(Box::new(stmt)), depth)
+        self.make(Node::Loop(Boxed::new(self.work, stmt)?), depth)
     }
     fn unary_prefix(&mut self, op: &'static str) -> Result<Expr> {
         self.work.charge(1)?;
@@ -1256,7 +1282,7 @@ impl<'a> Parser<'a> {
             self.expr(13)?
         };
         let depth = value.depth + 1;
-        self.make(Node::Unary(op, Box::new(value)), depth)
+        self.make(Node::Unary(op, Boxed::new(self.work, value)?), depth)
     }
     fn negative_literal(&self, op: &str) -> Result<bool> {
         // An adjacent minus belongs to the numeric receiver; power keeps the
@@ -1277,7 +1303,7 @@ impl<'a> Parser<'a> {
     fn hash_group(&mut self) -> Result<Expr> {
         self.work.charge(1)?;
         self.groups += 1;
-        let mut entries = Vec::new();
+        let mut entries = Buffer::new();
         self.line_breaks()?;
         if !self.take_p('}') {
             loop {
@@ -1286,7 +1312,7 @@ impl<'a> Parser<'a> {
                     Some(value) => value,
                     None => self.expr(0)?,
                 };
-                entries.push((key, value));
+                entries.push(self.work, (key, value))?;
                 self.line_breaks()?;
                 if self.take_p('}') {
                     break;
@@ -1327,9 +1353,9 @@ impl<'a> Parser<'a> {
 
     fn words(&mut self, words: lexer::Words<'a>) -> Result<Expr> {
         self.work.charge(1)?;
-        let mut values = Vec::with_capacity(words.entries.len());
+        let mut values = Buffer::with_capacity(self.work, words.entries.len())?;
         for word in words.entries {
-            values.push(self.template(word, words.symbol)?);
+            values.push(self.work, self.template(word, words.symbol)?)?;
         }
         let depth = 1 + values.iter().map(|v| v.depth).max().unwrap_or(0);
         self.make(Node::Array(values), depth)
@@ -1346,12 +1372,15 @@ impl<'a> Parser<'a> {
             let value = bytes.into_value(symbol);
             return self.make(Node::Literal(value), 1);
         }
-        let mut values = Vec::with_capacity(parts.len());
+        let mut values = Buffer::with_capacity(self.work, parts.len())?;
         for part in parts {
-            values.push(match part {
-                Part::Text(bytes) => self.make(Node::Literal(bytes.into_value(false)), 1)?,
-                Part::Expr(tokens) => self.interpolation(tokens)?,
-            });
+            values.push(
+                self.work,
+                match part {
+                    Part::Text(bytes) => self.make(Node::Literal(bytes.into_value(false)), 1)?,
+                    Part::Expr(tokens) => self.interpolation(tokens)?,
+                },
+            )?;
         }
         let depth = 1 + values.iter().map(|v| v.depth).max().unwrap_or(0);
         self.make(Node::Template(values, symbol), depth)
@@ -1380,7 +1409,7 @@ impl<'a> Parser<'a> {
             groups: 0,
             line_exprs: 0,
             command_depth: 0,
-            ternaries: Vec::new(),
+            ternaries: Buffer::new(),
             command_group: 0,
             loop_condition: None,
             locals: std::mem::take(&mut self.locals),
@@ -1490,7 +1519,7 @@ impl<'a> Parser<'a> {
         };
         self.make(Node::Literal(bytes.into_value(true)), 1)
     }
-    fn parenthesized_call(&mut self, lhs: Expr, args: Vec<Argument>) -> Result<Expr> {
+    fn parenthesized_call(&mut self, lhs: Expr, args: Buffer<Argument>) -> Result<Expr> {
         self.work.charge(1)?;
         let origin = lhs.offset;
         let argument_depth = args.iter().map(|a| a.value.depth).max().unwrap_or(0);
@@ -1510,7 +1539,7 @@ impl<'a> Parser<'a> {
                 Node::SafeMethod(receiver, name, args, CallForm::Parenthesized)
             }
             Node::Scope(receiver, name, None) => Node::Scope(receiver, name, Some(args)),
-            _ => Node::ComputedCall(Box::new(lhs), args),
+            _ => Node::ComputedCall(Boxed::new(self.work, lhs)?, args),
         };
         self.make_at(node, d, origin)
     }
@@ -1593,7 +1622,7 @@ impl<'a> Parser<'a> {
         let d = 1 + lhs
             .depth
             .max(indexes.iter().map(|e| e.depth).max().unwrap_or(0));
-        self.make_at(Node::Index(Box::new(lhs), indexes), d, offset)
+        self.make_at(Node::Index(Boxed::new(self.work, lhs)?, indexes), d, offset)
     }
     fn binary_expression(
         &mut self,
@@ -1608,13 +1637,13 @@ impl<'a> Parser<'a> {
                 self.lines()?;
             }
             let end = if self.starts_expression() {
-                Some(Box::new(self.expr(right)?))
+                Some(Boxed::new(self.work, self.expr(right)?)?)
             } else {
                 None
             };
             let depth = 1 + lhs.depth.max(end.as_ref().map_or(0, |e| e.depth));
             return self.make_at(
-                Node::Range(Some(Box::new(lhs)), end, op == "..."),
+                Node::Range(Some(Boxed::new(self.work, lhs)?), end, op == "..."),
                 depth,
                 offset,
             );
@@ -1623,7 +1652,7 @@ impl<'a> Parser<'a> {
         let rhs = self.expr(right)?;
         let depth = 1 + lhs.depth.max(rhs.depth);
         self.make_at(
-            Node::Binary(op, Box::new(lhs), Box::new(rhs)),
+            Node::Binary(op, Boxed::new(self.work, lhs)?, Boxed::new(self.work, rhs)?),
             depth,
             offset,
         )
@@ -1632,7 +1661,7 @@ impl<'a> Parser<'a> {
     fn ternary_expression(&mut self, condition: Expr, offset: u32) -> Result<Expr> {
         self.work.charge(1)?;
         self.lines()?;
-        self.ternaries.push(self.groups);
+        self.ternaries.push(self.work, self.groups)?;
         let yes = self.expr(0)?;
         self.ternaries.pop();
         self.expect_p(':')?;
@@ -1640,7 +1669,11 @@ impl<'a> Parser<'a> {
         let no = self.expr(2)?;
         let depth = 1 + condition.depth.max(yes.depth).max(no.depth);
         self.make_at(
-            Node::Conditional(Box::new(condition), Box::new(yes), Box::new(no)),
+            Node::Conditional(
+                Boxed::new(self.work, condition)?,
+                Boxed::new(self.work, yes)?,
+                Boxed::new(self.work, no)?,
+            ),
             depth,
             offset,
         )
@@ -1676,12 +1709,16 @@ impl<'a> Parser<'a> {
         let offset = lhs.offset;
         let block = self.attached_block(brace)?;
         if let Node::BlockCall(call, _) = lhs.node {
-            lhs = *call;
+            lhs = call.into_inner();
         }
         let depth = 1 + lhs
             .depth
             .max(block.body.iter().map(Stmt::depth).max().unwrap_or(0));
-        self.make_at(Node::BlockCall(Box::new(lhs), block), depth, offset)
+        self.make_at(
+            Node::BlockCall(Boxed::new(self.work, lhs)?, block),
+            depth,
+            offset,
+        )
     }
     fn scoped_expression(&mut self, lhs: Expr) -> Result<Expr> {
         self.work.charge(1)?;
@@ -1704,7 +1741,7 @@ impl<'a> Parser<'a> {
             args.iter().map(|arg| arg.value.depth).max().unwrap_or(0)
         }));
         self.make_at(
-            Node::Scope(Box::new(lhs), name.as_str().to_owned(), args),
+            Node::Scope(Boxed::new(self.work, lhs)?, name.as_str().to_owned(), args),
             depth,
             offset,
         )
@@ -1727,14 +1764,19 @@ impl<'a> Parser<'a> {
                 .max(args.iter().map(|a| a.value.depth).max().unwrap_or(0));
             let method = if safe { Node::SafeMethod } else { Node::Method };
             self.make_at(
-                method(Box::new(lhs), name, args, CallForm::Parenthesized),
+                method(
+                    Boxed::new(self.work, lhs)?,
+                    name,
+                    args,
+                    CallForm::Parenthesized,
+                ),
                 depth,
                 offset,
             )
         } else {
             let depth = lhs.depth + 1;
             let member = if safe { Node::SafeMember } else { Node::Member };
-            self.make_at(member(Box::new(lhs), name), depth, offset)
+            self.make_at(member(Boxed::new(self.work, lhs)?, name), depth, offset)
         }
     }
     fn previous(&self) -> Result<&Lexeme<'a>> {
@@ -1776,8 +1818,8 @@ impl<'a> Parser<'a> {
         })
     }
     // Parameter temporaries must be gone before the block body recurses.
-    fn block_parameters(&mut self) -> Result<(Vec<Target>, bool)> {
-        let mut params = Vec::new();
+    fn block_parameters(&mut self) -> Result<(Buffer<Target>, bool)> {
+        let mut params = Buffer::new();
         let explicit = if self.token() == &Token::Op("||") {
             self.bump()?;
             true
@@ -1791,7 +1833,10 @@ impl<'a> Parser<'a> {
                         self.expect_p(')')?;
                         match target {
                             Target::Tuple(_) => target,
-                            _ => Target::Tuple(vec![(Some(target), false)]),
+                            _ => Target::Tuple(Buffer::from_array(
+                                self.work,
+                                [(Some(target), false)],
+                            )?),
                         }
                     } else if self.take_p('[') {
                         let target = self.target(false, true)?;
@@ -1799,13 +1844,16 @@ impl<'a> Parser<'a> {
                         self.expect_p(']')?;
                         match target {
                             Target::Tuple(_) => target,
-                            _ => Target::Tuple(vec![(Some(target), false)]),
+                            _ => Target::Tuple(Buffer::from_array(
+                                self.work,
+                                [(Some(target), false)],
+                            )?),
                         }
                     } else {
                         let name = self.name()?;
                         let target = Target::Value(self.make(Node::Var(name), 1)?);
                         if self.take_p(':') {
-                            Target::Typed(Box::new(target), self.type_expr(0, true)?)
+                            Target::Typed(Boxed::new(self.work, target)?, self.type_expr(0, true)?)
                         } else {
                             target
                         }
@@ -1814,7 +1862,7 @@ impl<'a> Parser<'a> {
                         return self.err("invalid block parameter");
                     }
                     self.declare_target(&target)?;
-                    params.push(target);
+                    params.push(self.work, target)?;
                     self.lines()?;
                     if self.take_p('|') {
                         break;
@@ -1855,15 +1903,15 @@ impl<'a> Parser<'a> {
         let args = if self.take_p('(') {
             self.arguments(')')?
         } else {
-            let mut args = Vec::new();
+            let mut args = Buffer::new();
             if self.tokens[self.pos].line == line && self.starts_expression() {
-                args.push(self.line_expr(0)?);
+                args.push(self.work, self.line_expr(0)?)?;
                 while self.token() == &Token::P(',')
                     && self.tokens[self.pos].line == line
                     && self.tokens[self.pos + 1].line == line
                 {
                     self.bump()?;
-                    args.push(self.line_expr(0)?);
+                    args.push(self.work, self.line_expr(0)?)?;
                 }
             }
             args
@@ -2108,9 +2156,9 @@ impl<'a> Parser<'a> {
                             .is_some_and(|end| end.token == Token::P(']') && end.offset == t.end)))
         })
     }
-    fn command_arguments(&mut self) -> Result<Vec<Argument>> {
+    fn command_arguments(&mut self) -> Result<Buffer<Argument>> {
         self.work.charge(1)?;
-        let mut args = Vec::new();
+        let mut args = Buffer::new();
         let mut keywords = false;
         loop {
             let argument = self.call_argument(false)?;
@@ -2122,7 +2170,7 @@ impl<'a> Parser<'a> {
                 return self.err("positional arguments cannot follow keywords");
             }
             keywords |= keyword;
-            args.push(argument);
+            args.push(self.work, argument)?;
             let last = self.previous()?;
             if self.token() != &Token::P(',')
                 || self.tokens[self.pos].line != last.line
@@ -2135,17 +2183,17 @@ impl<'a> Parser<'a> {
         }
         Ok(args)
     }
-    fn arguments(&mut self, close: char) -> Result<Vec<Expr>> {
+    fn arguments(&mut self, close: char) -> Result<Buffer<Expr>> {
         self.work.charge(1)?;
         self.groups += 1;
-        let mut args = Vec::new();
+        let mut args = Buffer::new();
         self.lines()?;
         if self.take_p(close) {
             self.groups -= 1;
             return Ok(args);
         }
         loop {
-            args.push(self.expr(0)?);
+            args.push(self.work, self.expr(0)?)?;
             self.lines()?;
             if self.take_p(close) {
                 break;
@@ -2159,10 +2207,10 @@ impl<'a> Parser<'a> {
         self.groups -= 1;
         Ok(args)
     }
-    fn call_arguments(&mut self) -> Result<Vec<Argument>> {
+    fn call_arguments(&mut self) -> Result<Buffer<Argument>> {
         self.work.charge(1)?;
         self.groups += 1;
-        let mut args = Vec::new();
+        let mut args = Buffer::new();
         let mut keywords = false;
         self.line_breaks()?;
         if self.take_p(')') {
@@ -2179,7 +2227,7 @@ impl<'a> Parser<'a> {
                 return self.err("positional arguments cannot follow keywords");
             }
             keywords |= keyword;
-            args.push(argument);
+            args.push(self.work, argument)?;
             self.line_breaks()?;
             if self.take_p(')') {
                 break;
