@@ -7,7 +7,7 @@ impl Program {
         module: Module,
         qualifier: &str,
         functions: &mut crate::compilation::Buffer<syntax::Definition>,
-        contexts: &mut Vec<(Option<usize>, bool, bool)>,
+        contexts: &mut crate::compilation::Buffer<(Option<usize>, bool, bool)>,
         work: &dyn crate::compilation::Work,
     ) -> Result<usize> {
         work.bytes(qualifier.len() + module.name.len())?;
@@ -46,7 +46,7 @@ impl Program {
             method.name = Name::join(work, &[&name, ".", &method.name])?;
             let function = functions.len();
             functions.push(work, method)?;
-            contexts.push((Some(index), false, false));
+            contexts.push(work, (Some(index), false, false))?;
             if let Some(previous) = methods.iter_mut().find(|m| m.name == short.as_str()) {
                 previous.function = function;
                 previous.visibility = visibility;
@@ -66,7 +66,7 @@ impl Program {
             method.name = Name::join(work, &[&name, "#", &method.name])?;
             let function = functions.len();
             functions.push(work, method)?;
-            contexts.push((Some(index), false, true));
+            contexts.push(work, (Some(index), false, true))?;
             if let Some(previous) = instance_methods
                 .iter_mut()
                 .find(|m| m.name == short.as_str())
@@ -97,7 +97,7 @@ impl Program {
                     return_type: None,
                 },
             )?;
-            contexts.push((Some(index), true, false));
+            contexts.push(work, (Some(index), true, false))?;
             Some(function)
         };
         let constructor = if module.is_class {
@@ -117,7 +117,7 @@ impl Program {
                         return_type: None,
                     },
                 )?;
-                contexts.push((Some(index), false, true));
+                contexts.push(work, (Some(index), false, true))?;
                 Some((function, false))
             }
         } else {
@@ -150,7 +150,7 @@ impl Compiler<'_> {
             syntax::Node::Var(name)
                 if self.namespace.is_some()
                     && (!self.instance || name.starts_with('@'))
-                    && self.namespace_binding(name) =>
+                    && self.namespace_binding(name)? =>
             {
                 // A missing field may need a builtin without another read registering it.
                 self.global(name);
@@ -181,24 +181,24 @@ impl Compiler<'_> {
         Ok(())
     }
 
-    pub(super) fn namespace_binding(&self, name: &str) -> bool {
+    pub(super) fn namespace_binding(&self, name: &str) -> Result<bool> {
         if name.starts_with('@') {
-            return true;
+            return Ok(true);
         }
-        if self.parameters.contains(name) || self.outer.iter().any(|scope| scope.contains_key(name))
-        {
-            return false;
+        if self.parameters.contains(self.work, name)? || self.outer_binding(name)?.is_some() {
+            return Ok(false);
         }
         if self.namespace.is_some()
             && !self.instance
             && name.chars().next().is_some_and(syntax::unicode::upper)
         {
-            return true;
+            return Ok(true);
         }
-        self.program
+        Ok(self
+            .program
             .declaration_names
             .get(name)
-            .is_some_and(|&index| matches!(self.program.declarations[index].0, Kind::Namespace(_)))
+            .is_some_and(|&index| matches!(self.program.declarations[index].0, Kind::Namespace(_))))
     }
 
     pub(super) fn store_namespace_name(&mut self, name: &str) {

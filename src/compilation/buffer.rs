@@ -158,6 +158,19 @@ impl<T: Copy> Buffer<T> {
     }
 }
 
+impl crate::shapes::TypeWriter for (&dyn Work, &mut Buffer<u8>) {
+    fn write(&mut self, bytes: &[u8]) -> Result<()> {
+        for chunk in bytes.chunks(4096) {
+            self.1.extend_from_slice(self.0, chunk)?;
+        }
+        Ok(())
+    }
+
+    fn node(&mut self) -> Result<()> {
+        self.0.charge(1)
+    }
+}
+
 impl<T> Deref for Buffer<T> {
     type Target = [T];
 

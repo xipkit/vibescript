@@ -10,14 +10,18 @@ impl Compiler<'_> {
         self.work.charge(1)?;
         self.global(name);
         if self.program.file || self.namespace.is_some() {
-            let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
+            let slot = self
+                .locals
+                .get(self.work, name)?
+                .copied()
+                .unwrap_or(usize::MAX);
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             self.argument_values(args)?;
             self.emit(Op::Invoke(Invocation::Resolved));
             return Ok(());
         }
-        if let Some(&slot) = self.locals.get(name) {
+        if let Some(&slot) = self.locals.get(self.work, name)? {
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             self.argument_values(args)?;
@@ -96,7 +100,7 @@ impl Compiler<'_> {
                 self.global(name);
                 let slot = self
                     .locals
-                    .get(name.as_str())
+                    .get(self.work, name.as_str())?
                     .copied()
                     .unwrap_or(usize::MAX);
                 let name = self.call_site(name, false).name;

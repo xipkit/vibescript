@@ -2,10 +2,11 @@ use crate::{
     CallContext, Error, ErrorKind, Result, Value,
     budget::{Buffer, CHUNK, Charge},
     bytecode::CallSite,
+    compilation::{Name, Table},
     syntax::unicode,
     value::Kind,
 };
-use std::{cmp::Ordering, collections::HashSet, sync::Arc};
+use std::{cmp::Ordering, sync::Arc};
 
 #[derive(Debug)]
 pub(crate) struct Definition {
@@ -53,12 +54,15 @@ where
             "invalid enum name or built-in type conflict",
         ));
     }
-    let mut symbols = HashSet::new();
+    let mut symbols = Table::new();
     let mut values = Vec::with_capacity(members.len());
     for name in members {
         work.bytes(name.len())?;
         let symbol = symbol(&name);
-        if !symbols.insert(symbol.clone()) {
+        if symbols
+            .insert(work, Name::new(work, &symbol)?, ())?
+            .is_some()
+        {
             return Err(crate::syntax::unsupported(
                 "enum members have the same normalized symbol",
             ));

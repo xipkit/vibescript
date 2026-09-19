@@ -1,12 +1,13 @@
 use crate::{
     Result, Value,
     builtin::{Builtin, Global},
+    compilation::{Buffer, Name, Table},
     syntax::{
         self, Argument, ArgumentKind, Block, CallForm, Expr, Node, ParamKind, Statement, Stmt,
         Target,
     },
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 mod calls;
 mod errors;
@@ -396,7 +397,10 @@ fn compile_mode(
 ) -> Result<Program> {
     let parsed = syntax::parse(source, work)?;
     let mut defs = parsed.functions;
-    let mut contexts = vec![(None, false, false); defs.len()];
+    let mut contexts = Buffer::with_capacity(work, defs.len())?;
+    for _ in 0..defs.len() {
+        contexts.push(work, (None, false, false))?;
+    }
     let mut names = HashMap::new();
     for (i, definition) in defs.iter().enumerate() {
         work.bytes(definition.name.len())?;
@@ -459,16 +463,16 @@ fn compile_mode(
             namespace: contexts[index].0,
             instance: contexts[index].2,
             program: &mut program,
-            locals: HashMap::new(),
+            locals: Table::new(),
             slots: 0,
             code: Vec::new(),
             locations: Vec::new(),
             offset: def.offset,
-            parameters: HashSet::new(),
-            loop_bindings: Vec::new(),
-            outer: Vec::new(),
-            reads: HashSet::new(),
-            assigned: HashSet::new(),
+            parameters: Table::new(),
+            loop_bindings: Buffer::new(),
+            outer: Buffer::new(),
+            reads: Table::new(),
+            assigned: Table::new(),
         };
         let binds_parameters = def
             .params
@@ -491,7 +495,7 @@ fn compile_mode(
                     c.emit(Op::Normalize(ty, label));
                 }
             }
-            let slot = c.slot(&param.name);
+            let slot = c.slot(&param.name)?;
             if param.default.is_some() {
                 c.emit(Op::Store(slot));
                 c.emit(Op::Pop);
@@ -505,7 +509,7 @@ fn compile_mode(
                     c.emit(Op::BindIvar(name, slot));
                 }
             }
-            c.parameters.insert(param.name.as_str().to_owned());
+            c.parameters.insert(work, param.name.clone(), ())?;
             params.push(Parameter {
                 name: param.name.as_str().to_owned(),
                 kind: param.kind,
@@ -556,15 +560,15 @@ fn compile_mode(
 }
 
 fn local_names(
-    locals: &HashMap<String, usize>,
+    locals: &Table<usize>,
     slots: usize,
     work: &dyn crate::compilation::Work,
 ) -> Result<Vec<String>> {
     work.charge(slots)?;
     let mut names = vec![String::new(); slots];
-    for (name, &index) in locals {
+    for (name, &index) in locals.iter(work)? {
         work.bytes(name.len())?;
-        names[index] = name.clone();
+        names[index] = name.as_str().to_owned();
     }
     Ok(names)
 }
@@ -579,31 +583,40 @@ struct Compiler<'a> {
     instance: bool,
     namespace: Option<usize>,
     program: &'a mut Program,
-    locals: HashMap<String, usize>,
+    locals: Table<usize>,
     slots: usize,
     code: Vec<Op>,
     locations: Vec<u32>,
     offset: u32,
-    parameters: HashSet<String>,
-    loop_bindings: Vec<Vec<usize>>,
-    outer: Vec<HashMap<String, usize>>,
-    reads: HashSet<String>,
-    assigned: HashSet<String>,
+    parameters: Table<()>,
+    loop_bindings: Buffer<Buffer<usize>>,
+    outer: Buffer<Table<usize>>,
+    reads: Table<()>,
+    assigned: Table<()>,
 }
 impl Compiler<'_> {
-    fn slot(&mut self, name: &str) -> usize {
-        if let Some(&slot) = self.locals.get(name) {
-            return slot;
+    fn slot(&mut self, name: &Name) -> Result<usize> {
+        if let Some(&slot) = self.locals.get(self.work, name)? {
+            return Ok(slot);
         }
         let slot = self.slots;
+        self.locals.insert(self.work, name.clone(), slot)?;
         self.slots += 1;
-        self.locals.insert(name.to_owned(), slot);
-        slot
+        Ok(slot)
     }
-    fn capture_name(&mut self, name: &str) {
-        if self.outer.iter().any(|scope| scope.contains_key(name)) {
-            self.slot(name);
+    fn outer_binding(&self, name: &str) -> Result<Option<Capture>> {
+        for (depth, scope) in self.outer.iter().enumerate() {
+            if let Some(&slot) = scope.get(self.work, name)? {
+                return Ok(Some(Capture { depth, slot }));
+            }
         }
+        Ok(None)
+    }
+    fn capture_name(&mut self, name: &Name) -> Result<()> {
+        if self.outer_binding(name)?.is_some() {
+            self.slot(name)?;
+        }
+        Ok(())
     }
     fn declare(&mut self, body: &[Stmt]) -> Result<()> {
         self.work.charge(1)?;
@@ -652,12 +665,12 @@ impl Compiler<'_> {
                 node: Node::Var(name),
                 ..
             }) => {
-                if !self.namespace_binding(name)
+                if !self.namespace_binding(name)?
                     && (!self.outer.is_empty() || self.global_binding(name)?.is_none())
                 {
-                    self.slot(name);
+                    self.slot(name)?;
                 }
-                self.assigned.insert(name.as_str().to_owned());
+                self.assigned.insert(self.work, name.clone(), ())?;
             }
             Target::Value(e) => self.declare_expr(e)?,
             Target::Tuple(parts) => {
@@ -689,8 +702,8 @@ impl Compiler<'_> {
             }
             Node::Literal(_) | Node::Integer(_) | Node::BigInteger(..) => (),
             Node::Var(name) => {
-                self.reads.insert(name.as_str().to_owned());
-                self.capture_name(name);
+                self.reads.insert(self.work, name.clone(), ())?;
+                self.capture_name(name)?;
             }
             Node::Array(values) | Node::Yield(values) | Node::Template(values, _) => {
                 for value in values {
@@ -699,9 +712,9 @@ impl Compiler<'_> {
             }
             Node::Call(name, args, _) => {
                 if name != "it" {
-                    self.reads.insert(name.as_str().to_owned());
+                    self.reads.insert(self.work, name.clone(), ())?;
                 }
-                self.capture_name(name);
+                self.capture_name(name)?;
                 for arg in args {
                     self.declare_expr(&arg.value)?;
                 }
@@ -830,13 +843,13 @@ impl Compiler<'_> {
     fn statement_at(&mut self, stmt: &Stmt, expression: bool) -> Result<()> {
         self.work.charge(1)?;
         if let Statement::Assign(target, _, _) = &stmt.node {
-            let mut names = Vec::new();
+            let mut names = Buffer::new();
             target_names(target, &mut names, self.work)?;
             for name in names {
-                if self.program.declaration_names.contains_key(name) {
+                if self.program.declaration_names.contains_key(name.as_str()) {
                     continue;
                 }
-                if let Some(&slot) = self.locals.get(name) {
+                if let Some(&slot) = self.locals.get(self.work, name)? {
                     self.emit(Op::Declare(slot));
                 }
             }
@@ -856,27 +869,33 @@ impl Compiler<'_> {
     }
     fn assignment_rhs(&mut self, target: &Target, values: &[&Expr]) -> Result<()> {
         self.work.charge(1)?;
-        let mut names = Vec::new();
+        let mut names = Buffer::new();
         target_names(target, &mut names, self.work)?;
-        let mut calls = HashSet::new();
+        let mut calls = Table::new();
         for value in values {
             call_names(value, &mut calls, self.work)?;
         }
-        let mut seen = HashSet::new();
-        let names: Vec<_> = names
-            .into_iter()
-            .filter(|name| {
-                self.locals.contains_key(*name) && calls.contains(name) && seen.insert(*name)
-            })
-            .collect();
-        for name in &names {
-            self.emit(Op::Bypass(self.locals[*name]));
+        let mut seen = Table::new();
+        let mut slots = Buffer::new();
+        for name in names {
+            if let Some(&slot) = self.locals.get(self.work, name)? {
+                if calls.contains(self.work, name)?
+                    && seen.insert(self.work, name.clone(), ())?.is_none()
+                {
+                    slots.push(self.work, slot)?;
+                }
+            }
+        }
+        drop(calls);
+        drop(seen);
+        for &slot in &slots {
+            self.emit(Op::Bypass(slot));
         }
         for value in values {
             self.expr(value)?;
         }
-        if !names.is_empty() {
-            self.emit(Op::BypassEnd(names.len()));
+        if !slots.is_empty() {
+            self.emit(Op::BypassEnd(slots.len()));
         }
         Ok(())
     }
@@ -892,7 +911,7 @@ impl Compiler<'_> {
     }
     fn declaration_slot(&self, name: &str) -> Result<Option<usize>> {
         Ok(
-            if self.namespace_binding(name)
+            if self.namespace_binding(name)?
                 || self.program.declaration_names.contains_key(name)
                 || (Global::parse(name).is_some()
                     && !self.program.names.contains_key(name)
@@ -900,20 +919,20 @@ impl Compiler<'_> {
             {
                 None
             } else {
-                self.locals.get(name).copied()
+                self.locals.get(self.work, name)?.copied()
             },
         )
     }
-    fn statement_bindings(&self, body: &[Stmt]) -> Result<Vec<usize>> {
-        let mut names = Vec::new();
+    fn statement_bindings(&self, body: &[Stmt]) -> Result<Buffer<usize>> {
+        let mut names = Buffer::new();
         statement_names(body, &mut names, self.work)?;
-        let mut seen = HashSet::new();
-        let mut slots = Vec::new();
+        let mut seen = Table::new();
+        let mut slots = Buffer::new();
         for name in names {
             self.work.bytes(name.len())?;
-            if seen.insert(name) {
+            if seen.insert(self.work, name.clone(), ())?.is_none() {
                 if let Some(slot) = self.declaration_slot(name)? {
-                    slots.push(slot);
+                    slots.push(self.work, slot)?;
                 }
             }
         }
@@ -921,7 +940,8 @@ impl Compiler<'_> {
     }
     fn loop_body(&mut self, body: &[Stmt]) -> Result<()> {
         self.work.charge(1)?;
-        self.loop_bindings.push(self.statement_bindings(body)?);
+        self.loop_bindings
+            .push(self.work, self.statement_bindings(body)?)?;
         self.block(body)?;
         self.loop_bindings.pop();
         Ok(())
@@ -938,19 +958,7 @@ impl Compiler<'_> {
                 self.emit(Op::UnboundClass(name));
             }
             Statement::Module(name) => {
-                let prefix = format!("{name}::");
-                let modules: Vec<_> = self
-                    .program
-                    .namespaces
-                    .iter()
-                    .filter(|m| {
-                        m.body.is_some() && (m.name == name.as_str() || m.name.starts_with(&prefix))
-                    })
-                    .map(|m| m.index)
-                    .collect();
-                for module in modules {
-                    self.emit(Op::InitNamespace(module));
-                }
+                self.initialize_namespaces(name)?;
                 self.emit(Op::Nil);
             }
             Statement::Expr(e) => self.expr(e)?,
@@ -972,7 +980,7 @@ impl Compiler<'_> {
                 };
                 match &target.node {
                     Node::Var(name) => {
-                        if self.namespace_binding(name) {
+                        if self.namespace_binding(name)? {
                             self.namespace_assignment(name, binding_target, target, op, rhs)?;
                             return Ok(());
                         }
@@ -1001,7 +1009,7 @@ impl Compiler<'_> {
                             self.emit(Op::StoreGlobal(global));
                             return Ok(());
                         }
-                        let slot = self.slot(name);
+                        let slot = self.slot(name)?;
                         if matches!(*op, "||=" | "&&=") {
                             self.expr(target)?;
                             self.emit(Op::Dup);
@@ -1099,10 +1107,10 @@ impl Compiler<'_> {
             }
             Statement::For(target, iterable, body) => {
                 self.expr(iterable)?;
-                let mut names = Vec::new();
+                let mut names = Buffer::new();
                 target_names(target, &mut names, self.work)?;
                 for name in names {
-                    if let Some(&slot) = self.locals.get(name) {
+                    if let Some(&slot) = self.locals.get(self.work, name)? {
                         self.emit(Op::Declare(slot));
                     }
                 }
@@ -1151,11 +1159,28 @@ impl Compiler<'_> {
                 }
                 if let Some(bindings) = self.loop_bindings.last() {
                     for &slot in bindings {
+                        self.work.charge(1)?;
                         self.code.push(Op::Declare(slot));
                         self.locations.push(self.offset);
                     }
                 }
                 self.emit(Op::Next(value.is_some()));
+            }
+        }
+        Ok(())
+    }
+    fn initialize_namespaces(&mut self, name: &str) -> Result<()> {
+        for index in 0..self.program.namespaces.len() {
+            self.work.charge(1)?;
+            let module = &self.program.namespaces[index];
+            self.work.bytes(name.len().min(module.name.len()))?;
+            if module.body.is_some()
+                && module
+                    .name
+                    .strip_prefix(name)
+                    .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with("::"))
+            {
+                self.emit(Op::InitNamespace(module.index));
             }
         }
         Ok(())
@@ -1173,13 +1198,14 @@ impl Compiler<'_> {
         match target {
             Target::Typed(target, ty) => {
                 let ty = self.annotation(ty)?;
-                let mut text = Vec::new();
+                let mut text = Buffer::new();
                 target_label(target, &mut text, self.work)?;
                 if text.is_empty() {
-                    text.extend_from_slice(b"destructured value");
+                    text.extend_from_slice(self.work, b"destructured value")?;
                 }
                 let label = self.program.constants.len();
-                self.program.constants.push(Value::bytes(text));
+                self.program.constants.push(Value::bytes(&*text));
+                drop(text);
                 self.emit(Op::Normalize(ty, label));
                 self.assign_value(target)?;
             }
@@ -1187,12 +1213,12 @@ impl Compiler<'_> {
                 node: Node::Var(name),
                 ..
             }) => {
-                if self.namespace_binding(name) {
+                if self.namespace_binding(name)? {
                     self.store_namespace_name(name);
                 } else if let Some(global) = self.global_binding(name)? {
                     self.emit(Op::StoreGlobal(global));
                 } else {
-                    let slot = self.slot(name);
+                    let slot = self.slot(name)?;
                     self.emit(Op::Store(slot));
                 }
             }
@@ -1256,7 +1282,8 @@ impl Compiler<'_> {
                 if let Ok(n) = i64::try_from(*n) {
                     self.constant(Value::int(n));
                 } else {
-                    self.integer_literal(Value::bytes(n.to_string()), 10);
+                    let mut digits = [0; 20];
+                    self.integer_literal(Value::bytes(decimal_digits(*n, &mut digits)), 10);
                 }
             }
             Node::BigInteger(text, radix) => self.integer_literal(text.compiler_constant(), *radix),
@@ -1420,21 +1447,22 @@ impl Compiler<'_> {
         let global = self.global(name);
         let constant = (self.namespace.is_some()
             && name.chars().next().is_some_and(syntax::unicode::upper)
-            && !self.locals.contains_key(name))
+            && !self.locals.contains(self.work, name)?)
         .then(|| {
             let name = self.call_site(name, false).name;
             self.emit(Op::NamespaceConstant(name, 0))
         });
-        let ambient = (self.namespace.is_some() && !self.locals.contains_key(name)).then(|| {
-            let name = self.call_site(name, false).name;
-            self.emit(Op::AmbientValue(name, 0))
-        });
-        let file = (self.program.file && !self.locals.contains_key(name)).then(|| {
+        let ambient =
+            (self.namespace.is_some() && !self.locals.contains(self.work, name)?).then(|| {
+                let name = self.call_site(name, false).name;
+                self.emit(Op::AmbientValue(name, 0))
+            });
+        let file = (self.program.file && !self.locals.contains(self.work, name)?).then(|| {
             let name = self.call_site(name, false).name;
             self.emit(Op::FileValue(name, 0))
         });
-        if let Some(&slot) = self.locals.get(name) {
-            if !self.parameters.contains(name) {
+        if let Some(&slot) = self.locals.get(self.work, name)? {
+            if !self.parameters.contains(self.work, name)? {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::LoadOptional(slot, name));
             } else {
@@ -1472,16 +1500,16 @@ impl Compiler<'_> {
         if let Some(target) = target {
             self.expr(target)?;
         }
-        let mut completed = Vec::new();
+        let mut completed = Buffer::new();
         for clause in clauses {
-            let mut matches = Vec::new();
+            let mut matches = Buffer::new();
             for (value, splat) in &clause.values {
                 if target.is_some() {
                     self.emit(Op::Dup);
                 }
                 self.expr(value)?;
                 self.emit(Op::CaseCompare(target.is_some(), *splat));
-                matches.push(self.emit(Op::JumpTrue(0)));
+                matches.push(self.work, self.emit(Op::JumpTrue(0)))?;
             }
             let next = self.emit(Op::Jump(0));
             for matched in matches {
@@ -1491,7 +1519,7 @@ impl Compiler<'_> {
                 self.emit(Op::Pop);
             }
             self.expr(&clause.result)?;
-            completed.push(self.emit(Op::Jump(0)));
+            completed.push(self.work, self.emit(Op::Jump(0)))?;
             self.patch(next, self.code.len());
         }
         if target.is_some() {
@@ -1616,7 +1644,7 @@ impl Compiler<'_> {
     fn member_receiver(&mut self, receiver: &Expr, auto: bool) -> Result<()> {
         self.work.charge(1)?;
         if let Node::Var(name) = &receiver.node {
-            if let Some(&slot) = self.locals.get(name.as_str()) {
+            if let Some(&slot) = self.locals.get(self.work, name.as_str())? {
                 let bound = self.emit(Op::ReceiverBound(slot, 0));
                 self.expr(receiver)?;
                 self.patch(bound, self.code.len());
@@ -1698,7 +1726,11 @@ impl Compiler<'_> {
         }
         if self.program.file || self.namespace.is_some() {
             self.global(name);
-            let slot = self.locals.get(name).copied().unwrap_or(usize::MAX);
+            let slot = self
+                .locals
+                .get(self.work, name)?
+                .copied()
+                .unwrap_or(usize::MAX);
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             self.argument_values(args)?;
@@ -1706,7 +1738,7 @@ impl Compiler<'_> {
             self.emit(Op::Invoke(Invocation::Resolved));
             return Ok(());
         }
-        let target = if let Some(&slot) = self.locals.get(name) {
+        let target = if let Some(&slot) = self.locals.get(self.work, name)? {
             let name = self.call_site(name, false).name;
             self.emit(Op::ResolveCall(slot, name, form == CallForm::Parenthesized));
             Invocation::Resolved
@@ -1744,39 +1776,34 @@ impl Compiler<'_> {
     fn compile_block(&mut self, block: &Block) -> Result<usize> {
         self.work.charge(1)?;
         let mut block_arity = block.params.len();
-        let mut outer = Vec::new();
+        let mut outer = Buffer::new();
         for scope in std::iter::once(&self.locals).chain(&self.outer) {
-            let mut copied = HashMap::new();
-            for (name, &slot) in scope {
-                self.work.bytes(name.len())?;
-                copied.insert(name.clone(), slot);
-            }
-            outer.push(copied);
+            outer.push(self.work, scope.copy(self.work)?)?;
         }
         let mut child = Compiler {
             work: self.work,
             instance: self.instance,
             namespace: self.namespace,
             program: self.program,
-            locals: HashMap::new(),
+            locals: Table::new(),
             slots: 0,
             code: Vec::new(),
             locations: Vec::new(),
             offset: self.offset,
-            parameters: HashSet::new(),
-            loop_bindings: Vec::new(),
+            parameters: Table::new(),
+            loop_bindings: Buffer::new(),
             outer,
-            reads: HashSet::new(),
-            assigned: HashSet::new(),
+            reads: Table::new(),
+            assigned: Table::new(),
         };
         child.declare(&block.body)?;
         for target in &block.params {
             child.declare_target(target)?;
-            let mut names = Vec::new();
+            let mut names = Buffer::new();
             target_names(target, &mut names, self.work)?;
             for name in names {
-                let slot = child.slot(name);
-                child.parameters.insert(name.to_owned());
+                let slot = child.slot(name)?;
+                child.parameters.insert(self.work, name.clone(), ())?;
                 child.emit(Op::Shadow(slot));
             }
         }
@@ -1786,14 +1813,19 @@ impl Compiler<'_> {
             child.emit(Op::Pop);
         }
         if block.implicit {
-            let candidates = (1..=9)
-                .map(|index| (format!("_{index}"), index - 1))
-                .chain(block.infer_it.then_some(("it".to_owned(), 0)));
+            let candidates = ["_1", "_2", "_3", "_4", "_5", "_6", "_7", "_8", "_9"]
+                .into_iter()
+                .enumerate()
+                .map(|(index, name)| (name, index))
+                .chain(block.infer_it.then_some(("it", 0)));
             for (name, index) in candidates {
-                if child.reads.contains(&name) && !child.assigned.contains(&name) {
+                if child.reads.contains(child.work, name)?
+                    && !child.assigned.contains(child.work, name)?
+                {
                     block_arity = block_arity.max(index + 1);
-                    let slot = child.slot(&name);
-                    child.parameters.insert(name);
+                    let name = Name::new(self.work, name)?;
+                    let slot = child.slot(&name)?;
+                    child.parameters.insert(self.work, name, ())?;
                     child.emit(Op::Shadow(slot));
                     child.emit(Op::BlockArg(index, false));
                     child.emit(Op::Store(slot));
@@ -1806,16 +1838,12 @@ impl Compiler<'_> {
         child.locations[finish] = block.body.last().map_or(self.offset, |stmt| stmt.offset);
         debug_assert_eq!(child.code.len(), child.locations.len());
         let mut captures = vec![None; child.slots];
-        for (name, &slot) in &child.locals {
+        for (name, &slot) in child.locals.iter(self.work)? {
             self.work.bytes(name.len())?;
-            self.work.charge(child.outer.len())?;
             if name.starts_with('\0') {
                 continue;
             }
-            captures[slot] =
-                child.outer.iter().enumerate().find_map(|(depth, scope)| {
-                    scope.get(name).map(|&slot| Capture { depth, slot })
-                });
+            captures[slot] = child.outer_binding(name)?;
         }
         let function = Function {
             offset: self.offset,
@@ -1884,9 +1912,7 @@ impl Compiler<'_> {
     }
     fn global_binding(&mut self, name: &str) -> Result<Option<usize>> {
         Ok(
-            if self.locals.contains_key(name)
-                || self.outer.iter().any(|scope| scope.contains_key(name))
-            {
+            if self.locals.contains(self.work, name)? || self.outer_binding(name)?.is_some() {
                 None
             } else {
                 self.global_fallback(name)?
@@ -1912,7 +1938,7 @@ impl Compiler<'_> {
     fn address_at(&mut self, receiver: &Expr) -> Result<()> {
         self.work.charge(1)?;
         let root = if let Node::Var(name) = &receiver.node {
-            if !name.starts_with('@') && !self.locals.contains_key(name.as_str()) {
+            if !name.starts_with('@') && !self.locals.contains(self.work, name.as_str())? {
                 let name = self.call_site(name, false).name;
                 Some(self.emit(Op::RootAddress(name, 0)))
             } else {
@@ -1923,7 +1949,7 @@ impl Compiler<'_> {
         };
         let file = if self.program.file {
             if let Node::Var(name) = &receiver.node {
-                if !name.starts_with('@') && !self.parameters.contains(name.as_str()) {
+                if !name.starts_with('@') && !self.parameters.contains(self.work, name.as_str())? {
                     let name = self.call_site(name, false).name;
                     Some(self.emit(Op::FileAddress(name, 0)))
                 } else {
@@ -1940,9 +1966,9 @@ impl Compiler<'_> {
                 let name = self.call_site(name, false).name;
                 self.emit(Op::NamespaceAddress(name, true));
             }
-            Node::Var(name) if self.locals.contains_key(name.as_str()) => {
-                let slot = self.locals[name.as_str()];
-                if self.parameters.contains(name.as_str()) {
+            Node::Var(name) if self.locals.contains(self.work, name.as_str())? => {
+                let slot = *self.locals.get(self.work, name)?.unwrap();
+                if self.parameters.contains(self.work, name.as_str())? {
                     self.emit(Op::AddressLocal(slot));
                 } else {
                     let bound = self.emit(Op::AddressBound(slot, 0));
@@ -2009,9 +2035,9 @@ impl Compiler<'_> {
     }
 }
 
-fn call_names<'a>(
-    expr: &'a Expr,
-    names: &mut HashSet<&'a str>,
+fn call_names(
+    expr: &Expr,
+    names: &mut Table<()>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     work.charge(1)?;
@@ -2035,14 +2061,14 @@ fn call_names<'a>(
         | Node::BigInteger(..)
         | Node::Var(_) => (),
         Node::Call(name, args, _) => {
-            names.insert(name);
+            names.insert(work, name.clone(), ())?;
             for arg in args {
                 call_names(&arg.value, names, work)?;
             }
         }
         Node::BlockCall(call, block) => {
             if let Node::Var(name) = &call.node {
-                names.insert(name);
+                names.insert(work, name.clone(), ())?;
             }
             call_names(call, names, work)?;
             block_call_names(&block.body, names, work)?;
@@ -2110,9 +2136,9 @@ fn call_names<'a>(
     Ok(())
 }
 
-fn target_call_names<'a>(
-    target: &'a Target,
-    names: &mut HashSet<&'a str>,
+fn target_call_names(
+    target: &Target,
+    names: &mut Table<()>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     work.charge(1)?;
@@ -2131,9 +2157,9 @@ fn target_call_names<'a>(
     Ok(())
 }
 
-fn block_call_names<'a>(
-    body: &'a [Stmt],
-    names: &mut HashSet<&'a str>,
+fn block_call_names(
+    body: &[Stmt],
+    names: &mut Table<()>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     work.charge(1)?;
@@ -2177,7 +2203,7 @@ fn block_call_names<'a>(
 
 fn target_label(
     target: &Target,
-    text: &mut Vec<u8>,
+    text: &mut Buffer<u8>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     work.charge(1)?;
@@ -2185,35 +2211,48 @@ fn target_label(
         Target::Value(Expr {
             node: Node::Var(name),
             ..
-        }) => text.extend_from_slice(name.as_bytes()),
+        }) => text.extend_from_slice(work, name.as_bytes())?,
         Target::Typed(target, ty) => {
             target_label(target, text, work)?;
-            text.extend_from_slice(b": ");
-            crate::shapes::format(ty, text).unwrap();
+            text.extend_from_slice(work, b": ")?;
+            crate::shapes::format(ty, &mut (work, text))?;
         }
         Target::Tuple(parts) => {
-            text.push(b'(');
+            text.push(work, b'(')?;
             for (index, (target, rest)) in parts.iter().enumerate() {
                 if index > 0 {
-                    text.extend_from_slice(b", ");
+                    text.extend_from_slice(work, b", ")?;
                 }
                 if *rest {
-                    text.push(b'*');
+                    text.push(work, b'*')?;
                 }
                 if let Some(target) = target {
                     target_label(target, text, work)?;
                 }
             }
-            text.push(b')');
+            text.push(work, b')')?;
         }
         _ => (),
     }
     Ok(())
 }
 
+fn decimal_digits(mut value: u64, digits: &mut [u8; 20]) -> &str {
+    let mut start = digits.len();
+    loop {
+        start -= 1;
+        digits[start] = b'0' + (value % 10) as u8;
+        value /= 10;
+        if value == 0 {
+            break;
+        }
+    }
+    std::str::from_utf8(&digits[start..]).unwrap()
+}
+
 fn target_names<'a>(
     target: &'a Target,
-    names: &mut Vec<&'a str>,
+    names: &mut Buffer<&'a Name>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     work.charge(1)?;
@@ -2222,7 +2261,7 @@ fn target_names<'a>(
         Target::Value(Expr {
             node: Node::Var(name),
             ..
-        }) => names.push(name),
+        }) => names.push(work, name)?,
         Target::Tuple(parts) => {
             for (part, _) in parts {
                 work.charge(1)?;
@@ -2238,7 +2277,7 @@ fn target_names<'a>(
 
 fn statement_names<'a>(
     body: &'a [Stmt],
-    names: &mut Vec<&'a str>,
+    names: &mut Buffer<&'a Name>,
     work: &dyn crate::compilation::Work,
 ) -> Result<()> {
     work.charge(1)?;
@@ -2251,13 +2290,13 @@ fn statement_names<'a>(
             }) => {
                 statement_names(&attempt.body, names, work)?;
                 for rescue in &attempt.rescues {
-                    let mut scoped = Vec::new();
+                    let mut scoped = Buffer::new();
                     statement_names(&rescue.body, &mut scoped, work)?;
-                    names.extend(
-                        scoped
-                            .into_iter()
-                            .filter(|name| Some(*name) != rescue.binding.as_deref()),
-                    );
+                    for name in scoped {
+                        if Some(name) != rescue.binding.as_ref() {
+                            names.push(work, name)?;
+                        }
+                    }
                 }
                 statement_names(&attempt.alternate, names, work)?;
                 statement_names(&attempt.ensure, names, work)?;

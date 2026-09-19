@@ -110,7 +110,13 @@ impl Parser<'_> {
                 let mut names = Buffer::new();
                 self.work.ty(&ty)?;
                 literal_names(&ty, &mut names, self.work)?;
-                names.sort();
+                self.work.charge(
+                    names
+                        .len()
+                        .saturating_mul(names.len().max(1).ilog2() as usize + 1),
+                )?;
+                names.sort_unstable();
+                self.work.charge(names.len())?;
                 names.dedup();
                 let depth = fallback.depth;
                 self.make(

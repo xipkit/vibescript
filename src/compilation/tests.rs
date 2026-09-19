@@ -190,6 +190,7 @@ fn malformed_speculation_preserves_termination() {
         format!("x=\"{}", "\\n".repeat(512)),
         format!("schema={{ {}", "field:array<int>,".repeat(128)),
         format!("def f(n:int{}", "|string".repeat(128)),
+        "enum Collision;FooBar;Foo_Bar;end".into(),
     ] {
         let run = |work: &dyn Work| crate::bytecode::compile_file(&source, Vec::new(), work);
         let baseline = Interrupt::new(usize::MAX, false);
@@ -417,6 +418,224 @@ fn interrupted_name_table_updates_leave_the_original_scope_intact() {
                 );
                 check_original(&table);
             }
+        }
+    }
+}
+
+fn generation_sources() -> Vec<String> {
+    let names = (0..64).map(|i| format!("v{i}")).collect::<Vec<_>>();
+    let values = format!("[{}]", names.join(","));
+    let mut nested = values.clone();
+    for _ in 0..8 {
+        nested = format!("{values};[0].map{{|n|{nested}}}");
+    }
+    let declarations = names
+        .iter()
+        .map(|name| format!("{name}=1;"))
+        .collect::<String>();
+    vec![
+        format!("def unused;{declarations}{nested};end;0"),
+        format!(
+            "def unused(n);case n;{}else;nil;end;end;0",
+            (0..96)
+                .map(|i| format!("when {i},{},{};{i};", i + 100, i + 200))
+                .collect::<String>()
+        ),
+        format!(
+            "module Root;{}end;Root::M31.value",
+            (0..32)
+                .map(|i| format!("module M{i};N={i};def self.value;N;end;end;"))
+                .collect::<String>()
+        ),
+        format!(
+            "def unused(e);{}end;0",
+            (0..64)
+                .map(|i| format!("begin;raise 'failure';rescue=>e;v{i}=e;ensure;nil;end;"))
+                .collect::<String>()
+        ),
+        format!(
+            "[[[1]]].map{{|({}:array<int>)|nil}}",
+            "binding".repeat(1024)
+        ),
+        format!(
+            "enum States;{};end;0",
+            (0..128)
+                .map(|i| format!("Member{i}"))
+                .collect::<Vec<_>>()
+                .join(";")
+        ),
+    ]
+}
+
+#[test]
+fn generation_storage_and_work_limits_cover_the_phase_after_parsing() {
+    let mut generation_peaks = 0;
+    for source in generation_sources() {
+        let parsed = Interrupt::new(usize::MAX, false);
+        drop(crate::syntax::parse(&source, &parsed).unwrap());
+        let parse_steps = parsed.context.borrow().stats().steps;
+        let parse_peak = parsed.context.borrow().stats().peak_memory_bytes;
+        let parse_visits = parsed.visits.get();
+        let run = |work: &dyn Work| crate::bytecode::compile_file(&source, Vec::new(), work);
+        let baseline = Interrupt::new(usize::MAX, false);
+        let budget = std::sync::Arc::downgrade(&baseline.context.borrow().identity());
+        let program = run(&baseline).unwrap();
+        let stats = baseline.context.borrow().stats();
+        let visits = baseline.visits.get();
+        assert_eq!(stats.retained_memory_bytes, 0);
+        assert!(stats.steps > parse_steps && visits > parse_visits);
+        drop(baseline);
+        assert!(budget.upgrade().is_none());
+        assert!(!program.functions.is_empty());
+        drop(program);
+        let peak = stats.peak_memory_bytes;
+        let mut limits = vec![0, peak - 1, peak];
+        if peak > parse_peak {
+            generation_peaks += 1;
+            limits.push(parse_peak);
+        }
+        for limit in limits {
+            let mut options = CallOptions::default();
+            options.limits.steps = None;
+            options.limits.memory_bytes = Some(limit);
+            let mut context = CallContext::new(options);
+            let result = run(&Meter(RefCell::new(&mut context)));
+            if limit == peak {
+                drop(result.unwrap());
+            } else {
+                assert_eq!(result.unwrap_err().kind, ErrorKind::Memory);
+                assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Memory);
+            }
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+        for limit in [parse_steps, stats.steps - 1, stats.steps] {
+            let mut options = CallOptions::default();
+            options.limits.steps = Some(limit);
+            let mut context = CallContext::new(options);
+            let result = run(&Meter(RefCell::new(&mut context)));
+            if limit == stats.steps {
+                drop(result.unwrap());
+            } else {
+                assert_eq!(result.unwrap_err().kind, ErrorKind::Steps);
+                assert_eq!(context.checkpoint().unwrap_err().kind, ErrorKind::Steps);
+            }
+            assert_eq!(context.stats().retained_memory_bytes, 0);
+        }
+        for at in [
+            parse_visits,
+            parse_visits + (visits - parse_visits) / 2,
+            visits - 1,
+        ] {
+            for deadline in [false, true] {
+                let work = Interrupt::new(at, deadline);
+                let kind = if deadline {
+                    ErrorKind::Deadline
+                } else {
+                    ErrorKind::Cancelled
+                };
+                assert_eq!(run(&work).unwrap_err().kind, kind);
+                assert_eq!(work.checkpoint().unwrap_err().kind, kind);
+                assert_eq!(work.visits.get(), at + 1);
+                assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
+            }
+        }
+    }
+    assert!(
+        generation_peaks > 0,
+        "a code-generation allocation must exceed the parser peak"
+    );
+}
+
+#[test]
+fn compiler_bindings_preserve_shadowing_calls_and_internal_slot_names() {
+    for (source, expected) in [
+        (
+            "def f(x);y=10;[1].map{|x|[2].map{|n|x+y+n}}.first.first;end;f(99)",
+            "13",
+        ),
+        ("v=5;[1].map{[2].map{it+v}}", "[[7]]"),
+        (
+            "def f(e);begin;raise 'failure';rescue=>e;s=e.message;end;[e,s];end;f(11)",
+            "[11,\"failure\"]",
+        ),
+        (
+            "def a;3;end;def b;5;end;a,b=[a()+b(),b()+a()];[a,b]",
+            "[8,8]",
+        ),
+        ("a=0;for n in [1,2];a+=n;next;end;a", "3"),
+        (
+            "module A;N=1;module B;N=2;end;end;module AB;N=4;end;[A.N,A::B.N,AB.N]",
+            "[1,2,4]",
+        ),
+        (
+            "[9223372036854775808,18446744073709551615]",
+            "[9223372036854775808,18446744073709551615]",
+        ),
+        ("[[1,2]].map{|(a:int,b:int)|a+b}", "[3]"),
+    ] {
+        let result = crate::Engine::new()
+            .compile(source)
+            .unwrap()
+            .run(CallOptions::default())
+            .unwrap();
+        let json = crate::stringify_json(&result.value, CallOptions::default()).unwrap();
+        assert_eq!(
+            json.value.as_bytes().unwrap(),
+            expected.as_bytes(),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn compiler_type_label_writes_reserve_storage_and_preserve_partial_failure() {
+    let name = "Namespace::型".repeat(1024);
+    let ty = crate::types::Type::named(name.clone());
+    let baseline = Interrupt::new(usize::MAX, false);
+    let mut text = Buffer::new();
+    crate::shapes::format(&ty, &mut (&baseline as &dyn Work, &mut text)).unwrap();
+    assert_eq!(&*text, name.as_bytes());
+    let peak = baseline.context.borrow().stats().peak_memory_bytes;
+    let visits = baseline.visits.get();
+    drop(text);
+    assert_eq!(baseline.context.borrow().stats().retained_memory_bytes, 0);
+    for limit in [0, peak - 1, peak] {
+        let mut options = CallOptions::default();
+        options.limits.memory_bytes = Some(limit);
+        let mut context = CallContext::new(options);
+        let work = Meter(RefCell::new(&mut context));
+        let mut text = Buffer::new();
+        let result = crate::shapes::format(&ty, &mut (&work as &dyn Work, &mut text));
+        if limit == peak {
+            result.unwrap();
+            assert_eq!(&*text, name.as_bytes());
+        } else {
+            assert_eq!(result.unwrap_err().kind, ErrorKind::Memory);
+            assert_eq!(work.checkpoint().unwrap_err().kind, ErrorKind::Memory);
+            assert!(name.as_bytes().starts_with(&text));
+        }
+        drop(text);
+        assert_eq!(work.0.borrow().stats().retained_memory_bytes, 0);
+    }
+    for at in [0, visits / 2, visits - 1] {
+        for deadline in [false, true] {
+            let work = Interrupt::new(at, deadline);
+            let mut text = Buffer::new();
+            let kind = if deadline {
+                ErrorKind::Deadline
+            } else {
+                ErrorKind::Cancelled
+            };
+            assert_eq!(
+                crate::shapes::format(&ty, &mut (&work as &dyn Work, &mut text))
+                    .unwrap_err()
+                    .kind,
+                kind
+            );
+            assert_eq!(work.checkpoint().unwrap_err().kind, kind);
+            assert!(name.as_bytes().starts_with(&text));
+            drop(text);
+            assert_eq!(work.context.borrow().stats().retained_memory_bytes, 0);
         }
     }
 }

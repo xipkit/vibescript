@@ -28,27 +28,23 @@ impl Compiler<'_> {
         self.emit(Op::TryBegin(index));
         let mut spec = TrySpec {
             body: self.code.len(),
-            body_locals: self.statement_bindings(&attempt.body)?,
+            body_locals: self.statement_bindings(&attempt.body)?.into_parts().0,
             ..TrySpec::default()
         };
         self.attempt_block(&attempt.body, target)?;
         self.emit(Op::TryBody);
         for clause in &attempt.rescues {
             let saved_offset = std::mem::replace(&mut self.offset, clause.offset);
-            let previous = clause
-                .binding
-                .as_ref()
-                .and_then(|name| self.locals.get(name.as_str()).copied());
-            let parameter = clause
-                .binding
-                .as_ref()
-                .is_some_and(|name| self.parameters.contains(name.as_str()));
-            let binding = clause.binding.as_ref().map(|name| {
-                let slot = self.slot(&format!("\0rescue{}:{name}", self.slots));
-                self.locals.insert(name.as_str().to_owned(), slot);
-                self.parameters.insert(name.as_str().to_owned());
-                slot
-            });
+            let (previous, parameter, binding) = if let Some(name) = &clause.binding {
+                let previous = self.locals.get(self.work, name)?.copied();
+                let parameter = self.parameters.contains(self.work, name)?;
+                let slot = self.rescue_slot(name)?;
+                self.locals.insert(self.work, name.clone(), slot)?;
+                self.parameters.insert(self.work, name.clone(), ())?;
+                (previous, parameter, Some(slot))
+            } else {
+                (None, false, None)
+            };
             let locals = self
                 .statement_bindings(&clause.body)?
                 .into_iter()
@@ -59,12 +55,12 @@ impl Compiler<'_> {
             self.emit(Op::TryEnd);
             if let Some(name) = &clause.binding {
                 if let Some(slot) = previous {
-                    self.locals.insert(name.as_str().to_owned(), slot);
+                    self.locals.insert(self.work, name.clone(), slot)?;
                 } else {
-                    self.locals.remove(name.as_str());
+                    self.locals.remove(self.work, name.as_str())?;
                 }
                 if !parameter {
-                    self.parameters.remove(name.as_str());
+                    self.parameters.remove(self.work, name.as_str())?;
                 }
             }
             self.offset = saved_offset;
@@ -76,7 +72,7 @@ impl Compiler<'_> {
                 empty: clause.body.is_empty(),
             });
         }
-        spec.alternate_locals = self.statement_bindings(&attempt.alternate)?;
+        spec.alternate_locals = self.statement_bindings(&attempt.alternate)?.into_parts().0;
         if !attempt.alternate.is_empty() {
             spec.alternate = Some(self.code.len());
             self.block(&attempt.alternate)?;
@@ -91,6 +87,13 @@ impl Compiler<'_> {
         spec.end = self.code.len();
         self.program.handlers[index] = spec;
         Ok(())
+    }
+
+    fn rescue_slot(&mut self, name: &Name) -> Result<usize> {
+        let mut storage = [0; 20];
+        let digits = decimal_digits(self.slots as u64, &mut storage);
+        let name = Name::join(self.work, &["\0rescue", digits, ":", name])?;
+        self.slot(&name)
     }
 
     fn attempt_block(&mut self, body: &[Stmt], target: bool) -> Result<()> {
@@ -123,7 +126,7 @@ impl Compiler<'_> {
                 {
                     Some((
                         self.call_site(name, false).name,
-                        self.locals.get(name.as_str()).copied(),
+                        self.locals.get(self.work, name.as_str())?.copied(),
                     ))
                 } else {
                     None
