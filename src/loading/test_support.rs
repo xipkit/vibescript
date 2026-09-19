@@ -12,6 +12,7 @@ impl Directory {
     pub fn new() -> Self {
         let base = Path::new(env!("CARGO_MANIFEST_DIR")).join(".cache/tmp");
         fs::create_dir_all(&base).unwrap();
+        let base = fs::canonicalize(base).unwrap();
         loop {
             let serial = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
             let path = base.join(format!("module-files-{}-{serial}", std::process::id()));
