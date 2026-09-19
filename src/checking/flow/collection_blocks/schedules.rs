@@ -337,7 +337,7 @@ impl Walker<'_> {
         let width = if cycle {
             Some(1)
         } else {
-            literal.map(|n| n as usize)
+            literal.map(|n| usize::try_from(n).unwrap_or(usize::MAX))
         };
         if let Node::Tuple(items) = self.facts.node(source) {
             let length = items.data.len();

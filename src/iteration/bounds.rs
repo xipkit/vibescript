@@ -67,13 +67,6 @@ pub(super) fn check(
                 "int.times count must fit in a 64-bit integer",
             );
         }
-        if block
-            && receiver
-                .as_int()
-                .is_some_and(|n| n as i128 > isize::MAX as i128)
-        {
-            return ctx.guard(ErrorKind::Arithmetic, "int.times value too large");
-        }
         return Ok(());
     }
     if !big_receiver && !args.iter().any(|value| matches!(value.0, Kind::Big(_))) {

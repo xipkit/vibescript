@@ -168,7 +168,7 @@ fn remove_end(
         if n < 0 {
             return Err(argument("pop/shift count must be non-negative"));
         }
-        (n as usize).min(source.len())
+        usize::try_from(n).unwrap_or(usize::MAX).min(source.len())
     } else {
         1.min(source.len())
     };

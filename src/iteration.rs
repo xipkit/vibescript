@@ -493,7 +493,7 @@ pub(crate) fn start(
         if width <= 0 {
             return Err(argument("slice or window size must be positive"));
         }
-        state.width = width as usize;
+        state.width = usize::try_from(width).unwrap_or(usize::MAX);
     }
     if method == Cycle {
         state.cycles = match args.first().filter(|v| !matches!(v.0, Kind::Nil)) {

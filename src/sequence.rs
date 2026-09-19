@@ -177,7 +177,7 @@ pub(crate) fn method(
                     "array count must be non-negative",
                 ));
             }
-            let n = (n as usize).min(array.len());
+            let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
             ctx.array(if last {
                 &array[array.len() - n..]
             } else {

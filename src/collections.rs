@@ -281,7 +281,7 @@ fn array_method(
             if n < 0 {
                 return Err(argument("count must be non-negative"));
             }
-            let n = (n as usize).min(array.len());
+            let n = usize::try_from(n).unwrap_or(usize::MAX).min(array.len());
             ctx.array(if matches!(method, Take) {
                 &array[..n]
             } else {
@@ -322,7 +322,7 @@ fn array_method(
             if n <= 0 {
                 return Err(argument("window or chunk size must be positive"));
             }
-            let n = n as usize;
+            let n = usize::try_from(n).unwrap_or(usize::MAX);
             let mut out = Buffer::empty();
             let mut start = 0;
             while start < array.len() {
