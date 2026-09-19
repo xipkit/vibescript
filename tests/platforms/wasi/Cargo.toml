@@ -1,0 +1,29 @@
+[package]
+name = "vibescript-wasi-witness"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[features]
+allocation-stats = ["vibescript/allocation-stats"]
+
+[dependencies]
+vibescript = { path = "../../..", default-features = false }
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+
+[[bin]]
+name = "vibescript-wasi-compare"
+path = "../../../examples/compare.rs"
+
+[[test]]
+name = "language"
+path = "../../language.rs"
+
+[[test]]
+name = "collection_counts"
+path = "../../collection_counts.rs"
+
+[[test]]
+name = "commands"
+path = "../../commands.rs"

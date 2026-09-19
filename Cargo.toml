@@ -14,12 +14,17 @@ allocation-stats = []
 tokio = ["dep:tokio"]
 
 [dependencies]
-cap-fs-ext = "4.0.3"
-cap-std = "4.0.3"
 getrandom = "0.4"
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"], optional = true }
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(not(target_os = "wasi"))'.dependencies]
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "fs"] }
+
+[target.'cfg(any(unix, target_os = "wasi"))'.dependencies]
 libc = "0.2"
 
 [dev-dependencies]

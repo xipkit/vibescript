@@ -1,7 +1,8 @@
+use super::platform::Dir;
 use super::{io_error, not_regular, platform, spelling_from_directory};
 use crate::{CallContext, Error, ErrorKind, Result, budget::Buffer};
+#[cfg(not(target_os = "wasi"))]
 use cap_fs_ext::DirExt;
-use cap_std::fs::Dir;
 use std::{
     fs::File,
     hash::{Hash, Hasher},
@@ -41,8 +42,7 @@ pub(in crate::loading) enum Opened {
 
 impl Root {
     pub fn new(path: &Path) -> std::io::Result<Self> {
-        let path = std::fs::canonicalize(path)?;
-        let handle = Dir::open_ambient_dir(&path, cap_std::ambient_authority())?;
+        let (handle, path) = platform::open_root(path)?;
         Ok(Self(Arc::new(Directory { handle, path })))
     }
 

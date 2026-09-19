@@ -166,14 +166,22 @@ impl Candidates<'_> {
             .as_os_str()
             .as_encoded_bytes()
             .len()
-            .checked_add(bytes.len().saturating_mul(if cfg!(unix) { 1 } else { 3 }))
+            .checked_add(
+                bytes
+                    .len()
+                    .saturating_mul(if cfg!(any(unix, target_os = "wasi")) {
+                        1
+                    } else {
+                        3
+                    }),
+            )
             .and_then(|n| n.checked_add(1))
         else {
             return ctx.fail(ErrorKind::Memory, "module path size overflow");
         };
         ctx.charge(capacity as u64)?;
         let path_charge = ctx.reserve(capacity)?;
-        let _conversion = ctx.reserve(if cfg!(unix) {
+        let _conversion = ctx.reserve(if cfg!(any(unix, target_os = "wasi")) {
             0
         } else {
             bytes.len().saturating_mul(3)
@@ -239,13 +247,16 @@ fn relative_name(ctx: &mut CallContext, caller: &[u8], request: &[u8]) -> Result
     Value::from_bytes(ctx, normalized)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "wasi"))]
 fn native_path(bytes: &[u8]) -> Cow<'_, Path> {
+    #[cfg(unix)]
     use std::os::unix::ffi::OsStrExt;
+    #[cfg(target_os = "wasi")]
+    use std::os::wasi::ffi::OsStrExt;
     Cow::Borrowed(Path::new(std::ffi::OsStr::from_bytes(bytes)))
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, target_os = "wasi")))]
 fn native_path(mut bytes: &[u8]) -> Cow<'static, Path> {
     let mut text = String::with_capacity(bytes.len().saturating_mul(3));
     while !bytes.is_empty() {

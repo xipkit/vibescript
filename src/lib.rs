@@ -8,6 +8,11 @@
 //! # Ok::<(), vibescript::Error>(())
 //! ```
 
+#[cfg(all(target_os = "wasi", not(target_feature = "atomics"), feature = "tokio"))]
+compile_error!(
+    "the Tokio runner requires OS threads; build the WASI core without the tokio feature"
+);
+
 mod address;
 mod arguments;
 #[cfg(feature = "tokio")]

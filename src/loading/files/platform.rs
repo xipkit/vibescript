@@ -1,15 +1,25 @@
+#[cfg(target_os = "wasi")]
+pub(super) use super::wasi::{Dir, ReadDir};
 use crate::{CallContext, Result};
 #[cfg(target_vendor = "apple")]
 use crate::{Error, ErrorKind};
+#[cfg(not(target_os = "wasi"))]
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
-use cap_std::fs::Dir;
-use std::{ffi::OsStr, fs::File, io};
+#[cfg(not(target_os = "wasi"))]
+pub(super) use cap_std::fs::{Dir, ReadDir};
+use std::{
+    ffi::OsStr,
+    fs::File,
+    io,
+    path::{Path, PathBuf},
+};
 
 #[cfg(unix)]
 pub(super) const PATH_WORKSPACE: usize = libc::PATH_MAX as usize;
 #[cfg(not(unix))]
 pub(super) const PATH_WORKSPACE: usize = 131072;
 
+#[cfg(not(target_os = "wasi"))]
 pub(super) fn open(parent: &Dir, name: &OsStr) -> io::Result<File> {
     let mut options = cap_std::fs::OpenOptions::new();
     options.read(true).follow(FollowSymlinks::No);
@@ -108,4 +118,21 @@ pub(super) fn stored_name(
 #[cfg(not(target_vendor = "apple"))]
 pub(super) fn stored_name(_: &mut CallContext, _: &Dir, _: &OsStr) -> Result<Option<bool>> {
     Ok(None)
+}
+
+#[cfg(not(target_os = "wasi"))]
+pub(super) fn open_root(path: &Path) -> io::Result<(Dir, PathBuf)> {
+    let path = std::fs::canonicalize(path)?;
+    let directory = Dir::open_ambient_dir(&path, cap_std::ambient_authority())?;
+    Ok((directory, path))
+}
+
+#[cfg(target_os = "wasi")]
+pub(super) fn open_root(path: &Path) -> io::Result<(Dir, PathBuf)> {
+    super::wasi::open_root(path)
+}
+
+#[cfg(target_os = "wasi")]
+pub(super) fn open(parent: &Dir, name: &OsStr) -> io::Result<File> {
+    parent.open_file(name)
 }

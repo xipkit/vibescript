@@ -7,6 +7,8 @@ use std::{
 
 mod platform;
 mod root;
+#[cfg(target_os = "wasi")]
+mod wasi;
 pub(super) use root::{Opened, Root, escape};
 
 #[cfg(test)]
@@ -104,12 +106,12 @@ fn read_contents(ctx: &mut CallContext, reader: &mut impl Read, limit: usize) ->
 
 fn spelling_from_directory(
     ctx: &mut CallContext,
-    parent: &cap_std::fs::Dir,
+    parent: &platform::Dir,
     name: &std::ffi::OsStr,
 ) -> Result<bool> {
     ctx.checkpoint()?;
     let _scratch =
-        ctx.reserve(32768 + platform::PATH_WORKSPACE + size_of::<cap_std::fs::ReadDir>())?;
+        ctx.reserve(32768 + platform::PATH_WORKSPACE + size_of::<platform::ReadDir>())?;
     let directory = parent.entries();
     ctx.checkpoint()?;
     let mut directory = directory.map_err(|e| io_error("checking module filename", e))?;
