@@ -233,7 +233,13 @@ pub(super) fn debug_big(
     if sharp {
         field.flags |= SHARP;
     }
-    for (index, word) in bytes.rchunks(2 * std::mem::size_of::<usize>()).enumerate() {
+    // Go uses 64-bit words on its WebAssembly targets.
+    let word_bytes = if cfg!(target_family = "wasm") {
+        8
+    } else {
+        std::mem::size_of::<usize>()
+    };
+    for (index, word) in bytes.rchunks(2 * word_bytes).enumerate() {
         ctx.charge(1)?;
         if index > 0 {
             output.write(ctx, if sharp { b", " } else { b" " })?;
